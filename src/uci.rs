@@ -6,6 +6,8 @@
 //! from a GUI or the command line.
 
 use std::io::{self, BufRead, Write};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use crate::chess::fen;
 use crate::chess::movegen::generate_legal_moves;
@@ -47,8 +49,13 @@ pub fn run() {
                 }
             }
             "go" => {
-                let depth = parse_go_depth(&tokens).unwrap_or(4);
-                match search::search_best_move(&mut pos, depth) {
+                // M1.1: build the interruptible search inputs. A fresh
+                // stop flag per `go` means each search starts un-aborted;
+                // M1.2 will let `stop` flip this flag from another thread.
+                let limits = parse_go_limits(&tokens);
+                let stop = Arc::new(AtomicBool::new(false));
+                let ctx = search::SearchContext::new(stop);
+                match search::search_best_move(&mut pos, &limits, &ctx) {
                     Some((m, _)) => println!("bestmove {}", move_to_uci(m)),
                     None => println!("bestmove 0000"),
                 }
@@ -144,15 +151,30 @@ pub fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
         .find(|m| m.from == from && m.to == to && m.promotion == promo)
 }
 
-fn parse_go_depth(tokens: &[&str]) -> Option<u32> {
+/// Parse a `go` command into `SearchLimits`. M1.1 honours
+/// `depth` and `nodes`; `movetime` / `wtime` / `btime` / `winc` /
+/// `binc` / `infinite` are parsed by M1.3 time control. When no
+/// `depth` is given we fall back to a fixed cap so a synchronous `go`
+/// (no stop yet) can't search forever — true infinite time control
+/// arrives in M1.3.
+fn parse_go_limits(tokens: &[&str]) -> search::SearchLimits {
+    let mut limits = search::SearchLimits::default();
     let mut i = 1;
     while i < tokens.len() {
-        if tokens[i] == "depth" {
-            if let Some(d) = tokens.get(i + 1).and_then(|s| s.parse::<u32>().ok()) {
-                return Some(d);
+        match tokens[i] {
+            "depth" => {
+                if let Some(d) = tokens.get(i + 1).and_then(|s| s.parse::<u32>().ok()) {
+                    limits.depth = Some(d);
+                }
             }
+            "nodes" => {
+                if let Some(n) = tokens.get(i + 1).and_then(|s| s.parse::<u64>().ok()) {
+                    limits.nodes = Some(n);
+                }
+            }
+            _ => {}
         }
         i += 1;
     }
-    None
+    limits
 }
