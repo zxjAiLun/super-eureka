@@ -345,10 +345,25 @@ pub fn search_best_move(
                 if let Some(idx) = root_moves.iter().position(|m| *m == mv) {
                     root_moves.swap(0, idx);
                 }
+                // Standard UCI info: nodes from the atomic counter, time
+                // from the search start, nps = nodes*1000/ms. nps is guarded
+                // against time == 0 (no divide-by-zero) and computed in u128
+                // to avoid overflow on huge node counts. Only completed
+                // iterations emit info; an aborted depth 1 emits nothing.
+                let nodes = ctx.nodes.load(Ordering::Relaxed);
+                let elapsed_ms = ctx.start.elapsed().as_millis();
+                let nps = if elapsed_ms > 0 {
+                    (nodes as u128 * 1000 / elapsed_ms) as u64
+                } else {
+                    0
+                };
                 println!(
-                    "info depth {} score {} pv {}",
+                    "info depth {} score {} nodes {} time {} nps {} pv {}",
                     depth,
                     score_to_uci(sc),
+                    nodes,
+                    elapsed_ms,
+                    nps,
                     move_to_uci(mv)
                 );
                 // The search runs on its own thread; flush after every
