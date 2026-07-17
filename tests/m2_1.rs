@@ -292,6 +292,204 @@ fn quiescence_qply_cap_terminates_without_corruption() {
     assert_eq!(to_fen(&pos), before, "position must be untouched");
 }
 
+/// The blocking bug: at the `MAX_QPLY` cap, a position whose side to move
+/// is in check must NOT fall back to a raw `evaluate(pos)` (that would
+/// re-introduce stand-pat-on-check — scoring a position with the king still
+/// attacked as if it were a quiet leaf). It must still search the evasions.
+///
+/// Here White (Kg1, Ra2) is in check from the a-file... no — from the g2
+/// rook (Rg2). The rook is capturable: `Kxg2` wins it. A buggy cap that
+/// returns `evaluate(pos)` would report the static balance (material is even,
+/// 0); correct behaviour searches the forced evasion and returns the won rook.
+#[test]
+fn quiescence_qply_cap_preserves_check_evasions() {
+    let mut pos = parse_fen("6k1/8/8/8/8/8/R5r1/6K1 w - - 0 1").expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(
+        pos.is_in_check(pos.side),
+        "test premise: White is in check at the cap"
+    );
+    let static_eval = evaluate(&pos); // material even -> 0
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+    // Enter exactly at the cap, in check.
+    let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
+
+    // The forced `Kxg2` wins the rook (+500); a stand-pat-on-check bug
+    // would instead return the even material balance (0).
+    assert_ne!(
+        out, static_eval,
+        "cap + in check must search evasions, not stand pat (out={} vs static={})",
+        out, static_eval
+    );
+    assert!(
+        out > static_eval + 300,
+        "capturing the checking rook is worth far more than the static balance, got {}",
+        out
+    );
+    // Evasions were genuinely searched (entry node + each evasion), not a
+    // single-node stand-pat shortcut.
+    assert!(
+        ctx.nodes.load(Ordering::Relaxed) > 1,
+        "cap + in check must search the evasions (not stand pat)"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// At the cap, a position that is already checkmated (no legal evasion) must
+/// still return the ply-distanced mate score — the early mate/stalemate
+/// detection runs *before* the cap branch, so the cap must not shadow it.
+#[test]
+fn quiescence_qply_cap_in_check_mate_returns_mate() {
+    // Fool's mate: White to move is already checkmated (Qh4#).
+    let mut pos = parse_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3")
+        .expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+    let ply = 3u32;
+    let out = quiescence(&mut pos, ply, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
+
+    assert_eq!(
+        out,
+        -(MATE - ply as i32),
+        "cap must not shadow the early mate detection"
+    );
+    // Mate is detected before the cap recursion: only the entry node.
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        1,
+        "checkmate is scored before any cap recursion"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// At the cap, a position in check whose only evasions are *quiet king
+/// moves* (no capture of the checker, no block) must still search them — the
+/// mere presence of >1 node proves evasions were explored rather than the
+/// king being stand-patted on an attacked square.
+#[test]
+fn quiescence_qply_cap_in_check_only_quiet_king_move() {
+    // White Kg1 in check from Rg8; only the king can move (Ph2 can neither
+    // capture nor block). Every evasion is a quiet king step.
+    let mut pos = parse_fen("1k4r1/8/8/8/8/8/7P/6K1 w - - 0 1").expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+    let _out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
+
+    // Quiet king steps do not change material, so the score equals the static
+    // balance — but the node count proves the evasions were searched.
+    assert!(
+        ctx.nodes.load(Ordering::Relaxed) > 1,
+        "cap + in check must search the quiet king evasions (not stand pat)"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// At the cap, a position in check whose only evasions are *blocks* (the
+/// king has no safe square and the checker cannot be captured) must still
+/// search them — the block interposes and the score reflects the searched
+/// line, not a stand-pat on the attacked king.
+#[test]
+fn quiescence_qply_cap_in_check_only_block() {
+    // White Kh1 in check from Rh8; Rg8 covers every king flight (g1, g2),
+    // Rh8 covers h2, so the king cannot move. The only evasions are queen
+    // blocks on the h-file (Qh2 / Qh5).
+    let mut pos = parse_fen("1k4rr/8/8/8/8/8/4Q3/7K w - - 0 1").expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+    let _out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
+
+    assert!(
+        ctx.nodes.load(Ordering::Relaxed) > 1,
+        "cap + in check must search the blocking evasions (not stand pat)"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// At the cap + in check, an exhaustion of the node budget mid-loop must
+/// abort (`None`) and leave the board byte-for-byte intact — every made move
+/// on the aborted path is unmade on the way out.
+#[test]
+fn quiescence_qply_cap_child_interrupt_recovery() {
+    // Same in-check-with-capturable-checker position as the main test, so it
+    // has multiple evasions to explore.
+    let fen = "6k1/8/8/8/8/8/R5r1/6K1 w - - 0 1";
+    let mut pos = parse_fen(fen).expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+
+    let ctx = fresh_ctx();
+    // Budget of 2: the cap entry node (1) plus exactly one searched
+    // evasion (2); the next child cannot acquire a node and aborts.
+    let limits = SearchLimits {
+        depth: None,
+        nodes: Some(2),
+    };
+    let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits);
+
+    assert!(out.is_none(), "exhausted node budget must abort (None)");
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        2,
+        "exactly the budget is consumed"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// Secondary issue from review: the non-check cap branch used to return a raw
+/// `evaluate(pos)`, which could fall below `alpha` or above `beta` and break
+/// the fail-hard contract the rest of the tree relies on. At the cap a
+/// non-check node must honour fail-hard: a stand-pat that meets/exceeds beta
+/// returns beta, and no child is searched (single node).
+#[test]
+fn quiescence_qply_cap_noncheck_respects_fail_hard() {
+    // Non-check position with a positive stand-pat (+120: knight vs 2 pawns).
+    let fen = "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1";
+    let mut pos = parse_fen(fen).expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(
+        !pos.is_in_check(pos.side),
+        "test premise: White is NOT in check"
+    );
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+
+    // beta clamp below stand-pat: the cap must return beta, not stand_pat.
+    let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, 0, &ctx, &limits).expect("not stopped");
+    assert_eq!(
+        out, 0,
+        "non-check cap must return beta on a stand-pat that meets it, got {}",
+        out
+    );
+    // No child searched at the cap: only the entry node.
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        1,
+        "the non-check cap must not search any child"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+
+    // Lower-bound clamp: stand-pat below alpha returns alpha (not stand_pat).
+    let mut pos = parse_fen(fen).expect("valid FEN");
+    let out = quiescence(&mut pos, 0, MAX_QPLY, 200, BETA, &ctx, &limits).expect("not stopped");
+    assert_eq!(
+        out, 200,
+        "non-check cap must return alpha when stand-pat is below it, got {}",
+        out
+    );
+}
+
 /// Regression: adding quiescence at the leaves must not break a plain
 /// mate-in-one found by iterative deepening, and the returned move / score
 /// must still be the mate.

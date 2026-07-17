@@ -298,8 +298,12 @@ pub fn quiescence(
 ///     moves so an empty list is scored `0` (stalemate), instead of being
 ///     mistaken for "no captures, so stand-pat".
 ///  3. **Tactical set** = captures + en passant + promotions (`is_tactical`).
-///  4. **`MAX_QPLY` cap** guarantees termination; at the cap we still detect
-///     mate / stalemate first, then return the static eval without recursing.
+///  4. **`MAX_QPLY` cap** guarantees termination. At the cap we still
+///     detect mate / stalemate first (handled above). A *non-check* node then
+///     stands pat with fail-hard bounds; an *in-check* node must NOT stand
+///     pat, so it delegates to `search_final_evasion_ply` (one ply of
+///     evasions, no recursion) — never a raw static eval with the king
+///     still attacked.
 ///  5. **Fail-hard alpha-beta**, matching `negamax`. On abort we return
 ///     `None`, having unmade any move so the board is left untouched.
 fn quiescence_entered(
@@ -324,9 +328,26 @@ fn quiescence_entered(
     }
 
     // Termination cap. Mate / stalemate were handled above; now stop
-    // recursing and return the static evaluation as a bounded estimate.
+    // recursing. Two cases:
+    //   - NOT in check: stand pat, but honour fail-hard (a raw
+    //     `evaluate(pos)` could fall below `alpha` or above `beta` and
+    //     break the contract the rest of the tree relies on).
+    //   - IN check: we MUST still search the evasions — a static eval
+    //     with the king still attacked is meaningless, and returning it
+    //     would re-introduce exactly the stand-pat-on-check bug this
+    //     branch is meant to bound. `search_final_evasion_ply` searches
+    //     exactly one ply of evasions with no further recursion, so a
+    //     would-be-cyclic check chain terminates (no repetition detection
+    //     exists yet, so we do not let it recurse).
     if qply >= MAX_QPLY {
-        return Some(evaluate(pos));
+        if !in_check {
+            let stand_pat = evaluate(pos);
+            if stand_pat >= beta {
+                return Some(beta);
+            }
+            return Some(alpha.max(stand_pat));
+        }
+        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits);
     }
 
     // Decide which moves to search.
@@ -366,6 +387,78 @@ fn quiescence_entered(
                 pos.unmake_move(undo);
                 return None;
             }
+        }
+    }
+    Some(alpha)
+}
+
+/// Emergency cap handler for a position where the side to move is *in check*
+/// at `MAX_QPLY`.
+///
+/// We must NOT stand pat — a static eval with the king still attacked is
+/// meaningless, and returning it would re-introduce the stand-pat-on-check
+/// bug. But we also must not recurse into a possibly-cyclic check chain
+/// (there is no repetition / 50-move detection in the search yet), so we
+/// search exactly one ply of evasions here with no further quiescence
+/// recursion. That guarantees termination:
+///   - every child move is made, scored, and unmade (board left intact);
+///   - a terminal child (the opponent is checkmated / stalemated by our
+///     evasion) is scored by its game-theoretic value;
+///   - a non-terminal child is approximated by its static eval — the same
+///     safe cap estimate we would otherwise have used, but now derived from
+///     the *searched* evasion rather than the illegal resting position;
+///   - stop / node-budget / hard-deadline are honoured at every child
+///     entry (`try_enter_node`), and a None abort leaves the board untouched
+///     because it is returned before any move is made.
+///
+/// This is a deliberate, incomplete stopgap: the full fix is repetition /
+/// 50-move detection, which lands in a later milestone. Until then this at
+/// least never evaluates a position with the king in check as if it were a
+/// quiet leaf.
+fn search_final_evasion_ply(
+    pos: &mut Position,
+    ply: u32,
+    mut alpha: i32,
+    beta: i32,
+    legal: &[Move],
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+) -> Option<i32> {
+    for &m in legal {
+        // Honour stop / hard-deadline / node-budget before touching the
+        // board (same contract as the recursive `quiescence` entry). If we
+        // cannot acquire a node we abort — but no move has been made yet, so
+        // the board is already intact.
+        if !try_enter_node(ctx, limits) {
+            return None;
+        }
+
+        let undo = pos.make_move(m);
+
+        // `legal` came from `generate_legal_moves`, so this evasion is legal:
+        // the opponent is NOT attacking our king here. Score the child:
+        //   - opponent has no move & is in check -> we delivered mate;
+        //   - opponent has no move & not in check -> stalemate (0);
+        //   - otherwise approximate with the static eval (safe cap estimate).
+        let child_in_check = pos.is_in_check(pos.side);
+        let child_legal = generate_legal_moves(pos);
+        let score = if child_legal.is_empty() {
+            if child_in_check {
+                MATE - (ply as i32 + 1)
+            } else {
+                0
+            }
+        } else {
+            -evaluate(pos)
+        };
+
+        pos.unmake_move(undo);
+
+        if score >= beta {
+            return Some(beta); // fail-hard cutoff
+        }
+        if score > alpha {
+            alpha = score;
         }
     }
     Some(alpha)

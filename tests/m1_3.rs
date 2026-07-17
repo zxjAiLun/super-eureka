@@ -297,3 +297,35 @@ fn uci_go_infinite_overrides_clock_and_movetime() {
     let bm = bm.expect("stop must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
 }
+
+/// The whole point of the `EngineProcess` RAII guard is that its `Drop` runs
+/// even when a test panics mid-flight (an `assert!` fails, or the body
+/// `panic!`s before the usual `stop`/`quit` cleanup). This test proves it:
+/// we spawn an engine, start a `go infinite`, then deliberately panic inside a
+/// `catch_unwind`. The guard's `Drop` must still reap the child. We then
+/// start a *fresh* engine and confirm it answers `isready` -> `readyok`,
+/// which it could not do cleanly if the first process had leaked.
+#[test]
+fn engine_process_is_reaped_when_test_body_panics() {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let (mut engine, stdout) = common::spawn_engine();
+        let _rx = common::spawn_reader(stdout);
+
+        engine.send("position startpos");
+        engine.send("go infinite");
+
+        panic!("intentional cleanup test");
+    }));
+
+    assert!(result.is_err(), "the body must have panicked");
+
+    // A fresh instance must come up cleanly -> the previous one was reaped.
+    let (mut engine, stdout) = common::spawn_engine();
+    let rx = common::spawn_reader(stdout);
+    engine.send("isready");
+
+    assert_eq!(
+        common::recv_until(&rx, "readyok", Duration::from_secs(3)).as_deref(),
+        Some("readyok")
+    );
+}
