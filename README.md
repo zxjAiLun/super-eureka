@@ -43,16 +43,16 @@ go depth 4
 quit
 ```
 
-典型输出：
+典型输出（数字随机器与局面变化）：
 
 ```
 id name ChessEngineDemo
 id author Rust-learner
 uciok
-info depth 1 score cp 0 pv b1c3
-info depth 2 score cp 0 pv b1c3
-info depth 3 score cp 0 pv b1c3
-info depth 4 score cp 0 pv b1c3
+info depth 1 score cp 0 nodes 20 time 0 nps 0 pv b1c3
+info depth 2 score cp 0 nodes 420 time 1 nps 420000 pv b1c3
+info depth 3 score cp 0 nodes 9200 time 4 nps 2300000 pv b1c3
+info depth 4 score cp 0 nodes 197281 time 9 nps 21920000 pv b1c3
 bestmove b1c3
 ```
 
@@ -61,25 +61,32 @@ bestmove b1c3
 1. `cargo build --release`，可执行文件在 `target/release/chess-engine-demo`（Windows 上为 `.exe`）。
 2. 在 GUI 里把引擎路径指向它，协议选择 **UCI**。
 3. 已支持：`uci` / `isready` / `ucinewgame` / `position startpos|fen ... moves ...` /
-   `go depth N` / `stop` / `quit`，外加调试用的 `perft N`。
+   `go depth N` / `go nodes N` / `go movetime MS` / `go infinite` /
+   `go wtime btime [winc binc] [movestogo]` / `stop` / `quit`，外加调试用的 `perft N`。
+   搜索在独立线程运行，`stop` 能即时中断；时间管理为基础策略（soft/hard deadline + 安全余量）。
 
 ## 当前支持的 UCI 命令
 
 | 命令 | 状态 |
 | --- | --- |
 | `uci` | ✅ |
-| `isready` / `readyok` | ✅ |
+| `isready` / `readyok` | ✅ 即使搜索进行中也立即回复 |
 | `ucinewgame` | ✅ |
 | `position ... moves ...` | ✅ 只接受**严格合法**着法；遇到非法着法输出 `info string invalid move <uci>` 并保持原局面，绝不偷偷重置 |
 | `go depth N` | ✅ |
-| `stop` | ⚠️ 占位：当前为单线程同步搜索，`stop` 不会中断搜索（见路线图 Milestone 1） |
+| `go nodes N` | ✅ |
+| `go movetime MS` | ✅ |
+| `go infinite` | ✅ 持续搜索直到收到 `stop` |
+| `go wtime btime [winc binc] [movestogo]` | ✅ 按走子方时钟分配；基础策略 |
+| `stop` | ✅ 即时中断搜索并输出 `bestmove` |
 | `quit` / `exit` | ✅ |
 | `perft N`（调试） | ✅ |
 
 ### 暂不支持（尚未实现）
 
-`go movetime` / `go wtime btime winc binc` / `go infinite` / `go nodes`
-—— 当前这些参数会被忽略并退化为 `go depth 4`。时间管理与异步停止在 Milestone 1 实现。
+`setoption`（如 Hash 大小）、`ponder`、`searchmoves`、`mate N` 等；完整主变 `info pv`、
+quiescence、置换表在 Milestone 2/3 加入。当前时间分配为**基础策略**（固定比例 + 安全余量），
+不根据局面复杂度动态调整。
 
 ## 正确性状态（Milestone 0）
 
@@ -94,9 +101,10 @@ bestmove b1c3
 
 ## 开发路线
 
-- **Milestone 0（当前）**：可信基线 —— 修复搜索终局边界、加固 FEN、UCI 仅合法着法、加 CI、加 README。
-- **Milestone 1**：真正的 UCI Demo —— 搜索移到独立线程，`stop` 与时间控制
-  （`go movetime` / `infinite` / `wtime` / `btime` / `winc` / `binc`）可用，`info` 输出 `nodes` / `time` / `nps`。
+- **Milestone 0**：可信基线 —— 修复搜索终局边界、加固 FEN、UCI 仅合法着法、加 CI、加 README。
+- **Milestone 1（当前）**：真正的 UCI Demo —— 搜索在独立线程运行，`stop` 即时中断；
+  时间控制 `go movetime` / `infinite` / `wtime` / `btime` / `winc` / `binc` / `movestogo` 可用
+  （soft/hard deadline + 安全余量）；`info` 输出 `depth` / `score` / `nodes` / `time` / `nps` / `pv`。
 - **Milestone 2**：开始像在下棋 —— quiescence search（吃子 + 升变；被将军时解将全部走法都搜）、
   着法排序（PV / MVV-LVA / 升变 / killer / history）、Piece-Square Table 评估、
   `info pv` 给出完整主变。
