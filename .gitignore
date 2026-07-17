@@ -1,0 +1,9 @@
+# Rust build artifacts
+/target
+
+# WorkBuddy private memory / project data
+.workbuddy/
+
+# Editor/OS noise
+*.swp
+.DS_Store
