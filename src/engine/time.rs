@@ -64,8 +64,13 @@ pub fn compute_budget(input: &TimeInput, now: Instant) -> TimeBudget {
 /// thread exit + output never land on the very last millisecond.
 fn movetime_budget(movetime: Duration, now: Instant) -> TimeBudget {
     let reserve = std::cmp::max(Duration::from_millis(1), movetime / 50);
-    let hard = now + movetime.saturating_sub(reserve);
-    let soft = now + (movetime * 9 / 10);
+    let hard_budget = movetime.saturating_sub(reserve);
+    // Soft is 90% of the *hard* budget, so it can never be later than hard
+    // (this fixes the tiny-movetime case where the old `movetime*9/10`
+    // exceeded `movetime - reserve`). Always holds: soft <= hard <= movetime.
+    let soft_budget = hard_budget * 9 / 10;
+    let hard = now + hard_budget;
+    let soft = now + soft_budget;
     TimeBudget {
         soft_deadline: Some(soft),
         hard_deadline: Some(hard),
@@ -92,7 +97,12 @@ fn clock_budget(
         }
     };
     let moves_left = movestogo.unwrap_or(DEFAULT_MOVES_LEFT).max(1);
-    let allocation = usable / moves_left + increment / 2;
+    let requested = usable / moves_left + increment / 2;
+    // P0: never overdraw the clock. The increment is credited to the clock
+    // ONLY after the move is made, so a large increment must not extend the
+    // current allocation past the time we actually have right now. Clamp to
+    // the usable window so `hard_deadline <= now + remaining - reserve`.
+    let allocation = requested.min(usable);
     if allocation.is_zero() {
         return TimeBudget {
             soft_deadline: Some(now),
@@ -139,9 +149,12 @@ mod tests {
         );
         let soft = b.soft_deadline.expect("soft");
         let hard = b.hard_deadline.expect("hard");
-        // soft ~ 90ms, hard = 100 - max(1, 2) = 98ms.
+        // soft = 98*9/10 = 88ms, hard = 100 - max(1, 2) = 98ms.
         assert!(soft < hard, "soft must be before hard");
-        assert!(within(soft - now, 89, 91), "soft ~90ms");
+        assert!(
+            within(soft - now, 87, 89),
+            "soft ~88ms (90% of hard budget)"
+        );
         assert!(
             within(hard - now, 97, 99),
             "hard ~98ms (movetime minus reserve)"
@@ -213,5 +226,67 @@ mod tests {
             hard <= now,
             "tiny remaining must yield an already-passed hard deadline"
         );
+    }
+
+    #[test]
+    fn clock_allocation_never_overdraws_remaining_time() {
+        // P0: a large increment must not extend the current allocation past the
+        // time we actually have right now. The increment is credited only AFTER
+        // the move is made, so we cannot spend it yet.
+        let cases: &[(u64, u64, Option<u32>)] =
+            &[(1000, 5000, None), (1000, 5000, Some(1)), (50, 10000, None)];
+        for &(rem_ms, inc_ms, m2go) in cases {
+            let now = Instant::now();
+            let remaining = Duration::from_millis(rem_ms);
+            let reserve = std::cmp::max(Duration::from_millis(10), remaining / 50);
+            let cap = remaining.saturating_sub(reserve);
+            let b = compute_budget(
+                &TimeInput {
+                    remaining: Some(remaining),
+                    increment: Some(Duration::from_millis(inc_ms)),
+                    movestogo: m2go,
+                    ..Default::default()
+                },
+                now,
+            );
+            let hard = b.hard_deadline.expect("hard present");
+            assert!(
+                hard <= now + cap,
+                "P0: hard deadline must not exceed now + remaining - reserve \
+                 (remaining={}ms, increment={}ms, movestogo={:?})",
+                rem_ms,
+                inc_ms,
+                m2go
+            );
+            assert!(
+                b.soft_deadline.expect("soft present") <= hard,
+                "soft must not be after hard"
+            );
+        }
+    }
+
+    #[test]
+    fn movetime_soft_never_after_hard_for_small_values() {
+        // P1: with the old `soft = movetime*9/10`, movetime=2ms gave
+        // soft=1.8ms > hard=1ms, so the search hit the hard deadline inside a
+        // node and soft lost all meaning. Soft must always be <= hard.
+        for &ms in &[0u64, 1, 2, 3, 5, 10, 100] {
+            let now = Instant::now();
+            let b = compute_budget(
+                &TimeInput {
+                    movetime: Some(Duration::from_millis(ms)),
+                    ..Default::default()
+                },
+                now,
+            );
+            let soft = b.soft_deadline.expect("soft present");
+            let hard = b.hard_deadline.expect("hard present");
+            assert!(soft <= hard, "soft must be <= hard for movetime={}ms", ms);
+            assert!(
+                hard <= now + Duration::from_millis(ms),
+                "hard must not exceed movetime for movetime={}ms",
+                ms
+            );
+        }
     }
 }

@@ -38,12 +38,16 @@ pub const MATE: i32 = 1_000_000;
 /// Time control is *not* here: `movetime` / clock fields are parsed into a
 /// `TimeBudget` (soft/hard deadlines) carried on `SearchContext` instead, so
 /// the search core never mixes "how much time" with "what to search".
-/// `infinite` means "iterate until `stop` / a deadline" (no depth/nodes cap).
+/// "Infinite" (iterate until `stop` / an external deadline) is expressed by
+/// the *absence* of a depth cap, a node cap, and a hard deadline — there is
+/// deliberately no `infinite: bool` flag, so there is a single source of
+/// truth for "keep deepening". The UCI layer encodes `go infinite` as
+/// `SearchLimits { depth: None, nodes: None }` plus a `TimeBudget` whose
+/// deadlines are both `None`.
 #[derive(Clone, Default)]
 pub struct SearchLimits {
     pub depth: Option<u32>,
     pub nodes: Option<u64>,
-    pub infinite: bool,
 }
 
 /// Live, *shared* state for one search run. `stop` and `nodes` are
@@ -353,7 +357,14 @@ pub fn search_best_move(
                 let nodes = ctx.nodes.load(Ordering::Relaxed);
                 let elapsed_ms = ctx.start.elapsed().as_millis();
                 let nps = if elapsed_ms > 0 {
-                    (nodes as u128 * 1000 / elapsed_ms) as u64
+                    let nps128 = nodes as u128 * 1000 / elapsed_ms;
+                    // Saturate instead of truncating on a >u64::MAX result
+                    // (theoretical only, but free to be correct).
+                    if nps128 > u64::MAX as u128 {
+                        u64::MAX
+                    } else {
+                        nps128 as u64
+                    }
                 } else {
                     0
                 };

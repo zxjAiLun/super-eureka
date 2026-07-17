@@ -72,7 +72,6 @@ fn m1_nodes_limit_keeps_last_completed_iteration() {
     let limits = SearchLimits {
         depth: Some(64),
         nodes: Some(budget),
-        ..Default::default()
     };
     let out = search_best_move(&mut pos, &limits, &ctx).expect("a legal move must be returned");
     let mv = out.best_move;
@@ -108,7 +107,6 @@ fn m1_depth1_interrupted_still_returns_fallback() {
     let limits = SearchLimits {
         depth: Some(4),
         nodes: Some(1),
-        ..Default::default()
     };
     let out =
         search_best_move(&mut pos, &limits, &ctx).expect("a legal fallback move must be returned");
@@ -149,7 +147,6 @@ fn m1_nodes_zero_processes_nothing() {
     let limits = SearchLimits {
         depth: Some(4),
         nodes: Some(0),
-        ..Default::default()
     };
     let out =
         search_best_move(&mut pos, &limits, &ctx).expect("a legal fallback move must be returned");
@@ -197,7 +194,6 @@ fn m1_unmet_node_limit_does_not_change_result() {
         &SearchLimits {
             depth: Some(2),
             nodes: Some(1_000_000),
-            ..Default::default()
         },
         &SearchContext::new(Arc::new(AtomicBool::new(false))),
     )

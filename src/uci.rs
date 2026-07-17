@@ -19,6 +19,22 @@ use crate::engine::search;
 use crate::engine::search::SearchLimits;
 use crate::engine::time::{self, TimeBudget, TimeInput};
 
+/// Largest UCI time value (in milliseconds) we accept. UCI times arrive as
+/// raw `u64` strings; a corrupted or malicious value such as
+/// `go movetime 18446744073709551615` would otherwise build a `Duration`
+/// large enough to make `Instant + Duration` panic on some platforms. We
+/// clamp far below any `Instant` representable range: ~49 days is more than
+/// any real game could ever need.
+const MAX_UCI_TIME_MS: u64 = u32::MAX as u64;
+
+/// Parse a UCI time token (milliseconds) into a `Duration`, clamping to
+/// `MAX_UCI_TIME_MS`. Returns `None` if the token is missing or not a
+/// non-negative base-10 integer.
+fn parse_ms(s: &str) -> Option<Duration> {
+    let ms = s.parse::<u64>().ok()?;
+    Some(Duration::from_millis(ms.min(MAX_UCI_TIME_MS)))
+}
+
 /// A search currently running on its own thread. `stop` is shared with the
 /// thread's `SearchContext`, so flipping it aborts the search; `handle` lets
 /// the main loop `join` the thread (and collect its `bestmove`) before it
@@ -37,7 +53,18 @@ struct ActiveSearch {
 fn stop_and_join(active: &mut Option<ActiveSearch>) {
     if let Some(a) = active.take() {
         a.stop.store(true, Ordering::SeqCst);
-        let _ = a.handle.join();
+        match a.handle.join() {
+            Ok(()) => {}
+            Err(_) => {
+                // The search thread panicked. A GUI would otherwise wait
+                // forever for a `bestmove` that never comes and get no clue
+                // why. Report it and emit a safe fallback move so the protocol
+                // stays complete.
+                println!("info string search thread panicked");
+                println!("bestmove 0000");
+                let _ = std::io::stdout().flush();
+            }
+        }
     }
 }
 
@@ -246,10 +273,7 @@ fn parse_go_params(tokens: &[&str]) -> GoParams {
     // Helper: read tokens[i+1] as milliseconds. Returns None if absent or
     // not a valid integer.
     let read_ms = |tokens: &[&str], i: usize| -> Option<Duration> {
-        tokens
-            .get(i + 1)
-            .and_then(|s| s.parse::<u64>().ok())
-            .map(Duration::from_millis)
+        tokens.get(i + 1).and_then(|s| parse_ms(s))
     };
     while i < tokens.len() {
         match tokens[i] {
@@ -298,10 +322,30 @@ fn parse_go_params(tokens: &[&str]) -> GoParams {
 }
 
 /// Turn raw `go` params for the side to move into search limits + a time
-/// budget. Picks `wtime`/`winc` or `btime`/`binc` based on `side`. A search
-/// is treated as `infinite` (iterate until `stop`) when `go infinite` is
-/// given or when no depth, nodes, or time limit was supplied at all.
+/// budget. Picks `wtime`/`winc` or `btime`/`binc` based on `side`.
+///
+/// `go infinite` is the highest-priority directive: it searches until `stop`
+/// and *ignores* any clock / movetime / nodes also present on the line (a GUI
+/// may send `go infinite wtime 1000 btime 1000` for analysis mode). "Infinite"
+/// is encoded as `SearchLimits { depth: None, nodes: None }` plus a
+/// `TimeBudget` with no deadlines — there is no separate flag, so the search
+/// core has a single source of truth for "keep deepening" (the absence of a
+/// depth cap, a node cap, and a hard deadline). A bare `go` (no limits at
+/// all) falls through to the same infinite behaviour via `compute_budget`.
 fn build_limits_and_budget(params: &GoParams, side: Color) -> (SearchLimits, TimeBudget) {
+    // Highest priority: `go infinite` overrides every other time parameter.
+    if params.infinite {
+        return (
+            SearchLimits {
+                depth: None,
+                nodes: None,
+            },
+            TimeBudget {
+                soft_deadline: None,
+                hard_deadline: None,
+            },
+        );
+    }
     let time_input = TimeInput {
         movetime: params.movetime,
         remaining: if side == Color::White {
@@ -318,13 +362,52 @@ fn build_limits_and_budget(params: &GoParams, side: Color) -> (SearchLimits, Tim
     };
     let now = Instant::now();
     let budget = time::compute_budget(&time_input, now);
-    let has_time = budget.hard_deadline.is_some();
-    let infinite =
-        params.infinite || (params.depth.is_none() && params.nodes.is_none() && !has_time);
     let limits = SearchLimits {
         depth: params.depth,
         nodes: params.nodes,
-        infinite,
     };
     (limits, budget)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn huge_millis_is_clamped_not_panicked() {
+        // P1: `go movetime 18446744073709551615` must not panic when the
+        // deadline is built; the value is clamped to MAX_UCI_TIME_MS.
+        let d = parse_ms("18446744073709551615").expect("must parse");
+        assert!(
+            d <= Duration::from_millis(MAX_UCI_TIME_MS),
+            "u64::MAX ms must be clamped"
+        );
+        // Building a deadline from the clamped value must not panic either.
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            time::compute_budget(
+                &TimeInput {
+                    movetime: Some(d),
+                    ..Default::default()
+                },
+                Instant::now(),
+            )
+        }));
+        assert!(res.is_ok(), "deadline build must not panic");
+    }
+
+    #[test]
+    fn huge_clock_is_clamped() {
+        let tokens: Vec<&str> = "go wtime 18446744073709551615 btime 18446744073709551615"
+            .split_whitespace()
+            .collect();
+        let p = parse_go_params(&tokens);
+        assert!(
+            p.wtime.unwrap() <= Duration::from_millis(MAX_UCI_TIME_MS),
+            "wtime must be clamped"
+        );
+        assert!(
+            p.btime.unwrap() <= Duration::from_millis(MAX_UCI_TIME_MS),
+            "btime must be clamped"
+        );
+    }
 }

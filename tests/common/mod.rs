@@ -4,7 +4,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
 /// Path to the built engine binary. `CARGO_BIN_EXE_*` is set by Cargo at
@@ -59,18 +59,28 @@ pub fn spawn_reader(stdout: std::process::ChildStdout) -> mpsc::Receiver<String>
 /// the timeout elapses. Returns the matched line.
 pub fn recv_until(rx: &mpsc::Receiver<String>, prefix: &str, timeout: Duration) -> Option<String> {
     let deadline = std::time::Instant::now() + timeout;
-    while std::time::Instant::now() < deadline {
-        match rx.recv_timeout(Duration::from_millis(200)) {
+    loop {
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            return None;
+        }
+        // Wait at most 200ms, OR whatever time is left before the overall
+        // timeout — whichever is smaller. A 200ms idle gap is NOT the end:
+        // we keep polling until the deadline, so "wait up to 3s" really
+        // waits up to 3s (this matters on slow CI / heavy-load machines
+        // where a 200ms-only wait produced flaky false failures).
+        let wait = std::cmp::min(Duration::from_millis(200), deadline - now);
+        match rx.recv_timeout(wait) {
             Ok(line) => {
                 if line.starts_with(prefix) {
                     return Some(line);
                 }
             }
-            // Channel closed (engine exited) or a 200ms idle gap.
-            Err(_) => return None,
+            Err(RecvTimeoutError::Timeout) => continue,
+            // Engine exited (or the pipe dropped): nothing more will arrive.
+            Err(RecvTimeoutError::Disconnected) => return None,
         }
     }
-    None
 }
 
 /// Send a line to the engine and flush.

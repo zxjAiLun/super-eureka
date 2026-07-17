@@ -40,7 +40,6 @@ fn hard_deadline_already_expired_stops_immediately() {
     let limits = SearchLimits {
         depth: None,
         nodes: None,
-        infinite: false,
     };
     let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
     assert!(
@@ -70,7 +69,6 @@ fn soft_deadline_keeps_depth1_and_skips_depth2() {
     let limits = SearchLimits {
         depth: Some(10),
         nodes: None,
-        infinite: false,
     };
     let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
     assert_eq!(
@@ -95,7 +93,6 @@ fn depth_and_nodes_whichever_hits_first() {
         &SearchLimits {
             depth: Some(2),
             nodes: Some(1_000_000),
-            infinite: false,
         },
         &ctx,
     )
@@ -114,7 +111,6 @@ fn depth_and_nodes_whichever_hits_first() {
         &SearchLimits {
             depth: Some(100),
             nodes: Some(1),
-            infinite: false,
         },
         &ctx,
     )
@@ -138,7 +134,6 @@ fn nodes_only_does_not_cap_at_depth_four() {
         &SearchLimits {
             depth: Some(5),
             nodes: None,
-            infinite: false,
         },
         &probe_ctx,
     )
@@ -154,7 +149,6 @@ fn nodes_only_does_not_cap_at_depth_four() {
         &SearchLimits {
             depth: None,
             nodes: Some(budget),
-            infinite: false,
         },
         &ctx,
     )
@@ -288,4 +282,30 @@ fn uci_info_includes_nodes_time_nps() {
     assert!(info.contains("time "), "info must include time: {}", info);
     assert!(info.contains("nps "), "info must include nps: {}", info);
     assert!(bm.is_some(), "must emit bestmove");
+}
+
+/// `go infinite` must override any clock / movetime also on the line
+/// (e.g. `go infinite wtime 100 btime 100 movetime 50`): the engine must
+/// keep searching until `stop`, not self-emit a bestmove after the 50ms
+/// movetime or the 100ms clock would have elapsed.
+#[test]
+fn uci_go_infinite_overrides_clock_and_movetime() {
+    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let rx = common::spawn_reader(stdout);
+    common::send(&mut stdin, "position startpos");
+    common::send(&mut stdin, "go infinite wtime 100 btime 100 movetime 50");
+    // Let it run well past the 50ms movetime / 100ms clock.
+    std::thread::sleep(Duration::from_millis(300));
+    // Peek for a bestmove: there must be none before `stop`.
+    let leaked = common::recv_until(&rx, "bestmove", Duration::from_millis(50));
+    assert!(
+        leaked.is_none(),
+        "go infinite must ignore clock/movetime and wait for stop"
+    );
+    common::send(&mut stdin, "stop");
+    let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
+    common::send(&mut stdin, "quit");
+    let _ = child.wait();
+    let bm = bm.expect("stop must produce a bestmove");
+    assert!(bm.starts_with("bestmove "), "got {:?}", bm);
 }
