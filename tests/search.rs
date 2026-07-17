@@ -47,7 +47,12 @@ fn search_finds_mate_in_one() {
     // on f7/g7/h7 block the king's escape). A depth-1 search must find it.
     let mut pos = parse_fen("6k1/5ppp/8/8/8/8/8/R6K w - - 0 1").expect("valid FEN");
     let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-    let limits = SearchLimits::default();
+    // An explicit depth is required: with the M1.3 loop a limit-less search
+    // is infinite (iterates until `stop`), so a bare default would hang.
+    let limits = SearchLimits {
+        depth: Some(4),
+        ..Default::default()
+    };
     let outcome = search::search_best_move(&mut pos, &limits, &ctx).expect("there is a legal move");
     assert_eq!(
         chess_engine_demo::chess::move_to_uci(outcome.best_move),

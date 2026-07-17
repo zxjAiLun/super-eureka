@@ -293,18 +293,27 @@ fn root_search(
     }
 }
 
-/// Iterative deepening from depth 1 up to the configured limit.
+/// Iterative deepening.
 ///
-/// Returns the best move of the last *fully completed* iteration and its
-/// score, or a legal fallback move if we were stopped before any iteration
-/// finished. The root position is never left corrupted, no matter where the
-/// abort lands.
+/// Termination semantics (M1.3 unifies them):
+///   - `depth` set: stop once that depth completes (the *only* natural end).
+///   - `nodes` set: stop when the node budget is exhausted (mid-iteration
+///     abort; we keep the last fully completed iteration).
+///   - time budget: `soft_deadline` is checked only *between* completed
+///     iterations (don't start a deeper one); `hard_deadline` is checked at
+///     every node entry (immediate unwind). `soft` is intentionally NOT
+///     checked per-node, or soft/hard would be indistinguishable.
+///   - `infinite` / no limit at all: keep deepening until `stop` or a
+///     deadline. There is no longer a hidden depth-4 cap.
+///
+/// Returns the best move of the last *fully completed* iteration, or a
+/// legal fallback if we were stopped before any iteration finished. The
+/// root position is never left corrupted, no matter where the abort lands.
 pub fn search_best_move(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
 ) -> Option<SearchOutcome> {
-    let max_depth = limits.depth.unwrap_or(4).max(1);
     let mut root_moves = generate_legal_moves(pos);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -318,7 +327,15 @@ pub fn search_best_move(
     let mut stopped = false;
 
     let mut depth = 1u32;
-    while depth <= max_depth {
+    loop {
+        // A configured depth cap is the only *natural* end. With only nodes
+        // or only time we keep deepening until the budget/deadline fires.
+        if let Some(max_depth) = limits.depth {
+            if depth > max_depth {
+                break; // stopped stays false: we finished the requested depth
+            }
+        }
+
         match root_search(pos, depth, &root_moves, ctx, limits) {
             (Some(mv), SearchResult::Score(sc)) => {
                 completed = Some((mv, sc));
@@ -334,11 +351,28 @@ pub fn search_best_move(
                     score_to_uci(sc),
                     move_to_uci(mv)
                 );
-                // The search runs on its own thread from M1.2; flush after
-                // every `info` so a GUI sees progress immediately rather
-                // than only once stdout is flushed at a later point.
+                // The search runs on its own thread; flush after every
+                // `info` so a GUI sees progress immediately.
                 let _ = std::io::stdout().flush();
-                depth += 1;
+
+                // soft deadline: checked only between completed iterations.
+                // If it has fired, keep this iteration's result and do NOT
+                // start a deeper one — a partial deeper iteration could blow
+                // the clock for no guaranteed gain.
+                if let Some(sd) = ctx.soft_deadline {
+                    if Instant::now() >= sd {
+                        stopped = true;
+                        break;
+                    }
+                }
+                // hard deadline / external stop / node budget: stop now.
+                if should_abort(ctx, limits) {
+                    stopped = true;
+                    break;
+                }
+                // saturating_add prevents a theoretical u32 overflow at
+                // absurd depths (never reached in practice).
+                depth = depth.saturating_add(1);
             }
             (_, SearchResult::Stopped) => {
                 stopped = true;
@@ -348,12 +382,6 @@ pub fn search_best_move(
             // `root_search`, so `(None, Score)` is unreachable; the
             // compiler still requires the arm to be listed.
             (None, SearchResult::Score(_)) => unreachable!(),
-        }
-        // Re-check at the loop level too, in case the abort tripped between
-        // iterations or a node-limit was exactly met at an iteration boundary.
-        if should_abort(ctx, limits) {
-            stopped = true;
-            break;
         }
     }
 
