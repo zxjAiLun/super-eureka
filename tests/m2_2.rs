@@ -1,9 +1,11 @@
 //! M2.2: basic capture move ordering (MVV-LVA).
 //!
 //! Acceptance (from the review): ordering must not change the search's
-//! best move or score, must not drop any legal move, must keep perft
-//! identical, and should not increase node counts on tactical positions.
-//! These tests pin those invariants. The pure ordering logic itself is
+//! best move or score on a fixed-depth search, must not drop any legal
+//! move, must keep perft identical, and must not silently explode the node
+//! count. It does NOT guarantee nodes never increase — MVV-LVA is a
+//! heuristic, and under alpha-beta the visited node set depends on where
+//! cutoffs fire, which ordering changes. The pure ordering logic itself is
 //! unit-tested in `src/engine/search.rs` (the `tests` submodule).
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,15 +42,18 @@ fn ordering_finds_queen_win_tactic() {
     );
 }
 
-/// Move ordering must not grow the node count: a fixed-depth search on a
-/// tactical position must stay at or below the recorded reference. Ordering
-/// should only ever *reduce* nodes (better cutoffs); any gross regression
-/// (e.g. ordering silently disabled) blows well past this ceiling.
+/// Smoke bound, NOT a proof of node reduction. MVV-LVA is a heuristic: on
+/// some positions it finds more cutoffs (fewer nodes), on others the
+/// generation order happens to be better and ordering does not help. What
+/// this guard catches is a *gross* regression — if ordering were silently
+/// disabled or broken, the node count would blow far past any reasonable
+/// ceiling for this small position. It deliberately asserts only
+/// `nodes <= CEILING`, never `nodes <= unordered_nodes`.
 ///
-/// Reference value for depth 3 on the queen-win position; refresh only if
+/// Reference ceiling for depth 3 on the queen-win position; refresh only if
 /// the search logic itself changes, not because ordering "tidied up a bit".
 #[test]
-fn ordering_keeps_node_count_bounded() {
+fn ordering_node_count_smoke_bound() {
     let mut pos = parse_fen("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1").expect("valid FEN");
     let (ctx, limits) = (
         SearchContext::new(Arc::new(AtomicBool::new(false))),
@@ -61,7 +66,7 @@ fn ordering_keeps_node_count_bounded() {
     let nodes = ctx.nodes.load(Ordering::Relaxed);
     assert!(
         nodes <= 50_000,
-        "tactical depth-3 node count too high (ordering regression?): {}",
+        "tactical depth-3 node count implausibly high (ordering regression?): {}",
         nodes
     );
 }
