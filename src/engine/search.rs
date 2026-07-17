@@ -33,6 +33,14 @@ use crate::engine::time::TimeBudget;
 
 pub const MATE: i32 = 1_000_000;
 
+/// Maximum quiescence ply. A "check → evasion → check → ..." sequence has no
+/// natural depth bound (there is no repetition / 50-move handling in the
+/// search yet), so this cap guarantees termination. It is a *safety* limit,
+/// not a strength-tuning knob: at the cap we still detect checkmate /
+/// stalemate first, then fall back to the static evaluation without
+/// recursing further.
+pub const MAX_QPLY: u32 = 32;
+
 /// What the caller wants the search to do.
 ///
 /// Time control is *not* here: `movetime` / clock fields are parsed into a
@@ -210,7 +218,13 @@ pub fn negamax(
     }
 
     if depth == 0 {
-        return Some(evaluate(pos));
+        // Leaf: hand off to quiescence so pending captures / promotions are
+        // resolved before we trust a static score (this is the cure for the
+        // horizon effect). THIS node was already counted by `try_enter_node`
+        // above, so we call the `_entered` variant, which does NOT re-enter
+        // (and therefore does not re-count) the node — every position is
+        // counted exactly once.
+        return quiescence_entered(pos, ply, 0, alpha, beta, ctx, limits);
     }
 
     let mut best = i32::MIN + 1000;
@@ -239,6 +253,122 @@ pub fn negamax(
         }
     }
     Some(best)
+}
+
+/// Is `m` a "tactical" move — one that quiescence must resolve?
+///
+/// Tactical = any capture (target square occupied), an en-passant capture
+/// (the captured pawn is NOT on the target square, so "target occupied"
+/// would miss it), or ANY promotion — including a *quiet* promotion like
+/// `e7e8q` onto an empty square. Judging tacticalness by "target occupied"
+/// alone would silently drop en passant and quiet promotions.
+fn is_tactical(pos: &Position, m: Move) -> bool {
+    matches!(m.flag, MoveFlag::EnPassant | MoveFlag::Promotion(_))
+        || pos.board[m.to as usize].is_some()
+}
+
+/// Quiescence search that acquires (counts) a node first. This is the entry
+/// point for the *recursive* calls made from within quiescence itself. The
+/// depth-0 leaf in `negamax` instead calls [`quiescence_entered`] directly,
+/// because that node has already been counted — keeping node accounting in
+/// exactly one place per position.
+pub fn quiescence(
+    pos: &mut Position,
+    ply: u32,
+    qply: u32,
+    alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+) -> Option<i32> {
+    if !try_enter_node(ctx, limits) {
+        return None;
+    }
+    quiescence_entered(pos, ply, qply, alpha, beta, ctx, limits)
+}
+
+/// The quiescence body, for a node the caller has ALREADY counted.
+///
+/// Correctness rules (M2.1 — pure quiescence, nothing more):
+///  1. **In check ⇒ no stand-pat.** A static evaluation is meaningless while
+///     the king is attacked, so we search *every* legal evasion — quiet king
+///     moves, blocks and non-capturing interpositions included — never just
+///     captures.
+///  2. **Not in check ⇒ still detect stalemate.** We generate all legal
+///     moves so an empty list is scored `0` (stalemate), instead of being
+///     mistaken for "no captures, so stand-pat".
+///  3. **Tactical set** = captures + en passant + promotions (`is_tactical`).
+///  4. **`MAX_QPLY` cap** guarantees termination; at the cap we still detect
+///     mate / stalemate first, then return the static eval without recursing.
+///  5. **Fail-hard alpha-beta**, matching `negamax`. On abort we return
+///     `None`, having unmade any move so the board is left untouched.
+fn quiescence_entered(
+    pos: &mut Position,
+    ply: u32,
+    qply: u32,
+    mut alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+) -> Option<i32> {
+    let in_check = pos.is_in_check(pos.side);
+
+    // Generate all legal moves once. Correctness-first: this is what lets us
+    // score checkmate / stalemate exactly. (A later optimisation may generate
+    // only captures on the common not-in-check path.)
+    let legal = generate_legal_moves(pos);
+    if legal.is_empty() {
+        // Terminal: checkmate (prefer the latest mate, smaller |score|) or
+        // stalemate. Same convention as `negamax`.
+        return Some(if in_check { -(MATE - ply as i32) } else { 0 });
+    }
+
+    // Termination cap. Mate / stalemate were handled above; now stop
+    // recursing and return the static evaluation as a bounded estimate.
+    if qply >= MAX_QPLY {
+        return Some(evaluate(pos));
+    }
+
+    // Decide which moves to search.
+    let tactical: Vec<Move> = if in_check {
+        // Rule 1: under check, search ALL evasions, no stand-pat.
+        legal
+    } else {
+        // Rule 2 (stalemate) already handled. Stand-pat is the lower bound:
+        // the side to move is never forced to make a capture.
+        let stand_pat = evaluate(pos);
+        if stand_pat >= beta {
+            return Some(beta);
+        }
+        if stand_pat > alpha {
+            alpha = stand_pat;
+        }
+        legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
+    };
+
+    for m in tactical {
+        let undo = pos.make_move(m);
+        let child = quiescence(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits);
+        match child {
+            Some(s) => {
+                let score = -s;
+                pos.unmake_move(undo);
+                if score >= beta {
+                    return Some(beta); // fail-hard cutoff
+                }
+                if score > alpha {
+                    alpha = score;
+                }
+            }
+            None => {
+                // Abort: undo our move and unwind immediately, leaving the
+                // board exactly as we found it.
+                pos.unmake_move(undo);
+                return None;
+            }
+        }
+    }
+    Some(alpha)
 }
 
 fn score_to_uci(score: i32) -> String {
