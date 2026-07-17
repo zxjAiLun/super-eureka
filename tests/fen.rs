@@ -82,3 +82,35 @@ fn parse_fen_does_not_panic_on_overfull_rank() {
         assert!(parse_fen(f).is_err(), "FEN should be rejected: {:?}", f);
     }
 }
+
+/// v0.1.2 regression: digit run-lengths that overflow the rank must be
+/// rejected, never panic. In debug builds the old `file += d as u8`
+/// wrapped on input like "8888...8", producing a `u8` overflow panic.
+/// Each case has a valid-looking king placement so the only thing wrong is
+/// the rank arithmetic.
+#[test]
+fn parse_fen_digit_overflow_does_not_panic() {
+    let malicious = [
+        "88/8/8/8/8/8/8/k6K w - - 0 1",
+        "888888888888888888888888888888888/8/8/8/8/8/8/k6K w - - 0 1",
+        "18181818181818181818181818181818/8/8/8/8/8/8/k6K w - - 0 1",
+    ];
+    for fen in malicious {
+        // catch_unwind guards both behaviours we care about: no panic, AND
+        // a clean `Err` (the position is genuinely illegal, not silently
+        // accepted as a valid board).
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            chess_engine_demo::chess::parse_fen(fen)
+        }));
+        assert!(
+            result.is_ok(),
+            "parse_fen panicked on malicious FEN: {}",
+            fen
+        );
+        assert!(
+            result.unwrap().is_err(),
+            "malicious FEN '{}' should be rejected, not accepted",
+            fen
+        );
+    }
+}

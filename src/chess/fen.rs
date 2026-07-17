@@ -31,12 +31,25 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         let our_rank = 7 - i as u8;
         let mut file = 0u8;
         for ch in rank_str.chars() {
-            if let Some(d) = ch.to_digit(10) {
-                // Only run-lengths 1..=8 are legal in FEN; 0 and 9+ are not.
-                if !(1..=8).contains(&d) {
-                    return Err(format!("invalid square count '{}' in rank {}", ch, i + 1));
+            // Run-length digits must be plain ASCII '1'..='8'. We use an
+            // explicit ASCII range rather than `ch.to_digit(10)` so that
+            // Unicode digits (e.g. '١' U+0661) are rejected instead of being
+            // silently accepted as a legal FEN run-length.
+            if ('1'..='8').contains(&ch) {
+                let run = (ch as u8) - b'0';
+                // `file` is always kept <= 8 at this point, so `8 - file`
+                // can never underflow. Checking the remaining room *before*
+                // adding catches any rank that would exceed 8 squares and
+                // removes the u8 overflow that e.g. "8888...8" triggered in
+                // debug builds (file += 8 would wrap past 255).
+                if run > 8 - file {
+                    return Err(format!(
+                        "rank {} has more than 8 squares (digit '{}' overflows)",
+                        i + 1,
+                        ch
+                    ));
                 }
-                file += d as u8;
+                file += run;
             } else {
                 // A piece must fall within the 8 squares of the rank. If the
                 // run-lengths already filled the rank (or overflowed it), placing
