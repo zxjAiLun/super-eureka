@@ -5,8 +5,8 @@
 //!   2. Alpha-Beta pruning (done)
 //!   3. Iterative deepening (done, at the root)
 //!   4. Principal variation  (TODO, Milestone 2)
-//!   5. Quiescence search   (TODO, Milestone 2)
-//!   6. Move ordering       (TODO, Milestone 2)
+//!   5. Quiescence search   (done, M2.1 — correctness-only)
+//!   6. Move ordering       (done, M2.2 — basic MVV-LVA)
 //!   7. Transposition table (TODO, later)
 //!
 //! Milestone 1.1 adds the interruptibility plumbing that later milestones
@@ -207,7 +207,7 @@ pub fn negamax(
     // Terminal-node check MUST run before the depth==0 evaluation. A position
     // that is checkmate or stalemate is scored by its game-theoretic value,
     // never by the material count at the search horizon.
-    let moves = generate_legal_moves(pos);
+    let mut moves = generate_legal_moves(pos);
     if moves.is_empty() {
         if pos.is_in_check(pos.side) {
             // Checkmated: prefer the *latest* possible mate (smaller |score|),
@@ -226,6 +226,10 @@ pub fn negamax(
         // counted exactly once.
         return quiescence_entered(pos, ply, 0, alpha, beta, ctx, limits);
     }
+
+    // M2.2: try the most forcing moves first so alpha-beta cutoffs fire
+    // earlier. Pure reorder — no move is dropped, the score is unchanged.
+    order_moves(pos, &mut moves);
 
     let mut best = i32::MIN + 1000;
     for m in moves {
@@ -265,6 +269,76 @@ pub fn negamax(
 fn is_tactical(pos: &Position, m: Move) -> bool {
     matches!(m.flag, MoveFlag::EnPassant | MoveFlag::Promotion(_))
         || pos.board[m.to as usize].is_some()
+}
+
+/// MVV-LVA (Most Valuable Victim – Least Valuable Attacker) move-ordering
+/// score. Higher means the move should be searched *earlier*.
+///
+/// Used by every node that iterates a move list — `negamax`, the
+/// quiescence body, and the qply-cap evasion handler — so forcing lines
+/// (capturing the most valuable piece with the least valuable attacker,
+/// promotions, and en passant) are tried first. This is a *reordering
+/// only*: it never drops a move and never adds a cutoff, so the minimax
+/// value and the set of positions searched are unchanged — ordering affects
+/// only how quickly alpha-beta cutoffs fire.
+///
+/// Explicit victim values:
+///   * **En passant**: the captured pawn is NOT on the to-square (it
+///     sits one rank behind, on the same file), so a naive "is the target
+///     occupied?" test would score it `0`. We value it explicitly as a pawn.
+///   * **Promotion**: ranked above every plain capture (a freshly promoted
+///     queen is worth more than the best single capture), with a capturing
+///     promotion ranked above a quiet one.
+fn move_order_key(pos: &Position, m: Move) -> i32 {
+    const PROMOTION_BASE: i32 = 5_000_000;
+    const VICTIM_WEIGHT: i32 = 10;
+    match m.flag {
+        MoveFlag::Promotion(pt) => {
+            let promoted = pt.value();
+            let victim = pos.board[m.to as usize]
+                .map(|p| p.piece_type.value())
+                .unwrap_or(0);
+            PROMOTION_BASE + promoted + victim
+        }
+        MoveFlag::EnPassant => {
+            // The captured pawn lives one rank behind the to-square.
+            let victim = PieceType::Pawn.value();
+            let attacker = pos.board[m.from as usize]
+                .expect("en passant mover present")
+                .piece_type
+                .value();
+            victim * VICTIM_WEIGHT - attacker
+        }
+        _ => {
+            if let Some(v) = pos.board[m.to as usize] {
+                let victim = v.piece_type.value();
+                let attacker = pos.board[m.from as usize]
+                    .expect("move source occupied")
+                    .piece_type
+                    .value();
+                victim * VICTIM_WEIGHT - attacker
+            } else {
+                0 // quiet move
+            }
+        }
+    }
+}
+
+/// Reorder `moves` in place: highest [`move_order_key`] first.
+///
+/// The sort is stable on equal keys (ties keep their generation order),
+/// which keeps the root fallback and tie-breaking deterministic. It never
+/// adds or removes a move — `order_moves` is a pure permutation.
+fn order_moves(pos: &Position, moves: &mut [Move]) {
+    let mut indexed: Vec<(i32, usize, Move)> = moves
+        .iter()
+        .enumerate()
+        .map(|(i, &m)| (move_order_key(pos, m), i, m))
+        .collect();
+    indexed.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    for (i, (_, _, m)) in indexed.into_iter().enumerate() {
+        moves[i] = m;
+    }
 }
 
 /// Quiescence search that acquires (counts) a node first. This is the entry
@@ -324,12 +398,19 @@ fn quiescence_entered(
     // Generate all legal moves once. Correctness-first: this is what lets us
     // score checkmate / stalemate exactly. (A later optimisation may generate
     // only captures on the common not-in-check path.)
-    let legal = generate_legal_moves(pos);
+    let mut legal = generate_legal_moves(pos);
     if legal.is_empty() {
         // Terminal: checkmate (prefer the latest mate, smaller |score|) or
         // stalemate. Same convention as `negamax`.
         return Some(if in_check { -(MATE - ply as i32) } else { 0 });
     }
+
+    // M2.2: order the legal list once. The in-check branch below
+    // searches *all* evasions (reordered, still every move); the
+    // not-in-check branch filters to tactical moves (reordered, since
+    // `filter` preserves order); and the qply-cap handler receives this
+    // already-reordered `legal`. Pure reorder — no move is dropped.
+    order_moves(pos, &mut legal);
 
     // Termination cap. Mate / stalemate were handled above; now stop
     // recursing. Two cases:
@@ -652,4 +733,104 @@ pub fn search_best_move(
         completed_depth,
         stopped,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chess::fen::parse_fen;
+    use crate::chess::movegen::generate_legal_moves;
+    use std::collections::BTreeSet;
+
+    /// White queen e4, black queen a4, black pawn h4 (all on rank 4,
+    /// neither blocking the other), kings off the rank. White to move: two
+    /// same-attacker captures of different victim value, plus quiet moves.
+    const MVV_POS: &str = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+
+    fn find_move(pos: &Position, uci: &str) -> Move {
+        generate_legal_moves(&mut pos.clone())
+            .into_iter()
+            .find(|m| move_to_uci(*m) == uci)
+            .unwrap_or_else(|| panic!("move {} not legal", uci))
+    }
+
+    #[test]
+    fn order_key_mvv_lva_same_attacker() {
+        let pos = parse_fen(MVV_POS).unwrap();
+        let take_queen = find_move(&pos, "e4a4");
+        let take_pawn = find_move(&pos, "e4h4");
+        // Capturing the queen (900) outranks capturing the pawn (100).
+        assert!(
+            move_order_key(&pos, take_queen) > move_order_key(&pos, take_pawn),
+            "capturing the queen must outrank capturing the pawn (MVV-LVA)"
+        );
+        // MVV-LVA with an identical attacker (white queen, 900):
+        //   queen victim : 900*10 - 900 = 8100
+        //   pawn  victim : 100*10 - 900 = 100
+        assert_eq!(move_order_key(&pos, take_queen), 900 * 10 - 900);
+        assert_eq!(move_order_key(&pos, take_pawn), 100 * 10 - 900);
+    }
+
+    #[test]
+    fn order_key_en_passant_uses_pawn_victim() {
+        // White pawn f5, black pawn g5 (just double-pushed), ep target g6.
+        let pos = parse_fen("7k/8/8/5Pp1/8/8/8/4K3 w - g6 0 1").unwrap();
+        let ep = find_move(&pos, "f5g6");
+        assert!(matches!(ep.flag, MoveFlag::EnPassant));
+        // The captured pawn is one rank behind the to-square: value it
+        // explicitly as a pawn (100*10 - 100 = 900), never as 0.
+        assert_eq!(move_order_key(&pos, ep), 100 * 10 - 100);
+        let push = find_move(&pos, "f5f6");
+        assert_eq!(move_order_key(&pos, push), 0, "quiet push scores 0");
+        assert!(
+            move_order_key(&pos, ep) > move_order_key(&pos, push),
+            "en passant must outrank a quiet push"
+        );
+    }
+
+    #[test]
+    fn order_key_promotion_outranks_capture() {
+        // White pawn e7: quiet promotion e8, and capturing-promotion e7xd8.
+        let pos = parse_fen("3p3k/4P3/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let quiet_promo = find_move(&pos, "e7e8q");
+        let cap_promo = find_move(&pos, "e7d8q");
+        assert!(matches!(quiet_promo.flag, MoveFlag::Promotion(_)));
+        assert!(matches!(cap_promo.flag, MoveFlag::Promotion(_)));
+        // A capturing promotion outranks a quiet promotion.
+        assert!(
+            move_order_key(&pos, cap_promo) > move_order_key(&pos, quiet_promo),
+            "capturing promotion must outrank quiet promotion"
+        );
+        // Both promotions rank far above any plain capture (max plain key for
+        // a queen-by-pawn capture is 900*10 - 100 = 8900).
+        assert!(
+            move_order_key(&pos, quiet_promo) > 1_000_000,
+            "promotion must outrank every plain capture"
+        );
+    }
+
+    #[test]
+    fn order_moves_preserves_set_and_partitions_captures() {
+        let pos = parse_fen(MVV_POS).unwrap();
+        let mut legal = generate_legal_moves(&mut pos.clone());
+        let count_before = legal.len();
+        let before: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
+
+        order_moves(&pos, &mut legal);
+
+        // No move dropped or duplicated.
+        assert_eq!(legal.len(), count_before, "ordering must not change count");
+        let after: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
+        assert_eq!(after, before, "ordering must not drop or add moves");
+
+        // Every capture precedes every quiet move (captures-first partition).
+        let mut seen_quiet = false;
+        for &m in &legal {
+            if is_tactical(&pos, m) {
+                assert!(!seen_quiet, "a capture appeared after a quiet move");
+            } else {
+                seen_quiet = true;
+            }
+        }
+    }
 }
