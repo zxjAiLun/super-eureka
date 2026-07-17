@@ -300,32 +300,41 @@ fn uci_go_infinite_overrides_clock_and_movetime() {
 
 /// The whole point of the `EngineProcess` RAII guard is that its `Drop` runs
 /// even when a test panics mid-flight (an `assert!` fails, or the body
-/// `panic!`s before the usual `stop`/`quit` cleanup). This test proves it:
-/// we spawn an engine, start a `go infinite`, then deliberately panic inside a
-/// `catch_unwind`. The guard's `Drop` must still reap the child. We then
-/// start a *fresh* engine and confirm it answers `isready` -> `readyok`,
-/// which it could not do cleanly if the first process had leaked.
+/// `panic!`s before the usual `stop`/`quit` cleanup). This test proves the
+/// guard actually reaps the child by observing the child's *stdout closing* —
+/// the only reliable reaping signal. (A leaked process would still allow a
+/// *second* instance to start, because a stale `.exe` handle only blocks the
+/// *linker*, not a fresh spawn; asserting on a second instance would therefore
+/// pass even if cleanup had failed entirely. We assert on EOF instead.)
 #[test]
 fn engine_process_is_reaped_when_test_body_panics() {
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let (mut engine, stdout) = common::spawn_engine();
-        let _rx = common::spawn_reader(stdout);
+    // Capture the child's EOF signal OUTSIDE the panicking closure so it
+    // survives the unwind — the reader handle itself is dropped on panic.
+    let eof = {
+        let eof_slot = std::cell::RefCell::new(None::<std::sync::mpsc::Receiver<()>>);
+        {
+            let slot = std::panic::AssertUnwindSafe(&eof_slot);
+            let result = std::panic::catch_unwind(|| {
+                let (mut engine, stdout) = common::spawn_engine();
+                let reader = common::spawn_reader(stdout);
+                // Move the eof receiver out so it outlives the panic.
+                *slot.borrow_mut() = Some(reader.eof);
 
-        engine.send("position startpos");
-        engine.send("go infinite");
+                engine.send("position startpos");
+                engine.send("go infinite");
 
-        panic!("intentional cleanup test");
-    }));
+                panic!("intentional cleanup test");
+            });
+            assert!(result.is_err(), "the body must have panicked");
+        } // `slot` drops here, releasing the borrow on `eof_slot`.
+        eof_slot.into_inner().expect("eof captured before panic")
+    };
 
-    assert!(result.is_err(), "the body must have panicked");
-
-    // A fresh instance must come up cleanly -> the previous one was reaped.
-    let (mut engine, stdout) = common::spawn_engine();
-    let rx = common::spawn_reader(stdout);
-    engine.send("isready");
-
-    assert_eq!(
-        common::recv_until(&rx, "readyok", Duration::from_secs(3)).as_deref(),
-        Some("readyok")
+    // The child's stdout must have closed: `EngineProcess::Drop` sent `quit`,
+    // closed stdin, and waited/killed, so the pipe EOFs. A leaked process
+    // would keep the pipe open and this would time out instead.
+    assert!(
+        eof.recv_timeout(Duration::from_secs(2)).is_ok(),
+        "child stdout must close after EngineProcess::Drop reaps it"
     );
 }

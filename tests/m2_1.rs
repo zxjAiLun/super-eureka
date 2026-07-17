@@ -297,10 +297,10 @@ fn quiescence_qply_cap_terminates_without_corruption() {
 /// re-introduce stand-pat-on-check — scoring a position with the king still
 /// attacked as if it were a quiet leaf). It must still search the evasions.
 ///
-/// Here White (Kg1, Ra2) is in check from the a-file... no — from the g2
-/// rook (Rg2). The rook is capturable: `Kxg2` wins it. A buggy cap that
-/// returns `evaluate(pos)` would report the static balance (material is even,
-/// 0); correct behaviour searches the forced evasion and returns the won rook.
+/// Here White (Kg1, Ra2) is in check from the g2 rook (Rg2). The rook is
+/// capturable: `Kxg2` wins it. A buggy cap that returns `evaluate(pos)`
+/// would report the static balance (material is even, 0); correct behaviour
+/// searches the forced evasion and returns the won rook.
 #[test]
 fn quiescence_qply_cap_preserves_check_evasions() {
     let mut pos = parse_fen("6k1/8/8/8/8/8/R5r1/6K1 w - - 0 1").expect("valid FEN");
@@ -333,6 +333,57 @@ fn quiescence_qply_cap_preserves_check_evasions() {
     assert!(
         ctx.nodes.load(Ordering::Relaxed) > 1,
         "cap + in check must search the evasions (not stand pat)"
+    );
+    assert_eq!(to_fen(&pos), before, "position must be untouched");
+}
+
+/// Lock the documented cap approximation: an evasion that *itself* gives
+/// check (a counter-check) produces a child whose king is also in check.
+/// That child has legal moves, so `search_final_evasion_ply` does NOT recurse
+/// into it — it is approximated by `-evaluate(child)` at the safety cap. This
+/// is the acknowledged, bounded approximation (strict resolution is deferred
+/// to repetition / 50-move detection); the test pins the *current* behaviour
+/// so a future change to that branch is visible.
+///
+/// FEN `k7/8/8/8/8/1b6/K7/R7 w - - 0 1`: White (Ka2, Ra1) is in
+/// check from the b3 bishop. White can play `Kb1`/`Kb2`, which both evade
+/// AND deliver check to the a8 king along the a-file (counter-checks); those
+/// children are in check with legal moves, so they are approximated
+/// statically. White's best is `Kxb3`, capturing the bishop. A stand-pat-on-
+/// check bug (or a non-searching cap) would instead return the static balance
+/// (+170: R vs B), but the searched evasion scores the won bishop (+500).
+#[test]
+fn quiescence_qply_cap_counter_check_uses_static_approx() {
+    let mut pos = parse_fen("k7/8/8/8/8/1b6/K7/R7 w - - 0 1").expect("valid FEN");
+    let before = to_fen(&pos);
+    assert!(
+        pos.is_in_check(pos.side),
+        "test premise: White is in check at the cap"
+    );
+    let static_eval = evaluate(&pos); // White R(500) vs Black B(330) -> +170
+    assert_eq!(static_eval, 170, "static balance must be R vs B");
+
+    let ctx = fresh_ctx();
+    let limits = SearchLimits::default();
+    let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
+
+    // Stand-pat-on-check (or skipping the evasion search) would yield 170.
+    // Correct behaviour searches the evasions; `Kxb3` wins the bishop -> 500.
+    assert_ne!(
+        out, static_eval,
+        "cap + in check must search evasions, not stand pat (out={} vs static={})",
+        out, static_eval
+    );
+    assert_eq!(
+        out, 500,
+        "Kxb3 wins the bishop; counter-check branches are the approx, got {}",
+        out
+    );
+    // Evasions (including the counter-checking Kb1/Kb2) were genuinely
+    // searched, not a single-node stand-pat shortcut.
+    assert!(
+        ctx.nodes.load(Ordering::Relaxed) > 1,
+        "cap + in check must search the evasions (incl. counter-checks)"
     );
     assert_eq!(to_fen(&pos), before, "position must be untouched");
 }
@@ -481,8 +532,11 @@ fn quiescence_qply_cap_noncheck_respects_fail_hard() {
     assert_eq!(to_fen(&pos), before, "position must be untouched");
 
     // Lower-bound clamp: stand-pat below alpha returns alpha (not stand_pat).
+    // Use a fresh context so its node count is independent of the first call
+    // (the two segments must not share / accumulate counters).
+    let ctx2 = fresh_ctx();
     let mut pos = parse_fen(fen).expect("valid FEN");
-    let out = quiescence(&mut pos, 0, MAX_QPLY, 200, BETA, &ctx, &limits).expect("not stopped");
+    let out = quiescence(&mut pos, 0, MAX_QPLY, 200, BETA, &ctx2, &limits).expect("not stopped");
     assert_eq!(
         out, 200,
         "non-check cap must return alpha when stand-pat is below it, got {}",

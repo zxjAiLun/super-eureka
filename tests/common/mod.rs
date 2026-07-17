@@ -89,10 +89,29 @@ pub fn spawn_engine() -> (EngineProcess, std::process::ChildStdout) {
     )
 }
 
+/// Handle returned by [`spawn_reader`]: a live channel of parsed output
+/// lines plus a one-shot `eof` signal fired when the child's stdout closes.
+pub struct ReaderHandle {
+    pub lines: mpsc::Receiver<String>,
+    /// Signalled (with `()`) exactly once, when the reader thread sees the
+    /// child's stdout reach EOF (or error out). This is the reliable reaping
+    /// signal: a leaked child keeps the pipe open, so `eof` would never fire.
+    /// Being able to spawn a *second* instance does NOT prove the first was
+    /// reaped (a stale `.exe` handle only blocks the linker, not a fresh
+    /// spawn), so tests must assert on `eof`, not on a second instance.
+    // Only the `engine_process_is_reaped_when_test_body_panics` test reads
+    // this field; the other test crates compile `ReaderHandle` too, so allow
+    // the otherwise-unused field here rather than duplicating the struct.
+    #[allow(dead_code)]
+    pub eof: mpsc::Receiver<()>,
+}
+
 /// Drain the engine's stdout into a channel so tests can poll with a
-/// timeout (std's `read_line` has no deadline of its own).
-pub fn spawn_reader(stdout: std::process::ChildStdout) -> mpsc::Receiver<String> {
-    let (tx, rx) = mpsc::channel();
+/// timeout (std's `read_line` has no deadline of its own). The returned
+/// [`ReaderHandle`] also exposes an `eof` signal when the pipe closes.
+pub fn spawn_reader(stdout: std::process::ChildStdout) -> ReaderHandle {
+    let (tx, lines) = mpsc::channel();
+    let (eof_tx, eof) = mpsc::channel();
     std::thread::spawn(move || {
         let mut r = BufReader::new(stdout);
         let mut buf = String::new();
@@ -106,13 +125,17 @@ pub fn spawn_reader(stdout: std::process::ChildStdout) -> mpsc::Receiver<String>
                 Err(_) => break,
             }
         }
+        // The child has closed its stdout. Signal EOF so a test can assert the
+        // process was actually reaped, rather than merely still running.
+        let _ = eof_tx.send(());
     });
-    rx
+    ReaderHandle { lines, eof }
 }
 
 /// Receive lines until one starts with `prefix`, or the channel closes /
 /// the timeout elapses. Returns the matched line.
-pub fn recv_until(rx: &mpsc::Receiver<String>, prefix: &str, timeout: Duration) -> Option<String> {
+pub fn recv_until(handle: &ReaderHandle, prefix: &str, timeout: Duration) -> Option<String> {
+    let rx = &handle.lines;
     let deadline = std::time::Instant::now() + timeout;
     loop {
         let now = std::time::Instant::now();

@@ -300,10 +300,14 @@ pub fn quiescence(
 ///  3. **Tactical set** = captures + en passant + promotions (`is_tactical`).
 ///  4. **`MAX_QPLY` cap** guarantees termination. At the cap we still
 ///     detect mate / stalemate first (handled above). A *non-check* node then
-///     stands pat with fail-hard bounds; an *in-check* node must NOT stand
-///     pat, so it delegates to `search_final_evasion_ply` (one ply of
-///     evasions, no recursion) — never a raw static eval with the king
-///     still attacked.
+///     stands pat with fail-hard bounds. An *in-check* node must NOT stand
+///     pat, so it delegates to `search_final_evasion_ply`, which searches one
+///     ply of the *current* position's evasions with no further recursion.
+///     Caveat (documented, not a bug): an evasion that itself delivers a
+///     *new* non-terminal check yields a child whose king is also in check;
+///     that child is approximated by `-evaluate(child)` at the safety cap
+///     rather than fully resolved. Strict resolution of the counter-check
+///     chain needs repetition / 50-move detection and is deferred.
 ///  5. **Fail-hard alpha-beta**, matching `negamax`. On abort we return
 ///     `None`, having unmade any move so the board is left untouched.
 fn quiescence_entered(
@@ -412,9 +416,15 @@ fn quiescence_entered(
 ///     because it is returned before any move is made.
 ///
 /// This is a deliberate, incomplete stopgap: the full fix is repetition /
-/// 50-move detection, which lands in a later milestone. Until then this at
-/// least never evaluates a position with the king in check as if it were a
-/// quiet leaf.
+/// 50-move detection, which lands in a later milestone. What it guarantees
+/// TODAY: the side to move (the node that is genuinely in check) is never
+/// scored by a raw static eval of its own attacked position — its evasions
+/// are always searched. What it does NOT (yet) guarantee: an evasion that
+/// itself gives check produces a child whose king is also in check; that
+/// child is approximated by `-evaluate(child)` at the safety cap. That is a
+/// KNOWN, labelled approximation — not a "quiet-leaf stand-pat" (the child
+/// is still reached through a real evasion, just not resolved further), and
+/// not a correctness invariant.
 fn search_final_evasion_ply(
     pos: &mut Position,
     ply: u32,
