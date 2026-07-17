@@ -91,6 +91,45 @@ fn should_abort(ctx: &SearchContext, limits: &SearchLimits) -> bool {
     false
 }
 
+/// Atomically acquire the right to search *one* node, honouring the
+/// external stop flag and the hard deadline. Returns `true` if the node may
+/// be searched, `false` if the search must abort *before* touching the board.
+///
+/// This replaces the old "increment the counter, then check" sequence,
+/// which under-counted by one (`nodes N` only ever processed N-1 nodes) and
+/// also counted a node that was never actually searched (a preset stop
+/// incremented the counter to 1 though zero nodes were evaluated). The
+/// atomic `fetch_update` below makes the node quota exact: the counter is
+/// only ever bumped when a node is genuinely about to be searched, and it
+/// can never exceed the budget — even if several search workers later share
+/// the same `SearchContext` (M1.2+).
+fn try_enter_node(ctx: &SearchContext, limits: &SearchLimits) -> bool {
+    if ctx.stop.load(Ordering::Relaxed) {
+        return false;
+    }
+    if let Some(deadline) = ctx.hard_deadline {
+        if Instant::now() >= deadline {
+            return false;
+        }
+    }
+    match limits.nodes {
+        Some(limit) => ctx
+            .nodes
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                if current < limit {
+                    Some(current + 1)
+                } else {
+                    None
+                }
+            })
+            .is_ok(),
+        None => {
+            ctx.nodes.fetch_add(1, Ordering::Relaxed);
+            true
+        }
+    }
+}
+
 /// Negamax with alpha-beta. Returns `None` if the search was asked to
 /// abort. A `None` is a directive to unwind *immediately*: the caller
 /// must undo the move it made in THIS node and propagate `None` upward.
@@ -104,11 +143,11 @@ pub fn negamax(
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
-    // Account for this node and check the abort conditions BEFORE we touch
-    // the board. If we bail out here we have made no move, so the board
-    // is already clean for whoever called us.
-    ctx.nodes.fetch_add(1, Ordering::Relaxed);
-    if should_abort(ctx, limits) {
+    // Acquire the right to search this node *before* touching the board.
+    // `try_enter_node` checks the external stop flag, the hard deadline, and
+    // the node budget atomically, so bailing out here leaves the board
+    // exactly as we found it (no move applied, nothing to unmake).
+    if !try_enter_node(ctx, limits) {
         return None;
     }
 

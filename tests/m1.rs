@@ -39,6 +39,12 @@ fn m1_stop_preset_returns_fallback_and_keeps_position() {
         before,
         "position must be untouched after abort"
     );
+    // A preset stop must not have counted a single node.
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        0,
+        "preset stop must not increment the node counter"
+    );
 }
 
 #[test]
@@ -78,6 +84,14 @@ fn m1_nodes_limit_keeps_last_completed_iteration() {
         before,
         "position must be untouched after abort"
     );
+    // The node counter must land exactly on the budget: every node counted
+    // was genuinely searched, and it never overshoots (the last node that
+    // would exceed the budget is rejected, not counted).
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        budget,
+        "node counter must equal the budget exactly"
+    );
 }
 
 #[test]
@@ -102,6 +116,43 @@ fn m1_depth1_interrupted_still_returns_fallback() {
         to_fen(&pos),
         before,
         "position must be untouched after abort"
+    );
+    // Budget 1 is enough to search exactly one node (the first root
+    // child); the counter must read exactly 1, never 0 or 2.
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        1,
+        "nodes 1 must count exactly one node"
+    );
+}
+
+#[test]
+fn m1_nodes_zero_processes_nothing() {
+    let mut pos = parse_fen(START_FEN).unwrap();
+    let before = to_fen(&pos);
+    // Budget of 0 nodes: the search must not process a single node and
+    // must fall straight back to a legal root move. The counter stays 0.
+    let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+    let limits = SearchLimits {
+        depth: Some(4),
+        nodes: Some(0),
+        ..Default::default()
+    };
+    let result = search_best_move(&mut pos, &limits, &ctx);
+    let (mv, _) = result.expect("a legal fallback move must be returned");
+    assert!(
+        generate_legal_moves(&mut pos).contains(&mv),
+        "fallback move must be legal"
+    );
+    assert_eq!(
+        to_fen(&pos),
+        before,
+        "position must be untouched after abort"
+    );
+    assert_eq!(
+        ctx.nodes.load(Ordering::Relaxed),
+        0,
+        "nodes 0 must process zero nodes"
     );
 }
 
