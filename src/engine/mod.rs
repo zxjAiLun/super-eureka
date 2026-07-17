@@ -7,3 +7,4 @@ pub use eval::evaluate;
 pub use search::{
     negamax, search_best_move, SearchContext, SearchLimits, SearchOutcome, SearchResult, MATE,
 };
+pub use time::{compute_budget, TimeBudget, TimeInput};

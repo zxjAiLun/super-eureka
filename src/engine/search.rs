@@ -23,43 +23,64 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::engine::eval::evaluate;
+use crate::engine::time::TimeBudget;
 
 pub const MATE: i32 = 1_000_000;
 
-/// What the caller wants the search to do. Fields other than `depth`
-/// and `nodes` are data carriers for later milestones: `movetime` /
-/// `infinite` are consumed by M1.3 time control, not here.
+/// What the caller wants the search to do.
+///
+/// Time control is *not* here: `movetime` / clock fields are parsed into a
+/// `TimeBudget` (soft/hard deadlines) carried on `SearchContext` instead, so
+/// the search core never mixes "how much time" with "what to search".
+/// `infinite` means "iterate until `stop` / a deadline" (no depth/nodes cap).
 #[derive(Clone, Default)]
 pub struct SearchLimits {
     pub depth: Option<u32>,
     pub nodes: Option<u64>,
-    pub movetime: Option<Duration>,
     pub infinite: bool,
 }
 
 /// Live, *shared* state for one search run. `stop` and `nodes` are
-/// atomic because M1.2 will run the search on its own thread while the
-/// UCI main thread flips `stop` and reads `nodes`. We keep them atomic
-/// now so the same struct works unchanged once threading lands.
+/// atomic because the search runs on its own thread (M1.2) while the UCI
+/// main thread flips `stop` and reads `nodes`. The deadlines come from the
+/// M1.3 time budget:
+///   - `hard_deadline` is checked at every node entry (immediate unwind);
+///   - `soft_deadline` is checked only between completed iterations (don't
+///     start a deeper one). It is intentionally *not* read by `try_enter_node`.
 pub struct SearchContext {
     pub stop: Arc<AtomicBool>,
     pub start: Instant,
+    pub soft_deadline: Option<Instant>,
     pub hard_deadline: Option<Instant>,
     pub nodes: AtomicU64,
 }
 
 impl SearchContext {
+    /// No time limits — used by tests and by depth/nodes/infinite searches
+    /// that have no clock.
     pub fn new(stop: Arc<AtomicBool>) -> Self {
         SearchContext {
             stop,
             start: Instant::now(),
+            soft_deadline: None,
             hard_deadline: None,
+            nodes: AtomicU64::new(0),
+        }
+    }
+
+    /// With a precomputed time budget (soft + hard deadlines).
+    pub fn with_budget(stop: Arc<AtomicBool>, budget: TimeBudget) -> Self {
+        SearchContext {
+            stop,
+            start: Instant::now(),
+            soft_deadline: budget.soft_deadline,
+            hard_deadline: budget.hard_deadline,
             nodes: AtomicU64::new(0),
         }
     }

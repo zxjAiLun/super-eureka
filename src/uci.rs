@@ -9,6 +9,7 @@ use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use crate::chess::fen;
 use crate::chess::movegen::generate_legal_moves;
@@ -16,6 +17,7 @@ use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::engine::search;
 use crate::engine::search::SearchLimits;
+use crate::engine::time::{self, TimeBudget, TimeInput};
 
 /// A search currently running on its own thread. `stop` is shared with the
 /// thread's `SearchContext`, so flipping it aborts the search; `handle` lets
@@ -42,9 +44,14 @@ fn stop_and_join(active: &mut Option<ActiveSearch>) {
 /// Spawn the search on a dedicated thread. The thread owns its own clone of
 /// the position and prints `bestmove` (with a final flush) when it finishes,
 /// whether by completing or by being stopped.
-fn spawn_search(pos: Position, limits: SearchLimits, stop: Arc<AtomicBool>) -> JoinHandle<()> {
+fn spawn_search(
+    pos: Position,
+    limits: SearchLimits,
+    stop: Arc<AtomicBool>,
+    budget: TimeBudget,
+) -> JoinHandle<()> {
     thread::spawn(move || {
-        let ctx = search::SearchContext::new(stop.clone());
+        let ctx = search::SearchContext::with_budget(stop.clone(), budget);
         let mut pos = pos;
         match search::search_best_move(&mut pos, &limits, &ctx) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
@@ -98,13 +105,17 @@ pub fn run() {
                 }
             }
             "go" => {
-                // M1.2: search on its own thread. Always stop and join any
-                // previous search first, so a finished/aborted old thread can
-                // never print a `bestmove` for the wrong position.
+                // M1.2/M1.3: search on its own thread. Always stop and join
+                // any previous search first, so a finished/aborted old thread
+                // can never print a `bestmove` for the wrong position. The
+                // `go` params are split into search limits (depth/nodes/
+                // infinite) and a time budget (soft/hard deadlines) for the
+                // side to move.
                 stop_and_join(&mut active);
-                let limits = parse_go_limits(&tokens);
+                let params = parse_go_params(&tokens);
+                let (limits, budget) = build_limits_and_budget(&params, pos.side);
                 let stop = Arc::new(AtomicBool::new(false));
-                let handle = spawn_search(pos, limits, stop.clone());
+                let handle = spawn_search(pos, limits, stop.clone(), budget);
                 active = Some(ActiveSearch { stop, handle });
             }
             "stop" => {
@@ -210,30 +221,110 @@ pub fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
         .find(|m| m.from == from && m.to == to && m.promotion == promo)
 }
 
-/// Parse a `go` command into `SearchLimits`. M1.1 honours
-/// `depth` and `nodes`; `movetime` / `wtime` / `btime` / `winc` /
-/// `binc` / `infinite` are parsed by M1.3 time control. When no
-/// `depth` is given we fall back to a fixed cap so a synchronous `go`
-/// (no stop yet) can't search forever — true infinite time control
-/// arrives in M1.3.
-fn parse_go_limits(tokens: &[&str]) -> search::SearchLimits {
-    let mut limits = search::SearchLimits::default();
+/// Raw `go` parameters exactly as they appear on the UCI line. This is
+/// deliberately separate from `SearchLimits`: UCI string parsing and the
+/// search core must not be coupled, and the side-to-move selection of
+/// `wtime`/`btime` happens here, not in the search.
+#[derive(Default)]
+struct GoParams {
+    depth: Option<u32>,
+    nodes: Option<u64>,
+    movetime: Option<Duration>,
+    wtime: Option<Duration>,
+    btime: Option<Duration>,
+    winc: Option<Duration>,
+    binc: Option<Duration>,
+    movestogo: Option<u32>,
+    infinite: bool,
+}
+
+/// Parse a `go` command into raw `GoParams`. Unknown keys are skipped (per
+/// the UCI spec, engines must ignore tokens they don't understand).
+fn parse_go_params(tokens: &[&str]) -> GoParams {
+    let mut p = GoParams::default();
     let mut i = 1;
+    // Helper: read tokens[i+1] as milliseconds. Returns None if absent or
+    // not a valid integer.
+    let read_ms = |tokens: &[&str], i: usize| -> Option<Duration> {
+        tokens
+            .get(i + 1)
+            .and_then(|s| s.parse::<u64>().ok())
+            .map(Duration::from_millis)
+    };
     while i < tokens.len() {
         match tokens[i] {
+            "infinite" => {
+                p.infinite = true;
+                i += 1;
+            }
             "depth" => {
-                if let Some(d) = tokens.get(i + 1).and_then(|s| s.parse::<u32>().ok()) {
-                    limits.depth = Some(d);
-                }
+                p.depth = tokens.get(i + 1).and_then(|s| s.parse::<u32>().ok());
+                i += 2;
             }
             "nodes" => {
-                if let Some(n) = tokens.get(i + 1).and_then(|s| s.parse::<u64>().ok()) {
-                    limits.nodes = Some(n);
-                }
+                p.nodes = tokens.get(i + 1).and_then(|s| s.parse::<u64>().ok());
+                i += 2;
             }
-            _ => {}
+            "movestogo" => {
+                p.movestogo = tokens.get(i + 1).and_then(|s| s.parse::<u32>().ok());
+                i += 2;
+            }
+            "movetime" => {
+                p.movetime = read_ms(tokens, i);
+                i += 2;
+            }
+            "wtime" => {
+                p.wtime = read_ms(tokens, i);
+                i += 2;
+            }
+            "btime" => {
+                p.btime = read_ms(tokens, i);
+                i += 2;
+            }
+            "winc" => {
+                p.winc = read_ms(tokens, i);
+                i += 2;
+            }
+            "binc" => {
+                p.binc = read_ms(tokens, i);
+                i += 2;
+            }
+            _ => {
+                i += 1;
+            }
         }
-        i += 1;
     }
-    limits
+    p
+}
+
+/// Turn raw `go` params for the side to move into search limits + a time
+/// budget. Picks `wtime`/`winc` or `btime`/`binc` based on `side`. A search
+/// is treated as `infinite` (iterate until `stop`) when `go infinite` is
+/// given or when no depth, nodes, or time limit was supplied at all.
+fn build_limits_and_budget(params: &GoParams, side: Color) -> (SearchLimits, TimeBudget) {
+    let time_input = TimeInput {
+        movetime: params.movetime,
+        remaining: if side == Color::White {
+            params.wtime
+        } else {
+            params.btime
+        },
+        increment: if side == Color::White {
+            params.winc
+        } else {
+            params.binc
+        },
+        movestogo: params.movestogo,
+    };
+    let now = Instant::now();
+    let budget = time::compute_budget(&time_input, now);
+    let has_time = budget.hard_deadline.is_some();
+    let infinite =
+        params.infinite || (params.depth.is_none() && params.nodes.is_none() && !has_time);
+    let limits = SearchLimits {
+        depth: params.depth,
+        nodes: params.nodes,
+        infinite,
+    };
+    (limits, budget)
 }
