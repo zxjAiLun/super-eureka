@@ -169,15 +169,13 @@ fn nodes_only_does_not_cap_at_depth_four() {
 /// not instantly (it should use roughly the movetime) and not hang.
 #[test]
 fn uci_go_movetime_returns_bestmove_in_window() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
-    common::send(&mut stdin, "position startpos");
+    engine.send("position startpos");
     let start = Instant::now();
-    common::send(&mut stdin, "go movetime 100");
+    engine.send("go movetime 100");
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
     let elapsed = start.elapsed();
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let bm = bm.expect("movetime must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
     // Loose window: not too fast (should use ~the movetime), not a hang.
@@ -196,10 +194,10 @@ fn uci_go_movetime_returns_bestmove_in_window() {
 /// `go infinite` must NOT self-emit a bestmove; after `stop` it must.
 #[test]
 fn uci_go_infinite_waits_for_stop() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
-    common::send(&mut stdin, "position startpos");
-    common::send(&mut stdin, "go infinite");
+    engine.send("position startpos");
+    engine.send("go infinite");
     // Let it search for a while on its own.
     std::thread::sleep(Duration::from_millis(300));
     // Peek for any bestmove: there must be none before `stop`.
@@ -208,10 +206,8 @@ fn uci_go_infinite_waits_for_stop() {
         leaked.is_none(),
         "go infinite must not self-emit bestmove before stop"
     );
-    common::send(&mut stdin, "stop");
+    engine.send("stop");
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let bm = bm.expect("stop must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
 }
@@ -219,15 +215,13 @@ fn uci_go_infinite_waits_for_stop() {
 /// `go wtime btime` must return well before the whole clock is spent.
 #[test]
 fn uci_go_wtime_btime_returns_before_clock_out() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
-    common::send(&mut stdin, "position startpos");
+    engine.send("position startpos");
     let start = Instant::now();
-    common::send(&mut stdin, "go wtime 1000 btime 1000");
+    engine.send("go wtime 1000 btime 1000");
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
     let elapsed = start.elapsed();
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let bm = bm.expect("wtime/btime must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
     // White to move: allocation ~ (1000-20)/30 ~ 32ms. Must be far under 1s.
@@ -244,16 +238,14 @@ fn uci_go_wtime_btime_returns_before_clock_out() {
 /// for seconds and time out this assertion.
 #[test]
 fn uci_black_to_move_uses_btime_not_wtime() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
     // After 1.e4 it is Black to move.
-    common::send(&mut stdin, "position startpos moves e2e4");
+    engine.send("position startpos moves e2e4");
     let start = Instant::now();
-    common::send(&mut stdin, "go wtime 60000 btime 60");
+    engine.send("go wtime 60000 btime 60");
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
     let elapsed = start.elapsed();
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let bm = bm.expect("must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
     // btime=60ms -> allocation ~1-2ms. Must return well under 60ms btime
@@ -268,15 +260,13 @@ fn uci_black_to_move_uses_btime_not_wtime() {
 /// `info` lines for completed iterations must include nodes / time / nps.
 #[test]
 fn uci_info_includes_nodes_time_nps() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
-    common::send(&mut stdin, "position startpos");
-    common::send(&mut stdin, "go depth 2");
+    engine.send("position startpos");
+    engine.send("go depth 2");
     let info = common::recv_until(&rx, "info", Duration::from_secs(3));
     // Drain to bestmove so the engine can exit cleanly.
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let info = info.expect("must emit at least one info line");
     assert!(info.contains("nodes "), "info must include nodes: {}", info);
     assert!(info.contains("time "), "info must include time: {}", info);
@@ -290,10 +280,10 @@ fn uci_info_includes_nodes_time_nps() {
 /// movetime or the 100ms clock would have elapsed.
 #[test]
 fn uci_go_infinite_overrides_clock_and_movetime() {
-    let (mut child, mut stdin, stdout) = common::spawn_engine();
+    let (mut engine, stdout) = common::spawn_engine();
     let rx = common::spawn_reader(stdout);
-    common::send(&mut stdin, "position startpos");
-    common::send(&mut stdin, "go infinite wtime 100 btime 100 movetime 50");
+    engine.send("position startpos");
+    engine.send("go infinite wtime 100 btime 100 movetime 50");
     // Let it run well past the 50ms movetime / 100ms clock.
     std::thread::sleep(Duration::from_millis(300));
     // Peek for a bestmove: there must be none before `stop`.
@@ -302,10 +292,8 @@ fn uci_go_infinite_overrides_clock_and_movetime() {
         leaked.is_none(),
         "go infinite must ignore clock/movetime and wait for stop"
     );
-    common::send(&mut stdin, "stop");
+    engine.send("stop");
     let bm = common::recv_until(&rx, "bestmove", Duration::from_secs(3));
-    common::send(&mut stdin, "quit");
-    let _ = child.wait();
     let bm = bm.expect("stop must produce a bestmove");
     assert!(bm.starts_with("bestmove "), "got {:?}", bm);
 }

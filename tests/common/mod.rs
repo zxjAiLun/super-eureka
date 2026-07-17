@@ -3,7 +3,7 @@
 //! in integration test files; it is not itself a test target.
 
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
@@ -16,13 +16,62 @@ pub fn engine_path() -> std::path::PathBuf {
     )
 }
 
-/// Spawn the engine with piped stdin/stdout. Returns the child plus its
-/// stdin writer and raw stdout reader.
-pub fn spawn_engine() -> (
-    std::process::Child,
-    std::process::ChildStdin,
-    std::process::ChildStdout,
-) {
+/// RAII wrapper around a spawned engine child process.
+///
+/// Why this exists: integration tests routinely `assert!` mid-flight (e.g.
+/// "there must be no bestmove before `stop`"). If an assertion fails, the
+/// remaining `stop` / `quit` / `wait` lines never run, and an `go infinite`
+/// child keeps searching forever in the background. On Windows those leaked
+/// processes hold an open handle to `target/.../chess-engine-demo.exe`, so
+/// the *next* build's linker cannot overwrite the file (`os error 5` /
+/// `LNK1104`). Cleaning up in `Drop` guarantees the child is always reaped —
+/// even when the test panics — which removes the root cause of the recurring
+/// stale-exe lock.
+pub struct EngineProcess {
+    pub child: Child,
+    /// `Option` so `Drop` can `take()` it, closing the stdin pipe (which
+    /// also signals the engine's read loop to end).
+    pub stdin: Option<ChildStdin>,
+}
+
+impl EngineProcess {
+    /// Send one line to the engine and flush.
+    pub fn send(&mut self, line: &str) {
+        let stdin = self.stdin.as_mut().expect("stdin available");
+        stdin.write_all(line.as_bytes()).unwrap();
+        stdin.write_all(b"\n").unwrap();
+        stdin.flush().unwrap();
+    }
+}
+
+impl Drop for EngineProcess {
+    fn drop(&mut self) {
+        // Ask the engine to quit gracefully, then close the pipe so its read
+        // loop sees EOF. Ignore errors: the child may already be gone.
+        if let Some(mut stdin) = self.stdin.take() {
+            let _ = stdin.write_all(b"quit\n");
+            let _ = stdin.flush();
+            // `stdin` drops here -> pipe closes.
+        }
+        // Give it a brief window to exit on its own; then force-kill so a
+        // hung `go infinite` can never leak. Either way we `wait()` to reap
+        // the process and release its handle on the .exe.
+        for _ in 0..50 {
+            match self.child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+                Err(_) => break,
+            }
+        }
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// Spawn the engine with piped stdin/stdout. Returns an [`EngineProcess`]
+/// (owns the child + stdin, auto-cleaned on drop) plus the raw stdout reader
+/// to hand to [`spawn_reader`].
+pub fn spawn_engine() -> (EngineProcess, std::process::ChildStdout) {
     let mut child = Command::new(engine_path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -31,7 +80,13 @@ pub fn spawn_engine() -> (
         .expect("engine binary must run");
     let stdin = child.stdin.take().expect("stdin should be piped");
     let stdout = child.stdout.take().expect("stdout should be piped");
-    (child, stdin, stdout)
+    (
+        EngineProcess {
+            child,
+            stdin: Some(stdin),
+        },
+        stdout,
+    )
 }
 
 /// Drain the engine's stdout into a channel so tests can poll with a
@@ -81,11 +136,4 @@ pub fn recv_until(rx: &mpsc::Receiver<String>, prefix: &str, timeout: Duration) 
             Err(RecvTimeoutError::Disconnected) => return None,
         }
     }
-}
-
-/// Send a line to the engine and flush.
-pub fn send(stdin: &mut std::process::ChildStdin, line: &str) {
-    stdin.write_all(line.as_bytes()).unwrap();
-    stdin.write_all(b"\n").unwrap();
-    stdin.flush().unwrap();
 }
