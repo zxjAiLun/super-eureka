@@ -123,8 +123,7 @@ pub const F8: Square = 61;
 pub const G8: Square = 62;
 pub const H8: Square = 63;
 
-pub const START_FEN: &str =
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 #[inline]
 pub fn file_of(sq: Square) -> u8 {
@@ -143,7 +142,7 @@ pub fn make_square(file: u8, rank: u8) -> Square {
 
 #[inline]
 pub fn on_board(file: i32, rank: i32) -> bool {
-    file >= 0 && file < 8 && rank >= 0 && rank < 8
+    (0..8).contains(&file) && (0..8).contains(&rank)
 }
 
 pub fn square_name(sq: Square) -> String {
@@ -159,7 +158,7 @@ pub fn parse_square(s: &str) -> Result<Square, String> {
     }
     let file = (bytes[0] as char).to_ascii_lowercase() as i32 - b'a' as i32;
     let rank = bytes[1] as i32 - b'1' as i32;
-    if file < 0 || file > 7 || rank < 0 || rank > 7 {
+    if !(0..=7).contains(&file) || !(0..=7).contains(&rank) {
         return Err(format!("invalid square '{}'", s));
     }
     Ok(make_square(file as u8, rank as u8))

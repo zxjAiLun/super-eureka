@@ -11,32 +11,32 @@
 //!
 //! This version is slow but intentionally simple and correct.
 
-use crate::chess::types::*;
-use crate::chess::position::Position;
 use crate::chess::movegen::generate_legal_moves;
+use crate::chess::position::Position;
+use crate::chess::types::*;
 use crate::engine::eval::evaluate;
 
 pub const MATE: i32 = 1_000_000;
 
 /// Negamax with alpha-beta. Returns the score from the side-to-move's view.
-pub fn negamax(
-    pos: &mut Position,
-    depth: u32,
-    ply: u32,
-    mut alpha: i32,
-    beta: i32,
-) -> i32 {
-    if depth == 0 {
-        return evaluate(pos);
-    }
-
+pub fn negamax(pos: &mut Position, depth: u32, ply: u32, mut alpha: i32, beta: i32) -> i32 {
+    // Terminal-node check MUST run before the depth==0 evaluation. A position
+    // that is checkmate or stalemate is scored by its game-theoretic value,
+    // never by the material count at the search horizon. Otherwise the engine
+    // would happily "evaluate" a position it is already mated in, or score a
+    // forced stalemate as a normal material balance.
     let moves = generate_legal_moves(pos);
     if moves.is_empty() {
         if pos.is_in_check(pos.side) {
-            // Being checkmated: prefer the *latest* possible mate (smaller |score|).
+            // Being checkmated: prefer the *latest* possible mate (smaller |score|),
+            // so a mate delivered sooner is always preferred over a later one.
             return -(MATE - ply as i32);
         }
         return 0; // stalemate
+    }
+
+    if depth == 0 {
+        return evaluate(pos);
     }
 
     let mut best = i32::MIN + 1000;

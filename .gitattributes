@@ -1,0 +1,4 @@
+# Normalize all text files to LF in the repository and check them out as LF
+# everywhere, so `cargo fmt --check` and other line-ending-sensitive tooling
+# behave identically on Windows and the Linux CI runner.
+* text=auto eol=lf

@@ -2,7 +2,6 @@
 //! rules bug and we must NOT proceed to search.
 
 use chess_engine_demo::chess::fen::parse_fen;
-use chess_engine_demo::chess::position::Position;
 use chess_engine_demo::chess::types::START_FEN;
 
 fn perft(fen: &str, depth: u32) -> u64 {
@@ -16,8 +15,15 @@ fn perft_startpos() {
     assert_eq!(perft(START_FEN, 2), 400);
     assert_eq!(perft(START_FEN, 3), 8902);
     assert_eq!(perft(START_FEN, 4), 197281);
-    // Depth 5 = 4,865,609. Enable in release builds; slow in debug.
-    // assert_eq!(perft(START_FEN, 5), 4_865_609);
+}
+
+/// Perft depth 5 (4,865,609 nodes) is the canonical correctness gate, but
+/// it is ~300 ms in release and far slower in debug. Gate it so it only runs
+/// in release builds (`cargo test --release`), keeping debug CI fast.
+#[cfg(not(debug_assertions))]
+#[test]
+fn perft_startpos_depth_5_release() {
+    assert_eq!(perft(START_FEN, 5), 4_865_609);
 }
 
 #[test]

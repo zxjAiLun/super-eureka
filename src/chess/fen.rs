@@ -1,19 +1,26 @@
 //! FEN parsing/output and ASCII board printing.
 
-use crate::chess::types::*;
 use crate::chess::position::Position;
+use crate::chess::types::*;
 
 pub fn parse_fen(fen: &str) -> Result<Position, String> {
-    let mut parts = fen.trim().split_whitespace();
+    let mut parts = fen.split_whitespace();
     let placement = parts.next().ok_or("missing piece placement")?;
     let side_str = parts.next().ok_or("missing side to move")?;
     let castling_str = parts.next().ok_or("missing castling rights")?;
     let ep_str = parts.next().ok_or("missing en passant target")?;
     let half_str = parts.next();
     let full_str = parts.next();
+    // Reject any extra trailing fields so a malformed FEN cannot silently
+    // be accepted as valid.
+    if parts.next().is_some() {
+        return Err("FEN has too many fields".into());
+    }
 
     let mut board = [None; 64];
     let mut king_sq = [0u8; 2];
+    let mut white_kings = 0u8;
+    let mut black_kings = 0u8;
 
     let ranks: Vec<&str> = placement.split('/').collect();
     if ranks.len() != 8 {
@@ -25,6 +32,10 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         let mut file = 0u8;
         for ch in rank_str.chars() {
             if let Some(d) = ch.to_digit(10) {
+                // Only run-lengths 1..=8 are legal in FEN; 0 and 9+ are not.
+                if !(1..=8).contains(&d) {
+                    return Err(format!("invalid square count '{}' in rank {}", ch, i + 1));
+                }
                 file += d as u8;
             } else {
                 let piece = Piece::from_char(ch)
@@ -32,11 +43,33 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
                 let sq = make_square(file, our_rank);
                 board[sq as usize] = Some(piece);
                 if piece.piece_type == PieceType::King {
-                    king_sq[piece.color as usize] = sq;
+                    if piece.color == Color::White {
+                        white_kings += 1;
+                        king_sq[0] = sq;
+                    } else {
+                        black_kings += 1;
+                        king_sq[1] = sq;
+                    }
                 }
                 file += 1;
             }
+            // A rank may never exceed 8 squares, or the next index would be
+            // out of bounds (and would panic on `board[sq]`).
+            if file > 8 {
+                return Err(format!("rank {} has more than 8 squares", i + 1));
+            }
         }
+        if file != 8 {
+            return Err(format!(
+                "rank {} must have exactly 8 squares, got {}",
+                i + 1,
+                file
+            ));
+        }
+    }
+
+    if white_kings != 1 || black_kings != 1 {
+        return Err("position must contain exactly one king per side".into());
     }
 
     let side = match side_str {
@@ -66,15 +99,38 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
     let ep_target = if ep_str == "-" {
         None
     } else {
-        Some(parse_square(ep_str)?)
+        let sq = parse_square(ep_str)?;
+        // The en-passant target must lie on the rank a pawn would have
+        // crossed: rank 6 (index 5) when White is to move, rank 3
+        // (index 2) when Black is to move.
+        let expected_rank: u8 = if side == Color::White { 5 } else { 2 };
+        if rank_of(sq) != expected_rank {
+            return Err(format!(
+                "en passant target '{}' is on an illegal rank for the side to move",
+                ep_str
+            ));
+        }
+        Some(sq)
     };
 
-    let halfmove = half_str
-        .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(0);
-    let fullmove = full_str
-        .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(1);
+    let halfmove = match half_str {
+        Some(s) => s
+            .parse::<u32>()
+            .map_err(|_| format!("invalid halfmove clock '{}'", s))?,
+        None => 0,
+    };
+    let fullmove = match full_str {
+        Some(s) => {
+            let v: u32 = s
+                .parse()
+                .map_err(|_| format!("invalid fullmove number '{}'", s))?;
+            if v < 1 {
+                return Err("fullmove number must be >= 1".into());
+            }
+            v
+        }
+        None => 1,
+    };
 
     Ok(Position {
         board,

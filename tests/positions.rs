@@ -1,8 +1,9 @@
 //! FEN round-trip and basic rules sanity checks.
 
-use chess_engine_demo::chess::fen::{parse_fen, to_fen, print_ascii};
-use chess_engine_demo::chess::position::Position;
-use chess_engine_demo::chess::types::{move_to_uci, START_FEN, MoveFlag, Piece, PieceType, Color, Move};
+use chess_engine_demo::chess::fen::{parse_fen, print_ascii, to_fen};
+use chess_engine_demo::chess::types::{
+    move_to_uci, Color, Move, MoveFlag, Piece, PieceType, START_FEN,
+};
 
 #[test]
 fn fen_round_trip_startpos() {
@@ -30,7 +31,7 @@ fn startpos_white_to_move() {
 fn move_to_uci_promotion() {
     let m = Move {
         from: 12, // e2
-        to: 4,   // e1 (promotion square in a contrived sense)
+        to: 4,    // e1 (promotion square in a contrived sense)
         promotion: Some(PieceType::Queen),
         flag: MoveFlag::Promotion(PieceType::Queen),
     };
@@ -46,8 +47,11 @@ fn simple_make_unmake_restores_board() {
         promotion: None,
         flag: MoveFlag::DoublePawnPush,
     });
-    assert_eq!(pos.board[28 as usize], Some(Piece::new(Color::White, PieceType::Pawn)));
-    assert_eq!(pos.board[12 as usize], None);
+    assert_eq!(
+        pos.board[28],
+        Some(Piece::new(Color::White, PieceType::Pawn))
+    );
+    assert_eq!(pos.board[12], None);
     assert_eq!(pos.side, Color::Black);
     pos.unmake_move(undo);
     assert_eq!(to_fen(&pos), START_FEN);

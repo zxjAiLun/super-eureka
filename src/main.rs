@@ -7,10 +7,7 @@ fn main() {
     // `cargo run -- perft <depth> [<fen>]` runs a Perft node count
     // (Phase-2 verification). Example: `cargo run -- perft 4`.
     if args.len() >= 2 && args[1] == "perft" {
-        let depth: u32 = args
-            .get(2)
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(4);
+        let depth: u32 = args.get(2).and_then(|s| s.parse::<u32>().ok()).unwrap_or(4);
         let fen_str = args
             .get(3)
             .cloned()

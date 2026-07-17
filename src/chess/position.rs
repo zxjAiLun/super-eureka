@@ -73,14 +73,22 @@ impl Position {
                 self.board[m.to as usize] = Some(moved_piece);
             }
             MoveFlag::KingCastle => {
-                let (rf, rt) = if us == Color::White { (H1, F1) } else { (H8, F8) };
+                let (rf, rt) = if us == Color::White {
+                    (H1, F1)
+                } else {
+                    (H8, F8)
+                };
                 let rook = self.board[rf as usize];
                 self.board[rf as usize] = None;
                 self.board[rt as usize] = rook;
                 self.board[m.to as usize] = Some(moved_piece);
             }
             MoveFlag::QueenCastle => {
-                let (rf, rt) = if us == Color::White { (A1, D1) } else { (A8, D8) };
+                let (rf, rt) = if us == Color::White {
+                    (A1, D1)
+                } else {
+                    (A8, D8)
+                };
                 let rook = self.board[rf as usize];
                 self.board[rf as usize] = None;
                 self.board[rt as usize] = rook;
@@ -137,13 +145,21 @@ impl Position {
                 self.board[cap_sq as usize] = undo.captured;
             }
             MoveFlag::KingCastle => {
-                let (rf, rt) = if us == Color::White { (H1, F1) } else { (H8, F8) };
+                let (rf, rt) = if us == Color::White {
+                    (H1, F1)
+                } else {
+                    (H8, F8)
+                };
                 let rook = self.board[rt as usize];
                 self.board[rt as usize] = None;
                 self.board[rf as usize] = rook;
             }
             MoveFlag::QueenCastle => {
-                let (rf, rt) = if us == Color::White { (A1, D1) } else { (A8, D8) };
+                let (rf, rt) = if us == Color::White {
+                    (A1, D1)
+                } else {
+                    (A8, D8)
+                };
                 let rook = self.board[rt as usize];
                 self.board[rt as usize] = None;
                 self.board[rf as usize] = rook;
@@ -240,8 +256,7 @@ impl Position {
                 let to = make_square(nf as u8, nr as u8);
                 if let Some(p) = self.board[to as usize] {
                     if p.color == by
-                        && (p.piece_type == PieceType::Bishop
-                            || p.piece_type == PieceType::Queen)
+                        && (p.piece_type == PieceType::Bishop || p.piece_type == PieceType::Queen)
                     {
                         return true;
                     }
@@ -258,8 +273,7 @@ impl Position {
                 let to = make_square(nf as u8, nr as u8);
                 if let Some(p) = self.board[to as usize] {
                     if p.color == by
-                        && (p.piece_type == PieceType::Rook
-                            || p.piece_type == PieceType::Queen)
+                        && (p.piece_type == PieceType::Rook || p.piece_type == PieceType::Queen)
                     {
                         return true;
                     }

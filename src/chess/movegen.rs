@@ -46,7 +46,13 @@ pub fn generate_legal_moves(pos: &mut Position) -> Vec<Move> {
     legal
 }
 
-fn push_move(moves: &mut Vec<Move>, from: Square, to: Square, flag: MoveFlag, promo: Option<PieceType>) {
+fn push_move(
+    moves: &mut Vec<Move>,
+    from: Square,
+    to: Square,
+    flag: MoveFlag,
+    promo: Option<PieceType>,
+) {
     moves.push(Move {
         from,
         to,

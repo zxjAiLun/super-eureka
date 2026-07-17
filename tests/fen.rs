@@ -1,0 +1,63 @@
+//! FEN parser hardening (P1): reject malformed input with clear errors
+//! instead of panicking, and never accept an impossible board.
+
+use chess_engine_demo::chess::parse_fen;
+
+/// Every entry here must be rejected (return `Err`), never panic.
+#[test]
+fn parse_fen_rejects_bad_input() {
+    let bad = [
+        "",                                                               // empty
+        "hello",                                                          // not a FEN at all
+        "8/8/8/8/8/8/8",                                                  // only 7 ranks
+        "8/8/8/8/8/8/8/8/8",                                              // 9 ranks
+        "9/8/8/8/8/8/8/8",                                                // run of 9 in a rank
+        "8/8/8/8/8/8/8/9",              // run of 9 in the last rank
+        "0/8/8/8/8/8/8/8",              // run of 0 is illegal
+        "8/8/8/8/8/8/8/8 w KQkq - 0",   // missing fullmove field
+        "8/8/8/8/8/8/8/8 w KQkq - 0 0", // fullmove < 1
+        "8/8/8/8/8/8/8/RK w - - 0 1",   // no black king
+        "8/8/8/8/8/8/8/KK w - - 0 1",   // two white kings
+        "8/8/8/8/8/8/8/RN w - - 0 1",   // two rooks, no king
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e3 0 1", // ep on wrong rank for White
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq e6 0 1", // ep on wrong rank for Black
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1", // bad side
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 extra", // extra field
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1.5", // non-integer fullmove
+    ];
+    for f in bad {
+        assert!(parse_fen(f).is_err(), "FEN should be rejected: {:?}", f);
+    }
+}
+
+/// A clean FEN with a legal en-passant target is accepted.
+#[test]
+fn parse_fen_accepts_legal_ep() {
+    let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e6 0 1";
+    let pos = parse_fen(fen).expect("legal ep target for White to move");
+    assert_eq!(
+        pos.ep_target,
+        Some(chess_engine_demo::chess::types::parse_square("e6").unwrap())
+    );
+}
+
+/// parse_fen must never panic, no matter what string it is handed.
+#[test]
+fn parse_fen_never_panics_on_garbage() {
+    let corpus = [
+        "",
+        "   ",
+        "🤖/🤖/🤖/🤖/🤖/🤖/🤖/🤖 w - - 0 1",
+        "999999999/8/8/8/8/8/8/8 w - - 0 1",
+        "/8/8/8/8/8/8/8 w - - 0 1",
+        "8/8/8/8/8/8/8/ w - - 0 1",
+        "8/8/8/8/8/8/8/RNBQKBNR w - - 0 1",
+        "k7/8/8/8/8/8/8/K7 w - - 0 1",
+        "8/8/8/8/8/8/8/Rk w - - 0 1 abc def",
+        "aaaaaaaa/bbbbbbbb/cccccccc/dddddddd/eeeeeeee/ffffffff/gggggggg/hhhhhhhh w - - 0 1",
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
+    ];
+    for f in corpus {
+        let _ = parse_fen(f); // must not panic
+    }
+}

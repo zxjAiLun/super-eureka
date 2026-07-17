@@ -7,10 +7,10 @@
 
 use std::io::{self, BufRead, Write};
 
-use crate::chess::types::*;
-use crate::chess::position::Position;
-use crate::chess::movegen::generate_pseudo_moves;
 use crate::chess::fen;
+use crate::chess::movegen::generate_legal_moves;
+use crate::chess::position::Position;
+use crate::chess::types::*;
 use crate::engine::search;
 
 pub fn run() {
@@ -39,7 +39,12 @@ pub fn run() {
                 pos = Position::startpos();
             }
             "position" => {
-                pos = parse_position(&tokens);
+                // Apply in place; on any error (bad FEN, illegal history move)
+                // keep the current position and surface the problem instead of
+                // silently resetting to the startpos.
+                if let Err(e) = apply_position(&mut pos, &tokens) {
+                    println!("info string {}", e);
+                }
             }
             "go" => {
                 let depth = parse_go_depth(&tokens).unwrap_or(4);
@@ -65,9 +70,13 @@ pub fn run() {
     }
 }
 
-fn parse_position(tokens: &[&str]) -> Position {
-    let mut idx = 1;
-    let mut pos = if tokens.get(1) == Some(&"startpos") {
+/// Apply a `position` command to `pos` in place. On any error (bad FEN,
+/// illegal history move, ...) the current position is left untouched and the
+/// error is returned so the caller can report it. This replaces the old silent
+/// `unwrap_or_else(startpos)` fallback that hid malformed input.
+fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
+    let idx;
+    let mut new_pos = if tokens.get(1) == Some(&"startpos") {
         idx = 2;
         Position::startpos()
     } else if tokens.get(1) == Some(&"fen") {
@@ -79,25 +88,32 @@ fn parse_position(tokens: &[&str]) -> Position {
         }
         idx = i;
         let fen_str = fen_parts.join(" ");
-        fen::parse_fen(&fen_str).unwrap_or_else(|_| Position::startpos())
+        fen::parse_fen(&fen_str)?
     } else {
-        Position::startpos()
+        return Err("position command needs 'startpos' or 'fen'".into());
     };
 
     if tokens.get(idx) == Some(&"moves") {
         let mut i = idx + 1;
         while i < tokens.len() {
-            if let Some(m) = find_move(&mut pos, tokens[i]) {
-                pos.make_move(m);
+            match find_move(&mut new_pos, tokens[i]) {
+                Some(m) => {
+                    new_pos.make_move(m);
+                }
+                None => return Err(format!("invalid move {}", tokens[i])),
             }
             i += 1;
         }
     }
-    pos
+
+    *pos = new_pos;
+    Ok(())
 }
 
-/// Match a UCI move string to a generated (pseudo-legal) move so that
-/// en-passant, castling, and promotion flags are reconstructed correctly.
+/// Match a UCI move string to a *strictly legal* move so that en-passant,
+/// castling, and promotion flags are reconstructed correctly. We use legal
+/// (not pseudo-legal) generation: a malformed history must never be allowed
+/// to leave the king in check or otherwise reach an illegal position.
 fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
     if uci.len() < 4 {
         return None;
@@ -109,8 +125,7 @@ fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
     } else {
         None
     };
-    let mut moves = Vec::new();
-    generate_pseudo_moves(pos, &mut moves);
+    let moves = generate_legal_moves(pos);
     moves
         .into_iter()
         .find(|m| m.from == from && m.to == to && m.promotion == promo)
