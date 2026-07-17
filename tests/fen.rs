@@ -61,3 +61,24 @@ fn parse_fen_never_panics_on_garbage() {
         let _ = parse_fen(f); // must not panic
     }
 }
+
+/// P0.5 regression: a rank whose run-length exactly fills the 8 squares and
+/// is then followed by a piece used to panic on `board[64]`. It must be
+/// rejected, never panic.
+#[test]
+fn parse_fen_does_not_panic_on_overfull_rank() {
+    let cases = [
+        "8K/8/8/8/8/8/8/k7 w - - 0 1",
+        "7KK/8/8/8/8/8/8/k7 w - - 0 1",
+        "8p/8/8/8/8/8/8/K6k w - - 0 1",
+    ];
+    for f in cases {
+        // Must not panic on any input.
+        let result = std::panic::catch_unwind(|| {
+            let _ = parse_fen(f);
+        });
+        assert!(result.is_ok(), "parse_fen panicked on {:?}", f);
+        // And must be reported as an error, not silently accepted.
+        assert!(parse_fen(f).is_err(), "FEN should be rejected: {:?}", f);
+    }
+}

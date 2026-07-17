@@ -114,14 +114,27 @@ fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
 /// castling, and promotion flags are reconstructed correctly. We use legal
 /// (not pseudo-legal) generation: a malformed history must never be allowed
 /// to leave the king in check or otherwise reach an illegal position.
-fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
-    if uci.len() < 4 {
+pub fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
+    let bytes = uci.as_bytes();
+    // Reject anything that is not a clean 4- or 5-byte ASCII move. This
+    // defends against (a) over-long strings like "e2e4garbage", (b) a junk
+    // 5th byte being silently downgraded to "no promotion", and (c) UTF-8
+    // input whose byte slice would otherwise land mid-character and panic.
+    if !matches!(bytes.len(), 4 | 5) || !bytes.is_ascii() {
         return None;
     }
-    let from = parse_square(&uci[0..2]).ok()?;
-    let to = parse_square(&uci[2..4]).ok()?;
-    let promo = if uci.len() >= 5 {
-        uci.chars().nth(4).and_then(PieceType::from_char)
+    let from = parse_square(std::str::from_utf8(&bytes[0..2]).unwrap()).ok()?;
+    let to = parse_square(std::str::from_utf8(&bytes[2..4]).unwrap()).ok()?;
+    let promo = if bytes.len() == 5 {
+        // The promotion piece must be spelled out exactly; an unknown 5th byte
+        // is rejected rather than tolerated.
+        match bytes[4] {
+            b'q' => Some(PieceType::Queen),
+            b'r' => Some(PieceType::Rook),
+            b'b' => Some(PieceType::Bishop),
+            b'n' => Some(PieceType::Knight),
+            _ => return None,
+        }
     } else {
         None
     };

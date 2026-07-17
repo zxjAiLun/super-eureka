@@ -38,6 +38,13 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
                 }
                 file += d as u8;
             } else {
+                // A piece must fall within the 8 squares of the rank. If the
+                // run-lengths already filled the rank (or overflowed it), placing
+                // a piece here would compute an out-of-bounds square and panic on
+                // `board[sq]`. Guard *before* the write.
+                if file >= 8 {
+                    return Err(format!("rank {} has more than 8 squares", i + 1));
+                }
                 let piece = Piece::from_char(ch)
                     .ok_or_else(|| format!("invalid piece character '{}'", ch))?;
                 let sq = make_square(file, our_rank);
@@ -52,11 +59,6 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
                     }
                 }
                 file += 1;
-            }
-            // A rank may never exceed 8 squares, or the next index would be
-            // out of bounds (and would panic on `board[sq]`).
-            if file > 8 {
-                return Err(format!("rank {} has more than 8 squares", i + 1));
             }
         }
         if file != 8 {
