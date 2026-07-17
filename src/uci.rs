@@ -6,19 +6,60 @@
 //! from a GUI or the command line.
 
 use std::io::{self, BufRead, Write};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 
 use crate::chess::fen;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::engine::search;
+use crate::engine::search::SearchLimits;
+
+/// A search currently running on its own thread. `stop` is shared with the
+/// thread's `SearchContext`, so flipping it aborts the search; `handle` lets
+/// the main loop `join` the thread (and collect its `bestmove`) before it
+/// starts a new search or mutates the position.
+struct ActiveSearch {
+    stop: Arc<AtomicBool>,
+    handle: JoinHandle<()>,
+}
+
+/// Stop any in-flight search and wait for its thread to finish.
+///
+/// The search thread prints its own `bestmove` (real or aborted) as it
+/// unwinds, so we must `join` *before* touching `pos` or starting another
+/// search — otherwise a stale `bestmove` from the old position could arrive
+/// after the new one has already begun.
+fn stop_and_join(active: &mut Option<ActiveSearch>) {
+    if let Some(a) = active.take() {
+        a.stop.store(true, Ordering::SeqCst);
+        let _ = a.handle.join();
+    }
+}
+
+/// Spawn the search on a dedicated thread. The thread owns its own clone of
+/// the position and prints `bestmove` (with a final flush) when it finishes,
+/// whether by completing or by being stopped.
+fn spawn_search(pos: Position, limits: SearchLimits, stop: Arc<AtomicBool>) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let ctx = search::SearchContext::new(stop.clone());
+        let mut pos = pos;
+        match search::search_best_move(&mut pos, &limits, &ctx) {
+            Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
+            None => println!("bestmove 0000"),
+        }
+        let _ = std::io::stdout().flush();
+    })
+}
 
 pub fn run() {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut pos = Position::startpos();
+    // The active background search, if any. `None` while idle.
+    let mut active: Option<ActiveSearch> = None;
 
     for line in stdin.lock().lines() {
         let line = match line {
@@ -36,31 +77,42 @@ pub fn run() {
                 println!("id author Rust-learner");
                 println!("uciok");
             }
-            "isready" => println!("readyok"),
+            "isready" => {
+                // Answer immediately, even while a search runs on its own
+                // thread. We never block on the search here.
+                println!("readyok");
+            }
             "ucinewgame" => {
+                // Stop any in-flight search before resetting the board so a
+                // stale `bestmove` can't arrive for the old game.
+                stop_and_join(&mut active);
                 pos = Position::startpos();
             }
             "position" => {
-                // Apply in place; on any error (bad FEN, illegal history move)
-                // keep the current position and surface the problem instead of
-                // silently resetting to the startpos.
+                // Stop first, then mutate. The search thread holds its own
+                // clone of `pos`, so this is race-free; we still stop first so
+                // a half-applied position never races a running search's output.
+                stop_and_join(&mut active);
                 if let Err(e) = apply_position(&mut pos, &tokens) {
                     println!("info string {}", e);
                 }
             }
             "go" => {
-                // M1.1: build the interruptible search inputs. A fresh
-                // stop flag per `go` means each search starts un-aborted;
-                // M1.2 will let `stop` flip this flag from another thread.
+                // M1.2: search on its own thread. Always stop and join any
+                // previous search first, so a finished/aborted old thread can
+                // never print a `bestmove` for the wrong position.
+                stop_and_join(&mut active);
                 let limits = parse_go_limits(&tokens);
                 let stop = Arc::new(AtomicBool::new(false));
-                let ctx = search::SearchContext::new(stop);
-                match search::search_best_move(&mut pos, &limits, &ctx) {
-                    Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
-                    None => println!("bestmove 0000"),
-                }
+                let handle = spawn_search(pos, limits, stop.clone());
+                active = Some(ActiveSearch { stop, handle });
             }
-            "stop" => { /* single-threaded, no async interrupt yet (Phase 7) */ }
+            "stop" => {
+                // Real stop: flip the flag and join. The thread prints
+                // `bestmove` as it unwinds; we wait for that so the GUI
+                // always receives a complete result.
+                stop_and_join(&mut active);
+            }
             "perft" => {
                 let depth: u32 = tokens
                     .get(1)
@@ -69,12 +121,19 @@ pub fn run() {
                 let n = pos.perft(depth);
                 println!("perft({}) = {}", depth, n);
             }
-            "quit" | "exit" => break,
+            "quit" | "exit" => {
+                stop_and_join(&mut active);
+                break;
+            }
             _ => { /* ignore unknown commands */ }
         }
 
         let _ = stdout.lock().flush();
     }
+
+    // stdin closed (EOF) without `quit`: don't leave a search thread
+    // dangling.
+    stop_and_join(&mut active);
 }
 
 /// Apply a `position` command to `pos` in place. On any error (bad FEN,
