@@ -4,4 +4,6 @@ pub mod time;
 pub mod tt;
 
 pub use eval::evaluate;
-pub use search::{negamax, search_best_move, SearchContext, SearchLimits, SearchResult, MATE};
+pub use search::{
+    negamax, search_best_move, SearchContext, SearchLimits, SearchOutcome, SearchResult, MATE,
+};

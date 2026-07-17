@@ -48,17 +48,16 @@ fn search_finds_mate_in_one() {
     let mut pos = parse_fen("6k1/5ppp/8/8/8/8/8/R6K w - - 0 1").expect("valid FEN");
     let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
     let limits = SearchLimits::default();
-    let (m, score) =
-        search::search_best_move(&mut pos, &limits, &ctx).expect("there is a legal move");
+    let outcome = search::search_best_move(&mut pos, &limits, &ctx).expect("there is a legal move");
     assert_eq!(
-        chess_engine_demo::chess::move_to_uci(m),
+        chess_engine_demo::chess::move_to_uci(outcome.best_move),
         "a1a8",
         "the only mate-in-one is Ra8"
     );
     assert!(
-        score > search::MATE - 1000,
-        "a mate-in-one must score as a mate, got {}",
-        score
+        outcome.score.expect("depth 4 completes with a real score") > search::MATE - 1000,
+        "a mate-in-one must score as a mate, got {:?}",
+        outcome.score
     );
 }
 

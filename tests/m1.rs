@@ -25,8 +25,10 @@ fn m1_stop_preset_returns_fallback_and_keeps_position() {
         depth: Some(4),
         ..Default::default()
     };
-    let result = search_best_move(&mut pos, &limits, &ctx);
-    let (mv, _) = result.expect("a legal fallback move must still be returned");
+    let out = search_best_move(&mut pos, &limits, &ctx);
+    let mv = out
+        .expect("a legal fallback move must still be returned")
+        .best_move;
     // The fallback must be one of the legal root moves.
     assert!(
         generate_legal_moves(&mut pos).contains(&mv),
@@ -63,7 +65,7 @@ fn m1_nodes_limit_keeps_last_completed_iteration() {
     let depth1 = search_best_move(&mut pos, &probe_limits, &probe_ctx)
         .expect("depth 1 completes with no limit");
     let depth1_nodes = probe_ctx.nodes.load(Ordering::Relaxed);
-    let expected_mv = depth1.0;
+    let expected_mv = depth1.best_move;
 
     let budget = depth1_nodes + 5; // > depth-1 cost, << depth-2 cost
     let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
@@ -72,10 +74,12 @@ fn m1_nodes_limit_keeps_last_completed_iteration() {
         nodes: Some(budget),
         ..Default::default()
     };
-    let result = search_best_move(&mut pos, &limits, &ctx);
-    let (mv, _) = result.expect("a legal move must be returned");
+    let out = search_best_move(&mut pos, &limits, &ctx).expect("a legal move must be returned");
+    let mv = out.best_move;
     // We completed depth 1 then aborted during depth 2, so the returned
     // move is exactly depth 1's best move.
+    assert_eq!(out.completed_depth, 1, "depth 1 must have completed");
+    assert!(out.stopped, "search must be stopped at depth 2");
     assert_eq!(mv, expected_mv, "must keep the last completed iteration");
     // And nothing was corrupted by the mid-search abort; every made move
     // on the aborted path was unmade on the way back up.
@@ -106,8 +110,9 @@ fn m1_depth1_interrupted_still_returns_fallback() {
         nodes: Some(1),
         ..Default::default()
     };
-    let result = search_best_move(&mut pos, &limits, &ctx);
-    let (mv, _) = result.expect("a legal fallback move must be returned");
+    let out =
+        search_best_move(&mut pos, &limits, &ctx).expect("a legal fallback move must be returned");
+    let mv = out.best_move;
     assert!(
         generate_legal_moves(&mut pos).contains(&mv),
         "fallback move must be legal"
@@ -117,6 +122,14 @@ fn m1_depth1_interrupted_still_returns_fallback() {
         before,
         "position must be untouched after abort"
     );
+    // No iteration completed: score must be `None`, never a fabricated 0,
+    // and the reported depth must be 0.
+    assert!(
+        out.score.is_none(),
+        "no completed iteration must yield score None, not a fabricated 0"
+    );
+    assert_eq!(out.completed_depth, 0, "depth 1 never completed");
+    assert!(out.stopped, "search must be stopped");
     // Budget 1 is enough to search exactly one node (the first root
     // child); the counter must read exactly 1, never 0 or 2.
     assert_eq!(
@@ -138,8 +151,9 @@ fn m1_nodes_zero_processes_nothing() {
         nodes: Some(0),
         ..Default::default()
     };
-    let result = search_best_move(&mut pos, &limits, &ctx);
-    let (mv, _) = result.expect("a legal fallback move must be returned");
+    let out =
+        search_best_move(&mut pos, &limits, &ctx).expect("a legal fallback move must be returned");
+    let mv = out.best_move;
     assert!(
         generate_legal_moves(&mut pos).contains(&mv),
         "fallback move must be legal"
@@ -149,6 +163,12 @@ fn m1_nodes_zero_processes_nothing() {
         before,
         "position must be untouched after abort"
     );
+    assert!(
+        out.score.is_none(),
+        "no completed iteration must yield score None, not a fabricated 0"
+    );
+    assert_eq!(out.completed_depth, 0, "depth 1 never completed");
+    assert!(out.stopped, "search must be stopped");
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
         0,
@@ -169,7 +189,7 @@ fn m1_unmet_node_limit_does_not_change_result() {
         &SearchContext::new(Arc::new(AtomicBool::new(false))),
     )
     .expect("depth 2 completes")
-    .0;
+    .best_move;
     // A generous budget must let the full depth-2 search finish and agree
     // with the unlimited run; the position stays intact either way.
     let big = search_best_move(
@@ -182,7 +202,7 @@ fn m1_unmet_node_limit_does_not_change_result() {
         &SearchContext::new(Arc::new(AtomicBool::new(false))),
     )
     .expect("depth 2 completes under a large budget")
-    .0;
+    .best_move;
     assert_eq!(clean, big, "unmet node limit must not alter the result");
     assert_eq!(to_fen(&pos), before, "position must be untouched");
 }

@@ -56,7 +56,7 @@ pub fn run() {
                 let stop = Arc::new(AtomicBool::new(false));
                 let ctx = search::SearchContext::new(stop);
                 match search::search_best_move(&mut pos, &limits, &ctx) {
-                    Some((m, _)) => println!("bestmove {}", move_to_uci(m)),
+                    Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
                     None => println!("bestmove 0000"),
                 }
             }

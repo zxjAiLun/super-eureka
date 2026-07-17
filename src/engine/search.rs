@@ -20,6 +20,7 @@
 //!   - `search_best_move` keeps the last *fully completed* iteration's best
 //!     move, so being stopped mid-deeper-search never loses a valid result.
 
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -70,6 +71,25 @@ impl SearchContext {
 pub enum SearchResult {
     Score(i32),
     Stopped,
+}
+
+/// The outcome of a (possibly aborted) search run.
+///
+/// `score` is `None` when no full iteration completed — we were stopped
+/// before even depth 1 finished, or the position had no legal move (in
+/// which case `search_best_move` returns `None` upstream instead). A
+/// fabricated `0` is deliberately avoided: a `0` would be misread by the
+/// M1.3 `info ... score cp 0` line as "the engine thinks the position
+/// is dead equal" when in fact no real evaluation exists yet.
+///
+/// `completed_depth` is `0` and `stopped` is `true` when we aborted
+/// before the first iteration finished; otherwise `completed_depth` is the
+/// depth of the last fully completed iteration.
+pub struct SearchOutcome {
+    pub best_move: Move,
+    pub score: Option<i32>,
+    pub completed_depth: u32,
+    pub stopped: bool,
 }
 
 /// Honour any externally-set abort condition. Returns true if the search
@@ -262,7 +282,7 @@ pub fn search_best_move(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
-) -> Option<(Move, i32)> {
+) -> Option<SearchOutcome> {
     let max_depth = limits.depth.unwrap_or(4).max(1);
     let mut root_moves = generate_legal_moves(pos);
     if root_moves.is_empty() {
@@ -273,12 +293,15 @@ pub fn search_best_move(
     let fallback = root_moves[0];
     // Best result of the last fully completed iteration.
     let mut completed: Option<(Move, i32)> = None;
+    let mut completed_depth: u32 = 0;
+    let mut stopped = false;
 
     let mut depth = 1u32;
     while depth <= max_depth {
         match root_search(pos, depth, &root_moves, ctx, limits) {
             (Some(mv), SearchResult::Score(sc)) => {
                 completed = Some((mv, sc));
+                completed_depth = depth;
                 // Move-ordering hook for the next iteration (cheap; real
                 // ordering heuristics land in Milestone 2).
                 if let Some(idx) = root_moves.iter().position(|m| *m == mv) {
@@ -290,9 +313,16 @@ pub fn search_best_move(
                     score_to_uci(sc),
                     move_to_uci(mv)
                 );
+                // The search runs on its own thread from M1.2; flush after
+                // every `info` so a GUI sees progress immediately rather
+                // than only once stdout is flushed at a later point.
+                let _ = std::io::stdout().flush();
                 depth += 1;
             }
-            (_, SearchResult::Stopped) => break,
+            (_, SearchResult::Stopped) => {
+                stopped = true;
+                break;
+            }
             // `Score` is only ever produced together with `Some(mv)` in
             // `root_search`, so `(None, Score)` is unreachable; the
             // compiler still requires the arm to be listed.
@@ -301,9 +331,17 @@ pub fn search_best_move(
         // Re-check at the loop level too, in case the abort tripped between
         // iterations or a node-limit was exactly met at an iteration boundary.
         if should_abort(ctx, limits) {
+            stopped = true;
             break;
         }
     }
 
-    completed.or(Some((fallback, 0)))
+    Some(SearchOutcome {
+        best_move: completed.map(|(m, _)| m).unwrap_or(fallback),
+        // No completed iteration => no real score; report `None` rather
+        // than a fabricated 0 that M1.3 would misreport as "equal".
+        score: completed.map(|(_, s)| s),
+        completed_depth,
+        stopped,
+    })
 }
