@@ -48,6 +48,7 @@ fn hard_deadline_already_expired_stops_immediately() {
     );
     assert_eq!(out.score, None, "no iteration completed -> score None");
     assert_eq!(out.completed_depth, 0, "no iteration completed");
+    assert!(out.pv.is_empty(), "no iteration completed -> empty pv");
     assert!(out.stopped, "must be stopped");
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
@@ -80,6 +81,9 @@ fn soft_deadline_keeps_depth1_and_skips_depth2() {
         out.stopped,
         "soft deadline must stop before reaching the depth cap"
     );
+    // PV hardening: the completed depth-1 iteration leaves a real PV.
+    assert!(!out.pv.is_empty(), "depth 1 completed -> non-empty pv");
+    assert_eq!(out.pv[0], out.best_move, "pv[0] is the best move");
 }
 
 /// With both depth and nodes, whichever limit hits first stops the search.

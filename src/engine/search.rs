@@ -448,7 +448,7 @@ fn order_moves(pos: &Position, moves: &mut [Move]) {
 
 /// Quiescence search that acquires (counts) a node first. This is the entry
 /// point for the *recursive* calls made from within quiescence itself. The
-/// depth-0 leaf in `negamax` instead calls [`quiescence_entered`] directly,
+/// depth-0 leaf in `negamax` instead calls [`quiescence_entered_impl`] directly,
 /// because that node has already been counted — keeping node accounting in
 /// exactly one place per position.
 pub fn quiescence(
@@ -686,10 +686,6 @@ fn score_to_uci(score: i32) -> String {
     }
 }
 
-/// Search one root ply to `depth`. On success returns the best move
-/// found alongside a `Score`. On abort (`Stopped`) all made moves
-/// have been unmade and `pos` is left exactly as it was on entry;
-/// the move is `None` in that case.
 /// Search one root ply to `depth`, returning the completed iteration (its
 /// score and full principal variation) or `None` if aborted. The PV table is
 /// (re)allocated per call, sized to this iteration's depth plus the quiescence

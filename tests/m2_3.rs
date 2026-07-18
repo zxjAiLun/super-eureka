@@ -8,6 +8,8 @@
 //! bestmove e4a4, cp 900. Those exact node counts must hold AFTER PV
 //! tracking, proving PV only records results and triggers no extra search.
 
+mod common;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -100,14 +102,44 @@ fn mate_in_one_pv_starts_with_mating_move() {
     );
 }
 
-/// Test 5: a deterministic node budget aborts a *deeper* iteration while the
-/// last fully completed iteration's PV is preserved (never the partial new one).
+/// Test 5 (hardened): a deterministic node budget aborts a *deeper*
+/// iteration while the last fully completed iteration's PV is preserved
+/// byte-for-byte — never the partial new one.
 ///
 /// startpos uses 20 nodes for depth 1; a budget of 21 lets depth 2
 /// acquire at most one more node, then abort.
+///
+/// The hardening over the old test: instead of only checking `pv` is
+/// non-empty and `pv[0] == best_move` (which a partial depth-2 tail
+/// that happened to start with the same move would defeat), we record an
+/// *independent* full depth-1 result first and demand the aborted run's
+/// score / best move / full PV all match it exactly. We also verify the
+/// root position is restored after BOTH searches.
 #[test]
 fn node_budget_aborts_deeper_iteration_preserves_completed_pv() {
+    // Baseline: a fully completed depth-1 search, recorded on its own
+    // (separate context so its node counter cannot bleed into the aborted
+    // run). Also confirms the baseline leaves the root untouched.
+    let mut base_pos = parse_fen(START_FEN).unwrap();
+    let base_before = to_fen(&base_pos);
+    let base = {
+        let ctx = fresh_ctx();
+        let limits = SearchLimits {
+            depth: Some(1),
+            ..Default::default()
+        };
+        search_best_move(&mut base_pos, &limits, &ctx).expect("depth-1 outcome")
+    };
+    assert_eq!(
+        to_fen(&base_pos),
+        base_before,
+        "depth-1 baseline must restore the root"
+    );
+
+    // Aborted run: depth budget open, node budget 21 lets depth 1
+    // complete (20 nodes) then aborts depth 2.
     let mut pos = parse_fen(START_FEN).unwrap();
+    let before = to_fen(&pos);
     let ctx = fresh_ctx();
     let limits = SearchLimits {
         depth: None,
@@ -122,12 +154,28 @@ fn node_budget_aborts_deeper_iteration_preserves_completed_pv() {
         21,
         "exactly the node budget is consumed"
     );
-    assert!(
-        !out.pv.is_empty(),
-        "pv from the completed depth-1 iteration must be present"
+
+    // The real invariant: the aborted run reports the *completed depth-1*
+    // result byte-for-byte. A partial depth-2 PV (even a truncated one
+    // whose first move equals the best move) must NOT leak through.
+    assert_eq!(
+        out.score, base.score,
+        "score must match the depth-1 baseline"
     );
-    assert_eq!(out.pv[0], out.best_move, "pv[0] is the best move");
-    assert!(out.score.is_some(), "depth 1 yields a real score");
+    assert_eq!(
+        out.best_move, base.best_move,
+        "best move must match the depth-1 baseline"
+    );
+    assert_eq!(
+        out.pv, base.pv,
+        "aborted run must report the completed depth-1 PV, not a partial depth-2 tail"
+    );
+
+    assert_eq!(
+        to_fen(&pos),
+        before,
+        "root position untouched after aborted search"
+    );
 }
 
 /// Test 6: stopped before depth 1 finishes -> legal fallback, score None,
@@ -195,70 +243,56 @@ fn fixed_depth_node_count_unchanged_by_pv_tracking() {
     }
 }
 
-/// Test 8: UCI integration. Every completed iteration emits `info ... pv`
-/// with a non-empty PV, and the final `bestmove` equals the first move of
-/// the last completed iteration's PV. Driven through the real binary so the
-/// end-to-end protocol path (printed info lines) is exercised.
+/// Test 8 (hardened): UCI integration. Every completed iteration emits
+/// `info ... pv` with a non-empty PV, and the final `bestmove` equals the
+/// first move of the last completed iteration's PV. Driven through the real
+/// binary via the shared RAII [`common::EngineProcess`] helper, so there is
+/// no fixed `sleep` guessing how long depth 3 takes, and a panicking
+/// assertion still reaps the child (no stale-exe lock on the next build).
 #[test]
 fn uci_info_carries_full_pv_and_bestmove_matches() {
-    // Cargo exposes the compiled binary as `CARGO_BIN_EXE_<name>`, where
-    // `<name>` is the literal package/bin name (kept verbatim, not the
-    // upper-snake form older docs describe).
-    let bin = std::env::var("CARGO_BIN_EXE_chess-engine-demo")
-        .map(std::path::PathBuf::from)
-        .expect("CARGO_BIN_EXE_CHESS_ENGINE_DEMO must be set by cargo test");
+    let (mut engine, stdout) = common::spawn_engine();
+    let reader = common::spawn_reader(stdout);
 
-    use std::io::Write;
-    use std::process::{Command, Stdio};
-    use std::thread;
+    engine.send("position startpos");
+    engine.send("go depth 3");
 
-    let mut child = Command::new(&bin)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("spawn engine");
-    let mut stdin = child.stdin.take().unwrap();
-    // Keep stdin open so the search can finish, then quit.
-    writeln!(stdin, "position startpos").unwrap();
-    writeln!(stdin, "go depth 3").unwrap();
-    thread::spawn(move || {
-        thread::sleep(Duration::from_secs(2));
-        let _ = writeln!(stdin, "quit");
-    });
-    let output = child.wait_with_output().unwrap();
-    let text = String::from_utf8(output.stdout).unwrap();
+    // Wait for each iteration's info line to actually arrive — no guessing
+    // the search duration. 5s per line is generous even under load.
+    let d1 =
+        common::recv_until(&reader, "info depth 1", Duration::from_secs(5)).expect("depth 1 info");
+    let d2 =
+        common::recv_until(&reader, "info depth 2", Duration::from_secs(5)).expect("depth 2 info");
+    let d3 =
+        common::recv_until(&reader, "info depth 3", Duration::from_secs(5)).expect("depth 3 info");
+    let best = common::recv_until(&reader, "bestmove", Duration::from_secs(5)).expect("bestmove");
 
-    // Final bestmove.
-    let best_line = text
-        .lines()
-        .find(|l| l.starts_with("bestmove"))
-        .expect("bestmove emitted");
-    let best_move = best_line
-        .split_whitespace()
-        .nth(1)
-        .expect("bestmove has a move token");
-
-    // Each completed iteration's info carries a non-empty pv; the last one's
-    // first move matches the final bestmove.
-    for d in 1..=3 {
-        let info = text
-            .lines()
-            .rfind(|l| l.starts_with(&format!("info depth {}", d)))
-            .unwrap_or_else(|| panic!("info depth {} emitted", d));
+    // Each completed iteration's info carries a non-empty pv. Iterate by
+    // reference so `d3` stays owned for the final check below.
+    for info in [&d1, &d2, &d3] {
         let pv = info.split(" pv ").nth(1).expect("info carries a pv field");
         assert!(
             !pv.trim().is_empty(),
-            "depth {} info pv must be non-empty",
-            d
+            "completed-iteration info pv must be non-empty"
         );
-        if d == 3 {
-            let first = pv.split_whitespace().next().expect("pv non-empty");
-            assert_eq!(
-                first, best_move,
-                "bestmove must equal the first pv move of the last completed iteration"
-            );
-        }
     }
+
+    // The final bestmove equals the first pv move of the last iteration.
+    let last_pv = d3
+        .split(" pv ")
+        .nth(1)
+        .expect("depth 3 info carries a pv field");
+    let first = last_pv.split_whitespace().next().expect("pv non-empty");
+    let best_move = best
+        .split_whitespace()
+        .nth(1)
+        .expect("bestmove has a move token");
+    assert_eq!(
+        first, best_move,
+        "bestmove must equal the first pv move of the last completed iteration"
+    );
+    // `engine` is dropped here: EngineProcess::Drop sends `quit`, closes
+    // the pipe, and reaps the child even if an assertion above panicked.
 }
 
 /// Test 9: an aborted (node-budgeted) `negamax` search leaves the board
