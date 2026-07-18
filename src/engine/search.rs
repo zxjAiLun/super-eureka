@@ -4,7 +4,7 @@
 //!   1. Negamax            (done)
 //!   2. Alpha-Beta pruning (done)
 //!   3. Iterative deepening (done, at the root)
-//!   4. Principal variation  (TODO, Milestone 2)
+//!   4. Principal variation  (done, M2.3)
 //!   5. Quiescence search   (done, M2.1 — correctness-only)
 //!   6. Move ordering       (done, M2.2 — basic MVV-LVA)
 //!   7. Transposition table (TODO, later)

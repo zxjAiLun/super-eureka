@@ -43,16 +43,16 @@ go depth 4
 quit
 ```
 
-典型输出（数字随机器与局面变化）：
+典型输出（来自 startpos 实测；PST 已让 depth 3 的分值从纯子力的 cp 0 变成 cp 50）：
 
 ```
 id name ChessEngineDemo
 id author Rust-learner
 uciok
-info depth 1 score cp 0 nodes 20 time 0 nps 0 pv b1c3
-info depth 2 score cp 0 nodes 420 time 1 nps 420000 pv b1c3
-info depth 3 score cp 0 nodes 9200 time 4 nps 2300000 pv b1c3
-info depth 4 score cp 0 nodes 197281 time 9 nps 21920000 pv b1c3
+info depth 1 score cp 50 nodes 20 time 1 nps 20000 pv b1c3
+info depth 2 score cp 0 nodes 141 time 6 nps 23500 pv b1c3 b8c6
+info depth 3 score cp 50 nodes 1149 time 54 nps 21277 pv b1c3 b8c6 g1f3
+info depth 4 score cp 0 nodes 8453 time 413 nps 20467 pv b1c3 b8c6 g1f3 g8f6
 bestmove b1c3
 ```
 
@@ -110,7 +110,7 @@ bestmove b1c3
   - ✅ quiescence search（吃子 + 升变；被将军时解将全部走法都搜）—— M2.1 完成；
   - ✅ 着法排序（MVV-LVA / 升变；killer、history 暂未加）—— M2.2 完成；
   - ✅ 完整主变 `info pv` + PV tracking —— M2.3 完成；
-  - 🔜 Piece-Square Table 评估（material + 基础 PST；King PST 留到 tapered eval）—— M2.4 待实现。
+  - ✅ Piece-Square Table 评估（material + 基础 PST；King PST 留到 tapered eval）—— M2.4 完成；
 - **Milestone 3**：和棋状态与置换表（顺序已锁定，TT 必须在 draw context 稳定之后）——
   - **M3.0 状态与 Zobrist 基础**：`GameState` / UCI `position ... moves` 历史 / incremental
     Zobrist key / 搜索路径 hash stack / halfmove clock 正确传入搜索；

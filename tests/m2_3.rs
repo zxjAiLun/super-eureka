@@ -202,45 +202,43 @@ fn preset_stop_before_depth1_yields_empty_pv() {
     assert_eq!(to_fen(&pos), START_FEN, "root position untouched");
 }
 
-/// Test 7: PV tracking must not change the search's node count. The exact
-/// baselines (startpos=610, queen-win=927) were recorded on `c339b37`
-/// BEFORE the PV work; any delta here means PV triggered extra search.
+/// Test 7 (re-shaped for M2.4): a fixed-depth search still
+/// completes a full iteration and reports a legal principal variation
+/// rooted at `best_move`, with the root position restored.
+///
+/// The original test pinned exact node counts (startpos=610,
+/// queen-win=927) recorded BEFORE the PST work; M2.4
+/// deliberately changes node counts (better evaluation -> different
+/// alpha-beta cutoffs), so the absolute numbers are no longer
+/// asserted here. The new fixed baselines live in
+/// `tests/m2_4.rs::pst_fixed_depth_search_baselines`.
 #[test]
-fn fixed_depth_node_count_unchanged_by_pv_tracking() {
-    // startpos depth 3.
-    {
-        let mut pos = parse_fen(START_FEN).unwrap();
+fn fixed_depth_search_completes_with_full_pv() {
+    fn run(fen: &str) {
+        let mut pos = parse_fen(fen).unwrap();
+        let before = to_fen(&pos);
         let ctx = fresh_ctx();
         let limits = SearchLimits {
             depth: Some(3),
             ..Default::default()
         };
         let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
+
+        assert_eq!(out.completed_depth, 3, "depth-3 must complete");
+        assert!(!out.pv.is_empty(), "a completed iteration yields a PV");
         assert_eq!(
-            ctx.nodes.load(Ordering::Relaxed),
-            610,
-            "startpos depth-3 node count must stay 610"
+            out.pv[0], out.best_move,
+            "PV must be rooted at the best move"
         );
-        assert_eq!(move_to_uci(out.best_move), "b1c3");
-        assert_eq!(out.score, Some(0));
-    }
-    // queen-win depth 3.
-    {
-        let mut pos = parse_fen("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1").unwrap();
-        let ctx = fresh_ctx();
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
-        assert_eq!(
-            ctx.nodes.load(Ordering::Relaxed),
-            927,
-            "queen-win depth-3 node count must stay 927"
+        assert!(
+            generate_legal_moves(&mut pos).contains(&out.best_move),
+            "best move must be legal"
         );
-        assert_eq!(move_to_uci(out.best_move), "e4a4");
-        assert_eq!(out.score, Some(900));
+        assert_eq!(to_fen(&pos), before, "root position untouched");
     }
+
+    run(START_FEN);
+    run("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
 }
 
 /// Test 8 (hardened): UCI integration. Every completed iteration emits

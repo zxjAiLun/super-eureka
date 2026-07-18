@@ -209,7 +209,16 @@ fn quiescence_searches_en_passant_capture() {
         q,
         stand_pat
     );
-    assert_eq!(q, 100, "winning the pawn by e.p. is worth ~+100, got {}", q);
+    // M2.4 note: this previously asserted exactly 100 (material-only
+    // eval). With piece-square tables the capturing pawn lands on d6,
+    // which carries PAWN_PST[d6] = 30, so the quiescence value is
+    // 100 (won pawn) + 30 (positional bonus) = 130. The PST
+    // table is locked by docs/specs/m2.4, so 130 is stable.
+    assert_eq!(
+        q, 130,
+        "winning the pawn by e.p. is 100 material + PAWN_PST[d6](30) = 130, got {}",
+        q
+    );
     assert!(
         ctx.nodes.load(Ordering::Relaxed) > 1,
         "the e.p. line must have been searched"
