@@ -4,10 +4,11 @@
 //! test passes an explicit `depth` (never `SearchLimits::default()`, which
 //! means "iterate forever until stopped" and would hang the test).
 //!
-//! The node baselines in `pst_fixed_depth_search_baselines` are the NEW
+//! The baselines in `pst_fixed_depth_search_baselines` are the NEW
 //! M2.4 numbers (PST changes alpha-beta cutoffs, so the old 610/927
-//! from M2.3 no longer apply). They are deliberately NOT written under
-//! the M2.3 node-count test.
+//! and old scores from M2.3 no longer apply). They lock the full
+//! (nodes, best move, score) triple and are deliberately NOT written
+//! under the M2.3 node-count test.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -131,12 +132,12 @@ fn pst_changes_root_choice_h1f2_to_h1g3() {
     );
 }
 
-/// Test 9 (node baselines, re-attributed here, NOT under the M2.3 test):
-/// M2.4 changes node counts because PST changes alpha-beta cutoffs.
-/// These are the NEW fixed baselines measured on this commit.
-/// Run a fixed depth-3 search and return (node count, best move uci),
-/// asserting the root position is restored.
-fn depth3_nodes_and_best(fen: &str) -> (u64, String) {
+/// Test 9 (baselines, re-attributed here, NOT under the M2.3 test):
+/// M2.4 changes node counts AND scores because PST changes alpha-beta
+/// cutoffs. These are the NEW fixed baselines measured on this commit.
+/// Run a fixed depth-3 search and return (node count, best move uci,
+/// score), asserting completion, no-stop, and root position restored.
+fn depth3_baseline(fen: &str) -> (u64, String, i32) {
     let mut pos = parse_fen(fen).unwrap();
     let before = to_fen(&pos);
     let ctx = fresh_ctx();
@@ -144,29 +145,36 @@ fn depth3_nodes_and_best(fen: &str) -> (u64, String) {
         depth: Some(3),
         ..Default::default()
     };
+
     let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
-    let nodes = ctx.nodes.load(Ordering::Relaxed);
-    let best = move_to_uci(out.best_move);
+
+    assert_eq!(out.completed_depth, 3);
+    assert!(!out.stopped);
     assert_eq!(to_fen(&pos), before, "root position restored");
-    (nodes, best)
+
+    (
+        ctx.nodes.load(Ordering::Relaxed),
+        move_to_uci(out.best_move),
+        out.score.expect("depth-3 score"),
+    )
 }
 
-/// Test 9 (node baselines, re-attributed here, NOT under the M2.3 test):
-/// M2.4 changes node counts because PST changes alpha-beta cutoffs.
-/// These are the NEW fixed baselines measured on this commit.
+/// Test 9 (baselines, re-attributed here, NOT under the M2.3 test):
+/// M2.4 changes node counts AND scores because PST changes alpha-beta
+/// cutoffs. These lock the full (nodes, best move, score) triple.
 #[test]
 fn pst_fixed_depth_search_baselines() {
-    let (startpos_nodes, startpos_best) = depth3_nodes_and_best(START_FEN);
+    let startpos = depth3_baseline(START_FEN);
     assert_eq!(
-        startpos_nodes, 1149,
-        "startpos depth-3 node baseline (PST era)"
+        startpos,
+        (1149, "b1c3".to_string(), 50),
+        "startpos depth-3 baseline (nodes, best move, score) — PST era"
     );
-    assert_eq!(startpos_best, "b1c3");
 
-    let (queenwin_nodes, queenwin_best) = depth3_nodes_and_best("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
+    let queenwin = depth3_baseline("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
     assert_eq!(
-        queenwin_nodes, 963,
-        "queen-win depth-3 node baseline (PST era)"
+        queenwin,
+        (963, "e4a4".to_string(), 890),
+        "queen-win depth-3 baseline (nodes, best move, score) — PST era"
     );
-    assert_eq!(queenwin_best, "e4a4");
 }
