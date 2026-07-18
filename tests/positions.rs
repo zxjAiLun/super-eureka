@@ -14,17 +14,17 @@ fn fen_round_trip_startpos() {
 #[test]
 fn startpos_has_32_pieces() {
     let pos = parse_fen(START_FEN).unwrap();
-    let count = pos.board.iter().filter(|c| c.is_some()).count();
+    let count = pos.board().iter().filter(|c| c.is_some()).count();
     assert_eq!(count, 32);
 }
 
 #[test]
 fn startpos_white_to_move() {
     let pos = parse_fen(START_FEN).unwrap();
-    assert_eq!(pos.side, Color::White);
-    assert!(pos.castling.white_king && pos.castling.white_queen);
-    assert!(pos.castling.black_king && pos.castling.black_queen);
-    assert_eq!(pos.ep_target, None);
+    assert_eq!(pos.side_to_move(), Color::White);
+    assert!(pos.castling_rights().white_king && pos.castling_rights().white_queen);
+    assert!(pos.castling_rights().black_king && pos.castling_rights().black_queen);
+    assert_eq!(pos.ep_target(), None);
 }
 
 #[test]
@@ -48,11 +48,11 @@ fn simple_make_unmake_restores_board() {
         flag: MoveFlag::DoublePawnPush,
     });
     assert_eq!(
-        pos.board[28],
+        pos.board()[28],
         Some(Piece::new(Color::White, PieceType::Pawn))
     );
-    assert_eq!(pos.board[12], None);
-    assert_eq!(pos.side, Color::Black);
+    assert_eq!(pos.board()[12], None);
+    assert_eq!(pos.side_to_move(), Color::Black);
     pos.unmake_move(undo);
     assert_eq!(to_fen(&pos), START_FEN);
 }

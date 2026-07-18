@@ -2,6 +2,7 @@
 
 use crate::chess::position::Position;
 use crate::chess::types::*;
+use crate::chess::zobrist::recompute_zobrist;
 
 pub fn parse_fen(fen: &str) -> Result<Position, String> {
     let mut parts = fen.split_whitespace();
@@ -118,6 +119,9 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         // The en-passant target must lie on the rank a pawn would have
         // crossed: rank 6 (index 5) when White is to move, rank 3
         // (index 2) when Black is to move.
+        if board[sq as usize].is_some() {
+            return Err("en passant target square must be empty".into());
+        }
         let expected_rank: u8 = if side == Color::White { 5 } else { 2 };
         if rank_of(sq) != expected_rank {
             return Err(format!(
@@ -147,7 +151,7 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         None => 1,
     };
 
-    Ok(Position {
+    let mut pos = Position {
         board,
         side,
         castling,
@@ -155,7 +159,10 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         halfmove,
         fullmove,
         king_sq,
-    })
+        zobrist_key: 0,
+    };
+    pos.zobrist_key = recompute_zobrist(&pos);
+    Ok(pos)
 }
 
 pub fn to_fen(pos: &Position) -> String {

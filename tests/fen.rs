@@ -36,7 +36,7 @@ fn parse_fen_accepts_legal_ep() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e6 0 1";
     let pos = parse_fen(fen).expect("legal ep target for White to move");
     assert_eq!(
-        pos.ep_target,
+        pos.ep_target(),
         Some(chess_engine_demo::chess::types::parse_square("e6").unwrap())
     );
 }

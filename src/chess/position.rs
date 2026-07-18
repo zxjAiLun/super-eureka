@@ -3,21 +3,33 @@
 //! This is the heart of Phase 1. `make_move`/`unmake_move` are written so that
 //! an `Undo` record fully reverses a move. The rest of the engine
 //! (search, UCI) never needs to know how the board is stored.
+//!
+//! M3.0 adds a derived `zobrist_key` field (crate-private, updated
+//! incrementally by `make_move` and restored verbatim by `unmake_move`).
+//! All `Position` fields are `pub(crate)`: external code may only read
+//! them through the read-only getters below and may only mutate the board
+//! through `make_move`/`unmake_move`/`parse_fen`.
 
 use crate::chess::fen::parse_fen;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::types::*;
+use crate::chess::zobrist::{
+    castling_key, castling_mask, effective_ep_file, ep_file_key, piece_square_key, ZobristKey,
+    SIDE_KEY,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Position {
-    pub board: [Option<Piece>; 64],
-    pub side: Color,
-    pub castling: CastlingRights,
-    pub ep_target: Option<Square>,
-    pub halfmove: u32,
-    pub fullmove: u32,
+    pub(crate) board: [Option<Piece>; 64],
+    pub(crate) side: Color,
+    pub(crate) castling: CastlingRights,
+    pub(crate) ep_target: Option<Square>,
+    pub(crate) halfmove: u32,
+    pub(crate) fullmove: u32,
     /// Tracked king squares so check detection is O(1)-ish lookups.
-    pub king_sq: [Square; 2],
+    pub(crate) king_sq: [Square; 2],
+    /// Derived Zobrist key (crate-private; never written by callers).
+    pub(crate) zobrist_key: ZobristKey,
 }
 
 /// Everything needed to reverse a move. Stored by value so `unmake_move`
@@ -32,11 +44,40 @@ pub struct Undo {
     halfmove: u32,
     fullmove: u32,
     king_sq: [Square; 2],
+    /// `zobrist_key` captured before the move, so `unmake_move` can
+    /// restore it verbatim (no reverse hash replay).
+    previous_zobrist_key: ZobristKey,
 }
 
 impl Position {
     pub fn startpos() -> Position {
         parse_fen(START_FEN).expect("startpos FEN is valid")
+    }
+
+    // --- Read-only getters (M3.0 field encapsulation) ---
+    pub fn board(&self) -> &[Option<Piece>; 64] {
+        &self.board
+    }
+    pub fn side_to_move(&self) -> Color {
+        self.side
+    }
+    pub fn castling_rights(&self) -> CastlingRights {
+        self.castling
+    }
+    pub fn ep_target(&self) -> Option<Square> {
+        self.ep_target
+    }
+    pub fn halfmove_clock(&self) -> u32 {
+        self.halfmove
+    }
+    pub fn fullmove_number(&self) -> u32 {
+        self.fullmove
+    }
+    pub fn king_square(&self, color: Color) -> Square {
+        self.king_sq[color as usize]
+    }
+    pub fn zobrist_key(&self) -> ZobristKey {
+        self.zobrist_key
     }
 
     /// Apply `m` and return an `Undo` that reverses it.
@@ -63,14 +104,26 @@ impl Position {
             halfmove: self.halfmove,
             fullmove: self.fullmove,
             king_sq: self.king_sq,
+            previous_zobrist_key: self.zobrist_key,
         };
 
+        // --- Zobrist: strip the OLD state (ep + castling) before the board moves. ---
+        if let Some(file) = effective_ep_file(self) {
+            self.zobrist_key ^= ep_file_key(file);
+        }
+        self.zobrist_key ^= castling_key(castling_mask(&self.castling));
+
+        // --- board changes + piece-square XORs ---
         self.board[m.from as usize] = None;
+        self.xor_piece(moved_piece, m.from);
 
         match m.flag {
             MoveFlag::EnPassant => {
-                self.board[ep_cap_sq.unwrap() as usize] = None;
+                let cap_sq = ep_cap_sq.unwrap();
+                self.board[cap_sq as usize] = None;
+                self.xor_piece(captured.unwrap(), cap_sq);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::KingCastle => {
                 let (rf, rt) = if us == Color::White {
@@ -78,10 +131,13 @@ impl Position {
                 } else {
                     (H8, F8)
                 };
-                let rook = self.board[rf as usize];
+                let rook = self.board[rf as usize].expect("king castle rook missing");
                 self.board[rf as usize] = None;
-                self.board[rt as usize] = rook;
+                self.xor_piece(rook, rf);
+                self.board[rt as usize] = Some(rook);
+                self.xor_piece(rook, rt);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::QueenCastle => {
                 let (rf, rt) = if us == Color::White {
@@ -89,16 +145,30 @@ impl Position {
                 } else {
                     (A8, D8)
                 };
-                let rook = self.board[rf as usize];
+                let rook = self.board[rf as usize].expect("queen castle rook missing");
                 self.board[rf as usize] = None;
-                self.board[rt as usize] = rook;
+                self.xor_piece(rook, rf);
+                self.board[rt as usize] = Some(rook);
+                self.xor_piece(rook, rt);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::Promotion(pt) => {
-                self.board[m.to as usize] = Some(Piece::new(us, pt));
+                if let Some(cap) = captured {
+                    self.board[m.to as usize] = None;
+                    self.xor_piece(cap, m.to);
+                }
+                let promoted = Piece::new(us, pt);
+                self.board[m.to as usize] = Some(promoted);
+                self.xor_piece(promoted, m.to);
             }
             _ => {
+                if let Some(cap) = captured {
+                    self.board[m.to as usize] = None;
+                    self.xor_piece(cap, m.to);
+                }
                 self.board[m.to as usize] = Some(moved_piece);
+                self.xor_piece(moved_piece, m.to);
             }
         }
 
@@ -125,6 +195,14 @@ impl Position {
             self.king_sq[us as usize] = m.to;
         }
         self.side = enemy;
+
+        // --- Zobrist: add the NEW state (side + castling + ep). ---
+        self.zobrist_key ^= SIDE_KEY;
+        self.zobrist_key ^= castling_key(castling_mask(&self.castling));
+        if let Some(file) = effective_ep_file(self) {
+            self.zobrist_key ^= ep_file_key(file);
+        }
+
         undo
     }
 
@@ -176,6 +254,14 @@ impl Position {
         self.halfmove = undo.halfmove;
         self.fullmove = undo.fullmove;
         self.king_sq = undo.king_sq;
+        // Restore the derived key verbatim — no reverse hash replay, so the
+        // make/unmake hash logic can never silently drift.
+        self.zobrist_key = undo.previous_zobrist_key;
+    }
+
+    #[inline]
+    fn xor_piece(&mut self, piece: Piece, sq: Square) {
+        self.zobrist_key ^= piece_square_key(piece, sq);
     }
 
     fn update_castling_rights(&mut self, m: Move, _us: Color) {

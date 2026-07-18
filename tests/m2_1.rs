@@ -95,7 +95,10 @@ fn quiescence_no_standpat_when_in_check() {
     // Both bishops are still on the board here, so the static balance does
     // NOT yet see the forced loss of the a8 bishop.
     let static_eval = evaluate(&pos);
-    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+    assert!(
+        pos.is_in_check(pos.side_to_move()),
+        "test premise: White is in check"
+    );
 
     let ctx = fresh_ctx();
     let limits = SearchLimits::default();
@@ -315,7 +318,7 @@ fn quiescence_qply_cap_preserves_check_evasions() {
     let mut pos = parse_fen("6k1/8/8/8/8/8/R5r1/6K1 w - - 0 1").expect("valid FEN");
     let before = to_fen(&pos);
     assert!(
-        pos.is_in_check(pos.side),
+        pos.is_in_check(pos.side_to_move()),
         "test premise: White is in check at the cap"
     );
     let static_eval = evaluate(&pos); // material even -> 0
@@ -366,7 +369,7 @@ fn quiescence_qply_cap_counter_check_uses_static_approx() {
     let mut pos = parse_fen("k7/8/8/8/8/1b6/K7/R7 w - - 0 1").expect("valid FEN");
     let before = to_fen(&pos);
     assert!(
-        pos.is_in_check(pos.side),
+        pos.is_in_check(pos.side_to_move()),
         "test premise: White is in check at the cap"
     );
     let static_eval = evaluate(&pos); // White R(500) vs Black B(330) -> +170
@@ -406,7 +409,10 @@ fn quiescence_qply_cap_in_check_mate_returns_mate() {
     let mut pos = parse_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3")
         .expect("valid FEN");
     let before = to_fen(&pos);
-    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+    assert!(
+        pos.is_in_check(pos.side_to_move()),
+        "test premise: White is in check"
+    );
 
     let ctx = fresh_ctx();
     let limits = SearchLimits::default();
@@ -437,7 +443,10 @@ fn quiescence_qply_cap_in_check_only_quiet_king_move() {
     // capture nor block). Every evasion is a quiet king step.
     let mut pos = parse_fen("1k4r1/8/8/8/8/8/7P/6K1 w - - 0 1").expect("valid FEN");
     let before = to_fen(&pos);
-    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+    assert!(
+        pos.is_in_check(pos.side_to_move()),
+        "test premise: White is in check"
+    );
 
     let ctx = fresh_ctx();
     let limits = SearchLimits::default();
@@ -463,7 +472,10 @@ fn quiescence_qply_cap_in_check_only_block() {
     // blocks on the h-file (Qh2 / Qh5).
     let mut pos = parse_fen("1k4rr/8/8/8/8/8/4Q3/7K w - - 0 1").expect("valid FEN");
     let before = to_fen(&pos);
-    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+    assert!(
+        pos.is_in_check(pos.side_to_move()),
+        "test premise: White is in check"
+    );
 
     let ctx = fresh_ctx();
     let limits = SearchLimits::default();
@@ -486,7 +498,10 @@ fn quiescence_qply_cap_child_interrupt_recovery() {
     let fen = "6k1/8/8/8/8/8/R5r1/6K1 w - - 0 1";
     let mut pos = parse_fen(fen).expect("valid FEN");
     let before = to_fen(&pos);
-    assert!(pos.is_in_check(pos.side), "test premise: White is in check");
+    assert!(
+        pos.is_in_check(pos.side_to_move()),
+        "test premise: White is in check"
+    );
 
     let ctx = fresh_ctx();
     // Budget of 2: the cap entry node (1) plus exactly one searched
@@ -518,7 +533,7 @@ fn quiescence_qply_cap_noncheck_respects_fail_hard() {
     let mut pos = parse_fen(fen).expect("valid FEN");
     let before = to_fen(&pos);
     assert!(
-        !pos.is_in_check(pos.side),
+        !pos.is_in_check(pos.side_to_move()),
         "test premise: White is NOT in check"
     );
 
