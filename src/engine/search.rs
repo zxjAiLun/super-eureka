@@ -123,6 +123,11 @@ pub struct SearchOutcome {
     pub score: Option<i32>,
     pub completed_depth: u32,
     pub stopped: bool,
+    /// The principal variation of the last *fully completed* iteration,
+    /// rooted at `best_move` (so `pv[0] == best_move`). Empty when no
+    /// iteration completed (we were stopped before depth 1 finished) — a
+    /// fabricated PV is deliberately avoided, matching `score`'s rationale.
+    pub pv: Vec<Move>,
 }
 
 /// Honour any externally-set abort condition. Returns true if the search
@@ -183,6 +188,75 @@ fn try_enter_node(ctx: &SearchContext, limits: &SearchLimits) -> bool {
     }
 }
 
+/// Triangular principal-variation storage: one row per global `ply`,
+/// indexed by the search's global ply. Row `ply` holds the PV *through*
+/// this node — the move made here followed by the child's PV. Rows are
+/// grown only when needed (never shrunk), so a node writes only its own
+/// row; a sibling's tail and the previous iteration's tail are never read
+/// once a parent copies just the child row it actually returned.
+#[derive(Default)]
+struct PvTable {
+    lines: Vec<Vec<Move>>,
+}
+
+impl PvTable {
+    /// Grow to at least `rows` rows, but never shrink. A `resize` that
+    /// received a smaller value would silently drop existing rows.
+    fn ensure_rows(&mut self, rows: usize) {
+        if self.lines.len() < rows {
+            self.lines.resize_with(rows, Vec::new);
+        }
+    }
+
+    /// Ensure a single `index` (and thus every row below it) exists.
+    fn ensure_index(&mut self, index: usize) {
+        let rows = index.checked_add(1).expect("PV table index overflow");
+        self.ensure_rows(rows);
+    }
+
+    /// Clear the row for `ply`. Call after `try_enter_node` succeeds and
+    /// before any terminal / stand-pat early return, so a node that never
+    /// improves alpha never inherits a stale sibling tail.
+    fn clear_at(&mut self, ply: u32) {
+        let i = ply as usize;
+        self.ensure_index(i);
+        self.lines[i].clear();
+    }
+
+    /// Set `lines[ply]` to `mv` followed by `lines[ply+1]` (the child's
+    /// PV), reusing the parent's capacity and without cloning the child row.
+    fn set_from_child(&mut self, ply: u32, mv: Move) {
+        let i = ply as usize;
+        let child_ply = ply.checked_add(1).expect("PV ply overflow");
+        let ci = child_ply as usize;
+        self.ensure_index(ci);
+        let (parents, children) = self.lines.split_at_mut(ci);
+        let parent = &mut parents[i];
+        let child = &children[0];
+        parent.clear();
+        parent.push(mv);
+        parent.extend_from_slice(child);
+    }
+
+    /// Set `lines[ply]` to a single move (used by `search_final_evasion_ply`,
+    /// which searches exactly one ply with no recursion, so there is no child
+    /// PV to append). Writes only the current row — no child expansion.
+    fn set_single(&mut self, ply: u32, mv: Move) {
+        let i = ply as usize;
+        self.ensure_index(i);
+        self.lines[i].clear();
+        self.lines[i].push(mv);
+    }
+}
+
+/// A fully completed root iteration: its score and its principal variation
+/// (rooted at the best move). Returned by [`root_search`]; `None` means
+/// the iteration was aborted before completion.
+struct RootIteration {
+    score: i32,
+    pv: Vec<Move>,
+}
+
 /// Negamax with alpha-beta. Returns `None` if the search was asked to
 /// abort. A `None` is a directive to unwind *immediately*: the caller
 /// must undo the move it made in THIS node and propagate `None` upward.
@@ -191,58 +265,81 @@ pub fn negamax(
     pos: &mut Position,
     depth: u32,
     ply: u32,
-    mut alpha: i32,
+    alpha: i32,
     beta: i32,
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
+    // Public entry: PV lives only inside a real search, so a caller that
+    // wants just the score gets a throwaway table that is discarded on
+    // return. PV tracking never changes the score.
+    let mut pv = PvTable::default();
+    negamax_impl(pos, depth, ply, alpha, beta, ctx, limits, &mut pv)
+}
+
+/// Private search body. Identical to the public [`negamax`], but threads a
+/// [`PvTable`] so the principal variation can be recorded. `clear_at(ply)`
+/// runs right after the node is acquired and before any terminal / stand-pat
+/// early return, so a node that never improves alpha never inherits a stale
+/// sibling tail. When a child improves the score we record the move *before*
+/// checking the beta cutoff, so the cut-off move is still captured.
+///
+/// The 8-argument shape mirrors the public 7-arg [`negamax`] entry plus the
+/// live [`PvTable`] this milestone threads through the search — collapsing
+/// them into a struct would only obscure the one-to-one mapping, so we keep
+/// the explicit form and silence the arg-count lint deliberately.
+#[allow(clippy::too_many_arguments)]
+fn negamax_impl(
+    pos: &mut Position,
+    depth: u32,
+    ply: u32,
+    mut alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+) -> Option<i32> {
     // Acquire the right to search this node *before* touching the board.
-    // `try_enter_node` checks the external stop flag, the hard deadline, and
-    // the node budget atomically, so bailing out here leaves the board
-    // exactly as we found it (no move applied, nothing to unmake).
     if !try_enter_node(ctx, limits) {
         return None;
     }
+    // Clear our row now (after entry, before any early return).
+    pv.clear_at(ply);
 
-    // Terminal-node check MUST run before the depth==0 evaluation. A position
-    // that is checkmate or stalemate is scored by its game-theoretic value,
-    // never by the material count at the search horizon.
+    // Terminal-node check MUST run before the depth==0 evaluation.
     let mut moves = generate_legal_moves(pos);
     if moves.is_empty() {
         if pos.is_in_check(pos.side) {
-            // Checkmated: prefer the *latest* possible mate (smaller |score|),
-            // so a mate delivered sooner is always preferred over a later one.
             return Some(-(MATE - ply as i32));
         }
-        return Some(0); // stalemate
+        return Some(0); // stalemate -> empty PV (row already cleared)
     }
 
     if depth == 0 {
-        // Leaf: hand off to quiescence so pending captures / promotions are
-        // resolved before we trust a static score (this is the cure for the
-        // horizon effect). THIS node was already counted by `try_enter_node`
-        // above, so we call the `_entered` variant, which does NOT re-enter
-        // (and therefore does not re-count) the node — every position is
-        // counted exactly once.
-        return quiescence_entered(pos, ply, 0, alpha, beta, ctx, limits);
+        // Leaf: hand off to quiescence. THIS node was already counted by
+        // `try_enter_node` above, so we call the `_entered` variant, which
+        // does NOT re-count it. The same PV table is passed down.
+        return quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv);
     }
 
     // M2.2: try the most forcing moves first so alpha-beta cutoffs fire
     // earlier. Pure reorder — no move is dropped; for a full fixed-depth
-    // search the minimax value is preserved (the visited node set and the
-    // node count may still differ, because cutoffs land at different points).
+    // search the minimax value is preserved.
     order_moves(pos, &mut moves);
 
     let mut best = i32::MIN + 1000;
     for m in moves {
         let undo = pos.make_move(m);
-        let child = negamax(pos, depth - 1, ply + 1, -beta, -alpha, ctx, limits);
+        let child = negamax_impl(pos, depth - 1, ply + 1, -beta, -alpha, ctx, limits, pv);
         match child {
             Some(s) => {
                 let score = -s;
                 pos.unmake_move(undo);
+                // Record the new best PV *before* the cutoff check, so the
+                // cut-off move (which is the best we have) is captured.
                 if score > best {
                     best = score;
+                    pv.set_from_child(ply, m);
                 }
                 if best > alpha {
                     alpha = best;
@@ -304,8 +401,11 @@ fn is_tactical(pos: &Position, m: Move) -> bool {
 /// to-square (it sits one rank behind, on the same file), so a naive "is
 /// the target occupied?" test would score it 0; we value it explicitly as
 /// a pawn. Promotion is ranked above every plain capture (a freshly
-/// promoted queen is worth more than the best single capture), with a
-/// capturing promotion ranked above a quiet one.
+/// promoted queen is worth more than the best single capture). For the same
+/// promoted piece, a capturing promotion ranks above a quiet promotion —
+/// the key does NOT make an arbitrary capturing promotion outrank an
+/// arbitrary quiet one (e.g. a quiet queen promotion `(2,900,0)` outranks
+/// a knight-promotion capture `(2,320,900)`).
 fn move_order_key(pos: &Position, m: Move) -> (u8, i32, i32) {
     match m.flag {
         MoveFlag::Promotion(pt) => {
@@ -360,36 +460,53 @@ pub fn quiescence(
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
+    // Public entry: throwaway PV table, discarded on return.
+    let mut pv = PvTable::default();
+    quiescence_impl(pos, ply, qply, alpha, beta, ctx, limits, &mut pv)
+}
+
+/// Recursive quiescence entry: acquires (counts) the node, then hands off to
+/// the body ([`quiescence_entered_impl`]). This is the variant called by the
+/// quiescence body for its own recursion — it carries the live [`PvTable`].
+///
+/// 8 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`];
+/// kept explicit (see [`negamax_impl`] for the rationale).
+#[allow(clippy::too_many_arguments)]
+fn quiescence_impl(
+    pos: &mut Position,
+    ply: u32,
+    qply: u32,
+    alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+) -> Option<i32> {
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    quiescence_entered(pos, ply, qply, alpha, beta, ctx, limits)
+    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv)
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
+/// Threads a [`PvTable`] so the tactical principal variation is recorded.
 ///
-/// Correctness rules (M2.1 — pure quiescence, nothing more):
-///  1. **In check ⇒ no stand-pat.** A static evaluation is meaningless while
-///     the king is attacked, so we search *every* legal evasion — quiet king
-///     moves, blocks and non-capturing interpositions included — never just
-///     captures.
-///  2. **Not in check ⇒ still detect stalemate.** We generate all legal
-///     moves so an empty list is scored `0` (stalemate), instead of being
-///     mistaken for "no captures, so stand-pat".
-///  3. **Tactical set** = captures + en passant + promotions (`is_tactical`).
-///  4. **`MAX_QPLY` cap** guarantees termination. At the cap we still
-///     detect mate / stalemate first (handled above). A *non-check* node then
-///     stands pat with fail-hard bounds. An *in-check* node must NOT stand
-///     pat, so it delegates to `search_final_evasion_ply`, which searches one
-///     ply of the *current* position's evasions with no further recursion.
-///     Caveat (documented, not a bug): an evasion that itself delivers a
-///     *new* non-terminal check yields a child whose king is also in check;
-///     that child is approximated by `-evaluate(child)` at the safety cap
-///     rather than fully resolved. Strict resolution of the counter-check
-///     chain needs repetition / 50-move detection and is deferred.
-///  5. **Fail-hard alpha-beta**, matching `negamax`. On abort we return
-///     `None`, having unmade any move so the board is left untouched.
-fn quiescence_entered(
+/// 8 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`];
+/// kept explicit (see [`negamax_impl`] for the rationale).
+#[allow(clippy::too_many_arguments)]
+/// `clear_at` runs first (the node is already entered by the caller), so a
+/// terminal or stand-pat node leaves an empty row. A cut-off move is
+/// recorded *before* returning the fail-hard beta, so the tactical PV is
+/// never truncated.
+///
+/// Correctness rules (M2.1 — pure quiescence, nothing more): in check ⇒
+/// no stand-pat (search every evasion); not in check ⇒ still detect
+/// stalemate and stand-pat with fail-hard bounds; tactical set = captures +
+/// en passant + promotions; the `MAX_QPLY` cap delegates an in-check node
+/// to `search_final_evasion_ply` (one ply, no recursion); fail-hard
+/// alpha-beta matching `negamax_impl`, returning `None` (board intact) on
+/// abort.
+fn quiescence_entered_impl(
     pos: &mut Position,
     ply: u32,
     qply: u32,
@@ -397,38 +514,24 @@ fn quiescence_entered(
     beta: i32,
     ctx: &SearchContext,
     limits: &SearchLimits,
+    pv: &mut PvTable,
 ) -> Option<i32> {
+    // Node already entered by the caller: clear the row before any return.
+    pv.clear_at(ply);
+
     let in_check = pos.is_in_check(pos.side);
 
     // Generate all legal moves once. Correctness-first: this is what lets us
-    // score checkmate / stalemate exactly. (A later optimisation may generate
-    // only captures on the common not-in-check path.)
+    // score checkmate / stalemate exactly.
     let mut legal = generate_legal_moves(pos);
     if legal.is_empty() {
-        // Terminal: checkmate (prefer the latest mate, smaller |score|) or
-        // stalemate. Same convention as `negamax`.
         return Some(if in_check { -(MATE - ply as i32) } else { 0 });
     }
 
-    // M2.2: order the legal list once. The in-check branch below
-    // searches *all* evasions (reordered, still every move); the
-    // not-in-check branch filters to tactical moves (reordered, since
-    // `filter` preserves order); and the qply-cap handler receives this
-    // already-reordered `legal`. Pure reorder — no move is dropped.
+    // M2.2: order the legal list once. Pure reorder — no move is dropped.
     order_moves(pos, &mut legal);
 
-    // Termination cap. Mate / stalemate were handled above; now stop
-    // recursing. Two cases:
-    //   - NOT in check: stand pat, but honour fail-hard (a raw
-    //     `evaluate(pos)` could fall below `alpha` or above `beta` and
-    //     break the contract the rest of the tree relies on).
-    //   - IN check: we MUST still search the evasions — a static eval
-    //     with the king still attacked is meaningless, and returning it
-    //     would re-introduce exactly the stand-pat-on-check bug this
-    //     branch is meant to bound. `search_final_evasion_ply` searches
-    //     exactly one ply of evasions with no further recursion, so a
-    //     would-be-cyclic check chain terminates (no repetition detection
-    //     exists yet, so we do not let it recurse).
+    // Termination cap.
     if qply >= MAX_QPLY {
         if !in_check {
             let stand_pat = evaluate(pos);
@@ -437,7 +540,7 @@ fn quiescence_entered(
             }
             return Some(alpha.max(stand_pat));
         }
-        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits);
+        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits, pv);
     }
 
     // Decide which moves to search.
@@ -459,16 +562,20 @@ fn quiescence_entered(
 
     for m in tactical {
         let undo = pos.make_move(m);
-        let child = quiescence(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits);
+        let child = quiescence_impl(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits, pv);
         match child {
             Some(s) => {
                 let score = -s;
                 pos.unmake_move(undo);
+                // IMPORTANT: record the cut-off move BEFORE returning the
+                // fail-hard beta, so the tactical PV captures it.
                 if score >= beta {
-                    return Some(beta); // fail-hard cutoff
+                    pv.set_from_child(ply, m);
+                    return Some(beta);
                 }
                 if score > alpha {
                     alpha = score;
+                    pv.set_from_child(ply, m);
                 }
             }
             None => {
@@ -511,6 +618,11 @@ fn quiescence_entered(
 /// KNOWN, labelled approximation — not a "quiet-leaf stand-pat" (the child
 /// is still reached through a real evasion, just not resolved further), and
 /// not a correctness invariant.
+///
+/// 8 args = the public entry shape (pos/ply/alpha/beta/ctx/limits) plus the
+/// pre-generated `legal` slice and the live [`PvTable`]; kept explicit (see
+/// [`negamax_impl`] for the rationale).
+#[allow(clippy::too_many_arguments)]
 fn search_final_evasion_ply(
     pos: &mut Position,
     ply: u32,
@@ -519,6 +631,7 @@ fn search_final_evasion_ply(
     legal: &[Move],
     ctx: &SearchContext,
     limits: &SearchLimits,
+    pv: &mut PvTable,
 ) -> Option<i32> {
     for &m in legal {
         // Honour stop / hard-deadline / node-budget before touching the
@@ -550,10 +663,13 @@ fn search_final_evasion_ply(
 
         pos.unmake_move(undo);
 
+        // Record the cut-off move BEFORE returning the fail-hard beta.
         if score >= beta {
-            return Some(beta); // fail-hard cutoff
+            pv.set_single(ply, m);
+            return Some(beta);
         }
         if score > alpha {
+            pv.set_single(ply, m);
             alpha = score;
         }
     }
@@ -574,21 +690,36 @@ fn score_to_uci(score: i32) -> String {
 /// found alongside a `Score`. On abort (`Stopped`) all made moves
 /// have been unmade and `pos` is left exactly as it was on entry;
 /// the move is `None` in that case.
+/// Search one root ply to `depth`, returning the completed iteration (its
+/// score and full principal variation) or `None` if aborted. The PV table is
+/// (re)allocated per call, sized to this iteration's depth plus the quiescence
+/// cap — never to `limits.depth`, so an absurd `go depth` cannot trigger a
+/// huge one-shot allocation.
 fn root_search(
     pos: &mut Position,
     depth: u32,
     root_moves: &[Move],
     ctx: &SearchContext,
     limits: &SearchLimits,
-) -> (Option<Move>, SearchResult) {
+) -> Option<RootIteration> {
     let mut best_score = i32::MIN + 1000;
     let mut best_move: Option<Move> = None;
     let mut alpha = i32::MIN + 1000;
     let beta = i32::MAX - 1000;
 
+    let mut pv = PvTable::default();
+    // Capacity for this iteration: ply indices 0..=depth+MAX_QPLY. `+2`
+    // keeps one spare row beyond the theoretical maximum (root at ply 0, the
+    // deepest qsearch node at ply depth+MAX_QPLY).
+    let rows = (depth as usize)
+        .checked_add(MAX_QPLY as usize)
+        .and_then(|n| n.checked_add(2))
+        .expect("PV table size overflow");
+    pv.ensure_rows(rows);
+
     for &m in root_moves {
         let undo = pos.make_move(m);
-        let child = negamax(pos, depth - 1, 1, -beta, -alpha, ctx, limits);
+        let child = negamax_impl(pos, depth - 1, 1, -beta, -alpha, ctx, limits, &mut pv);
         match child {
             Some(s) => {
                 let score = -s;
@@ -596,24 +727,26 @@ fn root_search(
                 if score > best_score {
                     best_score = score;
                     best_move = Some(m);
+                    // Record the root PV: this move followed by the child's
+                    // PV (which `negamax_impl` wrote into `pv.lines[1]`).
+                    pv.set_from_child(0, m);
                 }
                 if best_score > alpha {
                     alpha = best_score;
                 }
-                // No beta cutoff at the root: we want real scores for every
-                // root move so move ordering stays meaningful.
+                // No beta cutoff at the root: real scores for every root move.
             }
             None => {
                 pos.unmake_move(undo);
-                return (None, SearchResult::Stopped);
+                return None; // aborted
             }
         }
     }
 
-    match best_move {
-        Some(mv) => (Some(mv), SearchResult::Score(best_score)),
-        None => (None, SearchResult::Stopped),
-    }
+    best_move.map(|_| RootIteration {
+        score: best_score,
+        pv: std::mem::take(&mut pv.lines[0]),
+    })
 }
 
 /// Iterative deepening.
@@ -645,7 +778,7 @@ pub fn search_best_move(
     // single iteration (e.g. stopped before depth 1 finishes).
     let fallback = root_moves[0];
     // Best result of the last fully completed iteration.
-    let mut completed: Option<(Move, i32)> = None;
+    let mut completed: Option<RootIteration> = None;
     let mut completed_depth: u32 = 0;
     let mut stopped = false;
 
@@ -660,12 +793,12 @@ pub fn search_best_move(
         }
 
         match root_search(pos, depth, &root_moves, ctx, limits) {
-            (Some(mv), SearchResult::Score(sc)) => {
-                completed = Some((mv, sc));
+            Some(iter) => {
+                let RootIteration { score, pv } = iter;
                 completed_depth = depth;
                 // Move-ordering hook for the next iteration (cheap; real
                 // ordering heuristics land in Milestone 2).
-                if let Some(idx) = root_moves.iter().position(|m| *m == mv) {
+                if let Some(idx) = root_moves.iter().position(|m| *m == pv[0]) {
                     root_moves.swap(0, idx);
                 }
                 // Standard UCI info: nodes from the atomic counter, time
@@ -673,6 +806,7 @@ pub fn search_best_move(
                 // against time == 0 (no divide-by-zero) and computed in u128
                 // to avoid overflow on huge node counts. Only completed
                 // iterations emit info; an aborted depth 1 emits nothing.
+                // The PV is the full principal variation of this iteration.
                 let nodes = ctx.nodes.load(Ordering::Relaxed);
                 let elapsed_ms = ctx.start.elapsed().as_millis();
                 let nps = if elapsed_ms > 0 {
@@ -687,18 +821,26 @@ pub fn search_best_move(
                 } else {
                     0
                 };
+                let pv_str = pv
+                    .iter()
+                    .map(|m| move_to_uci(*m))
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 println!(
                     "info depth {} score {} nodes {} time {} nps {} pv {}",
                     depth,
-                    score_to_uci(sc),
+                    score_to_uci(score),
                     nodes,
                     elapsed_ms,
                     nps,
-                    move_to_uci(mv)
+                    pv_str
                 );
                 // The search runs on its own thread; flush after every
                 // `info` so a GUI sees progress immediately.
                 let _ = std::io::stdout().flush();
+
+                // Keep the completed iteration (pv moved in).
+                completed = Some(RootIteration { score, pv });
 
                 // soft deadline: checked only between completed iterations.
                 // If it has fired, keep this iteration's result and do NOT
@@ -719,24 +861,26 @@ pub fn search_best_move(
                 // absurd depths (never reached in practice).
                 depth = depth.saturating_add(1);
             }
-            (_, SearchResult::Stopped) => {
+            None => {
                 stopped = true;
                 break;
             }
-            // `Score` is only ever produced together with `Some(mv)` in
-            // `root_search`, so `(None, Score)` is unreachable; the
-            // compiler still requires the arm to be listed.
-            (None, SearchResult::Score(_)) => unreachable!(),
         }
     }
 
+    let best_move = completed.as_ref().map(|it| it.pv[0]).unwrap_or(fallback);
+    // No completed iteration => no real score; report `None` rather
+    // than a fabricated 0 that M1.3 would misreport as "equal".
+    let score = completed.as_ref().map(|it| it.score);
+    // PV mirrors `score`: empty when no iteration completed, so a
+    // fallback move is never dressed up as a real principal variation.
+    let pv = completed.map(|it| it.pv).unwrap_or_default();
     Some(SearchOutcome {
-        best_move: completed.map(|(m, _)| m).unwrap_or(fallback),
-        // No completed iteration => no real score; report `None` rather
-        // than a fabricated 0 that M1.3 would misreport as "equal".
-        score: completed.map(|(_, s)| s),
+        best_move,
+        score,
         completed_depth,
         stopped,
+        pv,
     })
 }
 
@@ -747,6 +891,8 @@ mod tests {
     use crate::chess::move_to_uci;
     use crate::chess::movegen::generate_legal_moves;
     use std::collections::BTreeSet;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
 
     /// White queen e4, black queen a4, black pawn h4 (all on rank 4,
     /// neither blocking the other), kings off the rank. White to move: two
@@ -911,5 +1057,39 @@ mod tests {
                 seen_quiet = true;
             }
         }
+    }
+
+    /// M2.3 test 3 (private impl): a depth-0 search (leaf → quiescence)
+    /// of a quiet-promotion position must produce a PV that contains the
+    /// promotion `e7e8q`. The public `negamax` discards its PV, so we
+    /// call the private `_impl` and inspect the table directly.
+    #[test]
+    fn negamax_impl_qsearch_pv_contains_promotion() {
+        // White pawn e7, quiet promotion e7e8=Q; White Ka1, Black Kh8.
+        let pos = parse_fen("7k/4P3/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+        )
+        .expect("not stopped");
+
+        // The promotion must appear somewhere in the recorded PV.
+        let promo = find_move(&pos, "e7e8q");
+        assert!(
+            pv.lines[0].contains(&promo),
+            "qsearch PV must contain the quiet promotion e7e8q (pv={:?})",
+            pv.lines[0]
+        );
+        // Sanity: a promoted queen is worth far more than a pawn.
+        assert!(score >= 800, "promotion should beat a pawn, got {}", score);
     }
 }

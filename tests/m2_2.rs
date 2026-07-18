@@ -42,13 +42,11 @@ fn ordering_finds_queen_win_tactic() {
     );
 }
 
-/// Smoke bound, NOT a proof of node reduction. MVV-LVA is a heuristic: on
-/// some positions it finds more cutoffs (fewer nodes), on others the
-/// generation order happens to be better and ordering does not help. What
-/// this guard catches is a *gross* regression — if ordering were silently
-/// disabled or broken, the node count would blow far past any reasonable
-/// ceiling for this small position. It deliberately asserts only
-/// `nodes <= CEILING`, never `nodes <= unordered_nodes`.
+/// Smoke bound, NOT a proof of node reduction. MVV-LVA is a heuristic
+/// whose effect on the node count depends on where cutoffs land, so this
+/// test does not claim ordering reduces nodes. What it guards is a *gross*
+/// regression: the search of this small position must not explode into an
+/// implausibly large node count. It asserts only `nodes <= CEILING`.
 ///
 /// Reference ceiling for depth 3 on the queen-win position; refresh only if
 /// the search logic itself changes, not because ordering "tidied up a bit".
