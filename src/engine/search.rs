@@ -28,7 +28,7 @@ use std::time::Instant;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
-use crate::chess::zobrist::ZobristKey;
+use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 
@@ -757,8 +757,8 @@ fn search_final_evasion_ply(
             -evaluate(pos)
         };
 
-        pos.unmake_move(undo);
         path.pop();
+        pos.unmake_move(undo);
 
         // Record the cut-off move BEFORE returning the fail-hard beta.
         if score >= beta {
@@ -892,6 +892,11 @@ pub(crate) fn search_best_move_with_history(
 ) -> Option<SearchOutcome> {
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
+    // Derived-state invariant (spec hardening): the position's cached Zobrist
+    // key must match a fresh recomputation. Checking only `history.last() ==
+    // pos.zobrist_key()` is insufficient — both could be holding the same
+    // stale key.
+    debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
     let r = search_best_move_impl(pos, limits, ctx, &mut path);
@@ -1274,6 +1279,10 @@ mod tests {
     /// Helper: run the history-aware search and assert the `SearchPath`
     /// length is restored to the root length (== input history) and equals
     /// the input history exactly (no search-line residue).
+    /// Drives the REAL private search with a path we own, so the assertions
+    /// below inspect the actual stack the search push/pops — not a discarded
+    /// local. Critically we do NOT call `restore_root()` before asserting:
+    /// that would mask a push/pop imbalance and let the test pass spuriously.
     fn search_history_checked(
         pos: Position,
         history: Vec<ZobristKey>,
@@ -1281,16 +1290,28 @@ mod tests {
         ctx: &SearchContext,
     ) -> Option<SearchOutcome> {
         let mut p = pos;
-        let path = SearchPath::new(history.clone());
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+
+        let mut path = SearchPath::new(history.clone());
         let root_len = path.len();
-        let out = search_best_move_with_history(&mut p, &history, &limits, ctx);
+
+        let out = search_best_move_impl(&mut p, &limits, ctx, &mut path);
+
         // Root length restored on every exit.
         assert_eq!(path.len(), root_len, "SearchPath root length not restored");
         // No search-line residue: path == input history.
         assert_eq!(
             path.keys(),
-            &history[..],
+            history.as_slice(),
             "SearchPath must equal input history"
+        );
+        // The root Position itself is left exactly as found.
+        assert_eq!(to_fen(&p), before_fen, "root Position FEN not restored");
+        assert_eq!(
+            p.zobrist_key(),
+            before_key,
+            "root Position Zobrist key not restored"
         );
         out
     }
@@ -1482,6 +1503,133 @@ mod tests {
             to_fen(&p),
             to_fen(&parse_fen(fen).unwrap()),
             "root position must be fully restored"
+        );
+    }
+
+    /// Real mid-search abort for quiescence: the root qsearch node is entered
+    /// (consuming the only budgeted node), at least one tactical capture is
+    /// made + pushed, then the *child* qsearch recursion is denied a node and
+    /// aborts. This verifies that after a genuine push, the lower layer's
+    /// abort still pops the stack and restores the root Position.
+    #[test]
+    fn search_path_restores_root_after_qsearch_mid_abort() {
+        // White queen e4 can capture black queen a4 (e4a4): a real tactical
+        // move, so a make + push definitely happens before the abort.
+        let fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        // Exactly one node: the root qsearch enters, the first child recursion
+        // is denied, forcing an abort *after* a push.
+        let limits = SearchLimits {
+            nodes: Some(1),
+            ..Default::default()
+        };
+        let out = quiescence_impl(
+            &mut p,
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(
+            out.is_none(),
+            "qsearch must abort when no child node is available"
+        );
+        assert_eq!(
+            path.len(),
+            root_len,
+            "SearchPath root length not restored on qsearch mid-abort"
+        );
+        assert_eq!(
+            path.keys(),
+            &[before_key],
+            "SearchPath must equal root key after qsearch mid-abort"
+        );
+        assert_eq!(
+            to_fen(&p),
+            before_fen,
+            "root Position FEN not restored on qsearch mid-abort"
+        );
+        assert_eq!(
+            p.zobrist_key(),
+            before_key,
+            "root Position Zobrist key not restored on qsearch mid-abort"
+        );
+    }
+
+    /// Real mid-abort for emergency evasion: the first evasion is fully made,
+    /// pushed, scored, popped and unmade (consuming the only budgeted node),
+    /// then the *second* evasion's `try_enter_node` is denied and the search
+    /// aborts. Verifies that a genuine push + pop pair still balances when the
+    /// budget runs out on a later sibling.
+    #[test]
+    fn search_path_restores_root_after_emergency_evasion_mid_abort() {
+        // White king e1 in check from a black rook on e8; several evasions
+        // (king moves + Ra3-e3 block) so the second sibling is reachable.
+        let fen = "4r1k1/8/8/8/8/R7/8/4K3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+
+        let legal = generate_legal_moves(&mut p);
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        // Exactly one node: the first evasion enters and completes its make /
+        // push / score / pop / unmake; the second sibling is denied.
+        let limits = SearchLimits {
+            nodes: Some(1),
+            ..Default::default()
+        };
+        let out = search_final_evasion_ply(
+            &mut p,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &legal,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(
+            out.is_none(),
+            "emergency evasion must abort when the second sibling is denied a node"
+        );
+        assert_eq!(
+            path.len(),
+            root_len,
+            "SearchPath root length not restored on emergency-evasion mid-abort"
+        );
+        assert_eq!(
+            path.keys(),
+            &[before_key],
+            "SearchPath must equal root key after emergency-evasion mid-abort"
+        );
+        assert_eq!(
+            to_fen(&p),
+            before_fen,
+            "root Position FEN not restored on emergency-evasion mid-abort"
+        );
+        assert_eq!(
+            p.zobrist_key(),
+            before_key,
+            "root Position Zobrist key not restored on emergency-evasion mid-abort"
         );
     }
 }
