@@ -28,6 +28,7 @@ use std::time::Instant;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
+use crate::chess::zobrist::ZobristKey;
 use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 
@@ -249,6 +250,66 @@ impl PvTable {
     }
 }
 
+/// The search's own view of the Zobrist-key history during a search.
+///
+/// Seeded from the caller's real UCI `GameState` history (via
+/// `search_best_move_with_history`), it is a *private* stack the search
+/// extends with the key of every child position it descends into and
+/// contracts on the way back up. It is deliberately separate from the
+/// `GameState.key_history` it was cloned from: the search may push and
+/// pop freely without ever touching the caller's history.
+///
+/// Invariant (M3.0, §16.8): for every `make_move` there is exactly
+/// one `push_child` (called *after* the move, so the pushed key is the
+/// *child's* key, never the parent's or a stale value) and one `pop`
+/// after the matching `unmake_move`. Because the two are always paired,
+/// the stack length returns to `root_len` at the end of the search —
+/// whether it completed a depth, hit a node budget, a preset stop, a
+/// qsearch abort, or the emergency-evasion cap. The caller's history is
+/// therefore never mutated by the search.
+pub(crate) struct SearchPath {
+    history: Vec<ZobristKey>,
+}
+
+impl SearchPath {
+    /// Build from a caller-supplied history (the `GameState` keys).
+    pub(crate) fn new(history: Vec<ZobristKey>) -> Self {
+        SearchPath { history }
+    }
+
+    /// Current stack length (root length at search entry).
+    pub(crate) fn len(&self) -> usize {
+        self.history.len()
+    }
+
+    /// The full current stack (root first, current last). Read-only.
+    /// Used by tests to assert post-search restoration; the non-test lib
+    /// build has no caller, hence the allow.
+    #[allow(dead_code)]
+    pub(crate) fn keys(&self) -> &[ZobristKey] {
+        &self.history
+    }
+
+    /// Record the child key after a `make_move`. `child` is the position
+    /// *after* the move, so its `zobrist_key` is the child's key.
+    pub(crate) fn push_child(&mut self, child: &Position) {
+        self.history.push(child.zobrist_key());
+    }
+
+    /// Undo a `push_child` (paired with the matching `unmake_move`).
+    pub(crate) fn pop(&mut self) {
+        self.history.pop();
+    }
+
+    /// Defensive safety net: truncate back to the root length. Push/pop
+    /// pairing already guarantees this, but asserting it catches a future
+    /// asymmetry bug instead of silently corrupting the caller's view.
+    pub(crate) fn restore_root(&mut self, root_len: usize) {
+        debug_assert_eq!(self.history.len(), root_len);
+        self.history.truncate(root_len);
+    }
+}
+
 /// A fully completed root iteration: its score and its principal variation
 /// (rooted at the best move). Returned by [`root_search`]; `None` means
 /// the iteration was aborted before completion.
@@ -274,7 +335,16 @@ pub fn negamax(
     // wants just the score gets a throwaway table that is discarded on
     // return. PV tracking never changes the score.
     let mut pv = PvTable::default();
-    negamax_impl(pos, depth, ply, alpha, beta, ctx, limits, &mut pv)
+    // Thin history view: a single-element root key. This caller has no
+    // real game history, so the search still threads a `SearchPath`
+    // (keeping the private impl one shape) but knows nothing before root.
+    let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+    let root_len = path.len();
+    let r = negamax_impl(
+        pos, depth, ply, alpha, beta, ctx, limits, &mut pv, &mut path,
+    );
+    path.restore_root(root_len);
+    r
 }
 
 /// Private search body. Identical to the public [`negamax`], but threads a
@@ -298,6 +368,7 @@ fn negamax_impl(
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
+    path: &mut SearchPath,
 ) -> Option<i32> {
     // Acquire the right to search this node *before* touching the board.
     if !try_enter_node(ctx, limits) {
@@ -319,7 +390,7 @@ fn negamax_impl(
         // Leaf: hand off to quiescence. THIS node was already counted by
         // `try_enter_node` above, so we call the `_entered` variant, which
         // does NOT re-count it. The same PV table is passed down.
-        return quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv);
+        return quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv, path);
     }
 
     // M2.2: try the most forcing moves first so alpha-beta cutoffs fire
@@ -330,7 +401,19 @@ fn negamax_impl(
     let mut best = i32::MIN + 1000;
     for m in moves {
         let undo = pos.make_move(m);
-        let child = negamax_impl(pos, depth - 1, ply + 1, -beta, -alpha, ctx, limits, pv);
+        path.push_child(pos);
+        let child = negamax_impl(
+            pos,
+            depth - 1,
+            ply + 1,
+            -beta,
+            -alpha,
+            ctx,
+            limits,
+            pv,
+            path,
+        );
+        path.pop();
         match child {
             Some(s) => {
                 let score = -s;
@@ -462,7 +545,14 @@ pub fn quiescence(
 ) -> Option<i32> {
     // Public entry: throwaway PV table, discarded on return.
     let mut pv = PvTable::default();
-    quiescence_impl(pos, ply, qply, alpha, beta, ctx, limits, &mut pv)
+    // Thin history view: a single-element root key. This caller has
+    // no real game history, so the search still threads a `SearchPath`
+    // (keeping the private impl one shape) but knows nothing before root.
+    let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+    let root_len = path.len();
+    let r = quiescence_impl(pos, ply, qply, alpha, beta, ctx, limits, &mut pv, &mut path);
+    path.restore_root(root_len);
+    r
 }
 
 /// Recursive quiescence entry: acquires (counts) the node, then hands off to
@@ -481,11 +571,12 @@ fn quiescence_impl(
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
+    path: &mut SearchPath,
 ) -> Option<i32> {
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv)
+    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv, path)
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
@@ -515,6 +606,7 @@ fn quiescence_entered_impl(
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
+    path: &mut SearchPath,
 ) -> Option<i32> {
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
@@ -540,7 +632,7 @@ fn quiescence_entered_impl(
             }
             return Some(alpha.max(stand_pat));
         }
-        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits, pv);
+        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits, pv, path);
     }
 
     // Decide which moves to search.
@@ -562,7 +654,9 @@ fn quiescence_entered_impl(
 
     for m in tactical {
         let undo = pos.make_move(m);
-        let child = quiescence_impl(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits, pv);
+        path.push_child(pos);
+        let child = quiescence_impl(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits, pv, path);
+        path.pop();
         match child {
             Some(s) => {
                 let score = -s;
@@ -632,6 +726,7 @@ fn search_final_evasion_ply(
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
+    path: &mut SearchPath,
 ) -> Option<i32> {
     for &m in legal {
         // Honour stop / hard-deadline / node-budget before touching the
@@ -643,6 +738,7 @@ fn search_final_evasion_ply(
         }
 
         let undo = pos.make_move(m);
+        path.push_child(pos);
 
         // `legal` came from `generate_legal_moves`, so this evasion is legal:
         // the opponent is NOT attacking our king here. Score the child:
@@ -662,6 +758,7 @@ fn search_final_evasion_ply(
         };
 
         pos.unmake_move(undo);
+        path.pop();
 
         // Record the cut-off move BEFORE returning the fail-hard beta.
         if score >= beta {
@@ -697,6 +794,7 @@ fn root_search(
     root_moves: &[Move],
     ctx: &SearchContext,
     limits: &SearchLimits,
+    path: &mut SearchPath,
 ) -> Option<RootIteration> {
     let mut best_score = i32::MIN + 1000;
     let mut best_move: Option<Move> = None;
@@ -715,7 +813,9 @@ fn root_search(
 
     for &m in root_moves {
         let undo = pos.make_move(m);
-        let child = negamax_impl(pos, depth - 1, 1, -beta, -alpha, ctx, limits, &mut pv);
+        path.push_child(pos);
+        let child = negamax_impl(pos, depth - 1, 1, -beta, -alpha, ctx, limits, &mut pv, path);
+        path.pop();
         match child {
             Some(s) => {
                 let score = -s;
@@ -761,10 +861,53 @@ fn root_search(
 /// Returns the best move of the last *fully completed* iteration, or a
 /// legal fallback if we were stopped before any iteration finished. The
 /// root position is never left corrupted, no matter where the abort lands.
+/// Public entry (unchanged signature). Builds a single-root history so
+/// the search still threads a `SearchPath`, then delegates to the
+/// history-aware implementation. Existing callers (and their tests)
+/// keep compiling.
 pub fn search_best_move(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
+) -> Option<SearchOutcome> {
+    let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+    let root_len = path.len();
+    let r = search_best_move_impl(pos, limits, ctx, &mut path);
+    path.restore_root(root_len);
+    r
+}
+
+/// History-aware entry used by the UCI layer, which passes the real
+/// `GameState` key history. The search extends this with its own
+/// `SearchPath` (cloned from `game_history`) but never mutates the
+/// caller's `GameState`.
+///
+/// Contract (debug-checked): `game_history` is non-empty and its last
+/// element equals the current position's Zobrist key.
+pub(crate) fn search_best_move_with_history(
+    pos: &mut Position,
+    game_history: &[ZobristKey],
+    limits: &SearchLimits,
+    ctx: &SearchContext,
+) -> Option<SearchOutcome> {
+    debug_assert!(!game_history.is_empty());
+    debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
+    let mut path = SearchPath::new(game_history.to_vec());
+    let root_len = path.len();
+    let r = search_best_move_impl(pos, limits, ctx, &mut path);
+    path.restore_root(root_len);
+    r
+}
+
+/// Shared search body. Threads `path` through every recursion so the
+/// search-line Zobrist keys are recorded (for M3.1 repetition /
+/// M3.2 TT). The public `search_best_move` and the UCI-facing
+/// `search_best_move_with_history` are thin wrappers around this.
+fn search_best_move_impl(
+    pos: &mut Position,
+    limits: &SearchLimits,
+    ctx: &SearchContext,
+    path: &mut SearchPath,
 ) -> Option<SearchOutcome> {
     let mut root_moves = generate_legal_moves(pos);
     if root_moves.is_empty() {
@@ -788,7 +931,7 @@ pub fn search_best_move(
             }
         }
 
-        match root_search(pos, depth, &root_moves, ctx, limits) {
+        match root_search(pos, depth, &root_moves, ctx, limits, path) {
             Some(iter) => {
                 let RootIteration { score, pv } = iter;
                 completed_depth = depth;
@@ -883,9 +1026,12 @@ pub fn search_best_move(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess::fen::parse_fen;
+    use crate::chess::fen::{parse_fen, to_fen};
+    use crate::chess::game::GameState;
     use crate::chess::move_to_uci;
     use crate::chess::movegen::generate_legal_moves;
+    use crate::chess::types::START_FEN;
+    use crate::chess::zobrist::recompute_zobrist;
     use std::collections::BTreeSet;
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
@@ -1064,6 +1210,8 @@ mod tests {
         // White pawn e7, quiet promotion e7e8=Q; White Ka1, Black Kh8.
         let pos = parse_fen("7k/4P3/8/8/8/8/8/K7 w - - 0 1").unwrap();
         let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits::default();
         let score = negamax_impl(
@@ -1075,8 +1223,10 @@ mod tests {
             &ctx,
             &limits,
             &mut pv,
+            &mut path,
         )
         .expect("not stopped");
+        path.restore_root(root_len);
 
         // The promotion must appear somewhere in the recorded PV.
         let promo = find_move(&pos, "e7e8q");
@@ -1087,5 +1237,251 @@ mod tests {
         );
         // Sanity: a promoted queen is worth far more than a pawn.
         assert!(score >= 800, "promotion should beat a pawn, got {}", score);
+    }
+
+    // ===== §16.8 SearchPath invariants =====
+    //
+    // The search threads a `SearchPath` (a clone of the caller's
+    // real `GameState` history) and must restore its root length on
+    // every exit: a completed depth, a node-budget abort, a preset
+    // stop, a qsearch abort, and an emergency-evasion abort. The
+    // caller's history must never be mutated, the root position must be
+    // fully restored, and every pushed key must equal the *child*
+    // position's key.
+
+    /// `push_child` records the child's key (never the parent's or a
+    /// stale value), and `pop` returns the stack to the root length.
+    #[test]
+    fn search_path_push_child_records_child_key() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        assert_eq!(path.len(), 1);
+        let mv = find_move(&pos, "e2e4");
+        let mut child = pos;
+        child.make_move(mv);
+        path.push_child(&child);
+        assert_eq!(path.len(), 2);
+        // Pushed key is the child's key, not the parent's.
+        assert_eq!(path.keys()[1], child.zobrist_key());
+        assert_ne!(path.keys()[1], pos.zobrist_key());
+        // And it must match a fresh recomputation (incremental == recompute).
+        assert_eq!(path.keys()[1], recompute_zobrist(&child));
+        path.pop();
+        assert_eq!(path.len(), 1);
+        assert_eq!(path.keys(), &[pos.zobrist_key()][..]);
+    }
+
+    /// Helper: run the history-aware search and assert the `SearchPath`
+    /// length is restored to the root length (== input history) and equals
+    /// the input history exactly (no search-line residue).
+    fn search_history_checked(
+        pos: Position,
+        history: Vec<ZobristKey>,
+        limits: SearchLimits,
+        ctx: &SearchContext,
+    ) -> Option<SearchOutcome> {
+        let mut p = pos;
+        let path = SearchPath::new(history.clone());
+        let root_len = path.len();
+        let out = search_best_move_with_history(&mut p, &history, &limits, ctx);
+        // Root length restored on every exit.
+        assert_eq!(path.len(), root_len, "SearchPath root length not restored");
+        // No search-line residue: path == input history.
+        assert_eq!(
+            path.keys(),
+            &history[..],
+            "SearchPath must equal input history"
+        );
+        out
+    }
+
+    #[test]
+    fn search_path_restores_root_on_completed_depth() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let history = vec![pos.zobrist_key()];
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..Default::default()
+        };
+        let out = search_history_checked(pos, history, limits, &ctx);
+        assert!(out.is_some(), "depth-2 search must complete");
+        assert_eq!(
+            to_fen(&pos),
+            to_fen(&parse_fen(START_FEN).unwrap()),
+            "root position must be fully restored"
+        );
+    }
+
+    #[test]
+    fn search_path_restores_root_on_node_budget_abort() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let history = vec![pos.zobrist_key()];
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        // Tiny node budget: aborts mid-search, never completes a depth.
+        let limits = SearchLimits {
+            nodes: Some(3),
+            ..Default::default()
+        };
+        let out = search_history_checked(pos, history, limits, &ctx);
+        assert!(
+            out.is_some() && out.unwrap().stopped,
+            "node-budget abort returns a stopped result"
+        );
+    }
+
+    #[test]
+    fn search_path_restores_root_on_preset_stop() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let history = vec![pos.zobrist_key()];
+        // Preset stop: the search must abort immediately.
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(true)));
+        let limits = SearchLimits::default();
+        let out = search_history_checked(pos, history, limits, &ctx);
+        assert!(
+            out.is_some() && out.unwrap().stopped,
+            "preset stop returns a stopped result"
+        );
+    }
+
+    /// The caller's `GameState` history is never mutated by the search:
+    /// UCI hands the thread a *clone* and `into_search_parts` moves the
+    /// history out of that clone; the live `GameState` stays put.
+    #[test]
+    fn search_path_does_not_mutate_caller_history() {
+        let mut gs = GameState::startpos();
+        // Apply a couple of real moves so the history grows.
+        let wm = gs
+            .legal_moves()
+            .into_iter()
+            .find(|m| move_to_uci(*m) == "e2e4")
+            .unwrap();
+        gs.apply_legal_move(wm).unwrap();
+        let bm = gs.legal_moves().into_iter().next().unwrap();
+        gs.apply_legal_move(bm).unwrap();
+        let original = gs.key_history().to_vec();
+        assert!(original.len() >= 3, "history must have grown");
+
+        // UCI-style hand-off: clone the GameState, split it, search the clone.
+        let (mut pos, history) = gs.clone().into_search_parts();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..Default::default()
+        };
+        let out = search_best_move_with_history(&mut pos, &history, &limits, &ctx);
+        assert!(out.is_some(), "depth-2 search must complete");
+
+        // Live GameState untouched.
+        assert_eq!(
+            gs.key_history(),
+            &original[..],
+            "search must not mutate the caller's GameState history"
+        );
+    }
+
+    // Direct white-box checks for the qsearch / emergency-evasion abort
+    // branches: `try_enter_node` fails at the top (before any make_move),
+    // so no push happens and the stack length stays at root.
+
+    #[test]
+    fn search_path_restores_root_on_qsearch_abort() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut p = pos;
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(true)));
+        let limits = SearchLimits::default();
+        let out = quiescence_impl(
+            &mut p,
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(out.is_none(), "preset stop must abort quiescence");
+        path.restore_root(root_len);
+        assert_eq!(
+            path.len(),
+            root_len,
+            "root length must restore on qsearch abort"
+        );
+    }
+
+    #[test]
+    fn search_path_restores_root_on_emergency_evasion_abort() {
+        // White king e1 in check from a black rook on e8; white to move.
+        let pos = parse_fen("4r1k1/8/8/8/8/R7/8/4K3 w - - 0 1").unwrap();
+        let mut p = pos;
+        let legal = generate_legal_moves(&mut p);
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(true)));
+        let limits = SearchLimits::default();
+        let out = search_final_evasion_ply(
+            &mut p,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &legal,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(out.is_none(), "preset stop must abort emergency evasion");
+        path.restore_root(root_len);
+        assert_eq!(
+            path.len(),
+            root_len,
+            "root length must restore on emergency-evasion abort"
+        );
+    }
+
+    #[test]
+    fn search_path_emergency_evasion_completes_and_restores() {
+        // White king e1 in check from a black rook on e8; white to move.
+        // With no stop it completes (one ply of evasions) and restores.
+        let fen = "4r1k1/8/8/8/8/R7/8/4K3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let mut p = pos;
+        let legal = generate_legal_moves(&mut p);
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let out = search_final_evasion_ply(
+            &mut p,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &legal,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(
+            out.is_some(),
+            "emergancy evasion must complete when not stopped"
+        );
+        path.restore_root(root_len);
+        assert_eq!(
+            path.len(),
+            root_len,
+            "root length must restore after emergency evasion completes"
+        );
+        assert_eq!(
+            to_fen(&p),
+            to_fen(&parse_fen(fen).unwrap()),
+            "root position must be fully restored"
+        );
     }
 }

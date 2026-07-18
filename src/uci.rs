@@ -12,6 +12,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::chess::fen;
+use crate::chess::game::GameState;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
@@ -68,19 +69,21 @@ fn stop_and_join(active: &mut Option<ActiveSearch>) {
     }
 }
 
-/// Spawn the search on a dedicated thread. The thread owns its own clone of
-/// the position and prints `bestmove` (with a final flush) when it finishes,
-/// whether by completing or by being stopped.
+/// Spawn the search on a dedicated thread. The thread owns its own clone
+/// of the `GameState` (handed in by `go`) and prints `bestmove`
+/// (with a final flush) when it finishes, whether by completing or by
+/// being stopped. The live game in the main loop is never touched:
+/// `into_search_parts` moves the history out of the clone.
 fn spawn_search(
-    pos: Position,
+    game: GameState,
     limits: SearchLimits,
     stop: Arc<AtomicBool>,
     budget: TimeBudget,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let ctx = search::SearchContext::with_budget(stop.clone(), budget);
-        let mut pos = pos;
-        match search::search_best_move(&mut pos, &limits, &ctx) {
+        let (mut pos, game_history) = game.into_search_parts();
+        match search::search_best_move_with_history(&mut pos, &game_history, &limits, &ctx) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
             None => println!("bestmove 0000"),
         }
@@ -91,7 +94,11 @@ fn spawn_search(
 pub fn run() {
     let stdin = io::stdin();
     let stdout = io::stdout();
-    let mut pos = Position::startpos();
+    // The live game state: current `Position` plus the real, chronological
+    // UCI history of Zobrist keys. The search runs on its own thread
+    // and receives a *clone* of this (via `into_search_parts`), so the
+    // live `gs` is never mutated by a search.
+    let mut gs = GameState::startpos();
     // The active background search, if any. `None` while idle.
     let mut active: Option<ActiveSearch> = None;
 
@@ -120,14 +127,15 @@ pub fn run() {
                 // Stop any in-flight search before resetting the board so a
                 // stale `bestmove` can't arrive for the old game.
                 stop_and_join(&mut active);
-                pos = Position::startpos();
+                gs = GameState::startpos();
             }
             "position" => {
                 // Stop first, then mutate. The search thread holds its own
-                // clone of `pos`, so this is race-free; we still stop first so
-                // a half-applied position never races a running search's output.
+                // clone of the game, so this is race-free; we still stop
+                // first so a half-applied position never races a running
+                // search's output.
                 stop_and_join(&mut active);
-                if let Err(e) = apply_position(&mut pos, &tokens) {
+                if let Err(e) = apply_position(&mut gs, &tokens) {
                     println!("info string {}", e);
                 }
             }
@@ -140,9 +148,12 @@ pub fn run() {
                 // side to move.
                 stop_and_join(&mut active);
                 let params = parse_go_params(&tokens);
-                let (limits, budget) = build_limits_and_budget(&params, pos.side);
+                let (limits, budget) =
+                    build_limits_and_budget(&params, gs.position().side_to_move());
                 let stop = Arc::new(AtomicBool::new(false));
-                let handle = spawn_search(pos, limits, stop.clone(), budget);
+                // Hand the thread a *clone* of the live game; the search
+                // splits it via `into_search_parts` and never touches `gs`.
+                let handle = spawn_search(gs.clone(), limits, stop.clone(), budget);
                 active = Some(ActiveSearch { stop, handle });
             }
             "stop" => {
@@ -156,7 +167,10 @@ pub fn run() {
                     .get(1)
                     .and_then(|s| s.parse::<u32>().ok())
                     .unwrap_or(4);
-                let n = pos.perft(depth);
+                // Perft only touches the current position; it must not mutate
+                // the real `GameState` or its `key_history`.
+                let mut p = *gs.position();
+                let n = p.perft(depth);
                 println!("perft({}) = {}", depth, n);
             }
             "quit" | "exit" => {
@@ -174,15 +188,22 @@ pub fn run() {
     stop_and_join(&mut active);
 }
 
-/// Apply a `position` command to `pos` in place. On any error (bad FEN,
-/// illegal history move, ...) the current position is left untouched and the
-/// error is returned so the caller can report it. This replaces the old silent
-/// `unwrap_or_else(startpos)` fallback that hid malformed input.
-fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
+/// Apply a `position` command to `gs` in place. On any error (bad FEN,
+/// illegal history move, ...) the current game is left untouched and the
+/// error is returned so the caller can report it. This replaces the old
+/// silent `unwrap_or_else(startpos)` fallback that hid malformed input.
+///
+/// The new game is built *fresh* from the FEN/startpos root and then
+/// advanced with `push_known_legal_move`, so its `key_history` starts at
+/// the root key and appends exactly one key per applied move. A new
+/// `position` command therefore *replaces* the old history (it does not
+/// append to it); an illegal move discards the whole temporary game and
+/// leaves `gs` byte-for-byte unchanged.
+fn apply_position(gs: &mut GameState, tokens: &[&str]) -> Result<(), String> {
     let idx;
-    let mut new_pos = if tokens.get(1) == Some(&"startpos") {
+    let mut new_gs = if tokens.get(1) == Some(&"startpos") {
         idx = 2;
-        Position::startpos()
+        GameState::startpos()
     } else if tokens.get(1) == Some(&"fen") {
         let mut i = 2;
         let mut fen_parts: Vec<&str> = Vec::new();
@@ -192,7 +213,8 @@ fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
         }
         idx = i;
         let fen_str = fen_parts.join(" ");
-        fen::parse_fen(&fen_str)?
+        let pos = fen::parse_fen(&fen_str)?;
+        GameState::from_position(pos)
     } else {
         return Err("position command needs 'startpos' or 'fen'".into());
     };
@@ -200,9 +222,10 @@ fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
     if tokens.get(idx) == Some(&"moves") {
         let mut i = idx + 1;
         while i < tokens.len() {
-            match find_move(&mut new_pos, tokens[i]) {
+            match find_move(new_gs.position(), tokens[i]) {
                 Some(m) => {
-                    new_pos.make_move(m);
+                    // Committed legal move: advances both position and history.
+                    new_gs.push_known_legal_move(m);
                 }
                 None => return Err(format!("invalid move {}", tokens[i])),
             }
@@ -210,7 +233,7 @@ fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
         }
     }
 
-    *pos = new_pos;
+    *gs = new_gs;
     Ok(())
 }
 
@@ -218,7 +241,13 @@ fn apply_position(pos: &mut Position, tokens: &[&str]) -> Result<(), String> {
 /// castling, and promotion flags are reconstructed correctly. We use legal
 /// (not pseudo-legal) generation: a malformed history must never be allowed
 /// to leave the king in check or otherwise reach an illegal position.
-pub fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
+///
+/// Takes a read-only `Position` (never a `&mut Position`): the caller owns
+/// the `GameState` and its history; `find_move` only needs the legal-move
+/// list, which it generates on a local copy of the position.
+pub fn find_move(pos: &Position, uci: &str) -> Option<Move> {
+    let mut probe = *pos;
+    let moves = generate_legal_moves(&mut probe);
     let bytes = uci.as_bytes();
     // Reject anything that is not a clean 4- or 5-byte ASCII move. This
     // defends against (a) over-long strings like "e2e4garbage", (b) a junk
@@ -242,7 +271,6 @@ pub fn find_move(pos: &mut Position, uci: &str) -> Option<Move> {
     } else {
         None
     };
-    let moves = generate_legal_moves(pos);
     moves
         .into_iter()
         .find(|m| m.from == from && m.to == to && m.promotion == promo)
@@ -372,6 +400,10 @@ fn build_limits_and_budget(params: &GoParams, side: Color) -> (SearchLimits, Tim
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chess::fen::{parse_fen, to_fen};
+    use crate::chess::game::GameState;
+    use crate::chess::types::START_FEN;
+    use crate::chess::zobrist::recompute_zobrist;
 
     #[test]
     fn huge_millis_is_clamped_not_panicked() {
@@ -408,6 +440,117 @@ mod tests {
         assert!(
             p.btime.unwrap() <= Duration::from_millis(MAX_UCI_TIME_MS),
             "btime must be clamped"
+        );
+    }
+
+    // ===== §16.7 GameState / UCI history =====
+    //
+    // `apply_position` builds a *fresh* GameState from the FEN/startpos
+    // root and advances it with `push_known_legal_move`, so the history
+    // starts at the root key and appends exactly one key per move. A new
+    // `position` command replaces the old history (never appends); an
+    // illegal move leaves the live game untouched.
+
+    #[test]
+    fn position_fen_with_moves_appends_from_root() {
+        let root_fen = "4r1k1/4p3/8/8/8/8/4P3/4K3 w - - 0 1";
+        let mut gs = GameState::startpos();
+        let cmd = format!("position fen {} moves e2e4 e7e5", root_fen);
+        let tokens: Vec<&str> = cmd.split_whitespace().collect();
+        apply_position(&mut gs, &tokens).expect("apply must succeed");
+        // history: FEN root + 2 applied moves.
+        assert_eq!(gs.key_history().len(), 3, "root + 2 moves");
+        // history[0] is the FEN root key (not the startpos key).
+        assert_eq!(
+            gs.key_history()[0],
+            parse_fen(root_fen).unwrap().zobrist_key(),
+            "history[0] is the FEN root key"
+        );
+        // history.last is the current (post-moves) position's key.
+        assert_eq!(
+            gs.key_history().last().copied(),
+            Some(gs.current_key()),
+            "history last == current key"
+        );
+        // current key differs from the root (two moves applied).
+        assert_ne!(
+            gs.current_key(),
+            gs.key_history()[0],
+            "current differs from root"
+        );
+        // current key matches a fresh recomputation of the live position.
+        assert_eq!(gs.current_key(), recompute_zobrist(gs.position()));
+    }
+
+    #[test]
+    fn new_position_replaces_old_history() {
+        // Build a game with some history, then issue a *different* `position`
+        // command; the old history must be discarded, not appended.
+        let mut gs = GameState::startpos();
+        let t1: Vec<&str> = "position startpos moves e2e4 e7e5"
+            .split_whitespace()
+            .collect();
+        apply_position(&mut gs, &t1).unwrap();
+        assert_eq!(gs.key_history().len(), 3);
+
+        let t2: Vec<&str> = "position fen 4r1k1/4p3/8/8/8/8/4P3/4K3 w - - 0 1 moves e2e4"
+            .split_whitespace()
+            .collect();
+        apply_position(&mut gs, &t2).unwrap();
+        // Fresh history: FEN root + the one applied move -> len 2.
+        assert_eq!(
+            gs.key_history().len(),
+            2,
+            "new position starts fresh history"
+        );
+        assert_eq!(
+            gs.key_history()[0],
+            parse_fen("4r1k1/4p3/8/8/8/8/4P3/4K3 w - - 0 1")
+                .unwrap()
+                .zobrist_key(),
+            "new history[0] is the FEN root key"
+        );
+    }
+
+    #[test]
+    fn ucinewgame_restores_startpos_single_history() {
+        // Mimic `ucinewgame`: reset to startpos and verify a single-element
+        // history whose key equals the startpos key.
+        let mut gs = GameState::startpos();
+        let t: Vec<&str> = "position startpos moves e2e4 e7e5"
+            .split_whitespace()
+            .collect();
+        apply_position(&mut gs, &t).unwrap();
+        assert!(gs.key_history().len() >= 3);
+
+        gs = GameState::startpos();
+        assert_eq!(gs.key_history().len(), 1, "ucinewgame -> single history");
+        assert_eq!(
+            gs.key_history()[0],
+            gs.position().zobrist_key(),
+            "ucinewgame history == startpos key"
+        );
+    }
+
+    #[test]
+    fn illegal_uci_move_leaves_game_untouched() {
+        let mut gs = GameState::startpos();
+        let tokens: Vec<&str> = "position startpos moves e2e4 z9z9"
+            .split_whitespace()
+            .collect();
+        let err = apply_position(&mut gs, &tokens);
+        assert!(err.is_err(), "illegal move must error");
+        // Game untouched: still startpos, single history, same key/FEN.
+        assert_eq!(gs.key_history().len(), 1, "history unchanged");
+        assert_eq!(
+            gs.key_history()[0],
+            gs.position().zobrist_key(),
+            "key unchanged"
+        );
+        assert_eq!(
+            to_fen(gs.position()),
+            to_fen(&parse_fen(START_FEN).unwrap()),
+            "FEN unchanged"
         );
     }
 }

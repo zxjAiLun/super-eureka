@@ -94,8 +94,8 @@ bestmove b1c3
 - ✅ **FEN 解析加固**：每个 rank 恰好 8 格、数字仅 `1..=8`、双方王唯一、`fullmove >= 1`、
   吃过路兵目标在合法 rank、多余字段报错，且**对任何字符串都不会 panic**。
 - ✅ **UCI 历史着法仅接受严格合法走法**（原来用伪合法生成，会让被钉死的子或送将的棋混进来）。
-- ⚠️ 评估目前**只有子力差**（Piece-Square Table 等位置评估在 Milestone 2 后续加入），
-   quiescence 搜索（M2.1）已就位，**显著缓解**吃子 / 升变层面的 horizon effect
+- ✅ **评估已含子力差 + 基础 Piece-Square Table（M2.4）**：位置因素（PST）已叠加在子力之上；
+   killer / history / tapered eval 等仍待加。quiescence 搜索（M2.1）已就位，**显著缓解**吃子 / 升变层面的 horizon effect
    （处理常规吃子、升变的战术延伸）；但仍有 `MAX_QPLY` 上限，且 counter-check
    子局面会在安全上限处使用静态估值，是**有界近似**而非完全正确解决。此外引擎对
    发展、中心、兵形等位置因素仍无概念。
@@ -106,16 +106,19 @@ bestmove b1c3
 - **Milestone 1（已完成）**：真正的 UCI Demo —— 搜索在独立线程运行，`stop` 即时中断；
   时间控制 `go movetime` / `infinite` / `wtime` / `btime` / `winc` / `binc` / `movestogo` 可用
    （soft/hard deadline + 安全余量）；`info` 输出 `depth` / `score` / `nodes` / `time` / `nps` / `pv`。
-- **Milestone 2（进行中）**：开始像在下棋 ——
+- **Milestone 2（已完成）**：像在下棋 ——
   - ✅ quiescence search（吃子 + 升变；被将军时解将全部走法都搜）—— M2.1 完成；
   - ✅ 着法排序（MVV-LVA / 升变；killer、history 暂未加）—— M2.2 完成；
   - ✅ 完整主变 `info pv` + PV tracking —— M2.3 完成；
   - ✅ Piece-Square Table 评估（material + 基础 PST；King PST 留到 tapered eval）—— M2.4 完成；
 - **Milestone 3**：和棋状态与置换表（顺序已锁定，TT 必须在 draw context 稳定之后）——
-  - **M3.0 状态与 Zobrist 基础**：`GameState` / UCI `position ... moves` 历史 / incremental
+  - **M3.0 状态与 Zobrist 基础 ✅**：`GameState` / UCI `position ... moves` 历史 / incremental
     Zobrist key / 搜索路径 hash stack / halfmove clock 正确传入搜索；
-  - **M3.1 和棋规则**：三次重复 / 五十回合 / insufficient material；
-  - **M3.2 置换表（TT）**：Exact / Lower / Upper、depth-preferred 替换、hash move 排序、
+    - 当前已保存 UCI 对局真实历史、已维护搜索路径 hash stack；
+    - 当前**仍未启用**三次重复 / 五十回合判和、insufficient material；
+    - 当前**仍未启用**置换表（TT）。
+  - **M3.1 和棋规则 🔜**：三次重复 / 五十回合 / insufficient material；
+  - **M3.2 置换表（TT）待实现**：Exact / Lower / Upper、depth-preferred 替换、hash move 排序、
     mate score 的 ply 编解码、`setoption name Hash`、`ucinewgame` 时清空。
 - **Milestone 4**：高级增强（确认瓶颈后再加，且一次只加一个并做对照测试）——
   aspiration window、PVS、null-move pruning、LMR、SEE、futility pruning。Bitboard 不急。

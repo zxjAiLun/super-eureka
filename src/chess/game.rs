@@ -91,12 +91,9 @@ impl GameState {
 
     /// Hand the search a `(position, history)` pair. `history` is moved
     /// out so the search gets an owned copy it can extend with its own
-    /// `SearchPath` without touching this `GameState`.
-    ///
-    /// Intentionally unused in the chess-state commit; it is the hand-off
-    /// point for the deferred `feat(search)` commit (SearchPath threading),
-    /// so it is kept (and allowed as dead code) rather than re-added later.
-    #[allow(dead_code)]
+    /// `SearchPath` without touching this `GameState`. The UCI layer
+    /// calls this on a *clone* of the live game (see `uci.rs`), so the
+    /// live `GameState` is never mutated by a search.
     pub(crate) fn into_search_parts(self) -> (Position, Vec<ZobristKey>) {
         (self.position, self.key_history)
     }
