@@ -111,9 +111,14 @@ fn evaluate_does_not_mutate_position() {
 /// Test 7: PST really changes the engine's choice. Same position, but
 /// the search root move flips from the M2.3 baseline `h1f2` to `h1g3`
 /// because KNIGHT_PST[g3](5) > KNIGHT_PST[f2](0). Depth is fixed.
+///
+/// NOTE (C1): a bare K+N vs K is an insufficient-material DRAW, so a pawn
+/// is included to keep the position sufficient (the pawn PST is a constant
+/// across the knight moves and does not change the g3-vs-f2 argmax).
+/// K+N vs K itself is now correctly drawn by the C1 classifier (classify_draw).
 #[test]
 fn pst_changes_root_choice_h1f2_to_h1g3() {
-    let mut pos = parse_fen("4k3/8/8/8/8/8/K7/7N w - - 0 1").unwrap();
+    let mut pos = parse_fen("4k3/8/8/8/8/8/K7/P6N w - - 0 1").unwrap();
     let ctx = fresh_ctx();
     let limits = SearchLimits {
         depth: Some(1),
@@ -122,7 +127,7 @@ fn pst_changes_root_choice_h1f2_to_h1g3() {
     let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
     assert_eq!(
         to_fen(&pos),
-        "4k3/8/8/8/8/8/K7/7N w - - 0 1",
+        "4k3/8/8/8/8/8/K7/P6N w - - 0 1",
         "root position must be restored"
     );
     assert_eq!(

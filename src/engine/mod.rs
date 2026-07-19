@@ -1,3 +1,4 @@
+pub mod draw;
 pub mod eval;
 pub mod search;
 pub mod time;

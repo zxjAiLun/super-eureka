@@ -29,6 +29,7 @@ use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
+use crate::engine::draw::classify_draw;
 use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 
@@ -125,9 +126,10 @@ pub struct SearchOutcome {
     pub completed_depth: u32,
     pub stopped: bool,
     /// The principal variation of the last *fully completed* iteration,
-    /// rooted at `best_move` (so `pv[0] == best_move`). Empty when no
-    /// iteration completed (we were stopped before depth 1 finished) — a
-    /// fabricated PV is deliberately avoided, matching `score`'s rationale.
+    /// rooted at `best_move`. Empty when no iteration completed (we were
+    /// stopped before depth 1 finished) — a fabricated PV is deliberately
+    /// avoided, matching `score`'s rationale. `best_move` is the source
+    /// of truth for the root move and never depends on `pv` being non-empty.
     pub pv: Vec<Move>,
 }
 
@@ -315,6 +317,11 @@ impl SearchPath {
 /// the iteration was aborted before completion.
 struct RootIteration {
     score: i32,
+    /// The best move of this completed iteration. Carried explicitly so the
+    /// final `SearchOutcome.best_move` is derived from a real field rather
+    /// than from `pv[0]` (which could be empty for a draw / non-PV
+    /// outcome and would panic on a `.unwrap()`).
+    best_move: Move,
     pv: Vec<Move>,
 }
 
@@ -384,6 +391,14 @@ fn negamax_impl(
             return Some(-(MATE - ply as i32));
         }
         return Some(0); // stalemate -> empty PV (row already cleared)
+    }
+
+    // C1: automatic insufficient-material draw (the C1 classifier).
+    // Terminal (mate / stalemate) takes precedence — a checkmate is
+    // scored as a mate even if the material would otherwise be
+    // "insufficient" in the abstract.
+    if classify_draw(pos).is_some() {
+        return Some(0);
     }
 
     if depth == 0 {
@@ -620,6 +635,14 @@ fn quiescence_entered_impl(
         return Some(if in_check { -(MATE - ply as i32) } else { 0 });
     }
 
+    // C1: automatic insufficient-material draw (the C1 classifier).
+    // Terminal (mate / stalemate) already returned above; this is
+    // checked after it, so a checkmate is still scored as a mate even
+    // in an "insufficient" material setting.
+    if classify_draw(pos).is_some() {
+        return Some(0);
+    }
+
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
     order_moves(pos, &mut legal);
 
@@ -728,6 +751,14 @@ fn search_final_evasion_ply(
     pv: &mut PvTable,
     path: &mut SearchPath,
 ) -> Option<i32> {
+    // C1: automatic insufficient-material draw for the in-check node at the
+    // qply cap. A single ply cannot add material, so the position stays a
+    // draw; we return 0 immediately without searching evasions or touching
+    // any move. No fifty / threefold / intended-claim / child-edge logic.
+    if classify_draw(pos).is_some() {
+        return Some(0);
+    }
+
     for &m in legal {
         // Honour stop / hard-deadline / node-budget before touching the
         // board (same contract as the recursive `quiescence` entry). If we
@@ -839,8 +870,9 @@ fn root_search(
         }
     }
 
-    best_move.map(|_| RootIteration {
+    best_move.map(|bm| RootIteration {
         score: best_score,
+        best_move: bm,
         pv: std::mem::take(&mut pv.lines[0]),
     })
 }
@@ -921,6 +953,21 @@ fn search_best_move_impl(
     // Stable fallback: the first legal move. Used if we never complete a
     // single iteration (e.g. stopped before depth 1 finishes).
     let fallback = root_moves[0];
+
+    // C1: automatic insufficient-material draw at the root. We have legal
+    // moves (so we do NOT return None), but the position is a draw with
+    // score 0 and a stable fallback move. This is a direct return: no
+    // root-move search, no child pre-generation, no PV. It does not modify
+    // the root move loop below (which stays unused for this position).
+    if classify_draw(pos).is_some() {
+        return Some(SearchOutcome {
+            best_move: fallback,
+            score: Some(0),
+            completed_depth: 0,
+            stopped: false,
+            pv: Vec::new(),
+        });
+    }
     // Best result of the last fully completed iteration.
     let mut completed: Option<RootIteration> = None;
     let mut completed_depth: u32 = 0;
@@ -938,11 +985,16 @@ fn search_best_move_impl(
 
         match root_search(pos, depth, &root_moves, ctx, limits, path) {
             Some(iter) => {
-                let RootIteration { score, pv } = iter;
+                let RootIteration {
+                    score,
+                    best_move,
+                    pv,
+                } = iter;
                 completed_depth = depth;
                 // Move-ordering hook for the next iteration (cheap; real
-                // ordering heuristics land in Milestone 2).
-                if let Some(idx) = root_moves.iter().position(|m| *m == pv[0]) {
+                // ordering heuristics land in Milestone 2). Driven by the
+                // explicit `best_move` field, never by `pv[0]`.
+                if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
                     root_moves.swap(0, idx);
                 }
                 // Standard UCI info: nodes from the atomic counter, time
@@ -983,8 +1035,14 @@ fn search_best_move_impl(
                 // `info` so a GUI sees progress immediately.
                 let _ = std::io::stdout().flush();
 
-                // Keep the completed iteration (pv moved in).
-                completed = Some(RootIteration { score, pv });
+                // Keep the completed iteration (pv moved in); `best_move`
+                // is carried explicitly so the final outcome never derives
+                // the root move from `pv[0]`.
+                completed = Some(RootIteration {
+                    score,
+                    best_move,
+                    pv,
+                });
 
                 // soft deadline: checked only between completed iterations.
                 // If it has fired, keep this iteration's result and do NOT
@@ -1012,7 +1070,13 @@ fn search_best_move_impl(
         }
     }
 
-    let best_move = completed.as_ref().map(|it| it.pv[0]).unwrap_or(fallback);
+    // Derive the root best move from the explicit `best_move` field of the
+    // last completed iteration — never from `pv[0]`, which can be empty
+    // (a draw / non-PV outcome) and would panic on a `.unwrap()`.
+    let best_move = completed
+        .as_ref()
+        .map(|it| it.best_move)
+        .unwrap_or(fallback);
     // No completed iteration => no real score; report `None` rather
     // than a fabricated 0 that M1.3 would misreport as "equal".
     let score = completed.as_ref().map(|it| it.score);
@@ -1631,5 +1695,158 @@ mod tests {
             before_key,
             "root Position Zobrist key not restored on emergency-evasion mid-abort"
         );
+    }
+
+    // ===== C1: automatic insufficient-material draw =====
+
+    /// A K vs K position, searched directly, must score 0 (draw) — the
+    /// automatic insufficient-material check fires before any depth search.
+    #[test]
+    fn negamax_impl_k_vs_k_is_zero() {
+        let pos = parse_fen("8/8/8/8/8/8/8/K6k w - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(score, 0, "K vs K is drawn by insufficient material");
+    }
+
+    /// Quiescence of a K vs K position must also return 0 — the same
+    /// automatic check runs inside `quiescence_entered_impl`.
+    #[test]
+    fn quiescence_k_vs_k_is_zero() {
+        let pos = parse_fen("8/8/8/8/8/8/8/K6k w - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = quiescence_impl(
+            &mut pos.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(score, 0, "qsearch K vs K is drawn by insufficient material");
+    }
+
+    /// Terminal (checkmate) must be detected and scored as a mate, never as
+    /// a 0 draw. A checkmated position cannot also be FIDE-insufficient
+    /// (a forced mate implies sufficient material), so the priority is shown
+    /// by the mate score being non-zero here while the insufficient tests
+    /// above return exactly 0. Code ordering: the terminal check precedes
+    /// the `is_insufficient_material` short-circuit in every search node.
+    #[test]
+    fn negamax_terminal_checkmate_priority() {
+        // Black Kh8, White Kf7, White Rh1: Black is checkmated.
+        let pos = parse_fen("7k/5K2/8/8/8/8/8/7R b - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(
+            score,
+            -(MATE),
+            "checkmate is scored as a mate, not a 0 draw"
+        );
+    }
+
+    /// Root insufficient material: legal moves exist, so the search must NOT
+    /// return None; it returns a draw outcome with a stable legal best move,
+    /// score 0, empty PV, completed_depth 0, and stopped == false.
+    #[test]
+    fn root_insufficient_material_returns_draw() {
+        let pos = parse_fen("8/8/8/8/8/8/8/K6k w - - 0 1").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
+
+        assert_eq!(out.score, Some(0), "insufficient material scores 0");
+        assert_eq!(out.completed_depth, 0, "no iteration is searched");
+        assert!(!out.stopped, "not stopped");
+        assert!(out.pv.is_empty(), "empty PV for a drawn root");
+
+        // best_move must be a legal root move.
+        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+            .iter()
+            .map(|m| move_to_uci(*m))
+            .collect();
+        assert!(
+            legal.contains(&move_to_uci(out.best_move)),
+            "best_move must be a legal root move"
+        );
+    }
+
+    /// Root with no legal move (checkmate) still returns None — the
+    /// terminal check precedes the insufficient-material short-circuit.
+    #[test]
+    fn root_no_legal_move_still_none() {
+        // Black Kh8, White Kf7, White Rh1: Black is checkmated (no moves).
+        let pos = parse_fen("7k/5K2/8/8/8/8/8/7R b - - 0 1").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx);
+        assert!(
+            out.is_none(),
+            "a root with no legal move returns None (terminal precedence)"
+        );
+    }
+
+    /// SearchPath / Position restoration holds for an insufficient-material
+    /// root (which short-circuits before any iteration).
+    #[test]
+    fn search_path_restores_root_on_insufficient_material() {
+        let pos = parse_fen("8/8/8/8/8/8/8/K6k w - - 0 1").unwrap();
+        let history = vec![pos.zobrist_key()];
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_history_checked(pos, history, limits, &ctx);
+        let out = out.expect("insufficient-material root returns an outcome");
+        assert_eq!(out.score, Some(0));
+        assert!(out.pv.is_empty());
     }
 }
