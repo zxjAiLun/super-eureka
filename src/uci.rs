@@ -136,11 +136,13 @@ fn lock_tt_recover(tt: &Mutex<TranspositionTable>) -> MutexGuard<'_, Transpositi
     }
 }
 
-/// Write the `uci` handshake to `out`. The optional `startup_tt_failed`
-/// flag appends a diagnostic (after the `Hash` option line, before
-/// `uciok`) telling the GUI that the default table could not be allocated
-/// and TT is disabled. This helper is pure with respect to any global
-/// state, so it can be exercised against an in-memory buffer in tests.
+/// Write the `uci` handshake to `out`. The `startup_tt_failed` flag
+/// appends a diagnostic (after the `Hash` option line, before `uciok`)
+/// telling the GUI that the default table could not be allocated and TT is
+/// disabled. This helper is pure with respect to any global state, so it can
+/// be exercised against an in-memory buffer in tests. Callers that need the
+/// "report the failure at most once" semantics should use
+/// `write_pending_uci_handshake` instead.
 fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
     writeln!(out, "id name ChessEngineDemo")?;
     writeln!(out, "id author Rust-learner")?;
@@ -157,6 +159,19 @@ fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Re
     }
     writeln!(out, "uciok")?;
     Ok(())
+}
+
+/// Consumable variant used by `run()`. It takes a mutable `startup_tt_notice_pending`
+/// flag, emits the startup diagnostic at most ONCE (the first handshake after a
+/// failed allocation), and clears the flag so later `uci` handshakes stay silent
+/// even if the table never recovers. A successful `setoption Hash` also clears
+/// the flag (see `run()`), so the notice never survives a recovered table.
+fn write_pending_uci_handshake<W: Write>(
+    out: &mut W,
+    startup_tt_notice_pending: &mut bool,
+) -> io::Result<()> {
+    let report_failure = std::mem::take(startup_tt_notice_pending);
+    write_uci_handshake(out, report_failure)
 }
 
 /// Write the `isready` reply. Deliberately takes **no** TT parameter: it
@@ -180,6 +195,19 @@ enum HashOptionCommand {
     Resize(usize),
 }
 
+/// Outcome of `handle_setoption`, surfaced to `run()` so it can clear the
+/// one-shot startup-failure notice once the table is successfully (re)enabled.
+/// Only `Resized` clears that pending notice; every other outcome leaves it
+/// untouched (including a later resize *failure*, which already prints its own
+/// immediate diagnostic and must not re-open a long-gone startup notice).
+#[derive(Debug, PartialEq, Eq)]
+enum SetoptionOutcome {
+    Ignored,
+    Invalid,
+    Resized,
+    ResizeFailed,
+}
+
 /// Parse a `setoption name Hash value N` line.
 ///
 /// * The option `name` marker, the `value` marker, and the option name
@@ -189,9 +217,10 @@ enum HashOptionCommand {
 /// * Unknown options yield `Unknown` (silently ignored by the handler).
 /// * A recognized `Hash` without a value yields `Invalid`.
 /// * The value must be non-empty and consist solely of ASCII digits; signed
-///   values, embedded non-digits, and overflowing all-digit strings are all
-///   `Invalid` (the latter two never panic — the parser uses checked
-///   length-aware parsing).
+///   values and embedded non-digits are `Invalid`. An overflowing all-digit
+///   string is NOT `Invalid`: it is parsed as a `u64` (which saturates to
+///   `Err` on overflow) and treated as a huge positive integer, then clamped
+///   to `MAX_HASH_MB`. The parser never panics on an over-long digit string.
 /// * The accepted magnitude is clamped: `0 -> 1`, `1..=1024` kept,
 ///   `>1024` clamped to `1024`.
 fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
@@ -215,7 +244,7 @@ fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
             }
             name_end = Some(j);
             i = j;
-        } else if tok == "value" {
+        } else if tok.eq_ignore_ascii_case("value") {
             value = tokens.get(i + 1).copied();
             i = tokens.len();
         } else {
@@ -278,16 +307,18 @@ fn handle_setoption(
     tokens: &[&str],
     active: &mut Option<ActiveSearch>,
     tt: &Arc<Mutex<TranspositionTable>>,
-) {
+) -> SetoptionOutcome {
     match parse_hash_setoption(tokens) {
         HashOptionCommand::Unknown => {
             // Silenty ignore unrecognized options; never touch the table or
             // the running search.
+            SetoptionOutcome::Ignored
         }
         HashOptionCommand::Invalid => {
             stop_and_join(active);
             println!("info string invalid Hash value");
             let _ = io::stdout().flush();
+            SetoptionOutcome::Invalid
         }
         HashOptionCommand::Resize(n) => {
             stop_and_join(active);
@@ -296,10 +327,12 @@ fn handle_setoption(
                 Ok(()) => {
                     // Success: resize_mb already publishes an empty table.
                     // No extra output, no redundant clear.
+                    SetoptionOutcome::Resized
                 }
                 Err(_) => {
                     println!("info string unable to resize Hash table");
                     let _ = io::stdout().flush();
+                    SetoptionOutcome::ResizeFailed
                 }
             }
         }
@@ -325,9 +358,13 @@ pub fn run() {
     // its search thread; because every table-mutating command stops/joins
     // the active search first, at most one search thread holds the mutable
     // guard at any time. A startup allocation failure must not panic: we
-    // fall back to a disabled table and remember the failure so `uci` can
-    // report it.
-    let (tt, startup_tt_failed) = match TranspositionTable::new_mb(DEFAULT_HASH_MB) {
+    // fall back to a disabled table and remember the failure as a *pending
+    // one-shot* notice. `uci` reports it at most once (the first handshake
+    // after the failure), then clears the flag; a later successful
+    // `setoption Hash` also clears it because the table is then live. This
+    // prevents the "TT disabled" notice from repeating across multiple
+    // `uci` lines or from lying after recovery.
+    let (tt, mut startup_tt_notice_pending) = match TranspositionTable::new_mb(DEFAULT_HASH_MB) {
         Ok(t) => (Arc::new(Mutex::new(t)), false),
         Err(_) => (Arc::new(Mutex::new(TranspositionTable::disabled())), true),
     };
@@ -345,8 +382,11 @@ pub fn run() {
         match tokens[0] {
             "uci" => {
                 // Handshake: reports the `Hash` option and (if startup
-                // allocation failed) a diagnostic before `uciok`.
-                let _ = write_uci_handshake(&mut io::stdout(), startup_tt_failed);
+                // allocation failed and the notice is still pending) a one-shot
+                // diagnostic before `uciok`. The consumable helper clears the
+                // pending flag, so repeated `uci` lines never repeat it.
+                let _ =
+                    write_pending_uci_handshake(&mut io::stdout(), &mut startup_tt_notice_pending);
             }
             "isready" => {
                 // Answer immediately, even while a search runs on its own
@@ -375,7 +415,12 @@ pub fn run() {
             "setoption" => {
                 // Route through the lifecycle-aware handler. Unknown options
                 // are ignored; `Hash` stops/joins any search, then resizes.
-                handle_setoption(&tokens, &mut active, &tt);
+                // A successful (re)enable also clears any unsent startup
+                // notice: the table is now live, so "TT disabled" would lie.
+                let outcome = handle_setoption(&tokens, &mut active, &tt);
+                if outcome == SetoptionOutcome::Resized {
+                    startup_tt_notice_pending = false;
+                }
             }
             "go" => {
                 // M1.2/M1.3: search on its own thread. Always stop and join
@@ -955,6 +1000,136 @@ mod tests {
                 tokens
             );
         }
+    }
+
+    #[test]
+    fn parse_hash_setoption_marker_case_insensitive() {
+        // The `name`, `value`, and option-name markers are all matched
+        // case-insensitively, so mixed-case setoption lines still parse.
+        let cases: Vec<(Vec<&str>, HashOptionCommand)> = vec![
+            (
+                vec!["setoption", "NAME", "Hash", "VALUE", "16"],
+                HashOptionCommand::Resize(16),
+            ),
+            (
+                vec!["setoption", "Name", "HASH", "Value", "16"],
+                HashOptionCommand::Resize(16),
+            ),
+            (
+                vec!["setoption", "nAmE", "hash", "vAlUe", "16"],
+                HashOptionCommand::Resize(16),
+            ),
+            // Lowercase baseline still works.
+            (
+                vec!["setoption", "name", "Hash", "value", "16"],
+                HashOptionCommand::Resize(16),
+            ),
+        ];
+        for (tokens, expected) in cases {
+            assert_eq!(
+                parse_hash_setoption(&tokens),
+                expected,
+                "tokens = {:?}",
+                tokens
+            );
+        }
+    }
+
+    #[test]
+    fn pending_uci_handshake_reports_once() {
+        // The startup-failure notice is a one-shot: it appears on the first
+        // handshake, then the pending flag is cleared so later handshakes
+        // stay silent even though the table never recovered.
+        let mut pending = true;
+        let mut first: Vec<u8> = Vec::new();
+        write_pending_uci_handshake(&mut first, &mut pending).unwrap();
+        assert!(!pending, "pending cleared after first handshake");
+        let first_text = String::from_utf8(first).unwrap();
+        assert!(
+            first_text.contains("unable to allocate default Hash table"),
+            "first handshake reports startup failure"
+        );
+
+        let mut second: Vec<u8> = Vec::new();
+        write_pending_uci_handshake(&mut second, &mut pending).unwrap();
+        let second_text = String::from_utf8(second).unwrap();
+        assert!(
+            !second_text.contains("unable to allocate default Hash table"),
+            "second handshake stays silent"
+        );
+    }
+
+    #[test]
+    fn resize_success_clears_pending_notice() {
+        // A successful `setoption Hash` (re)enables the table and also clears
+        // a still-pending startup notice, so a subsequent handshake must NOT
+        // claim "TT disabled". Uses only a safe small capacity.
+        let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
+        let mut pending = true;
+        let tokens: Vec<&str> = "setoption name Hash value 2".split_whitespace().collect();
+        let mut active: Option<ActiveSearch> = None;
+        let outcome = handle_setoption(&tokens, &mut active, &tt);
+        assert_eq!(outcome, SetoptionOutcome::Resized, "resize succeeded");
+        assert!(active.is_none(), "search stopped/joined before resize");
+        // `run()` clears the pending notice on `Resized`.
+        if outcome == SetoptionOutcome::Resized {
+            pending = false;
+        }
+        assert!(!pending, "Resized clears the pending startup notice");
+
+        let mut buf: Vec<u8> = Vec::new();
+        write_pending_uci_handshake(&mut buf, &mut pending).unwrap();
+        let text = String::from_utf8(buf).unwrap();
+        assert!(
+            !text.contains("unable to allocate default Hash table"),
+            "recovered table must not report TT disabled"
+        );
+    }
+
+    #[test]
+    fn invalid_hash_keeps_pending_notice() {
+        // A recognized-but-invalid Hash must NOT clear a pending startup
+        // notice: the table is left untouched and the notice stays for a
+        // future handshake. (Structurally identical to a later resize
+        // *failure*: only `Resized` clears the flag, so `ResizeFailed`
+        // also preserves it by construction.)
+        let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
+        {
+            let mut g = tt.lock().unwrap();
+            g.store(TTEntry {
+                key: TtKey::new(123u64, 0, 0),
+                depth: 1,
+                score: 0,
+                bound: Bound::Exact,
+                best_move: None,
+            });
+        }
+        let mut pending = true;
+        let tokens: Vec<&str> = "setoption name Hash value abc".split_whitespace().collect();
+        let mut active: Option<ActiveSearch> = None;
+        let outcome = handle_setoption(&tokens, &mut active, &tt);
+        assert_eq!(outcome, SetoptionOutcome::Invalid, "invalid value");
+        assert!(active.is_none(), "invalid Hash stops search");
+        assert!(pending, "invalid Hash must not clear pending notice");
+        // The pre-stored entry and size survive.
+        let g = tt.lock().unwrap();
+        assert!(
+            g.probe(TtKey::new(123u64, 0, 0)).is_some(),
+            "entry preserved on invalid Hash"
+        );
+        assert_eq!(g.size_mb(), 1, "size unchanged on invalid Hash");
+        drop(g);
+
+        // A later handshake must still carry the (still-pending) notice, and
+        // then consume it.
+        let mut buf: Vec<u8> = Vec::new();
+        write_pending_uci_handshake(&mut buf, &mut pending).unwrap();
+        let text = String::from_utf8(buf).unwrap();
+        assert!(
+            text.contains("unable to allocate default Hash table"),
+            "notice still pending after invalid Hash"
+        );
+        assert!(!pending, "notice consumed by the handshake");
     }
 
     #[test]
