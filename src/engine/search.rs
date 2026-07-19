@@ -2504,25 +2504,52 @@ mod tests {
         assert_eq!(p.zobrist_key(), before_key, "key restored");
     }
 
-    /// §N.12(b) qsearch: a child probe that succeeds (Continue) but whose
-    /// deeper entered qsearch recursion aborts at a grandchild must restore
-    /// the board + path at THIS edge.
+    /// §N.12(b) qsearch deeper abort: root entry succeeds, a child probe
+    /// succeeds and returns `Continue`, the entered child qsearch then tries
+    /// a grandchild probe that FAILS the node budget. The abort must unwind
+    /// both edges (pop + unmake each) and fully restore the root position.
+    ///
+    /// Control flow with `nodes: Some(2)`:
+    ///   1. `quiescence_impl` root entry acquires node #1.
+    ///   2. White `Qe4xa4`: make + push, `probe_child_c2` acquires node #2
+    ///      and returns `Continue`.
+    ///   3. Enters child `quiescence_entered_impl` (a real recursion).
+    ///   4. Black `Ra8xa4` is a tactical reply; its grandchild probe tries to
+    ///      acquire node #3, which fails (budget 2).
+    ///   5. The grandchild abort unwinds: Rxa4 edge pops+unmakes, the None
+    ///      propagates to the Qxa4 edge, which also pops+unmakes, and None
+    ///      reaches the root. Board + path + key fully restored.
     #[test]
     fn qsearch_deeper_abort_restores_state() {
-        // A queen capture exists; the root qsearch enters and makes the
-        // capture (consuming the only budgeted node), then the child qsearch
-        // recursion is denied -> deeper abort AFTER a real push.
-        let fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+        let fen = "r6k/8/8/8/q3Q3/8/8/4K3 w - - 0 1";
         let pos = parse_fen(fen).unwrap();
         let mut p = pos;
         let before_fen = to_fen(&p);
         let before_key = p.zobrist_key();
+
+        // Verify the fixture really forces the intended two-step chain.
+        assert!(
+            generate_legal_moves(&mut p.clone())
+                .iter()
+                .any(|m| move_to_uci(*m) == "e4a4"),
+            "fixture must allow White Qxa4"
+        );
+        {
+            let mut q = p;
+            let undo = q.make_move(find_move(&q, "e4a4"));
+            let has_raxa4 = generate_legal_moves(&mut q)
+                .iter()
+                .any(|m| move_to_uci(*m) == "a8a4");
+            q.unmake_move(undo);
+            assert!(has_raxa4, "after Qxa4, Black must have tactical Ra8xa4");
+        }
+
         let mut pv = PvTable::default();
         let mut path = SearchPath::new(vec![p.zobrist_key()]);
         let root_len = path.len();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits {
-            nodes: Some(1),
+            nodes: Some(2),
             ..Default::default()
         };
         let r = quiescence_impl(
@@ -2536,7 +2563,14 @@ mod tests {
             &mut pv,
             &mut path,
         );
+        // Root entry (#1) + child probe (#2) succeeded; grandchild probe (#3)
+        // failed -> deeper abort propagates None.
         assert!(r.is_none(), "qsearch deeper abort must propagate None");
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed),
+            2,
+            "exactly nodes 1 (root) + 2 (child probe) were acquired"
+        );
         assert_eq!(
             path.len(),
             root_len,
