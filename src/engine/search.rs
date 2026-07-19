@@ -1515,6 +1515,13 @@ pub fn search_best_move(
 ///
 /// Contract (debug-checked): `game_history` is non-empty and its last
 /// element equals the current position's Zobrist key.
+///
+/// NOTE: since the M3.2 Phase-3 UCI layer switched its production path to
+/// `search_best_move_with_history_and_tt` (persistent TT), this disabled-table
+/// wrapper is now only referenced by the in-crate `search` tests. The
+/// `#[allow(dead_code)]` keeps `-D warnings` green for the non-test lib
+/// target; its behavior (build a disabled TT, search) is unchanged.
+#[allow(dead_code)]
 pub(crate) fn search_best_move_with_history(
     pos: &mut Position,
     game_history: &[ZobristKey],
@@ -1538,10 +1545,11 @@ pub(crate) fn search_best_move_with_history(
 
 /// History-aware, TT-aware entry. This is the ONLY new public/crate
 /// search entry added by the M3.2 integration: it accepts a caller-owned
-/// `TranspositionTable` so the next stage's UCI Hash option can wire a
-/// persistent table in. This commit does NOT call it (UCI stays
-/// TT-disabled); it exists so the next stage has a clean seam.
-#[allow(dead_code)] // called by the next stage (UCI Hash option), not this commit
+/// `TranspositionTable` (the persistent UCI `Hash` table) and threads it
+/// through every recursion. The M3.2 Phase-3 UCI layer now calls this as
+/// its production search path: it hands in the shared `Arc<Mutex<TT>>`
+/// guard acquired for the whole search run. Its control flow, TT probe/store,
+/// scoring, PV, and node counting are unchanged from the Phase-2 integration.
 pub(crate) fn search_best_move_with_history_and_tt(
     pos: &mut Position,
     game_history: &[ZobristKey],
