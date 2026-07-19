@@ -29,7 +29,9 @@ use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
-use crate::engine::draw::classify_draw;
+use crate::engine::draw::{
+    claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
+};
 use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 
@@ -252,6 +254,67 @@ impl PvTable {
     }
 }
 
+/// Edge score a PARENT assigns to a child that has no legal moves.
+/// `child_in_check == true`  -> child is checkmated -> parent delivered
+///   mate -> POSITIVE `MATE - (parent_ply + 1)`.
+/// `child_in_check == false` -> child is stalemated -> draw -> `0`.
+/// (NOTE: this is the PARENT's perspective; never the child's negative score.)
+fn terminal_child_score_for_parent(child_in_check: bool, parent_ply: u32) -> i32 {
+    if child_in_check {
+        MATE - (parent_ply as i32 + 1)
+    } else {
+        0
+    }
+}
+
+/// Result of a single manual child probe. A `Continue` child has already
+/// consumed its one node via the probe's `try_enter_node`, so it recurses
+/// into the ENTERED body (never the counting entry, which would double-count).
+#[derive(Debug, PartialEq)]
+enum ChildProbe {
+    Terminal(i32),
+    IntendedClaim,
+    Continue,
+}
+
+/// Shared manual-child probe used by the negamax, qsearch, and root move
+/// edges. It performs the exact-once node accounting (the only `try_enter_node`
+/// for this child), clears the child PV row, and classifies the child as
+/// terminal / intended-claim / normal-continue — exactly per spec §5.6.1.
+///
+/// It does NOT make/push/pop/unmake the move: the calling edge owns the
+/// `make_move` + `push_child` before the call and the `pop` + `unmake_move`
+/// after. A `None` return means the node budget / stop / deadline was
+/// exhausted and the caller must restore its own state and propagate `None`.
+fn probe_child_c2(
+    pos: &mut Position,
+    child_ply: u32,
+    parent_ply: u32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+) -> Option<ChildProbe> {
+    // Exactly ONE node acquisition for this child.
+    if !try_enter_node(ctx, limits) {
+        return None;
+    }
+    // The probe is the sole owner of the child PV row's initial clear.
+    pv.clear_at(child_ply);
+
+    let child_legal = generate_legal_moves(pos);
+    if child_legal.is_empty() {
+        return Some(ChildProbe::Terminal(terminal_child_score_for_parent(
+            pos.is_in_check(pos.side),
+            parent_ply,
+        )));
+    }
+    // Prospective (intended) fifty-move claim belongs to the PARENT mover.
+    if claim_available_by_intended_move(pos) {
+        return Some(ChildProbe::IntendedClaim);
+    }
+    Some(ChildProbe::Continue)
+}
+
 /// The search's own view of the Zobrist-key history during a search.
 ///
 /// Seeded from the caller's real UCI `GameState` history (via
@@ -354,23 +417,17 @@ pub fn negamax(
     r
 }
 
-/// Private search body. Identical to the public [`negamax`], but threads a
-/// [`PvTable`] so the principal variation can be recorded. `clear_at(ply)`
-/// runs right after the node is acquired and before any terminal / stand-pat
-/// early return, so a node that never improves alpha never inherits a stale
-/// sibling tail. When a child improves the score we record the move *before*
-/// checking the beta cutoff, so the cut-off move is still captured.
-///
-/// The 8-argument shape mirrors the public 7-arg [`negamax`] entry plus the
-/// live [`PvTable`] this milestone threads through the search — collapsing
-/// them into a struct would only obscure the one-to-one mapping, so we keep
-/// the explicit form and silence the arg-count lint deliberately.
+/// Private search entry. Acquires (counts) exactly one node, then hands off
+/// to the body ([`negamax_entered_impl`]). Every recursive child goes through
+/// [`probe_child_c2`] (which itself calls `try_enter_node` once) and recurses
+/// into `negamax_entered_impl`, so node accounting stays in exactly one place
+/// per position — a child is never counted twice.
 #[allow(clippy::too_many_arguments)]
 fn negamax_impl(
     pos: &mut Position,
     depth: u32,
     ply: u32,
-    mut alpha: i32,
+    alpha: i32,
     beta: i32,
     ctx: &SearchContext,
     limits: &SearchLimits,
@@ -381,6 +438,32 @@ fn negamax_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
+    negamax_entered_impl(pos, depth, ply, alpha, beta, ctx, limits, pv, path)
+}
+
+/// The negamax body, for a node the caller has ALREADY counted. Threads a
+/// [`PvTable`] so the principal variation is recorded. `clear_at(ply)` runs
+/// right after the node is acquired and before any terminal / stand-pat early
+/// return, so a node that never improves alpha never inherits a stale sibling
+/// tail. When a child improves the score we record the move *before* checking
+/// the beta cutoff, so the cut-off move is still captured.
+///
+/// The 8-argument shape mirrors the public 7-arg [`negamax`] entry plus the
+/// live [`PvTable`] this milestone threads through the search — collapsing
+/// them into a struct would only obscure the one-to-one mapping, so we keep
+/// the explicit form and silence the arg-count lint deliberately.
+#[allow(clippy::too_many_arguments)]
+fn negamax_entered_impl(
+    pos: &mut Position,
+    depth: u32,
+    ply: u32,
+    mut alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+    path: &mut SearchPath,
+) -> Option<i32> {
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
 
@@ -393,64 +476,92 @@ fn negamax_impl(
         return Some(0); // stalemate -> empty PV (row already cleared)
     }
 
-    // C1: automatic insufficient-material draw (the C1 classifier).
-    // Terminal (mate / stalemate) takes precedence — a checkmate is
-    // scored as a mate even if the material would otherwise be
-    // "insufficient" in the abstract.
-    if classify_draw(pos).is_some() {
-        return Some(0);
+    // Draw rules. Terminal (mate / stalemate) already returned above, so it
+    // takes precedence. C2: the fifty-move claim is a 0-score FLOOR, not a
+    // forced terminal — a node with a winning move still returns the win.
+    let mut best = i32::MIN + 1000;
+    if let Some(reason) = classify_draw(pos) {
+        match reason {
+            DrawReason::InsufficientMaterial => return Some(0), // automatic
+            DrawReason::FiftyMoveClaim => {
+                if 0 >= beta {
+                    return Some(beta);
+                }
+                alpha = alpha.max(0);
+                best = best.max(0);
+                // fall through to the normal move loop below
+            }
+        }
     }
 
     if depth == 0 {
-        // Leaf: hand off to quiescence. THIS node was already counted by
-        // `try_enter_node` above, so we call the `_entered` variant, which
-        // does NOT re-count it. The same PV table is passed down.
+        // Leaf: hand off to quiescence. THIS node was already counted by the
+        // entry above, so we call the `_entered` variant, which does NOT
+        // re-count it. The same PV table is passed down.
         return quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv, path);
     }
 
     // M2.2: try the most forcing moves first so alpha-beta cutoffs fire
-    // earlier. Pure reorder — no move is dropped; for a full fixed-depth
-    // search the minimax value is preserved.
+    // earlier. Pure reorder — no move is dropped.
     order_moves(pos, &mut moves);
 
-    let mut best = i32::MIN + 1000;
     for m in moves {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let child = negamax_impl(
-            pos,
-            depth - 1,
-            ply + 1,
-            -beta,
-            -alpha,
-            ctx,
-            limits,
-            pv,
-            path,
-        );
-        path.pop();
-        match child {
-            Some(s) => {
-                let score = -s;
-                pos.unmake_move(undo);
-                // Record the new best PV *before* the cutoff check, so the
-                // cut-off move (which is the best we have) is captured.
-                if score > best {
-                    best = score;
-                    pv.set_from_child(ply, m);
-                }
-                if best > alpha {
-                    alpha = best;
-                }
-                if alpha >= beta {
-                    break; // beta cutoff
-                }
-            }
+
+        // Manual child probe: try_enter_node called EXACTLY ONCE here.
+        let probe = match probe_child_c2(pos, ply + 1, ply, ctx, limits, pv) {
+            Some(p) => p,
             None => {
-                // Abort: undo our move and unwind immediately.
+                path.pop();
                 pos.unmake_move(undo);
                 return None;
             }
+        };
+
+        let score = match probe {
+            ChildProbe::Terminal(s) => s, // mate/stalemate edge, parent perspective
+            ChildProbe::IntendedClaim => 0, // mover claims on this intended move
+            ChildProbe::Continue => {
+                // Manual probe already spent the single node. Recurse into the
+                // ENTERED body — NEVER negamax_impl (that would double-count).
+                // Handle a deeper abort EXPLICITLY: it must still pop + unmake
+                // THIS edge before propagating None (no `?` before cleanup).
+                match negamax_entered_impl(
+                    pos,
+                    depth - 1,
+                    ply + 1,
+                    -beta,
+                    -alpha,
+                    ctx,
+                    limits,
+                    pv,
+                    path,
+                ) {
+                    Some(s) => -s,
+                    None => {
+                        path.pop();
+                        pos.unmake_move(undo);
+                        return None;
+                    }
+                }
+            }
+        };
+
+        path.pop();
+        pos.unmake_move(undo);
+
+        // Record the new best PV *before* the cutoff check, so the cut-off
+        // move (which is the best we have) is captured.
+        if score > best {
+            best = score;
+            pv.set_from_child(ply, m);
+        }
+        if best > alpha {
+            alpha = best;
+        }
+        if alpha >= beta {
+            break; // beta cutoff
         }
     }
     Some(best)
@@ -635,12 +746,22 @@ fn quiescence_entered_impl(
         return Some(if in_check { -(MATE - ply as i32) } else { 0 });
     }
 
-    // C1: automatic insufficient-material draw (the C1 classifier).
-    // Terminal (mate / stalemate) already returned above; this is
-    // checked after it, so a checkmate is still scored as a mate even
-    // in an "insufficient" material setting.
-    if classify_draw(pos).is_some() {
-        return Some(0);
+    // Draw rules. Terminal (mate / stalemate) already returned above, so it
+    // takes precedence. C2: the fifty-move claim is a 0-score FLOOR, not a
+    // forced terminal — qsearch must still find a winning capture, so we do
+    // NOT return 0 here; we only apply the floor to alpha and continue with
+    // the stand-pat / capture / evasion loop below.
+    if let Some(reason) = classify_draw(pos) {
+        match reason {
+            DrawReason::InsufficientMaterial => return Some(0), // automatic
+            DrawReason::FiftyMoveClaim => {
+                if 0 >= beta {
+                    return Some(beta);
+                }
+                alpha = alpha.max(0);
+                // fall through to the stand-pat + capture/evasion loop
+            }
+        }
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
@@ -678,29 +799,57 @@ fn quiescence_entered_impl(
     for m in tactical {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let child = quiescence_impl(pos, ply + 1, qply + 1, -beta, -alpha, ctx, limits, pv, path);
-        path.pop();
-        match child {
-            Some(s) => {
-                let score = -s;
-                pos.unmake_move(undo);
-                // IMPORTANT: record the cut-off move BEFORE returning the
-                // fail-hard beta, so the tactical PV captures it.
-                if score >= beta {
-                    pv.set_from_child(ply, m);
-                    return Some(beta);
-                }
-                if score > alpha {
-                    alpha = score;
-                    pv.set_from_child(ply, m);
-                }
-            }
+
+        // Manual child probe: try_enter_node called EXACTLY ONCE here.
+        let probe = match probe_child_c2(pos, ply + 1, ply, ctx, limits, pv) {
+            Some(p) => p,
             None => {
-                // Abort: undo our move and unwind immediately, leaving the
-                // board exactly as we found it.
+                path.pop();
                 pos.unmake_move(undo);
                 return None;
             }
+        };
+
+        let score = match probe {
+            ChildProbe::Terminal(s) => s, // mate/stalemate edge, parent perspective
+            ChildProbe::IntendedClaim => 0, // mover claims on this intended move
+            ChildProbe::Continue => {
+                // Manual probe already spent the single node. Recurse into the
+                // ENTERED qsearch variant — NEVER quiescence_impl (double count).
+                // Handle a deeper abort EXPLICITLY before cleanup.
+                match quiescence_entered_impl(
+                    pos,
+                    ply + 1,
+                    qply + 1,
+                    -beta,
+                    -alpha,
+                    ctx,
+                    limits,
+                    pv,
+                    path,
+                ) {
+                    Some(s) => -s,
+                    None => {
+                        path.pop();
+                        pos.unmake_move(undo);
+                        return None;
+                    }
+                }
+            }
+        };
+
+        path.pop();
+        pos.unmake_move(undo);
+
+        // IMPORTANT: record the cut-off move BEFORE returning the fail-hard
+        // beta, so the tactical PV captures it.
+        if score >= beta {
+            pv.set_from_child(ply, m);
+            return Some(beta);
+        }
+        if score > alpha {
+            alpha = score;
+            pv.set_from_child(ply, m);
         }
     }
     Some(alpha)
@@ -751,11 +900,13 @@ fn search_final_evasion_ply(
     pv: &mut PvTable,
     path: &mut SearchPath,
 ) -> Option<i32> {
-    // C1: automatic insufficient-material draw for the in-check node at the
-    // qply cap. A single ply cannot add material, so the position stays a
-    // draw; we return 0 immediately without searching evasions or touching
-    // any move. No fifty / threefold / intended-claim / child-edge logic.
-    if classify_draw(pos).is_some() {
+    // Automatic insufficient-material draw for the in-check node at the qply
+    // cap: a single ply cannot add material, so the position stays a draw; we
+    // return 0 immediately. The CURRENT node's fifty-move claim floor is the
+    // caller's responsibility (`quiescence_entered_impl`), so we must NOT
+    // early-return on a fifty-move claim here (that would suppress the
+    // evasions the deeper search relies on).
+    if is_insufficient_material(pos) {
         return Some(0);
     }
 
@@ -773,17 +924,19 @@ fn search_final_evasion_ply(
 
         // `legal` came from `generate_legal_moves`, so this evasion is legal:
         // the opponent is NOT attacking our king here. Score the child:
-        //   - opponent has no move & is in check -> we delivered mate;
-        //   - opponent has no move & not in check -> stalemate (0);
+        //   - terminal FIRST: opponent has no move & is in check -> mate; no
+        //     move & not in check -> stalemate (0);
+        //   - then draw: automatic insufficient material -> 0 (dead position);
+        //     fifty-move intended claim -> 0 (mover secures the draw);
         //   - otherwise approximate with the static eval (safe cap estimate).
         let child_in_check = pos.is_in_check(pos.side);
         let child_legal = generate_legal_moves(pos);
         let score = if child_legal.is_empty() {
-            if child_in_check {
-                MATE - (ply as i32 + 1)
-            } else {
-                0
-            }
+            terminal_child_score_for_parent(child_in_check, ply)
+        } else if is_insufficient_material(pos) || claim_available_by_intended_move(pos) {
+            // Draw: automatic dead position, or the mover's intended fifty-move
+            // claim on this evasion — both secure 0 (no real winning evasion).
+            0
         } else {
             -evaluate(pos)
         };
@@ -845,29 +998,63 @@ fn root_search(
     for &m in root_moves {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let child = negamax_impl(pos, depth - 1, 1, -beta, -alpha, ctx, limits, &mut pv, path);
-        path.pop();
-        match child {
-            Some(s) => {
-                let score = -s;
-                pos.unmake_move(undo);
-                if score > best_score {
-                    best_score = score;
-                    best_move = Some(m);
-                    // Record the root PV: this move followed by the child's
-                    // PV (which `negamax_impl` wrote into `pv.lines[1]`).
-                    pv.set_from_child(0, m);
-                }
-                if best_score > alpha {
-                    alpha = best_score;
-                }
-                // No beta cutoff at the root: real scores for every root move.
-            }
+
+        // Manual child probe: try_enter_node called EXACTLY ONCE here.
+        let probe = match probe_child_c2(pos, 1, 0, ctx, limits, &mut pv) {
+            Some(p) => p,
             None => {
+                path.pop();
                 pos.unmake_move(undo);
-                return None; // aborted
+                return None; // aborted (probe could not enter the child)
             }
+        };
+
+        // Terminal (mate / stalemate) FIRST — never overridden by a claim.
+        let child = match probe {
+            ChildProbe::Terminal(s) => Some(s),
+            ChildProbe::IntendedClaim => Some(0), // mover claims on this intended move
+            ChildProbe::Continue => {
+                // Manual probe already spent the single node. Recurse into the
+                // ENTERED body — NEVER negamax_impl (double count). Handle a
+                // deeper abort EXPLICITLY before cleanup.
+                match negamax_entered_impl(
+                    pos,
+                    depth - 1,
+                    1,
+                    -beta,
+                    -alpha,
+                    ctx,
+                    limits,
+                    &mut pv,
+                    path,
+                ) {
+                    Some(s) => Some(-s),
+                    None => {
+                        path.pop();
+                        pos.unmake_move(undo);
+                        return None; // aborted (deeper recursion)
+                    }
+                }
+            }
+        };
+
+        path.pop();
+        let score = match child {
+            Some(s) => s,
+            None => unreachable!(),
+        };
+        pos.unmake_move(undo);
+
+        if score > best_score {
+            best_score = score;
+            best_move = Some(m);
+            // Record the root PV: this move followed by the child's PV.
+            pv.set_from_child(0, m);
         }
+        if best_score > alpha {
+            alpha = best_score;
+        }
+        // No beta cutoff at the root: real scores for every root move.
     }
 
     best_move.map(|bm| RootIteration {
@@ -954,20 +1141,31 @@ fn search_best_move_impl(
     // single iteration (e.g. stopped before depth 1 finishes).
     let fallback = root_moves[0];
 
-    // C1: automatic insufficient-material draw at the root. We have legal
-    // moves (so we do NOT return None), but the position is a draw with
-    // score 0 and a stable fallback move. This is a direct return: no
-    // root-move search, no child pre-generation, no PV. It does not modify
-    // the root move loop below (which stays unused for this position).
-    if classify_draw(pos).is_some() {
-        return Some(SearchOutcome {
-            best_move: fallback,
-            score: Some(0),
-            completed_depth: 0,
-            stopped: false,
-            pv: Vec::new(),
-        });
+    // Root draw handling. The automatic insufficient-material draw is a
+    // direct return (score 0, stable fallback, empty PV). The fifty-move
+    // claim is a 0-score OPTION: it does NOT early-return — we still search
+    // for a winning move and only fall back to the claim if no real line
+    // beats 0 (see the `root_claimable` branch after the loop).
+    match classify_draw(pos) {
+        Some(DrawReason::InsufficientMaterial) => {
+            return Some(SearchOutcome {
+                best_move: fallback,
+                score: Some(0),
+                completed_depth: 0,
+                stopped: false,
+                pv: Vec::new(),
+            });
+        }
+        Some(DrawReason::FiftyMoveClaim) => {
+            // Continue the depth loop below; the claim floor is honoured by
+            // `negamax_entered_impl` / `quiescence_entered_impl`. We only note
+            // that the root itself is a claim so a pre-depth-1 abort can still
+            // report the claim instead of `None`.
+        }
+        None => {}
     }
+    let root_claimable = matches!(classify_draw(pos), Some(DrawReason::FiftyMoveClaim));
+
     // Best result of the last fully completed iteration.
     let mut completed: Option<RootIteration> = None;
     let mut completed_depth: u32 = 0;
@@ -1077,8 +1275,18 @@ fn search_best_move_impl(
         .as_ref()
         .map(|it| it.best_move)
         .unwrap_or(fallback);
-    // No completed iteration => no real score; report `None` rather
-    // than a fabricated 0 that M1.3 would misreport as "equal".
+    // No completed iteration => no real score. If the root itself is a
+    // fifty-move claim we still report the claim floor (0, stable fallback,
+    // empty PV) rather than `None` — but ONLY when no real iteration ran.
+    if completed.is_none() && root_claimable {
+        return Some(SearchOutcome {
+            best_move: fallback,
+            score: Some(0),
+            completed_depth: 0,
+            stopped: true,
+            pv: Vec::new(),
+        });
+    }
     let score = completed.as_ref().map(|it| it.score);
     // PV mirrors `score`: empty when no iteration completed, so a
     // fallback move is never dressed up as a real principal variation.
@@ -1848,5 +2056,329 @@ mod tests {
         let out = out.expect("insufficient-material root returns an outcome");
         assert_eq!(out.score, Some(0));
         assert!(out.pv.is_empty());
+    }
+
+    // ===== C2: fifty-move draw =====
+
+    /// Make `m` on `pos`, push the child, run the manual probe, then restore
+    /// the board and return the probe result (so each test controls cleanup).
+    #[allow(clippy::too_many_arguments)]
+    fn probe_move(
+        pos: &mut Position,
+        m: Move,
+        child_ply: u32,
+        parent_ply: u32,
+        ctx: &SearchContext,
+        limits: &SearchLimits,
+        pv: &mut PvTable,
+        path: &mut SearchPath,
+    ) -> Option<ChildProbe> {
+        let undo = pos.make_move(m);
+        path.push_child(pos);
+        let r = probe_child_c2(pos, child_ply, parent_ply, ctx, limits, pv);
+        path.pop();
+        pos.unmake_move(undo);
+        r
+    }
+
+    /// §N.9: a single quiet evasion that pushes the halfmove clock 99→100 is
+    /// an intended fifty-move claim, scored exactly 0 by the mover. The probe
+    /// returns `IntendedClaim` for that edge.
+    #[test]
+    fn intended_fifty_move_claim_probe_is_intended() {
+        // White Ke1, Black Ke3, rook e2 (check), bishop h3. e1d1 is the only
+        // quiet legal evasion; it pushes halfmove to 100.
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let mut p = pos;
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+
+        let m = find_move(&p, "e1d1");
+        let probe = probe_move(&mut p, m, 1, 0, &ctx, &limits, &mut pv, &mut path);
+        assert_eq!(
+            probe,
+            Some(ChildProbe::IntendedClaim),
+            "e1d1 edge must be an intended fifty-move claim"
+        );
+    }
+
+    /// §N.9: the e1d1 edge scores exactly 0 when driven through negamax.
+    #[test]
+    fn intended_fifty_move_claim_edge_scores_zero() {
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(
+            score, 0,
+            "e1d1 intended-claim edge must score exactly 0 from White's view"
+        );
+    }
+
+    /// §N.4: the losing side to move at halfmove==100 returns >= 0 (claim
+    /// floor), never a forced loss.
+    #[test]
+    fn current_node_fifty_claim_floor_for_losing_side() {
+        let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 100 50").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            2,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(
+            score >= 0,
+            "losing side at halfmove==100 must keep the claim floor (>= 0), got {}",
+            score
+        );
+    }
+
+    /// §N.4: the winning side to move still finds the mate (score > 0), the
+    /// claim floor does not replace a win. Mate-in-1 with halfmove==100.
+    #[test]
+    fn current_node_fifty_claim_allows_win() {
+        // White Kg6, Qg5; Black Kh8. Qg7# is mate-in-1.
+        let pos = parse_fen("7k/8/6K1/6Q1/8/8/8/8 w - - 100 50").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(
+            score > 0,
+            "winning side at halfmove==100 must still find the mate, got {}",
+            score
+        );
+    }
+
+    /// §N.4 / terminal precedence: a checkmate at halfmove==100 scores the
+    /// mate, not the claim floor 0.
+    #[test]
+    fn checkmate_priority_over_fifty_claim() {
+        // Black to move, in check from a1-rook, no escape, halfmove==100.
+        let pos = parse_fen("k7/2K5/8/8/8/8/8/R7 b - - 100 50").unwrap();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(
+            score,
+            -(MATE),
+            "checkmate must outrank the fifty-move claim (mate score, not 0)"
+        );
+    }
+
+    /// §N.13: a manual probe consumes exactly one node-counter tick, whether
+    /// the edge is a Terminal, IntendedClaim, or Continue.
+    #[test]
+    fn manual_probe_node_delta_is_one() {
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+
+        // IntendedClaim edge: halfmove 99 -> 100 on the e1d1 evasion.
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let mut p = pos;
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let before = ctx.nodes.load(Ordering::Relaxed);
+        let m = find_move(&p, "e1d1");
+        let _ = probe_move(&mut p, m, 1, 0, &ctx, &limits, &mut pv, &mut path);
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed) - before,
+            1,
+            "intended-claim probe must consume exactly one node"
+        );
+
+        // Continue edge: a normal quiet position (startpos) at depth.
+        let pos2 = parse_fen(START_FEN).unwrap();
+        let mut p2 = pos2;
+        let mut pv2 = PvTable::default();
+        let mut path2 = SearchPath::new(vec![p2.zobrist_key()]);
+        let before2 = ctx.nodes.load(Ordering::Relaxed);
+        let m2 = find_move(&p2, "e2e4");
+        let _ = probe_move(&mut p2, m2, 1, 0, &ctx, &limits, &mut pv2, &mut path2);
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed) - before2,
+            1,
+            "continue probe must consume exactly one node"
+        );
+    }
+
+    /// §N.12(b): a probe that succeeds (Continue) but whose deeper entered
+    /// recursion aborts must still restore the board + path at THIS edge.
+    #[test]
+    fn negamax_deeper_abort_restores_state() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        // Exactly one node: the root manual probe enters, the first child
+        // `negamax_entered_impl` recursion is denied -> deeper abort.
+        let limits = SearchLimits {
+            nodes: Some(2),
+            ..Default::default()
+        };
+        let r = negamax_impl(
+            &mut p,
+            3,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(r.is_none(), "deeper abort must propagate None");
+        assert_eq!(path.len(), root_len, "path restored after deeper abort");
+        assert_eq!(
+            path.keys(),
+            &[before_key],
+            "path equals root key after deeper abort"
+        );
+        assert_eq!(
+            to_fen(&p),
+            before_fen,
+            "position restored after deeper abort"
+        );
+        assert_eq!(
+            p.zobrist_key(),
+            before_key,
+            "key restored after deeper abort"
+        );
+    }
+
+    /// §N.14: a manual terminal/intended edge that becomes the best move
+    /// leaves a PV of exactly that one move (no sibling tail).
+    #[test]
+    fn manual_edge_pv_is_single_move() {
+        // Root is a fifty-move claim for the side to move; the best edge is
+        // the intended claim (IntendedClaim -> 0), and the PV must be just
+        // that move with an empty child row.
+        let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 100 50").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(1),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
+        // claim floor 0 with a stable fallback move.
+        assert_eq!(out.score, Some(0), "claim floor score");
+        // The claim floor has no real continuation, so the PV must be at most
+        // the single best move (no stale sibling tail in the child row).
+        assert!(
+            out.pv.len() <= 1,
+            "root claim PV has no continuation, got {:?}",
+            out.pv
+        );
+        if let Some(bm) = out.pv.first() {
+            assert_eq!(&move_to_uci(*bm), &move_to_uci(out.best_move));
+        }
+        // best_move is a legal root move.
+        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+            .iter()
+            .map(|m| move_to_uci(*m))
+            .collect();
+        assert!(legal.contains(&move_to_uci(out.best_move)));
+    }
+
+    /// Root fifty-move claim does not early-return: a winning root move is
+    /// still searched and reported with its real score / PV. Mate-in-1.
+    #[test]
+    fn root_fifty_claim_still_searches_win() {
+        let pos = parse_fen("7k/8/6K1/6Q1/8/8/8/8 w - - 100 50").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(1),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
+        assert!(
+            out.score.unwrap() > 0,
+            "root fifty-move claim must not suppress a winning move"
+        );
+    }
+
+    /// Root fifty-move claim, aborted before any iteration completes, still
+    /// reports the claim (score 0, fallback, empty PV, stopped) — not None.
+    #[test]
+    fn root_fifty_claim_abort_reports_claim() {
+        let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 100 50").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        // Only one node: aborts during the very first child probe.
+        let limits = SearchLimits {
+            nodes: Some(1),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
+        assert_eq!(out.score, Some(0), "aborted root claim still reports 0");
+        assert!(out.stopped, "aborted search is stopped");
+        assert!(out.pv.is_empty(), "no PV when aborted before depth 1");
+        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+            .iter()
+            .map(|m| move_to_uci(*m))
+            .collect();
+        assert!(legal.contains(&move_to_uci(out.best_move)));
     }
 }

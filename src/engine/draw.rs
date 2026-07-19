@@ -1,30 +1,43 @@
-//! C1 — automatic insufficient-material draw (FIDE Articles 9.6 / 9.7).
+//! Automatic dead-position draw (FIDE Article 5.2.2).
 //!
-//! This module implements ONLY the automatic insufficient-material draw.
-//! Claimable draws (fifty-move, threefold) and prospective-claim edges
-//! are NOT part of C1 and must NOT be pre-buried here: there is no
-//! `FiftyMoveClaim` / `ThreefoldClaim`, no `ZobristKey` / `GameState`
-//! dependency, and no `claim_available_*` helper. Those land in C2 / C3.
+//! This module implements the automatic insufficient-material draw (C1) and
+//! the fifty-move claimable draw (C2). The fifty-move claim is a FIDE Article
+//! 9.3 claimable draw: a `0`-score OPTION for the side to move, not a forced
+//! terminal. The 75-move automatic draw is out of scope.
+//!
+//! Repetition / threefold (C3) is deliberately NOT yet present: there is no
+//! `ThreefoldClaim`, no `ZobristKey` / `GameState` dependency, and no
+//! `path.keys()`/history argument. Those land in C3.
 
 use crate::chess::position::Position;
 use crate::chess::types::*;
 
-/// Why a position is (or is not) drawn. C1 covers only the automatic
-/// insufficient-material draw, so the claimable variants are deliberately
-/// absent — adding them here would silently pre-implement a later milestone.
+/// Why a position is (or is not) drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DrawReason {
+    /// Dead position: automatic, terminal, returns 0 immediately.
     InsufficientMaterial,
+    /// FIDE fifty-move claim by the side to move: a 0-score OPTION, not a
+    /// forced terminal.
+    FiftyMoveClaim,
 }
 
-/// Classify the current position. C1 takes only `&Position` — no game
-/// history / Zobrist key — because automatic insufficient material needs
-/// nothing beyond the board itself.
+/// Classify the current position. The classifier delegates the fifty-move
+/// branch to `claim_available_now` so that helper stays live in non-test
+/// builds (it would otherwise be dead code). C2 takes only `&Position` — no
+/// game history / Zobrist key — because the fifty-move rule needs nothing
+/// beyond the board's halfmove clock.
 pub(crate) fn classify_draw(pos: &Position) -> Option<DrawReason> {
-    is_insufficient_material(pos).then_some(DrawReason::InsufficientMaterial)
+    if is_insufficient_material(pos) {
+        return Some(DrawReason::InsufficientMaterial);
+    }
+    if claim_available_now(pos) {
+        return Some(DrawReason::FiftyMoveClaim);
+    }
+    None
 }
 
-/// FIDE 9.6 / 9.7: a position is drawn by insufficient material when
+/// FIDE Article 5.2.2: a position is drawn by insufficient material when
 /// no series of legal moves can possibly deliver checkmate. The locked
 /// predicate:
 ///
@@ -82,6 +95,28 @@ pub(crate) fn is_insufficient_material(pos: &Position) -> bool {
     }
 
     false
+}
+
+/// Fifty-move rule: 100 half-moves (50 full moves) without a pawn move
+/// or capture. (The 75-move mandatory draw is out of scope.)
+pub(crate) fn is_fifty_move_draw(pos: &Position) -> bool {
+    pos.halfmove_clock() >= 100
+}
+
+/// A draw the side to move can claim RIGHT NOW (FIDE 9.3.2): the position is
+/// itself a claimable draw. Used at a NODE ENTRY to give the side to move a
+/// `0` floor. C2 covers only the fifty-move claim.
+pub(crate) fn claim_available_now(pos: &Position) -> bool {
+    is_fifty_move_draw(pos)
+}
+
+/// A candidate move, once made, will produce a position the MOVER can claim
+/// (FIDE 9.2.1 / 9.3.1: a player may declare an *intended* move and claim
+/// before executing it). `child` is the position AFTER `make_move` +
+/// `push_child`. This claim belongs to the PARENT node's mover, NOT the
+/// child's side to move. C2 covers only the fifty-move claim.
+pub(crate) fn claim_available_by_intended_move(child: &Position) -> bool {
+    is_fifty_move_draw(child)
 }
 
 #[cfg(test)]
@@ -182,5 +217,60 @@ mod tests {
     fn k_knight_vs_k_knight_is_not_insufficient() {
         // White K+N vs Black K+N (each side has a knight).
         assert_insufficient("8/8/8/8/8/8/8/KN3nk1 w - - 0 1", false);
+    }
+
+    // --- C1 cleanup: both-sides same-color bishop (one per side) ---
+
+    #[test]
+    fn both_sides_same_color_bishops_are_insufficient() {
+        // White B b1 and Black B g8 both on dark squares (parity odd).
+        assert_insufficient("6bk/8/8/8/8/8/8/KB6 w - - 0 1", true);
+    }
+
+    // --- C2: fifty-move draw ---
+
+    fn assert_fifty(fen: &str, expected: bool) {
+        let pos = parse_fen(fen).expect("valid FEN");
+        assert_eq!(
+            is_fifty_move_draw(&pos),
+            expected,
+            "is_fifty_move_draw({})",
+            fen
+        );
+    }
+
+    #[test]
+    fn fifty_move_threshold() {
+        assert_fifty("7k/8/8/8/8/8/8/K7 w - - 99 1", false);
+        assert_fifty("7k/8/8/8/8/8/8/K7 w - - 100 1", true);
+        assert_fifty("7k/8/8/8/8/8/8/K7 w - - 101 1", true);
+    }
+
+    #[test]
+    fn classify_fifty_priority_and_reason() {
+        // Insufficient material takes precedence over fifty-move.
+        let insuff = parse_fen("8/8/8/8/8/8/8/K6k w - - 100 1").unwrap();
+        assert_eq!(
+            classify_draw(&insuff),
+            Some(DrawReason::InsufficientMaterial)
+        );
+
+        // Pure fifty-move (sufficient material): FiftyMoveClaim.
+        let fifty = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 100 1").unwrap();
+        assert_eq!(classify_draw(&fifty), Some(DrawReason::FiftyMoveClaim));
+
+        // Not a draw.
+        let normal = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 99 1").unwrap();
+        assert_eq!(classify_draw(&normal), None);
+    }
+
+    #[test]
+    fn claim_available_now_and_intended() {
+        let now = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 100 1").unwrap();
+        assert!(claim_available_now(&now));
+        assert!(claim_available_by_intended_move(&now));
+        let not_yet = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 99 1").unwrap();
+        assert!(!claim_available_now(&not_yet));
+        assert!(!claim_available_by_intended_move(&not_yet));
     }
 }
