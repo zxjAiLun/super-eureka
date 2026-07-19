@@ -365,12 +365,25 @@ pub(crate) struct SearchPath {
     history: Vec<ZobristKey>,
     counts: HashMap<ZobristKey, usize>,
     repetition_signature: u64,
+    /// The immutable base length captured at construction: the full
+    /// caller-supplied game history. The search may push search children
+    /// on top, but it must NEVER `pop` or `restore_root` below this
+    /// length — doing so would drop a real game-history key and corrupt
+    /// the repetition context. `base_len` is NOT a fixed 1; it equals
+    /// the length of the history the caller threaded in.
+    base_len: usize,
 }
 
 impl SearchPath {
     /// Build from a caller-supplied history (the `GameState` keys).
     /// Scans the input once to build counts and the XOR signature.
     pub(crate) fn new(history: Vec<ZobristKey>) -> Self {
+        assert!(
+            !history.is_empty(),
+            "SearchPath requires the current position key"
+        );
+        let base_len = history.len();
+
         let mut counts = HashMap::new();
         let mut signature = 0u64;
 
@@ -388,6 +401,7 @@ impl SearchPath {
             history,
             counts,
             repetition_signature: signature,
+            base_len,
         }
     }
 
@@ -422,6 +436,13 @@ impl SearchPath {
         self.counts.get(&key).copied().unwrap_or(0)
     }
 
+    /// The immutable base length captured at construction. The search may
+    /// never `pop` or `restore_root` below this. Used by tests.
+    #[allow(dead_code)]
+    pub(crate) fn base_len(&self) -> usize {
+        self.base_len
+    }
+
     /// Record the child key after a `make_move`. `child` is the position
     /// *after* the move, so its `zobrist_key` is the child's key.
     /// Updates the occurrence count and the XOR repetition signature.
@@ -442,7 +463,15 @@ impl SearchPath {
 
     /// Undo a `push_child` (paired with the matching `unmake_move`).
     /// Restores the occurrence count and the XOR repetition signature.
+    /// MUST NOT remove a key at or below the construction base — doing so
+    /// would drop a real game-history key and corrupt the repetition
+    /// context. This invariant holds in both debug and release builds,
+    /// hence the plain `assert!` (never `debug_assert!`).
     pub(crate) fn pop(&mut self) {
+        assert!(
+            self.history.len() > self.base_len,
+            "cannot pop below the SearchPath base"
+        );
         let key = *self.history.last().expect("pop from empty SearchPath");
 
         let new = self.counts[&key];
@@ -459,18 +488,30 @@ impl SearchPath {
         self.history.pop();
     }
 
-    /// Defensive safety net: restore to the root length by popping
+    /// Defensive safety net: restore to the target length by popping
     /// individual entries. Each pop updates counts and the signature,
     /// so the path is fully consistent after restoration.
+    ///
+    /// Invariants (plain `assert!`, enforced in debug AND release):
+    ///   * `target_len >= base_len` — never restore below the construction
+    ///     base (would drop a real game-history key).
+    ///   * `target_len <= history.len()` — never restore "beyond" the
+    ///     current stack (would be a no-op that silently did nothing).
     pub(crate) fn restore_root(&mut self, root_len: usize) {
-        debug_assert!(root_len >= 1);
-        debug_assert!(root_len <= self.history.len());
+        assert!(
+            root_len >= self.base_len,
+            "cannot restore below the SearchPath base"
+        );
+        assert!(
+            root_len <= self.history.len(),
+            "cannot restore beyond the current SearchPath"
+        );
 
         while self.history.len() > root_len {
             self.pop();
         }
 
-        debug_assert_eq!(self.history.len(), root_len);
+        assert_eq!(self.history.len(), root_len);
     }
 
     /// Rebuild the repetition signature from scratch by re-scanning
@@ -3346,7 +3387,13 @@ mod tests {
         assert_eq!(path.repetition_signature(), orig_sig);
     }
 
-    /// Abort-style: push child, restore to intermediate root_len, then continue.
+    /// Abort-style: make + push two moves (e2e4, e7e5), then a third
+    /// (g1f3), then abort back to the intermediate length — restoring
+    /// BOTH the `SearchPath` AND the `Position` — and continue with a
+    /// DIFFERENT legal third move (d2d4) from the genuinely-restored
+    /// position. The invariant `path.last() == pos.zobrist_key()` must
+    /// hold at every step; an abort that restores only the path (or only
+    /// the board) is a bug.
     #[test]
     fn search_path_abort_style_restore() {
         let pos = parse_fen(START_FEN).unwrap();
@@ -3354,35 +3401,68 @@ mod tests {
 
         let mut p = pos;
 
-        // Push e2e4, e7e5
-        for &uci in &["e2e4", "e7e5"] {
-            let m = find_move(&p, uci);
-            let undo = p.make_move(m);
-            path.push_child(&p);
-            let _ = undo;
-        }
-        let sig_after_two = path.repetition_signature();
-
-        // Push g1f3 (abort target will restore_before this)
-        let m = find_move(&p, "g1f3");
-        let undo = p.make_move(m);
+        // Push e2e4, e7e5 (genuine make + push; undos dropped).
+        p.make_move(find_move(&p, "e2e4"));
         path.push_child(&p);
-        let _ = undo;
-        assert_eq!(path.len(), 4);
-
-        // Abort back to depth 2 (root + 2 children)
-        path.restore_root(3);
-        assert_eq!(path.len(), 3);
-        assert_eq!(path.repetition_signature(), sig_after_two);
-
-        // Continue with a different third push
-        let m = find_move(&p, "d7d5");
-        let undo = p.make_move(m);
+        p.make_move(find_move(&p, "e7e5"));
         path.push_child(&p);
-        let _ = undo;
-        assert_eq!(path.len(), 4);
-        // Signature must differ from the original depth-3 path (different key).
-        assert_ne!(path.repetition_signature(), sig_after_two);
+
+        // Snapshot the parent state (after e2e4 e7e5).
+        let parent_fen = to_fen(&p);
+        let parent_key = p.zobrist_key();
+        let parent_keys = path.keys().to_vec();
+        let parent_sig = path.repetition_signature();
+        let parent_len = path.len(); // 3
+
+        // Push g1f3, then abort: restore BOTH the path and the Position.
+        let u3 = p.make_move(find_move(&p, "g1f3"));
+        path.push_child(&p);
+        assert_eq!(path.len(), parent_len + 1);
+        assert_eq!(p.zobrist_key(), *path.keys().last().unwrap());
+
+        path.restore_root(parent_len);
+        p.unmake_move(u3);
+        // After the abort, Position and path must agree exactly.
+        assert_eq!(to_fen(&p), parent_fen, "abort restored FEN");
+        assert_eq!(p.zobrist_key(), parent_key, "abort restored key");
+        assert_eq!(path.keys(), &parent_keys[..], "abort restored path keys");
+        assert_eq!(
+            path.repetition_signature(),
+            parent_sig,
+            "abort restored signature"
+        );
+        assert_eq!(path.last(), Some(&parent_key), "path.last == Position key");
+
+        // Continue with a different legal third move from the restored position.
+        let u4 = p.make_move(find_move(&p, "d2d4"));
+        path.push_child(&p);
+        assert_eq!(path.len(), parent_len + 1);
+        assert_eq!(
+            p.zobrist_key(),
+            *path.keys().last().unwrap(),
+            "path.last == Position key after d2d4"
+        );
+        assert_ne!(
+            path.repetition_signature(),
+            parent_sig,
+            "d2d4 changes the signature"
+        );
+        assert_eq!(path.keys().len(), parent_keys.len() + 1);
+
+        // Pop + unmake to fully restore the parent again.
+        path.pop();
+        p.unmake_move(u4);
+        assert_eq!(to_fen(&p), parent_fen, "parent restored after d2d4");
+        assert_eq!(
+            p.zobrist_key(),
+            parent_key,
+            "parent key restored after d2d4"
+        );
+        assert_eq!(
+            path.keys(),
+            &parent_keys[..],
+            "parent path restored after d2d4"
+        );
     }
 
     /// Clone preserves all three fields.
@@ -3395,6 +3475,11 @@ mod tests {
         assert_eq!(cloned.repetition_signature(), path.repetition_signature());
         assert_eq!(cloned.occurrences(1), path.occurrences(1));
         assert_eq!(cloned.occurrences(2), path.occurrences(2));
+        assert_eq!(
+            cloned.base_len(),
+            path.base_len(),
+            "clone preserves base_len"
+        );
     }
 
     /// Fresh rebuild of signature equals incremental signature.
@@ -3407,5 +3492,72 @@ mod tests {
             path.rebuild_signature(),
             "incremental signature must equal a fresh scan"
         );
+    }
+    /// `SearchPath::new` must reject an empty history: there is no current
+    /// position key to anchor the base, so the core invariant
+    /// `history.last() == current Position key` would be vacuously broken.
+    #[test]
+    #[should_panic(expected = "SearchPath requires the current position key")]
+    fn search_path_new_empty_panics() {
+        let _ = SearchPath::new(vec![]);
+    }
+
+    /// A freshly-constructed (base-only) path must NOT be poppable -- its
+    /// single key is the search root and also the base, so `pop` would
+    /// drop below `base_len`.
+    #[test]
+    #[should_panic(expected = "cannot pop below the SearchPath base")]
+    fn search_path_pop_on_fresh_panics() {
+        let mut path = SearchPath::new(vec![10u64]);
+        path.pop();
+    }
+
+    /// With a multi-key game history (base_len > 1), a real search child
+    /// may be pushed and popped back to the base, but a further `pop`
+    /// would remove an original game-history key and MUST panic (in both
+    /// debug and release builds).
+    #[test]
+    fn search_path_pop_below_base_is_blocked() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let root_key = pos.zobrist_key();
+        // Three original game-history keys => base_len = 3.
+        let mut path = SearchPath::new(vec![root_key, 100u64, 200]);
+        let m = find_move(&pos, "e2e4");
+        let mut child = pos;
+        child.make_move(m);
+        path.push_child(&child); // len 4, base preserved
+        assert_eq!(path.len(), 4);
+        assert_eq!(path.last(), Some(&child.zobrist_key()));
+        // Pop the search child back to the base -- allowed.
+        path.pop();
+        assert_eq!(path.len(), 3);
+        assert_eq!(
+            path.keys(),
+            &[root_key, 100u64, 200][..],
+            "original history preserved"
+        );
+        // A further pop would cross the base -> must panic.
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            path.pop();
+        }));
+        assert!(r.is_err(), "pop below the game-history base must panic");
+    }
+
+    /// `restore_root` must panic if the target is below `base_len` (would
+    /// drop a real game-history key).
+    #[test]
+    #[should_panic(expected = "cannot restore below the SearchPath base")]
+    fn search_path_restore_below_base_panics() {
+        let mut path = SearchPath::new(vec![10u64, 20]); // base_len = 2
+        path.restore_root(1); // 1 < 2 -> panic
+    }
+
+    /// `restore_root` must panic if the target is beyond the current length
+    /// (a silent no-op that would leave the path corrupted).
+    #[test]
+    #[should_panic(expected = "cannot restore beyond the current SearchPath")]
+    fn search_path_restore_beyond_current_panics() {
+        let mut path = SearchPath::new(vec![10u64, 20, 30]); // len 3
+        path.restore_root(4); // 4 > 3 -> panic
     }
 }

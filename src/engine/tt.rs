@@ -290,8 +290,11 @@ impl TranspositionTable {
                 }
             }
             Some(old) => {
-                // Collision (different key, same index).
-                if (entry.depth as i32) >= (old.depth as i32) {
+                // Collision (different key, same index). Compare depths as the
+                // unsigned `u32` they actually are; never cast to `i32`, which
+                // inverts the ordering at the `u32` extremes (e.g. `u32::MAX`
+                // vs `0`). A deeper OR equal-depth new entry replaces.
+                if entry.depth >= old.depth {
                     self.slots[idx] = Some(entry);
                 }
             }
@@ -442,21 +445,44 @@ mod tests {
         assert_eq!(k.repetition_signature, 0xdead);
     }
 
-    // ---- Index mixing smoke ----
+    // ---- Index mixing ----
+    // The index must depend on EVERY field of `TtKey`. We assert, on a
+    // deterministic corpus, that changing ONE field at a time changes the
+    // resulting index. This is NOT a promise that *every* field change
+    // yields a different final index — arbitrary keys may still hash-collide
+    // modulo the capacity. Full `TtKey` equality is the real correctness
+    // guarantee (see the hit/miss tests above).
+    fn idx(cap: usize, position: u64, hm: u32, rep: u64) -> usize {
+        tt_index(TtKey::new(position, hm, rep), cap)
+    }
 
     #[test]
-    fn index_mixes_all_fields() {
-        let cap = 1_000;
-        let k1 = TtKey::new(100, 0, 0);
-        let k2 = TtKey::new(100, 1, 0);
-        let k3 = TtKey::new(100, 0, 1);
-        // At least one differs from k1 (modulo collision is acceptable, but
-        // changing fields must have a chance to change the result).
-        let i1 = tt_index(k1, cap);
-        let any_diff = (tt_index(k2, cap) != i1) || (tt_index(k3, cap) != i1);
-        assert!(
-            any_diff,
-            "index must depend on halfmove_clock and repetition_signature"
+    fn index_depends_on_position() {
+        let cap = 4096;
+        assert_ne!(
+            idx(cap, 100, 0, 0),
+            idx(cap, 987_654_321, 0, 0),
+            "changing position must change the index"
+        );
+    }
+
+    #[test]
+    fn index_depends_on_halfmove_clock() {
+        let cap = 4096;
+        assert_ne!(
+            idx(cap, 100, 0, 0),
+            idx(cap, 100, 98_765, 0),
+            "changing halfmove_clock must change the index"
+        );
+    }
+
+    #[test]
+    fn index_depends_on_repetition_signature() {
+        let cap = 4096;
+        assert_ne!(
+            idx(cap, 100, 0, 0),
+            idx(cap, 100, 0, 555_555),
+            "changing repetition_signature must change the index"
         );
     }
 
@@ -522,17 +548,49 @@ mod tests {
         );
     }
 
+    /// Deterministic allocation-failure path WITHOUT allocating gigabytes.
+    /// `allocation_failure_mb * 1 MiB` stays within `usize` (so no
+    /// arithmetic overflow), but the resulting Vec byte capacity exceeds
+    /// `isize::MAX`, which the allocator rejects -> `AllocationFailed`.
+    #[test]
+    fn new_mb_allocation_failure() {
+        const MIB: usize = 1024 * 1024;
+        let allocation_failure_mb = (isize::MAX as usize / MIB) + 2;
+
+        assert!(
+            allocation_failure_mb.checked_mul(MIB).is_some(),
+            "product must stay in usize range (no arithmetic overflow)"
+        );
+        assert_eq!(
+            TranspositionTable::new_mb(allocation_failure_mb).unwrap_err(),
+            TtAllocError::AllocationFailed
+        );
+    }
+
     // ---- Resize ----
 
     #[test]
     fn resize_zero_errors_and_preserves_old() {
         let mut tt = TranspositionTable::new_mb(1).unwrap();
+        let entry = TTEntry {
+            key: TtKey::new(7, 0, 0),
+            depth: 1,
+            score: 10,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(entry);
         let old_cap = tt.capacity_entries();
         let old_sz = tt.size_mb();
 
         assert_eq!(tt.resize_mb(0).unwrap_err(), TtAllocError::InvalidSize);
         assert_eq!(tt.capacity_entries(), old_cap);
         assert_eq!(tt.size_mb(), old_sz);
+        assert_eq!(
+            tt.probe(TtKey::new(7, 0, 0)),
+            Some(entry),
+            "entry survives a failed resize"
+        );
     }
 
     #[test]
@@ -560,6 +618,14 @@ mod tests {
     #[test]
     fn resize_overflow_preserves_old() {
         let mut tt = TranspositionTable::new_mb(1).unwrap();
+        let entry = TTEntry {
+            key: TtKey::new(7, 0, 0),
+            depth: 1,
+            score: 10,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(entry);
         let old_cap = tt.capacity_entries();
         let old_sz = tt.size_mb();
 
@@ -569,6 +635,43 @@ mod tests {
         );
         assert_eq!(tt.capacity_entries(), old_cap);
         assert_eq!(tt.size_mb(), old_sz);
+        assert_eq!(
+            tt.probe(TtKey::new(7, 0, 0)),
+            Some(entry),
+            "entry survives a failed resize"
+        );
+    }
+
+    /// A deterministic allocation failure during `resize_mb` must leave the
+    /// old table (and its entries) fully intact.
+    #[test]
+    fn resize_allocation_failure_preserves_old() {
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        let entry = TTEntry {
+            key: TtKey::new(7, 0, 0),
+            depth: 1,
+            score: 10,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(entry);
+        let old_cap = tt.capacity_entries();
+        let old_sz = tt.size_mb();
+
+        const MIB: usize = 1024 * 1024;
+        let allocation_failure_mb = (isize::MAX as usize / MIB) + 2;
+        assert_eq!(
+            tt.resize_mb(allocation_failure_mb).unwrap_err(),
+            TtAllocError::AllocationFailed
+        );
+        // Old table preserved.
+        assert_eq!(tt.capacity_entries(), old_cap);
+        assert_eq!(tt.size_mb(), old_sz);
+        assert_eq!(
+            tt.probe(TtKey::new(7, 0, 0)),
+            Some(entry),
+            "entry survives a failed resize"
+        );
     }
 
     // ---- Full-key hit / miss ----
@@ -867,6 +970,121 @@ mod tests {
         assert_eq!(tt.probe(k1), Some(deep));
         // k2 was never stored
         assert!(tt.probe(k2).is_none());
+    }
+
+    /// Collision at the `u32` extremes: a brand-new entry at `depth =
+    /// u32::MAX` must evict an existing `depth = 0` entry. This is the
+    /// case the old `as i32` cast got backwards (MAX became -1).
+    #[test]
+    fn collision_u32_max_evicts_zero() {
+        let mut tt = TranspositionTable::disabled();
+        tt.slots = vec![None];
+        tt.size_mb = 0;
+
+        let k_old = TtKey::new(1, 0, 0);
+        let k_new = TtKey::new(2, 0, 0);
+
+        let shallow = TTEntry {
+            key: k_old,
+            depth: 0,
+            score: 50,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        let deepest = TTEntry {
+            key: k_new,
+            depth: u32::MAX,
+            score: 80,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(shallow); // k_old at slot 0
+        tt.store(deepest); // depth MAX >= 0 -> replaces
+        assert_eq!(
+            tt.probe(k_new),
+            Some(deepest),
+            "u32::MAX depth must evict depth 0"
+        );
+        assert!(
+            tt.probe(k_old).is_none(),
+            "evicted depth-0 key returns None"
+        );
+    }
+
+    /// The mirror: an existing `depth = u32::MAX` entry must NOT be
+    /// evicted by a new `depth = 0` entry.
+    #[test]
+    fn collision_zero_does_not_evict_u32_max() {
+        let mut tt = TranspositionTable::disabled();
+        tt.slots = vec![None];
+        tt.size_mb = 0;
+
+        let k_old = TtKey::new(1, 0, 0);
+        let k_new = TtKey::new(2, 0, 0);
+
+        let deepest = TTEntry {
+            key: k_old,
+            depth: u32::MAX,
+            score: 80,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        let shallow = TTEntry {
+            key: k_new,
+            depth: 0,
+            score: 50,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(deepest); // k_old at slot 0
+        tt.store(shallow); // depth 0 is NOT >= u32::MAX -> no replace
+        assert_eq!(
+            tt.probe(k_old),
+            Some(deepest),
+            "u32::MAX depth must be retained against depth 0"
+        );
+        assert!(
+            tt.probe(k_new).is_none(),
+            "rejected depth-0 key returns None"
+        );
+    }
+
+    /// Collision with EQUAL depths but different full keys: the new entry
+    /// replaces (it is still `>=`, not strictly greater).
+    #[test]
+    fn collision_equal_depth_replaces() {
+        let mut tt = TranspositionTable::disabled();
+        tt.slots = vec![None];
+        tt.size_mb = 0;
+
+        let k_old = TtKey::new(1, 0, 0);
+        let k_new = TtKey::new(2, 0, 0);
+
+        let old = TTEntry {
+            key: k_old,
+            depth: 5,
+            score: 50,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        let new = TTEntry {
+            key: k_new,
+            depth: 5,
+            score: 80,
+            bound: Bound::Exact,
+            best_move: None,
+        };
+        tt.store(old); // k_old at slot 0
+        tt.store(new); // depth 5 >= 5 -> replaces
+        assert_eq!(
+            tt.probe(k_new),
+            Some(new),
+            "equal-depth collision must replace"
+        );
+        assert!(
+            tt.probe(k_old).is_none(),
+            "previous key evicted on equal-depth replace"
+        );
     }
 
     // ---- Clear ----
