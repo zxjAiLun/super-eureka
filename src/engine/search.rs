@@ -38,9 +38,11 @@ use crate::engine::time::TimeBudget;
 pub const MATE: i32 = 1_000_000;
 
 /// Maximum quiescence ply. A "check → evasion → check → ..." sequence has no
-/// natural depth bound (there is no repetition / 50-move handling in the
-/// search yet), so this cap guarantees termination. It is a *safety* limit,
-/// not a strength-tuning knob: at the cap we still detect checkmate /
+/// natural depth bound, so this cap guarantees termination. It is a *safety*
+/// limit, not a repetition/fifty-move substitute: M3.1 draw handling
+/// (fifty-move claim and threefold-repetition claim) is already implemented
+/// and applied at every node, but an unresolved checking/tactical chain still
+/// needs a hard ply cap to terminate. At the cap we still detect checkmate /
 /// stalemate first, then fall back to the static evaluation without
 /// recursing further.
 pub const MAX_QPLY: u32 = 32;
@@ -867,9 +869,8 @@ fn quiescence_entered_impl(
 ///
 /// We must NOT stand pat — a static eval with the king still attacked is
 /// meaningless, and returning it would re-introduce the stand-pat-on-check
-/// bug. But we also must not recurse into a possibly-cyclic check chain
-/// (there is no repetition / 50-move detection in the search yet), so we
-/// search exactly one ply of evasions here with no further quiescence
+/// bug. But we also must not recurse into a possibly-cyclic check chain, so
+/// we search exactly one ply of evasions here with no further quiescence
 /// recursion. That guarantees termination:
 ///   - every child move is made, scored, and unmade (board left intact);
 ///   - a terminal child (the opponent is checkmated / stalemated by our
@@ -881,9 +882,11 @@ fn quiescence_entered_impl(
 ///     entry (`try_enter_node`), and a None abort leaves the board untouched
 ///     because it is returned before any move is made.
 ///
-/// This is a deliberate, incomplete stopgap: the full fix is repetition /
-/// 50-move detection, which lands in a later milestone. What it guarantees
-/// TODAY: the side to move (the node that is genuinely in check) is never
+/// This is a deliberate, labelled safety cap: M3.1 draw handling (fifty-move
+/// and threefold-repetition claims) is already implemented and applied at the
+/// current in-check node, but an unresolved checking/tactical chain still
+/// needs a hard ply cap to terminate. What it guarantees: the side to move
+/// (the node that is genuinely in check) is never
 /// scored by a raw static eval of its own attacked position — its evasions
 /// are always searched. What it does NOT (yet) guarantee: an evasion that
 /// itself gives check produces a child whose king is also in check; that
@@ -909,10 +912,10 @@ fn search_final_evasion_ply(
 ) -> Option<i32> {
     // Automatic insufficient-material draw for the in-check node at the qply
     // cap: a single ply cannot add material, so the position stays a draw; we
-    // return 0 immediately. The CURRENT node's fifty-move claim floor is the
-    // caller's responsibility (`quiescence_entered_impl`), so we must NOT
-    // early-return on a fifty-move claim here (that would suppress the
-    // evasions the deeper search relies on).
+    // return 0 immediately. The CURRENT node's fifty-move or threefold claim
+    // floor is the caller's responsibility (`quiescence_entered_impl`), so we
+    // must NOT early-return on a claim here (that would suppress the evasions
+    // the deeper search relies on).
     if is_insufficient_material(pos) {
         return Some(0);
     }
@@ -934,7 +937,7 @@ fn search_final_evasion_ply(
         //   - terminal FIRST: opponent has no move & is in check -> mate; no
         //     move & not in check -> stalemate (0);
         //   - then draw: automatic insufficient material -> 0 (dead position);
-        //     fifty-move intended claim -> 0 (mover secures the draw);
+        //     fifty-move or threefold intended claim -> 0 (mover secures draw);
         //   - otherwise approximate with the static eval (safe cap estimate).
         let child_in_check = pos.is_in_check(pos.side);
         let child_legal = generate_legal_moves(pos);
@@ -1317,8 +1320,9 @@ fn search_best_move_impl(
         .map(|it| it.best_move)
         .unwrap_or(fallback);
     // No completed iteration => no real score. If the root itself is a
-    // fifty-move claim we still report the claim floor (0, stable fallback,
-    // empty PV) rather than `None` — but ONLY when no real iteration ran.
+    // fifty-move OR threefold claim we still report the claim floor (0, stable
+    // fallback, empty PV) rather than `None` — but ONLY when no real iteration
+    // ran.
     if completed.is_none() && root_claimable {
         return Some(SearchOutcome {
             best_move: fallback,
@@ -2100,7 +2104,7 @@ mod tests {
         assert!(out.pv.is_empty());
     }
 
-    // ===== C2: fifty-move draw =====
+    // ===== C1/C2/C3: draw rules (insufficient material / fifty-move / threefold) =====
 
     /// Make `m` on `pos`, push the child, run the manual probe, then restore
     /// the board and return the probe result (so each test controls cleanup).
@@ -2134,6 +2138,9 @@ mod tests {
         history: Vec<ZobristKey>,
         depth: u32,
     ) -> i32 {
+        let before_fen = to_fen(pos);
+        let before_key = pos.zobrist_key();
+        let root_keys = history.clone();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits::default();
         let mut pv = PvTable::default();
@@ -2163,6 +2170,10 @@ mod tests {
         };
         path.pop();
         pos.unmake_move(undo);
+        // Self-verify the edge fully restored the board + path.
+        assert_eq!(to_fen(pos), before_fen, "edge restored FEN");
+        assert_eq!(pos.zobrist_key(), before_key, "edge restored key");
+        assert_eq!(path.keys(), &root_keys[..], "edge restored path");
         score
     }
 
@@ -2712,6 +2723,15 @@ mod tests {
             );
             path.pop();
             p.unmake_move(undo);
+            // Explicit restoration: FEN + key restored, and the search path is
+            // back to exactly its pre-move state.
+            assert_eq!(to_fen(&p), to_fen(&pos), "manual probe restored FEN");
+            assert_eq!(p.zobrist_key(), parent_key, "manual probe restored key");
+            assert_eq!(
+                path.keys(),
+                &[child_key, child_key, parent_key][..],
+                "manual probe restored path"
+            );
         }
 
         // The parent edge (mover's perspective) for the SINGLE move g1f3 must
@@ -2743,6 +2763,54 @@ mod tests {
             probe2,
             Some(ChildProbe::IntendedClaim),
             "g1f3 edge is an intended threefold claim (single move)"
+        );
+    }
+
+    /// §C3: a root that is NOT itself a claim, searching ONLY the quiet move
+    /// `g1f3` whose child key appears a third time, must treat it as a real
+    /// intended-threefold edge (not a root claim placeholder): the completed
+    /// iteration is exactly `score 0`, `best_move g1f3`, `pv [g1f3]`.
+    #[test]
+    fn root_intended_threefold_via_single_move() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let parent_key = pos.zobrist_key();
+        let m = find_move(&pos, "g1f3");
+        let mut child = pos;
+        child.make_move(m);
+        let child_key = child.zobrist_key();
+
+        // Parent is not yet a repetition, so root_claimable = false.
+        assert_ne!(
+            classify_draw(&pos, &[child_key, child_key, parent_key]),
+            Some(DrawReason::ThreefoldClaim),
+            "parent itself is not a claim"
+        );
+
+        let mut path = SearchPath::new(vec![child_key, child_key, parent_key]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..Default::default()
+        };
+        let iter = root_search(
+            &mut pos.clone(),
+            2,
+            &[m],
+            false, // parent is NOT itself a claim
+            m,     // fallback (also g1f3 here)
+            &ctx,
+            &limits,
+            &mut path,
+        )
+        .expect("completed iteration");
+        path.restore_root(3);
+
+        assert_eq!(iter.score, 0, "intended-threefold root edge scores 0");
+        assert_eq!(iter.best_move, m, "best_move is the intended claim move");
+        assert_eq!(
+            iter.pv,
+            vec![m],
+            "intended-threefold root PV is exactly [g1f3]"
         );
     }
 
@@ -2791,6 +2859,13 @@ mod tests {
         );
         path.pop();
         p.unmake_move(undo);
+        assert_eq!(to_fen(&p), to_fen(&pos), "mate probe restored FEN");
+        assert_eq!(p.zobrist_key(), parent_key, "mate probe restored key");
+        assert_eq!(
+            path.keys(),
+            &[child_key, child_key, parent_key][..],
+            "mate probe restored path"
+        );
 
         // Full PV: the mating move is found.
         let mut pv2 = PvTable::default();
@@ -2816,10 +2891,7 @@ mod tests {
             "mate precedence: winning line still returned, got {}",
             score
         );
-        assert!(
-            pv2.lines[0].contains(&m),
-            "PV contains the mating move"
-        );
+        assert!(pv2.lines[0].contains(&m), "PV contains the mating move");
     }
 
     /// §C3 / root: a losing side whose key appears a third time in the real
@@ -2830,6 +2902,9 @@ mod tests {
         let pos0 = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 0 1").unwrap();
         let key = pos0.zobrist_key();
         let history = vec![key, key, key];
+        // The stable fallback is the first legal root move, captured BEFORE any
+        // move-ordering swap inside the search.
+        let initial_root_move = generate_legal_moves(&mut pos0.clone())[0];
         let mut pos = pos0;
         let limits = SearchLimits {
             depth: Some(3),
@@ -2840,13 +2915,13 @@ mod tests {
             search_best_move_with_history(&mut pos, &history, &limits, &ctx).expect("outcome");
         assert_eq!(out.score, Some(0), "root threefold losing side scores 0");
         assert!(out.pv.is_empty(), "root threefold claim PV is empty");
-        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
-            .iter()
-            .map(|m| move_to_uci(*m))
-            .collect();
         assert!(
-            legal.contains(&move_to_uci(out.best_move)),
-            "best_move is a legal root move"
+            out.completed_depth >= 1,
+            "a completed iteration reported the claim"
+        );
+        assert_eq!(
+            out.best_move, initial_root_move,
+            "stable fallback equals the initial first legal root move"
         );
     }
 

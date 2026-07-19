@@ -1,11 +1,11 @@
 //! Automatic dead-position draw (FIDE Article 5.2.2).
 //!
 //! This module implements the automatic insufficient-material draw (C1), the
-//! fifty-move claimable draw (C2), and the threefold-repetition claimable draw
-//! (C3). Both C2 and C3 are FIDE Article 9.3 claimable draws: a `0`-score
-//! OPTION for the side to move, not a forced terminal. The 75-move automatic
-//! draw, fivefold automatic draw, twofold cycle cutoff, and UCI ClaimDraw are
-//! all out of scope.
+//! fifty-move claimable draw (C2, FIDE Article 9.3), and the
+//! threefold-repetition claimable draw (C3, FIDE Article 9.2). Both C2 and C3
+//! are claimable draws: a `0`-score OPTION for the side to move, not a forced
+//! terminal. The 75-move automatic draw, fivefold automatic draw, twofold
+//! cycle cutoff, and UCI ClaimDraw are all out of scope.
 
 use crate::chess::game::GameState;
 use crate::chess::position::Position;
@@ -123,19 +123,25 @@ pub(crate) fn is_threefold_repetition(pos: &Position, keys: &[ZobristKey]) -> bo
     keys.iter().filter(|&&k| k == key).count() >= 3
 }
 
-/// A draw the side to move can claim RIGHT NOW (FIDE 9.3.2): the position is
-/// itself a claimable draw. Used at a NODE ENTRY to give the side to move a
-/// `0` floor. Covers both the fifty-move and threefold claims.
+/// A draw the side to move can claim RIGHT NOW: the position is itself a
+/// claimable draw. Used at a NODE ENTRY to give the side to move a `0` floor.
+/// Covers both claims:
+///   - fifty-move claim (FIDE Article 9.3.2), and
+///   - threefold-repetition claim (FIDE Article 9.2.2).
 pub(crate) fn claim_available_now(pos: &Position, keys: &[ZobristKey]) -> bool {
     is_fifty_move_draw(pos) || is_threefold_repetition(pos, keys)
 }
 
-/// A candidate move, once made, will produce a position the MOVER can claim
-/// (FIDE 9.3.1: a player may declare an *intended* move and claim before
-/// executing it). `child` is the position AFTER `make_move` + `push_child`,
-/// and `child_keys` is the search line AFTER that push (so `child`'s key is
-/// its last element). This claim belongs to the PARENT node's mover, NOT the
-/// child's side to move. Covers the fifty-move and threefold claims.
+/// A candidate move, once made, will produce a position the MOVER can claim:
+/// a player may declare an *intended* move and claim before executing it.
+/// Covers two claim kinds:
+///   - fifty-move intended claim (FIDE Article 9.3.1), and
+///   - threefold-repetition intended claim (FIDE Article 9.2.1).
+///
+/// `child` is the position AFTER `make_move` + `push_child`, and `child_keys`
+/// is the search line AFTER that push (so `child`'s key is its last element).
+/// This claim belongs to the PARENT node's mover, NOT the child's side to
+/// move.
 pub(crate) fn claim_available_by_intended_move(
     child: &Position,
     child_keys: &[ZobristKey],
@@ -153,10 +159,10 @@ pub fn is_threefold_in_game(gs: &GameState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess::fen::parse_fen;
+    use crate::chess::fen::{parse_fen, to_fen};
     use crate::chess::movegen::generate_legal_moves;
     use crate::chess::types::move_to_uci;
-    use crate::chess::types::Move;
+    use crate::chess::types::{Move, START_FEN};
 
     /// Local test helper: locate a legal move by UCI string in `pos`.
     fn find_move(pos: &Position, uci: &str) -> Move {
@@ -164,6 +170,17 @@ mod tests {
             .into_iter()
             .find(|m| move_to_uci(*m) == uci)
             .unwrap_or_else(|| panic!("no legal move {}", uci))
+    }
+
+    /// Local test helper: the piece-placement + side fields of a FEN (the
+    /// board identity, ignoring move/halfmove counters which legitimately
+    /// advance during a game).
+    fn board_and_side(fen: &str) -> &str {
+        let end = fen.find(' ').map_or(fen.len(), |i| i);
+        let after_side = fen[end + 1..]
+            .find(' ')
+            .map_or(fen.len(), |j| end + 1 + j);
+        &fen[..after_side]
     }
 
     /// Assert `is_insufficient_material` and `classify_draw` agree, and that
@@ -384,12 +401,19 @@ mod tests {
         let moves = [
             "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
         ];
+        let startpos_key = parse_fen(START_FEN).unwrap().zobrist_key();
         let mut gs = GameState::startpos();
         for m in moves {
             let mv = find_move(gs.position(), m);
             gs.push_known_legal_move(mv);
         }
         // We are back at the startpos; its key appears 3 times (ply 0, 4, 8).
+        assert_eq!(
+            board_and_side(&to_fen(gs.position())),
+            board_and_side(START_FEN),
+            "back at startpos board (piece placement + side)"
+        );
+        assert_eq!(gs.current_key(), startpos_key, "back at startpos key");
         assert_eq!(
             gs.key_history()
                 .iter()
@@ -404,11 +428,18 @@ mod tests {
     fn game_state_knight_shuffle_twofold_not_draw() {
         use crate::chess::game::GameState;
         let moves = ["g1f3", "g8f6", "f3g1", "f6g8"];
+        let startpos_key = parse_fen(START_FEN).unwrap().zobrist_key();
         let mut gs = GameState::startpos();
         for m in moves {
             let mv = find_move(gs.position(), m);
             gs.push_known_legal_move(mv);
         }
+        assert_eq!(
+            board_and_side(&to_fen(gs.position())),
+            board_and_side(START_FEN),
+            "back at startpos board (piece placement + side)"
+        );
+        assert_eq!(gs.current_key(), startpos_key, "back at startpos key");
         // Back at startpos; its key appears only 2 times (ply 0 and 4).
         assert_eq!(
             gs.key_history()
