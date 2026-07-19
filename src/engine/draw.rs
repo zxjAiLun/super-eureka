@@ -111,10 +111,11 @@ pub(crate) fn claim_available_now(pos: &Position) -> bool {
 }
 
 /// A candidate move, once made, will produce a position the MOVER can claim
-/// (FIDE 9.2.1 / 9.3.1: a player may declare an *intended* move and claim
-/// before executing it). `child` is the position AFTER `make_move` +
-/// `push_child`. This claim belongs to the PARENT node's mover, NOT the
-/// child's side to move. C2 covers only the fifty-move claim.
+/// (FIDE 9.3.1: a player may declare an *intended* move and claim before
+/// executing it). `child` is the position AFTER `make_move` + `push_child`.
+/// This claim belongs to the PARENT node's mover, NOT the child's side to
+/// move. C2 covers only the fifty-move claim (FIDE Article 9.3); the
+/// threefold intended claim is added in C3.
 pub(crate) fn claim_available_by_intended_move(child: &Position) -> bool {
     is_fifty_move_draw(child)
 }

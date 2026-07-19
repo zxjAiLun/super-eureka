@@ -972,17 +972,25 @@ fn score_to_uci(score: i32) -> String {
 /// (re)allocated per call, sized to this iteration's depth plus the quiescence
 /// cap — never to `limits.depth`, so an absurd `go depth` cannot trigger a
 /// huge one-shot allocation.
+#[allow(clippy::too_many_arguments)]
 fn root_search(
     pos: &mut Position,
     depth: u32,
     root_moves: &[Move],
+    root_claimable: bool,
+    claim_fallback: Move,
     ctx: &SearchContext,
     limits: &SearchLimits,
     path: &mut SearchPath,
 ) -> Option<RootIteration> {
-    let mut best_score = i32::MIN + 1000;
+    // A claimable root (the side to move may claim right now) has a 0 floor:
+    // the root value can never drop below 0, because the mover need not move.
+    // We start from 0 so a losing/equal move cannot drag the root below the
+    // claim; a move that scores > 0 truly beats the claim and is reported.
+    // When not claimable, the root starts from the normal fail-soft floor.
+    let mut best_score = if root_claimable { 0 } else { i32::MIN + 1000 };
     let mut best_move: Option<Move> = None;
-    let mut alpha = i32::MIN + 1000;
+    let mut alpha = if root_claimable { 0 } else { i32::MIN + 1000 };
     let beta = i32::MAX - 1000;
 
     let mut pv = PvTable::default();
@@ -1055,6 +1063,18 @@ fn root_search(
             alpha = best_score;
         }
         // No beta cutoff at the root: real scores for every root move.
+    }
+
+    // A claimable root with no real move beating 0 returns the claim itself
+    // as a COMPLETED iteration: score 0, the stable fallback (protocol
+    // placeholder, NOT a found 0-score line), empty PV. best_move stays None
+    // so this branch fires instead of the `best_move.map` below.
+    if root_claimable && best_move.is_none() {
+        return Some(RootIteration {
+            score: 0,
+            best_move: claim_fallback,
+            pv: Vec::new(),
+        });
     }
 
     best_move.map(|bm| RootIteration {
@@ -1181,7 +1201,16 @@ fn search_best_move_impl(
             }
         }
 
-        match root_search(pos, depth, &root_moves, ctx, limits, path) {
+        match root_search(
+            pos,
+            depth,
+            &root_moves,
+            root_claimable,
+            fallback,
+            ctx,
+            limits,
+            path,
+        ) {
             Some(iter) => {
                 let RootIteration {
                     score,
@@ -2309,13 +2338,14 @@ mod tests {
         );
     }
 
-    /// §N.14: a manual terminal/intended edge that becomes the best move
-    /// leaves a PV of exactly that one move (no sibling tail).
+    /// §N.14 + root claim placeholder: when no real move beats the root claim
+    /// floor, the completed iteration reports score 0, an EMPTY PV, and the
+    /// stable fallback (protocol placeholder — NOT a found 0-score line).
     #[test]
     fn manual_edge_pv_is_single_move() {
-        // Root is a fifty-move claim for the side to move; the best edge is
-        // the intended claim (IntendedClaim -> 0), and the PV must be just
-        // that move with an empty child row.
+        // Root is a fifty-move claim for the side to move; every root move is
+        // also an intended claim on its own (child halfmove stays >= 100), so
+        // the best edge is 0 and no real line beats the floor.
         let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 100 50").unwrap();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits {
@@ -2323,24 +2353,28 @@ mod tests {
             ..Default::default()
         };
         let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
-        // claim floor 0 with a stable fallback move.
+        // Claim floor 0 with a stable fallback move.
         assert_eq!(out.score, Some(0), "claim floor score");
-        // The claim floor has no real continuation, so the PV must be at most
-        // the single best move (no stale sibling tail in the child row).
+        assert_eq!(out.completed_depth, 1, "a real iteration completed");
+        // The claim placeholder MUST have an empty PV.
         assert!(
-            out.pv.len() <= 1,
-            "root claim PV has no continuation, got {:?}",
+            out.pv.is_empty(),
+            "root claim PV is empty, got {:?}",
             out.pv
         );
-        if let Some(bm) = out.pv.first() {
-            assert_eq!(&move_to_uci(*bm), &move_to_uci(out.best_move));
-        }
-        // best_move is a legal root move.
+        // best_move is the stable fallback (first legal root move), a protocol
+        // placeholder — it must be legal.
         let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
             .iter()
             .map(|m| move_to_uci(*m))
             .collect();
+        let fallback_uci = move_to_uci(generate_legal_moves(&mut pos.clone())[0]);
         assert!(legal.contains(&move_to_uci(out.best_move)));
+        assert_eq!(
+            move_to_uci(out.best_move),
+            fallback_uci,
+            "fallback is stable"
+        );
     }
 
     /// Root fifty-move claim does not early-return: a winning root move is
@@ -2358,6 +2392,10 @@ mod tests {
             out.score.unwrap() > 0,
             "root fifty-move claim must not suppress a winning move"
         );
+        // A real winning line is reported with a non-empty PV rooted at the
+        // best move.
+        assert!(!out.pv.is_empty(), "winning line has a PV");
+        assert_eq!(out.pv[0], out.best_move, "PV is rooted at best_move");
     }
 
     /// Root fifty-move claim, aborted before any iteration completes, still
@@ -2380,5 +2418,189 @@ mod tests {
             .map(|m| move_to_uci(*m))
             .collect();
         assert!(legal.contains(&move_to_uci(out.best_move)));
+    }
+
+    /// §N.9 via the ROOT move loop: a single quiet evasion that pushes
+    /// halfmove 99→100 is an intended fifty-move claim scored 0 at the root.
+    #[test]
+    fn root_intended_fifty_claim_edge_is_zero() {
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(1),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos.clone(), &limits, &ctx).expect("outcome");
+        // The e1d1 edge is exactly 0 (intended fifty-move claim), so the root
+        // reports score 0 for that edge.
+        assert_eq!(out.score, Some(0), "root e1d1 intended-claim edge is 0");
+        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+            .iter()
+            .map(|m| move_to_uci(*m))
+            .collect();
+        assert!(legal.contains(&move_to_uci(out.best_move)));
+    }
+
+    /// §N.9 via QSEARCH: the e1d1 quiet evasion reaches quiescence, is an
+    /// intended fifty-move claim, scores 0, and leaves the position restored.
+    #[test]
+    fn qsearch_intended_fifty_claim_edge_is_zero() {
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = quiescence_impl(
+            &mut p,
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(score, 0, "qsearch e1d1 intended-claim edge is 0");
+        assert_eq!(to_fen(&p), before_fen, "position restored");
+        assert_eq!(p.zobrist_key(), before_key, "key restored");
+    }
+
+    /// §N.9 via final-evasion: `search_final_evasion_ply` scores the e1d1
+    /// evasion as 0 (intended claim) and restores the position.
+    #[test]
+    fn final_evasion_intended_fifty_claim_is_zero() {
+        let pos = parse_fen("8/8/8/8/8/4k2b/4r3/4K3 w - - 99 50").unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+        let legal = generate_legal_moves(&mut p);
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = search_final_evasion_ply(
+            &mut p,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &legal,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert_eq!(score, 0, "final-evasion e1d1 intended-claim edge is 0");
+        assert_eq!(to_fen(&p), before_fen, "position restored");
+        assert_eq!(p.zobrist_key(), before_key, "key restored");
+    }
+
+    /// §N.12(b) qsearch: a child probe that succeeds (Continue) but whose
+    /// deeper entered qsearch recursion aborts at a grandchild must restore
+    /// the board + path at THIS edge.
+    #[test]
+    fn qsearch_deeper_abort_restores_state() {
+        // A queen capture exists; the root qsearch enters and makes the
+        // capture (consuming the only budgeted node), then the child qsearch
+        // recursion is denied -> deeper abort AFTER a real push.
+        let fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let mut p = pos;
+        let before_fen = to_fen(&p);
+        let before_key = p.zobrist_key();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            nodes: Some(1),
+            ..Default::default()
+        };
+        let r = quiescence_impl(
+            &mut p,
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        );
+        assert!(r.is_none(), "qsearch deeper abort must propagate None");
+        assert_eq!(
+            path.len(),
+            root_len,
+            "path restored after qsearch deeper abort"
+        );
+        assert_eq!(
+            path.keys(),
+            &[before_key],
+            "path equals root key after qsearch deeper abort"
+        );
+        assert_eq!(to_fen(&p), before_fen, "position restored");
+        assert_eq!(p.zobrist_key(), before_key, "key restored");
+    }
+
+    /// White-box `root_search` with a claimable root where the only searched
+    /// move RESETS the halfmove clock (so it is NOT an intended claim and its
+    /// search value is negative). The root claim floor must hold: the
+    /// completed iteration reports score 0, the stable fallback, empty PV.
+    #[test]
+    fn root_claim_floor_holds_when_all_moves_reset_halfmove() {
+        // White to move at halfmove 100, with a pawn move available. The pawn
+        // move resets halfmove to 0 (not an intended claim) and is losing for
+        // White (Black is up a queen). `root_claimable` should keep the root
+        // value at 0.
+        let fen = "4k3/3q4/8/8/8/8/4P3/K7 w - - 100 50";
+        let pos = parse_fen(fen).unwrap();
+        let mut p = pos;
+
+        // Verify the chosen move resets the halfmove clock.
+        let pm = find_move(&p, "e2e4");
+        let undo = p.make_move(pm);
+        assert_eq!(
+            p.halfmove_clock(),
+            0,
+            "pawn move must reset the halfmove clock (not an intended claim)"
+        );
+        p.unmake_move(undo);
+
+        // Control the root move list to ONLY the pawn move, so the search
+        // cannot fall back on an intended-claim edge.
+        let root_moves = vec![pm];
+        let fallback = pm;
+        let mut path = SearchPath::new(vec![p.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..Default::default()
+        };
+        let iter = root_search(
+            &mut p,
+            2,
+            &root_moves,
+            true, // root_claimable
+            fallback,
+            &ctx,
+            &limits,
+            &mut path,
+        )
+        .expect("completed iteration");
+        assert_eq!(iter.score, 0, "root claim floor holds at 0");
+        assert_eq!(
+            iter.best_move, fallback,
+            "claim placeholder is the stable fallback"
+        );
+        assert!(iter.pv.is_empty(), "claim placeholder PV is empty");
     }
 }
