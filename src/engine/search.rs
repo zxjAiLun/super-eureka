@@ -35,6 +35,7 @@ use crate::engine::draw::{
 };
 use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
+use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
 pub const MATE: i32 = 1_000_000;
 
@@ -339,6 +340,152 @@ fn repetition_token(key: ZobristKey, count: usize) -> u64 {
     z
 }
 
+// ---------------------------------------------------------------------------
+// M3.2: transposition-table integration helpers (private to this module).
+// ---------------------------------------------------------------------------
+
+/// Result of probing the TT for one search node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SearchTtProbe {
+    /// A real score the node can return immediately (the TT entry's bound
+    /// is satisfied by the current window). `None` means no cut-off.
+    cutoff: Option<i32>,
+    /// The entry's stored best move, used only for move ordering. `None`
+    /// when the entry has no move or the probe is a miss / decode failure.
+    hash_move: Option<Move>,
+}
+
+/// Build the context-safe TT key for the CURRENT position. The repetition
+/// signature comes from the full [`SearchPath`], so two identical boards with
+/// different repetition context get different keys.
+fn current_tt_key(pos: &Position, path: &SearchPath) -> TtKey {
+    debug_assert_eq!(path.last(), Some(&pos.zobrist_key()));
+    TtKey::new(
+        pos.zobrist_key(),
+        pos.halfmove_clock(),
+        path.repetition_signature(),
+    )
+}
+
+/// Probe the TT for one search node and decide a cut-off.
+///
+/// All call sites must use this single helper (never hand-assemble a key).
+/// Returns the decoded score cut-off only when the entry's bound actually
+/// closes the current window — fail-soft semantics are preserved: we return
+/// the *real* stored bound score, never a raw alpha/beta.
+fn probe_tt_for_search(
+    tt: &TranspositionTable,
+    key: TtKey,
+    requested_depth: u32,
+    ply: u32,
+    effective_alpha: i32,
+    beta: i32,
+) -> SearchTtProbe {
+    let Some(entry) = tt.probe(key) else {
+        return SearchTtProbe {
+            cutoff: None,
+            hash_move: None,
+        };
+    };
+
+    // Full-key mismatch is already a miss (handled by `tt.probe`). A decode
+    // failure (mate score at an unsupported ply) means we cannot trust the
+    // score: treat the ENTIRE entry as a miss — no cut-off AND no hash move.
+    let Some(decoded) = score_from_tt(entry.score, ply) else {
+        return SearchTtProbe {
+            cutoff: None,
+            hash_move: None,
+        };
+    };
+
+    // Shallower entry: a real miss for cut-off purposes, but its stored move
+    // (if any) is still useful for ordering.
+    if entry.depth < requested_depth {
+        return SearchTtProbe {
+            cutoff: None,
+            hash_move: entry.best_move,
+        };
+    }
+
+    let cutoff = match entry.bound {
+        Bound::Exact => Some(decoded),
+        Bound::Lower => {
+            if decoded >= beta {
+                Some(decoded)
+            } else {
+                None
+            }
+        }
+        Bound::Upper => {
+            if decoded <= effective_alpha {
+                Some(decoded)
+            } else {
+                None
+            }
+        }
+    };
+
+    SearchTtProbe {
+        cutoff,
+        hash_move: entry.best_move,
+    }
+}
+
+/// Classify a stored score into a TT bound relative to the *caller's* window
+/// (saved BEFORE any draw floor raised alpha). This is the inverse of the
+/// probe: an Exact entry was exact, a Lower entry failed high, an Upper
+/// entry failed low.
+fn classify_tt_bound(score: i32, caller_alpha: i32, caller_beta: i32) -> Bound {
+    if score <= caller_alpha {
+        Bound::Upper
+    } else if score >= caller_beta {
+        Bound::Lower
+    } else {
+        Bound::Exact
+    }
+}
+
+/// Store a node's result, skipping the write only when the score cannot be
+/// encoded (a mate score at a ply beyond the codec's range). Never panics
+/// on an un-encodable score.
+fn store_tt_score(
+    tt: &mut TranspositionTable,
+    key: TtKey,
+    depth: u32,
+    score: i32,
+    ply: u32,
+    bound: Bound,
+    best_move: Option<Move>,
+) {
+    if let Some(encoded) = score_to_tt(score, ply) {
+        tt.store(TTEntry {
+            key,
+            depth,
+            score: encoded,
+            bound,
+            best_move,
+        });
+    }
+}
+
+/// Reorder `moves` so the TT hash move (if legal and present) sits at index
+/// 0, while every other move keeps its existing MVV-LVA relative order.
+/// Never drops, duplicates, or reorders around the hash move; an illegal /
+/// absent hash move is ignored (no panic).
+fn order_moves_with_hash(pos: &Position, moves: &mut [Move], hash_move: Option<Move>) {
+    // First the existing stable MVV-LVA order.
+    order_moves(pos, moves);
+    // Then lift the hash move to the front, preserving the relative order of
+    // the remaining moves via a single right rotation over [0..=idx].
+    if let Some(hm) = hash_move {
+        if let Some(idx) = moves.iter().position(|&m| m == hm) {
+            if idx != 0 {
+                moves[..=idx].rotate_right(1);
+            }
+        }
+    }
+}
+
 /// The search's own view of the Zobrist-key history during a search.
 ///
 /// Seeded from the caller's real UCI `GameState` history (via
@@ -571,8 +718,10 @@ pub fn negamax(
     // (keeping the private impl one shape) but knows nothing before root.
     let mut path = SearchPath::new(vec![pos.zobrist_key()]);
     let root_len = path.len();
+    // Public entry is TT-disabled: it builds its own throwaway table.
+    let mut tt = TranspositionTable::disabled();
     let r = negamax_impl(
-        pos, depth, ply, alpha, beta, ctx, limits, &mut pv, &mut path,
+        pos, depth, ply, alpha, beta, ctx, limits, &mut pv, &mut path, &mut tt,
     );
     path.restore_root(root_len);
     r
@@ -594,12 +743,13 @@ fn negamax_impl(
     limits: &SearchLimits,
     pv: &mut PvTable,
     path: &mut SearchPath,
+    tt: &mut TranspositionTable,
 ) -> Option<i32> {
     // Acquire the right to search this node *before* touching the board.
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    negamax_entered_impl(pos, depth, ply, alpha, beta, ctx, limits, pv, path)
+    negamax_entered_impl(pos, depth, ply, alpha, beta, ctx, limits, pv, path, tt)
 }
 
 /// The negamax body, for a node the caller has ALREADY counted. Threads a
@@ -624,6 +774,7 @@ fn negamax_entered_impl(
     limits: &SearchLimits,
     pv: &mut PvTable,
     path: &mut SearchPath,
+    tt: &mut TranspositionTable,
 ) -> Option<i32> {
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
@@ -641,6 +792,12 @@ fn negamax_entered_impl(
     // takes precedence. C2: the fifty-move claim is a 0-score FLOOR, not a
     // forced terminal — a node with a winning move still returns the win.
     let mut best = i32::MIN + 1000;
+    // Save the caller's window BEFORE the draw floor may raise alpha. The
+    // bound we STORE later uses this original window, not the raised one
+    // (a claim floor that lifts alpha to 0 must not turn a true Exact
+    // score of 0 into a spurious Upper bound).
+    let caller_alpha = alpha;
+    let caller_beta = beta;
     if let Some(reason) = classify_draw(pos, path.keys()) {
         match reason {
             DrawReason::InsufficientMaterial => return Some(0), // automatic
@@ -655,17 +812,40 @@ fn negamax_entered_impl(
         }
     }
 
-    if depth == 0 {
-        // Leaf: hand off to quiescence. THIS node was already counted by the
-        // entry above, so we call the `_entered` variant, which does NOT
-        // re-count it. The same PV table is passed down.
-        return quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv, path);
+    // M3.2: build the context-safe TT key and probe. The probe runs
+    // AFTER try_enter_node already counted this node, and AFTER terminal /
+    // draw precedence — so every TT hit or cut-off still consumes exactly
+    // one real node. On a cut-off we return the decoded score and leave
+    // the (already-cleared) PV row empty.
+    let key = current_tt_key(pos, path);
+    let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
+    if let Some(cutoff) = tt_probe.cutoff {
+        return Some(cutoff);
     }
 
-    // M2.2: try the most forcing moves first so alpha-beta cutoffs fire
-    // earlier. Pure reorder — no move is dropped.
-    order_moves(pos, &mut moves);
+    if depth == 0 {
+        // Leaf: hand off to quiescence (already counted). On a real return,
+        // store a depth-0 entry under the caller window; on abort propagate
+        // None WITHOUT storing (the partial node must not be cached).
+        return match quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv, path) {
+            Some(s) => {
+                let bound = classify_tt_bound(s, caller_alpha, caller_beta);
+                // The qsearch PV row start (if any) is the real best-capture
+                // move; stand-pat / claim floor / empty PV -> None.
+                let best_move = pv.lines[ply as usize].first().copied();
+                store_tt_score(tt, key, 0, s, ply, bound, best_move);
+                Some(s)
+            }
+            None => None,
+        };
+    }
 
+    // M2.2 + M3.2: stable MVV-LVA order, then lift the TT hash move
+    // (if legal and present) to index 0 without disturbing the relative
+    // order of the other moves.
+    order_moves_with_hash(pos, &mut moves, tt_probe.hash_move);
+
+    let mut node_best_move: Option<Move> = None;
     for m in moves {
         let undo = pos.make_move(m);
         path.push_child(pos);
@@ -698,6 +878,7 @@ fn negamax_entered_impl(
                     limits,
                     pv,
                     path,
+                    tt,
                 ) {
                     Some(s) => -s,
                     None => {
@@ -716,6 +897,7 @@ fn negamax_entered_impl(
         // move (which is the best we have) is captured.
         if score > best {
             best = score;
+            node_best_move = Some(m);
             pv.set_from_child(ply, m);
         }
         if best > alpha {
@@ -725,6 +907,12 @@ fn negamax_entered_impl(
             break; // beta cutoff
         }
     }
+
+    // Completed the whole node (or hit a normal beta cutoff). Store one entry
+    // under the caller window; a deeper abort never reaches here, so no
+    // partial node is ever cached.
+    let bound = classify_tt_bound(best, caller_alpha, caller_beta);
+    store_tt_score(tt, key, depth, best, ply, bound, node_best_move);
     Some(best)
 }
 
@@ -1140,12 +1328,13 @@ fn score_to_uci(score: i32) -> String {
 fn root_search(
     pos: &mut Position,
     depth: u32,
-    root_moves: &[Move],
+    root_moves: &mut [Move],
     root_claimable: bool,
     claim_fallback: Move,
     ctx: &SearchContext,
     limits: &SearchLimits,
     path: &mut SearchPath,
+    tt: &mut TranspositionTable,
 ) -> Option<RootIteration> {
     // A claimable root (the side to move may claim right now) has a 0 floor:
     // the root value can never drop below 0, because the mover need not move.
@@ -1167,7 +1356,26 @@ fn root_search(
         .expect("PV table size overflow");
     pv.ensure_rows(rows);
 
-    for &m in root_moves {
+    // M3.2: probe the root entry for hash-move ordering ONLY. We never
+    // use the stored root score here (iterative deepening must run every
+    // depth), so the cut-off field is deliberately ignored. A legal stored
+    // move is lifted to the front — but we deliberately do NOT apply the
+    // full MVV-LVA `order_moves` pass at the root. The disabled path must
+    // keep the exact root move order (and therefore the exact node count)
+    // of the pre-TT search, and MVV-LVA reordering at the root would
+    // change both. So this is a pure hash-move lift, identical to
+    // `order_moves_with_hash` minus its `order_moves` pre-pass.
+    let root_key = current_tt_key(pos, path);
+    let root_probe = probe_tt_for_search(tt, root_key, depth, 0, alpha, beta);
+    if let Some(hm) = root_probe.hash_move {
+        if let Some(idx) = root_moves.iter().position(|&m| m == hm) {
+            if idx != 0 {
+                root_moves[..=idx].rotate_right(1);
+            }
+        }
+    }
+
+    for &mut m in root_moves {
         let undo = pos.make_move(m);
         path.push_child(pos);
 
@@ -1199,6 +1407,7 @@ fn root_search(
                     limits,
                     &mut pv,
                     path,
+                    tt,
                 ) {
                     Some(s) => Some(-s),
                     None => {
@@ -1234,6 +1443,9 @@ fn root_search(
     // placeholder, NOT a found 0-score line), empty PV. best_move stays None
     // so this branch fires instead of the `best_move.map` below.
     if root_claimable && best_move.is_none() {
+        // M3.2: cache the claim placeholder (Exact, no best move).
+        let root_key = current_tt_key(pos, path);
+        store_tt_score(tt, root_key, depth, 0, 0, Bound::Exact, None);
         return Some(RootIteration {
             score: 0,
             best_move: claim_fallback,
@@ -1241,10 +1453,23 @@ fn root_search(
         });
     }
 
-    best_move.map(|bm| RootIteration {
-        score: best_score,
-        best_move: bm,
-        pv: std::mem::take(&mut pv.lines[0]),
+    best_move.map(|bm| {
+        // M3.2: cache the completed iteration. Bound is always Exact for
+        // a fully searched root; best_move follows PV reality (a non-empty
+        // PV carries the real move, an empty PV — the claim placeholder —
+        // carries None).
+        let root_key = current_tt_key(pos, path);
+        let store_move = if pv.lines[0].is_empty() {
+            None
+        } else {
+            Some(bm)
+        };
+        store_tt_score(tt, root_key, depth, best_score, 0, Bound::Exact, store_move);
+        RootIteration {
+            score: best_score,
+            best_move: bm,
+            pv: std::mem::take(&mut pv.lines[0]),
+        }
     })
 }
 
@@ -1267,7 +1492,9 @@ fn root_search(
 /// Public entry (unchanged signature). Builds a single-root history so
 /// the search still threads a `SearchPath`, then delegates to the
 /// history-aware implementation. Existing callers (and their tests)
-/// keep compiling.
+/// keep compiling. TT is DISABLED here — the public API and the UCI
+/// production path stay TT-disabled until the dedicated UCI Hash option
+/// lands in a later stage.
 pub fn search_best_move(
     pos: &mut Position,
     limits: &SearchLimits,
@@ -1275,7 +1502,8 @@ pub fn search_best_move(
 ) -> Option<SearchOutcome> {
     let mut path = SearchPath::new(vec![pos.zobrist_key()]);
     let root_len = path.len();
-    let r = search_best_move_impl(pos, limits, ctx, &mut path);
+    let mut tt = TranspositionTable::disabled();
+    let r = search_best_move_impl(pos, limits, ctx, &mut path, &mut tt);
     path.restore_root(root_len);
     r
 }
@@ -1283,7 +1511,7 @@ pub fn search_best_move(
 /// History-aware entry used by the UCI layer, which passes the real
 /// `GameState` key history. The search extends this with its own
 /// `SearchPath` (cloned from `game_history`) but never mutates the
-/// caller's `GameState`.
+/// caller's `GameState`. TT is DISABLED — see [`search_best_move`].
 ///
 /// Contract (debug-checked): `game_history` is non-empty and its last
 /// element equals the current position's Zobrist key.
@@ -1302,7 +1530,31 @@ pub(crate) fn search_best_move_with_history(
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
-    let r = search_best_move_impl(pos, limits, ctx, &mut path);
+    let mut tt = TranspositionTable::disabled();
+    let r = search_best_move_impl(pos, limits, ctx, &mut path, &mut tt);
+    path.restore_root(root_len);
+    r
+}
+
+/// History-aware, TT-aware entry. This is the ONLY new public/crate
+/// search entry added by the M3.2 integration: it accepts a caller-owned
+/// `TranspositionTable` so the next stage's UCI Hash option can wire a
+/// persistent table in. This commit does NOT call it (UCI stays
+/// TT-disabled); it exists so the next stage has a clean seam.
+#[allow(dead_code)] // called by the next stage (UCI Hash option), not this commit
+pub(crate) fn search_best_move_with_history_and_tt(
+    pos: &mut Position,
+    game_history: &[ZobristKey],
+    limits: &SearchLimits,
+    ctx: &SearchContext,
+    tt: &mut TranspositionTable,
+) -> Option<SearchOutcome> {
+    debug_assert!(!game_history.is_empty());
+    debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
+    debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
+    let mut path = SearchPath::new(game_history.to_vec());
+    let root_len = path.len();
+    let r = search_best_move_impl(pos, limits, ctx, &mut path, tt);
     path.restore_root(root_len);
     r
 }
@@ -1316,6 +1568,7 @@ fn search_best_move_impl(
     limits: &SearchLimits,
     ctx: &SearchContext,
     path: &mut SearchPath,
+    tt: &mut TranspositionTable,
 ) -> Option<SearchOutcome> {
     let mut root_moves = generate_legal_moves(pos);
     if root_moves.is_empty() {
@@ -1371,12 +1624,13 @@ fn search_best_move_impl(
         match root_search(
             pos,
             depth,
-            &root_moves,
+            &mut root_moves,
             root_claimable,
             fallback,
             ctx,
             limits,
             path,
+            tt,
         ) {
             Some(iter) => {
                 let RootIteration {
@@ -1699,6 +1953,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -1766,7 +2021,13 @@ mod tests {
         let mut path = SearchPath::new(history.clone());
         let root_len = path.len();
 
-        let out = search_best_move_impl(&mut p, &limits, ctx, &mut path);
+        let out = search_best_move_impl(
+            &mut p,
+            &limits,
+            ctx,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+        );
 
         // Root length restored on every exit.
         assert_eq!(path.len(), root_len, "SearchPath root length not restored");
@@ -2125,6 +2386,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2182,6 +2444,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2314,6 +2577,7 @@ mod tests {
                     &limits,
                     &mut pv,
                     &mut path,
+                    &mut TranspositionTable::disabled(),
                 )
                 .expect("not stopped");
                 -s
@@ -2371,6 +2635,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2400,6 +2665,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2431,6 +2697,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2462,6 +2729,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2537,6 +2805,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         );
         assert!(r.is_none(), "deeper abort must propagate None");
         assert_eq!(path.len(), root_len, "path restored after deeper abort");
@@ -2747,6 +3016,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2779,6 +3049,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2824,6 +3095,7 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path.restore_root(root_len);
@@ -2947,12 +3219,13 @@ mod tests {
         let iter = root_search(
             &mut pos.clone(),
             2,
-            &[m],
+            &mut [m],
             false, // parent is NOT itself a claim
             m,     // fallback (also g1f3 here)
             &ctx,
             &limits,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("completed iteration");
         path.restore_root(3);
@@ -3035,6 +3308,7 @@ mod tests {
             &limits2,
             &mut pv2,
             &mut path2,
+            &mut TranspositionTable::disabled(),
         )
         .expect("not stopped");
         path2.restore_root(root_len);
@@ -3232,7 +3506,7 @@ mod tests {
 
         // Control the root move list to ONLY the pawn move, so the search
         // cannot fall back on an intended-claim edge.
-        let root_moves = vec![pm];
+        let mut root_moves = vec![pm];
         let fallback = pm;
         let mut path = SearchPath::new(vec![p.zobrist_key()]);
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
@@ -3243,12 +3517,13 @@ mod tests {
         let iter = root_search(
             &mut p,
             2,
-            &root_moves,
+            &mut root_moves,
             true, // root_claimable
             fallback,
             &ctx,
             &limits,
             &mut path,
+            &mut TranspositionTable::disabled(),
         )
         .expect("completed iteration");
         assert_eq!(iter.score, 0, "root claim floor holds at 0");
@@ -3559,5 +3834,657 @@ mod tests {
     fn search_path_restore_beyond_current_panics() {
         let mut path = SearchPath::new(vec![10u64, 20, 30]); // len 3
         path.restore_root(4); // 4 > 3 -> panic
+    }
+
+    // =========================================================================
+    // M3.2 C2 — Transposition-table integration tests (spec §14 / §15 / §16)
+    // All TT / search symbols are already in scope via `use super::*`.
+
+    /// Fixed-depth search through the crate-private TT-aware entry. Returns
+    /// `(outcome, node count)`. Sharing the same `tt` lets a caller drive a
+    /// cold-then-warm sequence.
+    fn run_tt(fen: &str, depth: u32, tt: &mut TranspositionTable) -> (Option<SearchOutcome>, u64) {
+        let pos = parse_fen(fen).unwrap();
+        run_tt_hist(fen, depth, &[pos.zobrist_key()], tt)
+    }
+
+    fn run_tt_hist(
+        fen: &str,
+        depth: u32,
+        history: &[ZobristKey],
+        tt: &mut TranspositionTable,
+    ) -> (Option<SearchOutcome>, u64) {
+        let mut pos = parse_fen(fen).unwrap();
+        let hist = history.to_vec();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let out = search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, tt);
+        (out, ctx.nodes.load(Ordering::Relaxed))
+    }
+
+    /// Every move in `pv` must be legal in sequence from `fen`.
+    fn pv_is_legal(fen: &str, pv: &[Move]) -> bool {
+        let mut pos = parse_fen(fen).unwrap();
+        for &m in pv {
+            let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+                .into_iter()
+                .map(move_to_uci)
+                .collect();
+            if !legal.contains(&move_to_uci(m)) {
+                return false;
+            }
+            pos.make_move(m);
+        }
+        true
+    }
+
+    // ---- §14: bound classifier ------------------------------------------------
+
+    #[test]
+    fn tt_classify_bound_windows() {
+        assert_eq!(classify_tt_bound(-10, -10, 10), Bound::Upper);
+        assert_eq!(classify_tt_bound(10, -10, 10), Bound::Lower);
+        assert_eq!(classify_tt_bound(0, -10, 10), Bound::Exact);
+        assert_eq!(classify_tt_bound(-9, -10, 10), Bound::Exact);
+        assert_eq!(classify_tt_bound(9, -10, 10), Bound::Exact);
+    }
+
+    // ---- §14: probe / bound semantics -----------------------------------------
+
+    #[test]
+    fn tt_probe_sufficient_depth_exact_lower_upper() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = TtKey::new(pos.zobrist_key(), pos.halfmove_clock(), 0u64);
+
+        // Fresh table per case: the same-key replacement rule must NOT mix
+        // an Exact entry with a subsequent Lower/Upper at equal depth.
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(42, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        let p = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(p.cutoff, Some(42), "Exact sufficient-depth must cut off");
+        assert_eq!(p.hash_move, None);
+
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(100, 0).unwrap(),
+            bound: Bound::Lower,
+            best_move: None,
+        });
+        let lo_cut = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, 50);
+        assert_eq!(
+            lo_cut.cutoff,
+            Some(100),
+            "Lower decoded(100) >= beta(50) cuts off"
+        );
+        let lo_no = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, 200);
+        assert_eq!(
+            lo_no.cutoff, None,
+            "Lower decoded(100) < beta(200) does not cut off"
+        );
+
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(-100, 0).unwrap(),
+            bound: Bound::Upper,
+            best_move: None,
+        });
+        let up_cut = probe_tt_for_search(&tt, key, 3, 0, -50, i32::MAX - 1000);
+        assert_eq!(
+            up_cut.cutoff,
+            Some(-100),
+            "Upper decoded(-100) <= alpha(-50) cuts off"
+        );
+        let up_no = probe_tt_for_search(&tt, key, 3, 0, -200, i32::MAX - 1000);
+        assert_eq!(
+            up_no.cutoff, None,
+            "Upper decoded(-100) > alpha(-200) does not cut off"
+        );
+    }
+
+    #[test]
+    fn tt_probe_insufficient_depth_keeps_hash_move() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = TtKey::new(pos.zobrist_key(), pos.halfmove_clock(), 0u64);
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        let hm = find_move(&pos, "b1c3");
+        tt.store(TTEntry {
+            key,
+            depth: 2,
+            score: score_to_tt(42, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: Some(hm),
+        });
+        let p = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(p.cutoff, None, "shallower entry must not cut off");
+        assert_eq!(
+            p.hash_move,
+            Some(hm),
+            "shallower entry still yields its move"
+        );
+    }
+
+    #[test]
+    fn tt_probe_miss_empty_table() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = TtKey::new(pos.zobrist_key(), pos.halfmove_clock(), 0u64);
+        let tt = TranspositionTable::disabled();
+        let p = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(p.cutoff, None);
+        assert_eq!(p.hash_move, None);
+    }
+
+    #[test]
+    fn tt_probe_decode_failure_is_full_miss() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = TtKey::new(pos.zobrist_key(), pos.halfmove_clock(), 0u64);
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(42, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: Some(find_move(&pos, "b1c3")),
+        });
+        // A ply beyond MAX_MATE_PLY makes score_from_tt return None -> the
+        // ENTIRE entry is a miss (no cut-off AND no hash move).
+        let p = probe_tt_for_search(&tt, key, 3, 1000, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(p.cutoff, None, "decode failure -> no cut-off");
+        assert_eq!(p.hash_move, None, "decode failure -> no hash move");
+    }
+
+    // ---- §14: context isolation ------------------------------------------------
+
+    #[test]
+    fn tt_context_isolation_misses_other_context() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let zk = pos.zobrist_key();
+        let key_real = TtKey::new(zk, 0, 0u64);
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key: key_real,
+            depth: 5,
+            score: score_to_tt(777_777, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        let hit = probe_tt_for_search(
+            &tt,
+            TtKey::new(zk, 0, 0u64),
+            3,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+        );
+        assert_eq!(hit.cutoff, Some(777_777), "identical context must hit");
+        let miss_hm = probe_tt_for_search(
+            &tt,
+            TtKey::new(zk, 1, 0u64),
+            3,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+        );
+        assert_eq!(miss_hm.cutoff, None, "different halfmove_clock must miss");
+        let miss_rep = probe_tt_for_search(
+            &tt,
+            TtKey::new(zk, 0, 0xFFu64),
+            3,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+        );
+        assert_eq!(
+            miss_rep.cutoff, None,
+            "different repetition_signature must miss"
+        );
+    }
+
+    // ---- §14: hash-move ordering ----------------------------------------------
+
+    #[test]
+    fn tt_order_moves_with_hash_lifts_legal_move() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut legal = generate_legal_moves(&mut pos.clone());
+        let count = legal.len();
+        let before: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
+        let hm = find_move(&pos, "g1f3");
+        let idx_before = legal.iter().position(|m| *m == hm).unwrap();
+        order_moves_with_hash(&pos, &mut legal, Some(hm));
+        assert_eq!(legal[0], hm, "hash move lifted to front");
+        assert_eq!(legal.len(), count, "count unchanged");
+        let after: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
+        assert_eq!(after, before, "set unchanged");
+        let mut rotated = generate_legal_moves(&mut pos.clone());
+        order_moves(&pos, &mut rotated);
+        rotated[..=idx_before].rotate_right(1);
+        assert_eq!(legal, rotated, "remaining order is a single rotation");
+        let mut top = generate_legal_moves(&mut pos.clone());
+        order_moves(&pos, &mut top);
+        let first = top[0];
+        order_moves_with_hash(&pos, &mut top, Some(first));
+        assert_eq!(top[0], first, "move already at 0 stays at 0");
+    }
+
+    #[test]
+    fn tt_order_moves_with_hash_ignores_illegal_and_none() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let other = parse_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
+        let illegal = find_move(&other, "a1a4"); // illegal on the startpos
+        let mut a = generate_legal_moves(&mut pos.clone());
+        let snap_a = a.clone();
+        order_moves_with_hash(&pos, &mut a, Some(illegal));
+        assert_eq!(a, snap_a, "illegal hash move leaves ordering untouched");
+        let mut b = generate_legal_moves(&mut pos.clone());
+        let snap_b = b.clone();
+        order_moves_with_hash(&pos, &mut b, None);
+        assert_eq!(b, snap_b, "None hash move leaves ordering untouched");
+    }
+
+    // ---- §14: claim-floor storage (root) -------------------------------------
+
+    #[test]
+    fn tt_root_claim_floor_stores_exact_zero_no_move() {
+        let fen = "4k3/pppppppp/8/8/8/8/8/4K3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let key = pos.zobrist_key();
+        let history = vec![key, key, key];
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        let (out, _) = run_tt_hist(fen, 3, &history, &mut tt);
+        let out = out.expect("outcome");
+        assert_eq!(out.score, Some(0), "claim floor holds root at 0");
+        assert!(out.pv.is_empty(), "claim placeholder PV is empty");
+        let root_key = current_tt_key(&pos, &SearchPath::new(history.clone()));
+        let e = tt.probe(root_key).expect("root entry stored");
+        assert_eq!(
+            e.bound,
+            Bound::Exact,
+            "claim-floor root stored Exact, not Upper"
+        );
+        assert_eq!(
+            e.score,
+            score_to_tt(0, 0).unwrap(),
+            "stored score decodes to 0"
+        );
+        assert_eq!(e.best_move, None, "claim-floor root stores no best move");
+    }
+
+    #[test]
+    fn tt_root_win_stores_exact_with_move() {
+        let fen = "7k/8/6K1/6Q1/8/8/8/8 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let history = vec![pos.zobrist_key()];
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        let (out, _) = run_tt_hist(fen, 2, &history, &mut tt);
+        let out = out.expect("outcome");
+        assert!(out.score.unwrap() > 0, "winning side finds the mate");
+        assert!(!out.pv.is_empty(), "winning root has a non-empty PV");
+        let root_key = current_tt_key(&pos, &SearchPath::new(history.clone()));
+        let e = tt.probe(root_key).expect("root entry stored");
+        assert_eq!(e.bound, Bound::Exact);
+        assert!(e.best_move.is_some(), "winning root stores the mate move");
+        assert_eq!(
+            e.best_move.unwrap(),
+            out.best_move,
+            "stored move matches best"
+        );
+    }
+
+    #[test]
+    fn tt_root_intended_claim_edge_stores_move() {
+        // The root itself is NOT a claim, but playing g1f3 creates the
+        // third occurrence of `child_key` (history already holds it twice),
+        // so the resulting child is an IntendedClaim (score 0). Constrain the
+        // root move list to [g1f3] so this edge is forced and verified.
+        let pos = parse_fen(START_FEN).unwrap();
+        let parent_key = pos.zobrist_key();
+        let m = find_move(&pos, "g1f3");
+        let mut child = pos;
+        child.make_move(m);
+        let child_key = child.zobrist_key();
+        let history = vec![child_key, child_key, parent_key];
+        let mut path = SearchPath::new(history.clone());
+        let root_len = path.len();
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..Default::default()
+        };
+        let mut root_moves = vec![m];
+        let out = root_search(
+            &mut pos.clone(),
+            2,
+            &mut root_moves,
+            false,
+            m,
+            &ctx,
+            &limits,
+            &mut path,
+            &mut tt,
+        );
+        path.restore_root(root_len);
+        let out = out.expect("root iteration");
+        assert_eq!(out.score, 0, "intended-claim root edge scores 0");
+        assert_eq!(out.best_move, m, "best move is the intended claim");
+        assert_eq!(out.pv, vec![m], "PV is exactly [g1f3]");
+        let root_key = current_tt_key(&pos, &SearchPath::new(history.clone()));
+        let e = tt.probe(root_key).expect("root entry stored");
+        assert_eq!(e.bound, Bound::Exact);
+        assert_eq!(e.score, score_to_tt(0, 0).unwrap());
+        assert_eq!(e.best_move, Some(m), "root stores the intended-claim move");
+    }
+
+    // ---- §14: depth-0 / qsearch boundary -------------------------------------
+
+    #[test]
+    fn tt_depth0_qsearch_stores_entry() {
+        let pos = parse_fen("7k/4P3/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let root_len = path.len();
+        let mut pv = PvTable::default();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+            &mut tt,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(score > 0, "qsearch finds the promoting win");
+        let k = current_tt_key(&pos, &path);
+        let e = tt.probe(k).expect("depth-0 node stored");
+        assert_eq!(e.depth, 0, "depth-0 entry depth is 0 (never the qply)");
+        assert_eq!(e.bound, Bound::Exact);
+        assert!(
+            e.best_move.is_some(),
+            "qsearch PV start stored as best move"
+        );
+    }
+
+    // ---- §14: TT cut-off leaves the current PV row empty ----------------------
+
+    #[test]
+    fn tt_cutoff_leaves_pv_row_empty() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        // Store under the SAME key the search will probe (real repetition sig).
+        let key = current_tt_key(&pos, &path);
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        // Lower bound above beta forces a cut-off at this node.
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(50, 0).unwrap(),
+            bound: Bound::Lower,
+            best_move: None,
+        });
+        let mut pv = PvTable::default();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let out = negamax_impl(
+            &mut pos.clone(),
+            3,
+            0,
+            -1000,
+            0,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+            &mut tt,
+        );
+        assert_eq!(out, Some(50), "TT Lower cut-off returns the decoded score");
+        assert!(
+            pv.lines[0].is_empty(),
+            "TT cut-off leaves the current PV row empty"
+        );
+    }
+
+    // ---- §14: abort must not store a partial entry ---------------------------
+
+    #[test]
+    fn tt_abort_does_not_store_partial_entry() {
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            nodes: Some(1),
+            ..Default::default()
+        };
+        let pos = parse_fen(START_FEN).unwrap();
+        let history = vec![pos.zobrist_key()];
+        let out = search_best_move_with_history_and_tt(
+            &mut pos.clone(),
+            &history,
+            &limits,
+            &ctx,
+            &mut tt,
+        );
+        match &out {
+            None => {}
+            Some(o) => assert!(o.stopped, "if an outcome is returned it must be stopped"),
+        }
+        let root_key = current_tt_key(&pos, &SearchPath::new(history.clone()));
+        assert!(
+            tt.probe(root_key).is_none(),
+            "aborted search must not cache a partial root entry"
+        );
+    }
+
+    // ---- §14: a stale (illegal-in-current-position) TT move is ignored -----
+
+    #[test]
+    fn tt_legal_stale_move_ignored() {
+        let other = parse_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
+        let stale = find_move(&other, "a1a4"); // illegal on the startpos
+        let (ref_out, _) = run_tt(START_FEN, 3, &mut TranspositionTable::disabled());
+        let ref_out = ref_out.expect("disabled outcome");
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = current_tt_key(&pos, &SearchPath::new(vec![pos.zobrist_key()]));
+        let mut tt = TranspositionTable::new_mb(2).unwrap();
+        tt.store(TTEntry {
+            key,
+            depth: 5,
+            score: score_to_tt(ref_out.score.unwrap(), 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: Some(stale),
+        });
+        let (out, _) = run_tt(START_FEN, 3, &mut tt);
+        let out = out.expect("enabled outcome with stale move");
+        assert_eq!(
+            out.score, ref_out.score,
+            "stale move must not change the score"
+        );
+        assert_eq!(
+            move_to_uci(out.best_move),
+            move_to_uci(ref_out.best_move),
+            "stale move must not change the best move"
+        );
+        assert!(
+            pv_is_legal(START_FEN, &out.pv),
+            "PV still legal despite stale TT move"
+        );
+        assert_eq!(out.completed_depth, ref_out.completed_depth);
+    }
+
+    // ---- §15: disabled exact regression ---------------------------------------
+
+    #[test]
+    fn tt_disabled_exact_baseline_startpos() {
+        // Canonical disabled path: the public `search_best_move` wrapper, which
+        // is exactly the production entry UCI uses today. This must reproduce
+        // the M2.4 fixed baselines measured in tests/m2_4.rs.
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed),
+            1149,
+            "disabled startpos d3 node count unchanged"
+        );
+        assert_eq!(move_to_uci(out.best_move), "b1c3");
+        assert_eq!(out.score, Some(50));
+        assert_eq!(
+            out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
+            vec!["b1c3".to_string(), "b8c6".to_string(), "g1f3".to_string()]
+        );
+    }
+
+    #[test]
+    fn tt_disabled_exact_baseline_queenwin() {
+        let fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+        let mut pos = parse_fen(fen).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed),
+            963,
+            "disabled queen-win d3 node count unchanged"
+        );
+        assert_eq!(move_to_uci(out.best_move), "e4a4");
+        assert_eq!(out.score, Some(890));
+        assert_eq!(
+            out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
+            vec![
+                "e4a4".to_string(),
+                "h4h3".to_string(),
+                "a4h4".to_string(),
+                "h8g8".to_string(),
+                "h4h3".to_string()
+            ]
+        );
+    }
+
+    // ---- §15: enabled cold ----------------------------------------------------
+
+    #[test]
+    fn tt_enabled_cold_startpos() {
+        let mut tt = TranspositionTable::new_mb(16).unwrap();
+        let (out, _) = run_tt(START_FEN, 3, &mut tt);
+        let out = out.expect("outcome");
+        assert_eq!(out.score, Some(50), "enabled cold keeps the exact score");
+        assert_eq!(
+            move_to_uci(out.best_move),
+            "b1c3",
+            "enabled cold keeps the baseline best move"
+        );
+        assert!(pv_is_legal(START_FEN, &out.pv), "enabled PV legal");
+        assert_eq!(out.pv.first().copied(), Some(out.best_move));
+    }
+
+    #[test]
+    fn tt_enabled_cold_queenwin() {
+        let fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+        let mut tt = TranspositionTable::new_mb(16).unwrap();
+        let (out, _) = run_tt(fen, 3, &mut tt);
+        let out = out.expect("outcome");
+        assert_eq!(out.score, Some(890));
+        assert_eq!(move_to_uci(out.best_move), "e4a4");
+        assert!(pv_is_legal(fen, &out.pv));
+        assert_eq!(out.pv.first().copied(), Some(out.best_move));
+    }
+
+    // ---- §15: enabled warm (transposition reuse) -----------------------------
+
+    #[test]
+    fn tt_enabled_warm_reuses_transpositions() {
+        let mut tt = TranspositionTable::new_mb(16).unwrap();
+        let (out1, n1) = run_tt(START_FEN, 4, &mut tt);
+        let out1 = out1.expect("cold outcome");
+        let (out2, n2) = run_tt(START_FEN, 4, &mut tt); // warm: same populated table
+        let out2 = out2.expect("warm outcome");
+        assert_eq!(out1.score, out2.score, "score stable cold->warm");
+        assert_eq!(out1.completed_depth, out2.completed_depth);
+        assert_eq!(
+            move_to_uci(out1.best_move),
+            move_to_uci(out2.best_move),
+            "best move stable"
+        );
+        assert!(n2 <= n1, "warm nodes ({}) must be <= cold ({})", n2, n1);
+        assert!(
+            n2 < n1,
+            "expected transposition savings at startpos d4: cold {} warm {}",
+            n1,
+            n2
+        );
+    }
+
+    // ---- §15: equal-score may pick a different (still legal) move ------------
+
+    #[test]
+    fn tt_enabled_disabled_same_score_legal_move() {
+        let disabled = run_tt(START_FEN, 3, &mut TranspositionTable::disabled())
+            .0
+            .expect("disabled");
+        let mut tt = TranspositionTable::new_mb(16).unwrap();
+        let enabled = run_tt(START_FEN, 3, &mut tt).0.expect("enabled");
+        assert_eq!(disabled.score, enabled.score, "score identical");
+        assert!(pv_is_legal(START_FEN, &disabled.pv));
+        assert!(pv_is_legal(START_FEN, &enabled.pv));
+        assert_eq!(move_to_uci(disabled.best_move), "b1c3");
+        let legal: BTreeSet<String> = generate_legal_moves(&mut parse_fen(START_FEN).unwrap())
+            .into_iter()
+            .map(move_to_uci)
+            .collect();
+        assert!(
+            legal.contains(&move_to_uci(enabled.best_move)),
+            "enabled best move is legal"
+        );
+    }
+
+    // ---- §16: recovery & rule regression ------------------------------------
+
+    #[test]
+    fn tt_enabled_restores_position_and_path() {
+        let fen = "7k/8/6K1/6Q1/8/8/8/8 w - - 0 1";
+        let before = parse_fen(fen).unwrap();
+        let before_fen = to_fen(&before);
+        let before_key = before.zobrist_key();
+        let history = vec![before_key];
+        let mut tt = TranspositionTable::new_mb(8).unwrap();
+        let mut pos = before;
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let out = search_best_move_with_history_and_tt(&mut pos, &history, &limits, &ctx, &mut tt);
+        assert!(out.is_some());
+        assert_eq!(to_fen(&pos), before_fen, "root position FEN restored");
+        assert_eq!(pos.zobrist_key(), before_key, "root Zobrist restored");
+        assert_eq!(
+            SearchPath::new(history.clone()).len(),
+            1,
+            "path base len equals input history"
+        );
     }
 }
