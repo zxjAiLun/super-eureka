@@ -282,12 +282,18 @@ enum ChildProbe {
 /// for this child), clears the child PV row, and classifies the child as
 /// terminal / intended-claim / normal-continue — exactly per spec §5.6.1.
 ///
+/// The caller MUST have already done `make_move` + `push_child` so `pos` is
+/// the child and `child_keys` is the full search line ending in the child's
+/// key. The intended-claim check (the PARENT mover's fifty-move or threefold
+/// claim on this move) reads that history.
+///
 /// It does NOT make/push/pop/unmake the move: the calling edge owns the
 /// `make_move` + `push_child` before the call and the `pop` + `unmake_move`
 /// after. A `None` return means the node budget / stop / deadline was
 /// exhausted and the caller must restore its own state and propagate `None`.
-fn probe_child_c2(
+fn probe_child_draw(
     pos: &mut Position,
+    child_keys: &[ZobristKey],
     child_ply: u32,
     parent_ply: u32,
     ctx: &SearchContext,
@@ -308,8 +314,9 @@ fn probe_child_c2(
             parent_ply,
         )));
     }
-    // Prospective (intended) fifty-move claim belongs to the PARENT mover.
-    if claim_available_by_intended_move(pos) {
+    // Prospective (intended) fifty-move OR threefold claim belongs to the
+    // PARENT mover, evaluated after the move on the extended search line.
+    if claim_available_by_intended_move(pos, child_keys) {
         return Some(ChildProbe::IntendedClaim);
     }
     Some(ChildProbe::Continue)
@@ -419,7 +426,7 @@ pub fn negamax(
 
 /// Private search entry. Acquires (counts) exactly one node, then hands off
 /// to the body ([`negamax_entered_impl`]). Every recursive child goes through
-/// [`probe_child_c2`] (which itself calls `try_enter_node` once) and recurses
+/// [`probe_child_draw`] (which itself calls `try_enter_node` once) and recurses
 /// into `negamax_entered_impl`, so node accounting stays in exactly one place
 /// per position — a child is never counted twice.
 #[allow(clippy::too_many_arguments)]
@@ -480,10 +487,10 @@ fn negamax_entered_impl(
     // takes precedence. C2: the fifty-move claim is a 0-score FLOOR, not a
     // forced terminal — a node with a winning move still returns the win.
     let mut best = i32::MIN + 1000;
-    if let Some(reason) = classify_draw(pos) {
+    if let Some(reason) = classify_draw(pos, path.keys()) {
         match reason {
             DrawReason::InsufficientMaterial => return Some(0), // automatic
-            DrawReason::FiftyMoveClaim => {
+            DrawReason::FiftyMoveClaim | DrawReason::ThreefoldClaim => {
                 if 0 >= beta {
                     return Some(beta);
                 }
@@ -510,7 +517,7 @@ fn negamax_entered_impl(
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_c2(pos, ply + 1, ply, ctx, limits, pv) {
+        let probe = match probe_child_draw(pos, path.keys(), ply + 1, ply, ctx, limits, pv) {
             Some(p) => p,
             None => {
                 path.pop();
@@ -751,10 +758,10 @@ fn quiescence_entered_impl(
     // forced terminal — qsearch must still find a winning capture, so we do
     // NOT return 0 here; we only apply the floor to alpha and continue with
     // the stand-pat / capture / evasion loop below.
-    if let Some(reason) = classify_draw(pos) {
+    if let Some(reason) = classify_draw(pos, path.keys()) {
         match reason {
             DrawReason::InsufficientMaterial => return Some(0), // automatic
-            DrawReason::FiftyMoveClaim => {
+            DrawReason::FiftyMoveClaim | DrawReason::ThreefoldClaim => {
                 if 0 >= beta {
                     return Some(beta);
                 }
@@ -801,7 +808,7 @@ fn quiescence_entered_impl(
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_c2(pos, ply + 1, ply, ctx, limits, pv) {
+        let probe = match probe_child_draw(pos, path.keys(), ply + 1, ply, ctx, limits, pv) {
             Some(p) => p,
             None => {
                 path.pop();
@@ -933,9 +940,11 @@ fn search_final_evasion_ply(
         let child_legal = generate_legal_moves(pos);
         let score = if child_legal.is_empty() {
             terminal_child_score_for_parent(child_in_check, ply)
-        } else if is_insufficient_material(pos) || claim_available_by_intended_move(pos) {
+        } else if is_insufficient_material(pos)
+            || claim_available_by_intended_move(pos, path.keys())
+        {
             // Draw: automatic dead position, or the mover's intended fifty-move
-            // claim on this evasion — both secure 0 (no real winning evasion).
+            // or threefold claim on this evasion — both secure 0 (no real win).
             0
         } else {
             -evaluate(pos)
@@ -1008,12 +1017,12 @@ fn root_search(
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_c2(pos, 1, 0, ctx, limits, &mut pv) {
+        let probe = match probe_child_draw(pos, path.keys(), 1, 0, ctx, limits, &mut pv) {
             Some(p) => p,
             None => {
                 path.pop();
                 pos.unmake_move(undo);
-                return None; // aborted (probe could not enter the child)
+                return None;
             }
         };
 
@@ -1162,11 +1171,11 @@ fn search_best_move_impl(
     let fallback = root_moves[0];
 
     // Root draw handling. The automatic insufficient-material draw is a
-    // direct return (score 0, stable fallback, empty PV). The fifty-move
-    // claim is a 0-score OPTION: it does NOT early-return — we still search
-    // for a winning move and only fall back to the claim if no real line
-    // beats 0 (see the `root_claimable` branch after the loop).
-    match classify_draw(pos) {
+    // direct return (score 0, stable fallback, empty PV). The fifty-move and
+    // threefold claims are 0-score OPTIONS: they do NOT early-return — we
+    // still search for a winning move and only fall back to the claim if no
+    // real line beats 0 (see the `root_claimable` branch after the loop).
+    match classify_draw(pos, path.keys()) {
         Some(DrawReason::InsufficientMaterial) => {
             return Some(SearchOutcome {
                 best_move: fallback,
@@ -1176,7 +1185,7 @@ fn search_best_move_impl(
                 pv: Vec::new(),
             });
         }
-        Some(DrawReason::FiftyMoveClaim) => {
+        Some(DrawReason::FiftyMoveClaim) | Some(DrawReason::ThreefoldClaim) => {
             // Continue the depth loop below; the claim floor is honoured by
             // `negamax_entered_impl` / `quiescence_entered_impl`. We only note
             // that the root itself is a claim so a pre-depth-1 abort can still
@@ -1184,7 +1193,10 @@ fn search_best_move_impl(
         }
         None => {}
     }
-    let root_claimable = matches!(classify_draw(pos), Some(DrawReason::FiftyMoveClaim));
+    let root_claimable = matches!(
+        classify_draw(pos, path.keys()),
+        Some(DrawReason::FiftyMoveClaim) | Some(DrawReason::ThreefoldClaim)
+    );
 
     // Best result of the last fully completed iteration.
     let mut completed: Option<RootIteration> = None;
@@ -1338,6 +1350,7 @@ mod tests {
     use crate::chess::movegen::generate_legal_moves;
     use crate::chess::types::START_FEN;
     use crate::chess::zobrist::recompute_zobrist;
+    use crate::engine::draw::is_threefold_repetition;
     use std::collections::BTreeSet;
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
@@ -2104,10 +2117,53 @@ mod tests {
     ) -> Option<ChildProbe> {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let r = probe_child_c2(pos, child_ply, parent_ply, ctx, limits, pv);
+        let r = probe_child_draw(pos, path.keys(), child_ply, parent_ply, ctx, limits, pv);
         path.pop();
         pos.unmake_move(undo);
         r
+    }
+
+    /// Drive exactly ONE root move `m` through the same edge-scoring path as
+    /// `negamax_entered_impl`, returning the (parent-perspective) edge score.
+    /// Used to assert the score of a specific intended-claim edge in isolation
+    /// (the full negamax returns the best of ALL legal moves).
+    #[allow(clippy::too_many_arguments)]
+    fn score_one_move_edge(
+        pos: &mut Position,
+        m: Move,
+        history: Vec<ZobristKey>,
+        depth: u32,
+    ) -> i32 {
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(history);
+        let undo = pos.make_move(m);
+        path.push_child(pos);
+        let probe = probe_child_draw(pos, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+        let score = match probe {
+            Some(ChildProbe::Terminal(s)) => s,
+            Some(ChildProbe::IntendedClaim) => 0, // mover claims on this move
+            Some(ChildProbe::Continue) => {
+                let s = negamax_entered_impl(
+                    pos,
+                    depth,
+                    1,
+                    i32::MIN + 1000,
+                    i32::MAX - 1000,
+                    &ctx,
+                    &limits,
+                    &mut pv,
+                    &mut path,
+                )
+                .expect("not stopped");
+                -s
+            }
+            None => unreachable!("test probe cannot abort (unbounded limits)"),
+        };
+        path.pop();
+        pos.unmake_move(undo);
+        score
     }
 
     /// §N.9: a single quiet evasion that pushes the halfmove clock 99→100 is
@@ -2504,6 +2560,344 @@ mod tests {
         assert_eq!(p.zobrist_key(), before_key, "key restored");
     }
 
+    // ===== C3: threefold-repetition draw =====
+
+    /// §C3: the losing side to move when its OWN key appears a third time in
+    /// the search line keeps the claim floor (score >= 0), never a forced loss.
+    #[test]
+    fn current_node_threefold_floor_for_losing_side() {
+        let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let key = pos.zobrist_key();
+        // The current position's key occurs 3 times on the line.
+        let mut path = SearchPath::new(vec![key, key, key]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            2,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(
+            score >= 0,
+            "losing side with own key thrice must keep the claim floor (>= 0), got {}",
+            score
+        );
+    }
+
+    /// §C3: the winning side to move still finds the mate when its key appears
+    /// a third time — the threefold claim is a 0 floor, NOT a forced draw.
+    #[test]
+    fn current_node_threefold_allows_win() {
+        // White Kg6, Qg5; Black Kh8. Qg7# is mate-in-1.
+        let pos = parse_fen("7k/8/6K1/6Q1/8/8/8/8 w - - 0 1").unwrap();
+        let mut pv = PvTable::default();
+        let key = pos.zobrist_key();
+        let mut path = SearchPath::new(vec![key, key, key]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(
+            score > 0,
+            "winning side with own key thrice must still find the mate, got {}",
+            score
+        );
+        // PV must contain the real winning move.
+        assert!(!pv.lines[0].is_empty(), "winning PV must contain a move");
+    }
+
+    /// §C3: TWO occurrences of the current key are NOT a draw — the search
+    /// takes the normal (non-claim) path. We assert the predicate and that
+    /// `classify_draw` does not return ThreefoldClaim.
+    #[test]
+    fn threefold_two_occurrences_not_a_draw() {
+        let pos = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 0 1").unwrap();
+        let key = pos.zobrist_key();
+        assert!(
+            !is_threefold_repetition(&pos, &[key, key]),
+            "two occurrences are NOT threefold"
+        );
+        assert_ne!(
+            classify_draw(&pos, &[key, key]),
+            Some(DrawReason::ThreefoldClaim),
+            "two occurrences must not classify as ThreefoldClaim"
+        );
+        // The search must run normally (not floor at 0). Use a clearly winning
+        // position so the normal path returns a positive, non-claim score.
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![key, key]);
+        let root_len = path.len();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+        )
+        .expect("not stopped");
+        path.restore_root(root_len);
+        assert!(
+            score > 0,
+            "two occurrences: normal winning search, got {}",
+            score
+        );
+    }
+
+    /// §C3: an intended threefold claim on a quiet move. The parent is NOT yet
+    /// a repetition, but after making `g1f3` the child key appears a third time
+    /// on the extended line, so the edge is an `IntendedClaim` and scores 0.
+    #[test]
+    fn intended_threefold_claim_edge_scores_zero() {
+        // Parent = startpos (key once). Quiet move g1f3.
+        let pos = parse_fen(START_FEN).unwrap();
+        let parent_key = pos.zobrist_key();
+        let m = find_move(&pos, "g1f3");
+        let mut child = pos;
+        child.make_move(m);
+        let child_key = child.zobrist_key();
+        // Pre-move line: child_key twice (older reps) + parent_key.
+        let mut path = SearchPath::new(vec![child_key, child_key, parent_key]);
+
+        assert_eq!(path.keys().last(), Some(&parent_key));
+        assert_eq!(pos.zobrist_key(), parent_key);
+
+        let mut pv = PvTable::default();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+
+        // Drive the edge through the manual probe (make + push done here).
+        {
+            let mut p = pos;
+            let undo = p.make_move(m);
+            path.push_child(&p);
+            assert_eq!(path.keys().last(), Some(&child_key));
+            assert_eq!(p.zobrist_key(), child_key);
+            assert!(
+                claim_available_by_intended_move(&p, path.keys()),
+                "after g1f3 the child is an intended threefold claim"
+            );
+            let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+            assert_eq!(
+                probe,
+                Some(ChildProbe::IntendedClaim),
+                "g1f3 edge must be an intended threefold claim"
+            );
+            path.pop();
+            p.unmake_move(undo);
+        }
+
+        // The parent edge (mover's perspective) for the SINGLE move g1f3 must
+        // score the claim as 0. Driving the whole-node negamax would return the
+        // best of ALL root moves (another move may win), so we score this one
+        // edge in isolation through the same probe->edge path.
+        let edge = score_one_move_edge(
+            &mut pos.clone(),
+            m,
+            vec![child_key, child_key, parent_key],
+            1,
+        );
+        assert_eq!(edge, 0, "intended-threefold g1f3 edge scores 0");
+        // The intended move is a real PV move on this edge, not the root
+        // placeholder empty PV. Re-derive it by making the move + probing.
+        let mut pv2 = PvTable::default();
+        let mut path2 = SearchPath::new(vec![child_key, child_key, parent_key]);
+        let probe2 = probe_move(
+            &mut pos.clone(),
+            m,
+            1,
+            0,
+            &ctx,
+            &limits,
+            &mut pv2,
+            &mut path2,
+        );
+        assert_eq!(
+            probe2,
+            Some(ChildProbe::IntendedClaim),
+            "g1f3 edge is an intended threefold claim (single move)"
+        );
+    }
+
+    /// §C3: a checkmate child must precede an intended threefold claim. Using
+    /// the mate-in-1 fixture, after the mating move the child key appears a
+    /// third time AND the child is checkmated: the probe returns Terminal (a
+    /// positive mate score), never IntendedClaim.
+    #[test]
+    fn mate_precedence_over_threefold_intended_claim() {
+        // White Kg6, Qg5; Black Kh8. Qg7# is mate-in-1.
+        let pos = parse_fen("7k/8/6K1/6Q1/8/8/8/8 w - - 0 1").unwrap();
+        // Discover the actual mate-in-1 move (the queen cannot pass through its
+        // own king, so we don't hardcode the square).
+        let m = generate_legal_moves(&mut pos.clone())
+            .into_iter()
+            .find(|mm| {
+                let mut child = pos;
+                child.make_move(*mm);
+                child.is_in_check(child.side) && generate_legal_moves(&mut child).is_empty()
+            })
+            .expect("a mate-in-1 move exists");
+        let parent_key = pos.zobrist_key();
+        let mut child = pos;
+        child.make_move(m);
+        let child_key = child.zobrist_key();
+        assert!(child.is_in_check(child.side));
+        assert!(
+            generate_legal_moves(&mut child).is_empty(),
+            "child is checkmated"
+        );
+
+        // Pre-move line: child_key twice + parent_key (so after push it's thrice).
+        let mut path = SearchPath::new(vec![child_key, child_key, parent_key]);
+        let mut pv = PvTable::default();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+
+        let mut p = pos;
+        let undo = p.make_move(m);
+        path.push_child(&p);
+        let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+        assert_eq!(
+            probe,
+            Some(ChildProbe::Terminal(MATE - 1)),
+            "checkmate child must precede the threefold intended claim"
+        );
+        path.pop();
+        p.unmake_move(undo);
+
+        // Full PV: the mating move is found.
+        let mut pv2 = PvTable::default();
+        let mut path2 = SearchPath::new(vec![child_key, child_key, parent_key]);
+        let root_len = path2.len();
+        let ctx2 = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits2 = SearchLimits::default();
+        let score = negamax_impl(
+            &mut pos.clone(),
+            1,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx2,
+            &limits2,
+            &mut pv2,
+            &mut path2,
+        )
+        .expect("not stopped");
+        path2.restore_root(root_len);
+        assert!(
+            score > 0,
+            "mate precedence: winning line still returned, got {}",
+            score
+        );
+        assert!(
+            pv2.lines[0].contains(&m),
+            "PV contains the mating move"
+        );
+    }
+
+    /// §C3 / root: a losing side whose key appears a third time in the real
+    /// history claims -> score 0, stable legal fallback, empty PV.
+    #[test]
+    fn root_threefold_losing_claims_zero() {
+        // Black to move, down a queen (losing side). Its key on the line 3x.
+        let pos0 = parse_fen("7k/8/8/8/8/8/8/KQ6 b - - 0 1").unwrap();
+        let key = pos0.zobrist_key();
+        let history = vec![key, key, key];
+        let mut pos = pos0;
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let out =
+            search_best_move_with_history(&mut pos, &history, &limits, &ctx).expect("outcome");
+        assert_eq!(out.score, Some(0), "root threefold losing side scores 0");
+        assert!(out.pv.is_empty(), "root threefold claim PV is empty");
+        let legal: BTreeSet<String> = generate_legal_moves(&mut pos.clone())
+            .iter()
+            .map(|m| move_to_uci(*m))
+            .collect();
+        assert!(
+            legal.contains(&move_to_uci(out.best_move)),
+            "best_move is a legal root move"
+        );
+    }
+
+    /// §C3 / root: a winning mate-in-1 whose key appears a third time still
+    /// returns the real mate (score > 0, non-empty PV containing the move).
+    #[test]
+    fn root_threefold_winning_still_wins() {
+        let pos0 = parse_fen("7k/8/6K1/6Q1/8/8/8/8 w - - 0 1").unwrap();
+        let key = pos0.zobrist_key();
+        // History: key appears 3 times (startpos, after two null-ish reps).
+        let history = vec![key, key, key];
+        let mut pos = pos0;
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let out =
+            search_best_move_with_history(&mut pos, &history, &limits, &ctx).expect("outcome");
+        assert!(
+            out.score.unwrap() > 0,
+            "root threefold winning side still wins"
+        );
+        assert!(!out.pv.is_empty(), "root threefold winning PV non-empty");
+        assert_eq!(
+            out.pv[0], out.best_move,
+            "root threefold winning PV[0] == best_move"
+        );
+    }
+
+    /// §C3 / root: a terminal (checkmate) root is never masked by threefold —
+    /// the public API still returns None.
+    #[test]
+    fn root_terminal_not_masked_by_threefold() {
+        // Black Kh8, White Kf7, White Rh1: Black is checkmated (no moves).
+        let pos0 = parse_fen("7k/5K2/8/8/8/8/8/7R b - - 0 1").unwrap();
+        let key = pos0.zobrist_key();
+        let history = vec![key, key, key];
+        let mut pos = pos0;
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let out = search_best_move_with_history(&mut pos, &history, &limits, &ctx);
+        assert!(
+            out.is_none(),
+            "terminal root returns None, not masked by threefold"
+        );
+    }
+
     /// §N.12(b) qsearch deeper abort: root entry succeeds, a child probe
     /// succeeds and returns `Continue`, the entered child qsearch then tries
     /// a grandchild probe that FAILS the node budget. The abort must unwind
@@ -2511,7 +2905,7 @@ mod tests {
     ///
     /// Control flow with `nodes: Some(2)`:
     ///   1. `quiescence_impl` root entry acquires node #1.
-    ///   2. White `Qe4xa4`: make + push, `probe_child_c2` acquires node #2
+    ///   2. White `Qe4xa4`: make + push, `probe_child_draw` acquires node #2
     ///      and returns `Continue`.
     ///   3. Enters child `quiescence_entered_impl` (a real recursion).
     ///   4. Black `Ra8xa4` is a tactical reply; its grandchild probe tries to
