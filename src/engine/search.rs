@@ -20,6 +20,7 @@
 //!   - `search_best_move` keeps the last *fully completed* iteration's best
 //!     move, so being stopped mid-deeper-search never loses a valid result.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -324,6 +325,20 @@ fn probe_child_draw(
     Some(ChildProbe::Continue)
 }
 
+/// Fixed, deterministic 64-bit mixing with domain separation (SplitMix64).
+/// Maps a (key, count) pair to a u64 token for the repetition-signature XOR.
+fn repetition_token(key: ZobristKey, count: usize) -> u64 {
+    let count64 = u64::try_from(count).expect("usize fits u64 on supported 32/64-bit targets");
+
+    let mut z = key ^ count64.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    z ^= z >> 30;
+    z = z.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z ^= z >> 27;
+    z = z.wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^= z >> 31;
+    z
+}
+
 /// The search's own view of the Zobrist-key history during a search.
 ///
 /// Seeded from the caller's real UCI `GameState` history (via
@@ -341,14 +356,39 @@ fn probe_child_draw(
 /// whether it completed a depth, hit a node budget, a preset stop, a
 /// qsearch abort, or the emergency-evasion cap. The caller's history is
 /// therefore never mutated by the search.
+///
+/// M3.2 extension: `counts` tracks how many times each Zobrist key appears
+/// in the path, and `repetition_signature` is a commutative XOR multiset
+/// over all (key, count) pairs for count > 0.
+#[derive(Clone)]
 pub(crate) struct SearchPath {
     history: Vec<ZobristKey>,
+    counts: HashMap<ZobristKey, usize>,
+    repetition_signature: u64,
 }
 
 impl SearchPath {
     /// Build from a caller-supplied history (the `GameState` keys).
+    /// Scans the input once to build counts and the XOR signature.
     pub(crate) fn new(history: Vec<ZobristKey>) -> Self {
-        SearchPath { history }
+        let mut counts = HashMap::new();
+        let mut signature = 0u64;
+
+        for &key in &history {
+            let old = counts.get(&key).copied().unwrap_or(0);
+            if old > 0 {
+                signature ^= repetition_token(key, old);
+            }
+            let new = old + 1;
+            counts.insert(key, new);
+            signature ^= repetition_token(key, new);
+        }
+
+        SearchPath {
+            history,
+            counts,
+            repetition_signature: signature,
+        }
     }
 
     /// Current stack length (root length at search entry).
@@ -364,23 +404,94 @@ impl SearchPath {
         &self.history
     }
 
+    /// Last key on the stack (current node).
+    #[allow(dead_code)]
+    pub(crate) fn last(&self) -> Option<&ZobristKey> {
+        self.history.last()
+    }
+
+    /// The commutative repetition signature for the full path.
+    #[allow(dead_code)]
+    pub(crate) fn repetition_signature(&self) -> u64 {
+        self.repetition_signature
+    }
+
+    /// How many times `key` appears in the current path.
+    #[allow(dead_code)]
+    pub(crate) fn occurrences(&self, key: ZobristKey) -> usize {
+        self.counts.get(&key).copied().unwrap_or(0)
+    }
+
     /// Record the child key after a `make_move`. `child` is the position
     /// *after* the move, so its `zobrist_key` is the child's key.
+    /// Updates the occurrence count and the XOR repetition signature.
     pub(crate) fn push_child(&mut self, child: &Position) {
-        self.history.push(child.zobrist_key());
+        let key = child.zobrist_key();
+
+        let old = self.counts.get(&key).copied().unwrap_or(0);
+        if old > 0 {
+            self.repetition_signature ^= repetition_token(key, old);
+        }
+
+        let new = old + 1;
+        self.counts.insert(key, new);
+        self.repetition_signature ^= repetition_token(key, new);
+
+        self.history.push(key);
     }
 
     /// Undo a `push_child` (paired with the matching `unmake_move`).
+    /// Restores the occurrence count and the XOR repetition signature.
     pub(crate) fn pop(&mut self) {
+        let key = *self.history.last().expect("pop from empty SearchPath");
+
+        let new = self.counts[&key];
+        self.repetition_signature ^= repetition_token(key, new);
+
+        if new == 1 {
+            self.counts.remove(&key);
+        } else {
+            let old = new - 1;
+            self.counts.insert(key, old);
+            self.repetition_signature ^= repetition_token(key, old);
+        }
+
         self.history.pop();
     }
 
-    /// Defensive safety net: truncate back to the root length. Push/pop
-    /// pairing already guarantees this, but asserting it catches a future
-    /// asymmetry bug instead of silently corrupting the caller's view.
+    /// Defensive safety net: restore to the root length by popping
+    /// individual entries. Each pop updates counts and the signature,
+    /// so the path is fully consistent after restoration.
     pub(crate) fn restore_root(&mut self, root_len: usize) {
+        debug_assert!(root_len >= 1);
+        debug_assert!(root_len <= self.history.len());
+
+        while self.history.len() > root_len {
+            self.pop();
+        }
+
         debug_assert_eq!(self.history.len(), root_len);
-        self.history.truncate(root_len);
+    }
+
+    /// Rebuild the repetition signature from scratch by re-scanning
+    /// history.  Used only in test helpers; production uses incremental
+    /// updates.
+    #[cfg(test)]
+    fn rebuild_signature(&self) -> u64 {
+        let mut counts: HashMap<ZobristKey, usize> = HashMap::new();
+        let mut sig = 0u64;
+
+        for &key in &self.history {
+            let old = counts.get(&key).copied().unwrap_or(0);
+            if old > 0 {
+                sig ^= repetition_token(key, old);
+            }
+            let new = old + 1;
+            counts.insert(key, new);
+            sig ^= repetition_token(key, new);
+        }
+
+        sig
     }
 }
 
@@ -3105,5 +3216,196 @@ mod tests {
             "claim placeholder is the stable fallback"
         );
         assert!(iter.pv.is_empty(), "claim placeholder PV is empty");
+    }
+
+    // ===== M3.2 SearchPath: counts, repetition_signature =====
+
+    /// Constructor with duplicate keys builds correct counts, occurrences, and signature.
+    #[test]
+    fn search_path_constructor_with_duplicates() {
+        // Two distinct keys, one repeated three times.
+        let keys = vec![100, 200, 100, 200, 100];
+        let path = SearchPath::new(keys);
+
+        assert_eq!(path.occurrences(100), 3);
+        assert_eq!(path.occurrences(200), 2);
+        assert_eq!(path.occurrences(300), 0);
+
+        // Signature must match a fresh rebuild.
+        assert_eq!(path.repetition_signature(), path.rebuild_signature());
+    }
+
+    /// Same multiset, different order -> same signature.
+    #[test]
+    fn search_path_same_multiset_diff_order_same_signature() {
+        let a = vec![1, 2, 1, 2, 3];
+        let b = vec![2, 1, 3, 2, 1];
+        let p1 = SearchPath::new(a);
+        let p2 = SearchPath::new(b);
+        assert_eq!(
+            p1.repetition_signature(),
+            p2.repetition_signature(),
+            "same multiset must produce same XOR signature"
+        );
+    }
+
+    /// Different occurrence count -> different signature.
+    #[test]
+    fn search_path_different_count_differs() {
+        let a = vec![1, 1];
+        let b = vec![1];
+        let p1 = SearchPath::new(a);
+        let p2 = SearchPath::new(b);
+        assert_ne!(
+            p1.repetition_signature(),
+            p2.repetition_signature(),
+            "different occurrence counts must produce different signatures"
+        );
+    }
+
+    /// Single push_child and pop restores all three fields.
+    #[test]
+    fn search_path_push_pop_restores_all() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let before_keys = path.keys().to_vec();
+        let before_sig = path.repetition_signature();
+
+        let mv = find_move(&pos, "e2e4");
+        let mut child = pos;
+        child.make_move(mv);
+        path.push_child(&child);
+
+        // After push: len increased, signature changed.
+        assert_eq!(path.len(), 2);
+        assert_ne!(path.repetition_signature(), before_sig);
+        assert_eq!(path.occurrences(child.zobrist_key()), 1);
+
+        path.pop();
+
+        // After pop: fully restored.
+        assert_eq!(path.len(), 1);
+        assert_eq!(path.keys(), &before_keys[..]);
+        assert_eq!(path.repetition_signature(), before_sig);
+        assert_eq!(path.occurrences(child.zobrist_key()), 0);
+    }
+
+    /// Nested depth-3 push/pop fully restores.
+    #[test]
+    fn search_path_nested_push_pop_three() {
+        // e2e4 e7e5 g1f3
+        let pos = parse_fen(START_FEN).unwrap();
+        let root_key = pos.zobrist_key();
+        let mut path = SearchPath::new(vec![root_key]);
+        let orig_keys = path.keys().to_vec();
+        let orig_sig = path.repetition_signature();
+
+        let mut p = pos;
+
+        let moves = ["e2e4", "e7e5", "g1f3"];
+        for &uci in &moves {
+            let m = find_move(&p, uci);
+            let undo = p.make_move(m);
+            path.push_child(&p);
+            let _ = undo;
+        }
+        assert_eq!(path.len(), 4);
+
+        for _ in 0..3 {
+            path.pop();
+        }
+
+        assert_eq!(path.len(), 1);
+        assert_eq!(path.keys(), &orig_keys[..]);
+        assert_eq!(path.repetition_signature(), orig_sig);
+        // Root key has occurrence count 1 after full restore.
+        assert_eq!(path.occurrences(root_key), 1);
+    }
+
+    /// restore_root from a deep child reverts all fields.
+    #[test]
+    fn search_path_restore_root_deep() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let orig_sig = path.repetition_signature();
+
+        let mut p = pos;
+        let moves = ["e2e4", "e7e5", "g1f3", "b8c6"];
+        for &uci in &moves {
+            let m = find_move(&p, uci);
+            let undo = p.make_move(m);
+            path.push_child(&p);
+            let _ = undo;
+        }
+        assert_eq!(path.len(), 5);
+
+        path.restore_root(1);
+        assert_eq!(path.len(), 1);
+        // Counts should reflect only the root key.
+        assert_eq!(path.occurrences(pos.zobrist_key()), 1);
+        assert_eq!(path.repetition_signature(), orig_sig);
+    }
+
+    /// Abort-style: push child, restore to intermediate root_len, then continue.
+    #[test]
+    fn search_path_abort_style_restore() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+
+        let mut p = pos;
+
+        // Push e2e4, e7e5
+        for &uci in &["e2e4", "e7e5"] {
+            let m = find_move(&p, uci);
+            let undo = p.make_move(m);
+            path.push_child(&p);
+            let _ = undo;
+        }
+        let sig_after_two = path.repetition_signature();
+
+        // Push g1f3 (abort target will restore_before this)
+        let m = find_move(&p, "g1f3");
+        let undo = p.make_move(m);
+        path.push_child(&p);
+        let _ = undo;
+        assert_eq!(path.len(), 4);
+
+        // Abort back to depth 2 (root + 2 children)
+        path.restore_root(3);
+        assert_eq!(path.len(), 3);
+        assert_eq!(path.repetition_signature(), sig_after_two);
+
+        // Continue with a different third push
+        let m = find_move(&p, "d7d5");
+        let undo = p.make_move(m);
+        path.push_child(&p);
+        let _ = undo;
+        assert_eq!(path.len(), 4);
+        // Signature must differ from the original depth-3 path (different key).
+        assert_ne!(path.repetition_signature(), sig_after_two);
+    }
+
+    /// Clone preserves all three fields.
+    #[test]
+    fn search_path_clone_preserves_fields() {
+        let keys = vec![1, 2, 1, 3, 2];
+        let path = SearchPath::new(keys);
+        let cloned = path.clone();
+        assert_eq!(cloned.keys(), path.keys());
+        assert_eq!(cloned.repetition_signature(), path.repetition_signature());
+        assert_eq!(cloned.occurrences(1), path.occurrences(1));
+        assert_eq!(cloned.occurrences(2), path.occurrences(2));
+    }
+
+    /// Fresh rebuild of signature equals incremental signature.
+    #[test]
+    fn search_path_rebuild_equals_incremental() {
+        let keys = vec![10, 20, 10, 30, 20, 10];
+        let path = SearchPath::new(keys);
+        assert_eq!(
+            path.repetition_signature(),
+            path.rebuild_signature(),
+            "incremental signature must equal a fresh scan"
+        );
     }
 }
