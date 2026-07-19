@@ -43,11 +43,12 @@ go depth 4
 quit
 ```
 
-典型输出（来自 startpos 实测；PST 已让 depth 3 的分值从纯子力的 cp 0 变成 cp 50）：
+典型输出（TT-disabled / 公开禁用路径 baseline 实测；启用持久 TT 后 `nodes` 可能变化，但 `score` / `bestmove` / `PV` 语义保持一致；PST 已让 depth 3 的分值从纯子力的 cp 0 变成 cp 50）：
 
 ```
 id name ChessEngineDemo
 id author Rust-learner
+option name Hash type spin default 16 min 1 max 1024
 uciok
 info depth 1 score cp 50 nodes 20 time 1 nps 20000 pv b1c3
 info depth 2 score cp 0 nodes 141 time 6 nps 23500 pv b1c3 b8c6
@@ -62,7 +63,8 @@ bestmove b1c3
 2. 在 GUI 里把引擎路径指向它，协议选择 **UCI**。
 3. 已支持：`uci` / `isready` / `ucinewgame` / `position startpos|fen ... moves ...` /
    `go depth N` / `go nodes N` / `go movetime MS` / `go infinite` /
-   `go wtime btime [winc binc] [movestogo]` / `stop` / `quit`，外加调试用的 `perft N`。
+   `go wtime btime [winc binc] [movestogo]` / `stop` / `quit`，外加调试用的 `perft N` /
+   `setoption name Hash value N`。
    搜索在独立线程运行，`stop` 能即时中断；时间管理为基础策略（soft/hard deadline + 安全余量）。
 
 ## 当前支持的 UCI 命令
@@ -71,8 +73,9 @@ bestmove b1c3
 | --- | --- |
 | `uci` | ✅ |
 | `isready` / `readyok` | ✅ 即使搜索进行中也立即回复 |
-| `ucinewgame` | ✅ |
-| `position ... moves ...` | ✅ 只接受**严格合法**着法；遇到非法着法输出 `info string invalid move <uci>` 并保持原局面，绝不偷偷重置 |
+| `ucinewgame` | ✅ 重置 GameState 并清空 TT，保留 Hash 容量 |
+| `setoption name Hash value N` | ✅ 调整持久 TT；`0→1`，`>1024→1024`；resize 前停止并 join 当前搜索 |
+| `position ... moves ...` | ✅ 只接受**严格合法**着法；遇到非法着法输出 `info string invalid move <uci>` 并保持原局面，绝不偷偷重置；不清空 TT（context-safe key 负责隔离 halfmove / repetition 上下文） |
 | `go depth N` | ✅ |
 | `go nodes N` | ✅ |
 | `go movetime MS` | ✅ |
@@ -84,7 +87,7 @@ bestmove b1c3
 
 ### 暂不支持（尚未实现）
 
-`setoption`（如 Hash 大小）、`ponder`、`searchmoves`、`mate N`；置换表（TT）在 Milestone 3 加入。
+`ponder`、`searchmoves`、`mate N`（其余 UCI 命令与持久 TT 均已在 Milestone 3 支持）。
 当前时间分配为**基础策略**（固定比例 + 安全余量），不根据局面复杂度动态调整。
 
 ## 正确性状态（Milestone 0）
@@ -99,6 +102,11 @@ bestmove b1c3
    （处理常规吃子、升变的战术延伸）；但仍有 `MAX_QPLY` 上限，且 counter-check
    子局面会在安全上限处使用静态估值，是**有界近似**而非完全正确解决。此外引擎对
    发展、中心、兵形等位置因素仍无概念。
+- ✅ **置换表（TT，M3.2）context-safe 身份隔离**：TT 命中键不只使用 board Zobrist，
+  halfmove clock 与 repetition signature 也被纳入，因此不同 halfmove / 重复上下文不会
+  产生错误命中；启用 TT 与禁用 TT 保持**完全相同**的 minimax / 和棋 / 将死语义。
+  公开禁用路径的回归基线仍锁定 `startpos depth3 = 1149 节点 / bestmove b1c3 / score 50`
+  与 `queen-win depth3 = 963 节点 / bestmove e4a4 / score 890`。
 
 ## 开发路线
 
@@ -111,15 +119,15 @@ bestmove b1c3
   - ✅ 着法排序（MVV-LVA / 升变；killer、history 暂未加）—— M2.2 完成；
   - ✅ 完整主变 `info pv` + PV tracking —— M2.3 完成；
   - ✅ Piece-Square Table 评估（material + 基础 PST；King PST 留到 tapered eval）—— M2.4 完成；
-- **Milestone 3**：和棋状态与置换表（顺序已锁定，TT 必须在 draw context 稳定之后）——
+- **Milestone 3（已完成）**：和棋状态与置换表（顺序已锁定，TT 在 draw context 稳定之后）——
   - **M3.0 状态与 Zobrist 基础 ✅**：`GameState` / UCI `position ... moves` 历史 / incremental
-    Zobrist key / 搜索路径 hash stack / halfmove clock 正确传入搜索；
-    - 当前已保存 UCI 对局真实历史、已维护搜索路径 hash stack；
-    - 当前**仍未启用**三次重复 / 五十回合判和、insufficient material；
-    - 当前**仍未启用**置换表（TT）。
-  - **M3.1 和棋规则 🔜**：三次重复 / 五十回合 / insufficient material；
-  - **M3.2 置换表（TT）待实现**：Exact / Lower / Upper、depth-preferred 替换、hash move 排序、
-    mate score 的 ply 编解码、`setoption name Hash`、`ucinewgame` 时清空。
+    Zobrist key / 搜索路径 hash stack / halfmove clock 正确传入搜索；已保存 UCI 对局真实历史，已维护搜索路径 hash stack。
+  - **M3.1 和棋规则 ✅**：insufficient material 自动和棋；fifty-move 与 threefold 为
+    claimable 0 分选项（支持 current claim 与 intended-move claim，terminal 优先）。
+  - **M3.2 置换表（TT）✅**：context-safe `TtKey`（board Zobrist + halfmove clock +
+    repetition signature）；Exact / Lower / Upper；depth-preferred direct-mapped 替换；
+    mate score 的 ply 编解码；legal hash move 排序；持久 `Arc<Mutex<TT>>` UCI 生命周期
+    （`ucinewgame` 清空但保留容量，`position` 不清空）。
 - **Milestone 4**：高级增强（确认瓶颈后再加，且一次只加一个并做对照测试）——
   aspiration window、PVS、null-move pruning、LMR、SEE、futility pruning。Bitboard 不急。
 

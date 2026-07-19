@@ -274,9 +274,9 @@ fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
     if raw.is_empty() || !raw.bytes().all(|b| b.is_ascii_digit()) {
         return HashOptionCommand::Invalid;
     }
-    // `raw` is now guaranteed all-ASCII-digits. Parsing a (possibly very
-    // long) digit string never panics: an overflowing value becomes `Err`
-    // and is treated as a huge positive (clamped below).
+    // `raw` is now guaranteed all-ASCII-digits. `u64` parsing returns
+    // `Err` on overflow; an all-digit overflow is treated as a huge positive
+    // value and clamped to `MAX_HASH_MB` below (never panics).
     let v: u64 = match raw.parse::<u64>() {
         Ok(v) => v,
         Err(_) => return HashOptionCommand::Resize(MAX_HASH_MB),
@@ -1061,16 +1061,23 @@ mod tests {
 
     #[test]
     fn resize_success_clears_pending_notice() {
-        // A successful `setoption Hash` (re)enables the table and also clears
+        // Simulate the real startup path: default allocation failed, so the
+        // persistent table fell back to `disabled()`. A successful
+        // `setoption name Hash value 1` then (re)enables it and also clears
         // a still-pending startup notice, so a subsequent handshake must NOT
-        // claim "TT disabled". Uses only a safe small capacity.
-        let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
+        // claim "TT disabled".
+        let tt = Arc::new(Mutex::new(TranspositionTable::disabled()));
         let mut pending = true;
-        let tokens: Vec<&str> = "setoption name Hash value 2".split_whitespace().collect();
+        let tokens: Vec<&str> = "setoption name Hash value 1".split_whitespace().collect();
         let mut active: Option<ActiveSearch> = None;
         let outcome = handle_setoption(&tokens, &mut active, &tt);
         assert_eq!(outcome, SetoptionOutcome::Resized, "resize succeeded");
         assert!(active.is_none(), "search stopped/joined before resize");
+        assert_eq!(tt.lock().unwrap().size_mb(), 1, "table now 1 MB");
+        assert!(
+            tt.lock().unwrap().capacity_entries() > 0,
+            "recovered table has entries"
+        );
         // `run()` clears the pending notice on `Resized`.
         if outcome == SetoptionOutcome::Resized {
             pending = false;

@@ -7,7 +7,10 @@
 //!   4. Principal variation  (done, M2.3)
 //!   5. Quiescence search   (done, M2.1 — correctness-only)
 //!   6. Move ordering       (done, M2.2 — basic MVV-LVA)
-//!   7. Transposition table (TODO, later)
+//!   7. Transposition table (done, M3.2 — context-safe TT + UCI lifecycle)
+//!
+//! The M3.2 TT keys on board Zobrist + halfmove clock + repetition
+//! signature; qsearch itself still has no direct TT probe/store.
 //!
 //! Milestone 1.1 adds the interruptibility plumbing that later milestones
 //! (M1.2 threads, M1.3 time control) build on:
@@ -4088,17 +4091,40 @@ mod tests {
 
     #[test]
     fn tt_order_moves_with_hash_ignores_illegal_and_none() {
-        let pos = parse_fen(START_FEN).unwrap();
-        let other = parse_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
-        let illegal = find_move(&other, "a1a4"); // illegal on the startpos
-        let mut a = generate_legal_moves(&mut pos.clone());
-        let snap_a = a.clone();
-        order_moves_with_hash(&pos, &mut a, Some(illegal));
-        assert_eq!(a, snap_a, "illegal hash move leaves ordering untouched");
-        let mut b = generate_legal_moves(&mut pos.clone());
-        let snap_b = b.clone();
-        order_moves_with_hash(&pos, &mut b, None);
-        assert_eq!(b, snap_b, "None hash move leaves ordering untouched");
+        // A tactical fixture where the base MVV-LVA ordering (`order_moves`)
+        // visibly reorders the raw generation order, so the test is non-trivial.
+        // Black has a rook on d2 that White can capture, while there are also
+        // many quiet moves.
+        let fen = "4k3/8/8/8/8/8/3r4/R2QK3 w - - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let gen = generate_legal_moves(&mut pos.clone());
+        let gen_set: BTreeSet<String> = gen.iter().map(|m| move_to_uci(*m)).collect();
+
+        // Base MVV-LVA ordering that `order_moves_with_hash` must reproduce
+        // when the hash move is `None` or illegal (i.e. not in the legal set).
+        let mut expected = gen.clone();
+        order_moves(&pos, &mut expected);
+        assert_ne!(expected, gen, "fixture must show a visible reorder");
+
+        // `None` hash move => identical to the base ordering.
+        let mut a = gen.clone();
+        order_moves_with_hash(&pos, &mut a, None);
+        assert_eq!(a.len(), gen.len(), "move count unchanged");
+        assert_eq!(a, expected, "None hash move == base ordering");
+        let a_set: BTreeSet<String> = a.iter().map(|m| move_to_uci(*m)).collect();
+        assert_eq!(a_set, gen_set, "move set unchanged");
+
+        // Illegal hash move: legal on another position, but its source square
+        // (b1) is empty in `pos`, so it is NOT in `pos`'s legal set.
+        // => identical to the base ordering; never panics, never drops a move.
+        let other = parse_fen("4k3/8/8/8/8/8/8/1R2K3 w - - 0 1").unwrap();
+        let illegal = find_move(&other, "b1b4");
+        let mut b = gen.clone();
+        order_moves_with_hash(&pos, &mut b, Some(illegal));
+        assert_eq!(b.len(), gen.len(), "move count unchanged");
+        assert_eq!(b, expected, "illegal hash move == base ordering");
+        let b_set: BTreeSet<String> = b.iter().map(|m| move_to_uci(*m)).collect();
+        assert_eq!(b_set, gen_set, "move set unchanged");
     }
 
     // ---- §14: claim-floor storage (root) -------------------------------------
@@ -4473,26 +4499,59 @@ mod tests {
 
     #[test]
     fn tt_enabled_restores_position_and_path() {
-        let fen = "7k/8/6K1/6Q1/8/8/8/8 w - - 0 1";
-        let before = parse_fen(fen).unwrap();
-        let before_fen = to_fen(&before);
-        let before_key = before.zobrist_key();
-        let history = vec![before_key];
+        // Build a REAL, position-aligned game history by playing legal moves
+        // from startpos and recording each position's Zobrist key. The final
+        // `pos` is the last key in `history` (so the path is aligned).
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let mut history: Vec<ZobristKey> = vec![pos.zobrist_key()];
+        for uci in ["g1f3", "g8f6", "e2e4", "e7e5"] {
+            let m = find_move(&pos, uci);
+            pos.make_move(m);
+            history.push(pos.zobrist_key());
+        }
+
+        // Construct the SearchPath exactly as the production entry point does.
+        let mut path = SearchPath::new(history.clone());
+
+        // Snapshot every piece of state the search must restore afterwards.
+        let before_fen = to_fen(&pos);
+        let before_key = pos.zobrist_key();
+        let before_halfmove = pos.halfmove_clock();
+        let saved_keys: Vec<ZobristKey> = path.keys().to_vec();
+        let saved_sig = path.repetition_signature();
+        let saved_base_len = path.base_len();
+
         let mut tt = TranspositionTable::new_mb(8).unwrap();
-        let mut pos = before;
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits {
             depth: Some(3),
             ..Default::default()
         };
-        let out = search_best_move_with_history_and_tt(&mut pos, &history, &limits, &ctx, &mut tt);
-        assert!(out.is_some());
+        // Call the same impl the production path uses, passing the ENABLED
+        // table and the real path — NOT a freshly rebuilt one.
+        let out = search_best_move_impl(&mut pos, &limits, &ctx, &mut path, &mut tt);
+        assert!(out.is_some(), "search completes");
+
+        // Every state must be EXACTLY restored, proving the search used
+        // (and restored) the real path rather than a reconstructed copy.
         assert_eq!(to_fen(&pos), before_fen, "root position FEN restored");
         assert_eq!(pos.zobrist_key(), before_key, "root Zobrist restored");
         assert_eq!(
-            SearchPath::new(history.clone()).len(),
-            1,
-            "path base len equals input history"
+            pos.halfmove_clock(),
+            before_halfmove,
+            "root halfmove clock restored"
         );
+        assert_eq!(
+            path.keys().to_vec(),
+            saved_keys,
+            "SearchPath keys (history) restored"
+        );
+        assert_eq!(
+            path.repetition_signature(),
+            saved_sig,
+            "repetition signature restored"
+        );
+        assert_eq!(path.base_len(), saved_base_len, "base_len restored");
+        assert_eq!(path.len(), saved_keys.len(), "path length restored");
     }
 }
