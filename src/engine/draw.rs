@@ -177,9 +177,7 @@ mod tests {
     /// advance during a game).
     fn board_and_side(fen: &str) -> &str {
         let end = fen.find(' ').map_or(fen.len(), |i| i);
-        let after_side = fen[end + 1..]
-            .find(' ')
-            .map_or(fen.len(), |j| end + 1 + j);
+        let after_side = fen[end + 1..].find(' ').map_or(fen.len(), |j| end + 1 + j);
         &fen[..after_side]
     }
 
