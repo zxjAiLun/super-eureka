@@ -31,6 +31,24 @@ cargo run --release -- perft 5
 会打印 `perft(5) = 4865609`，与 Stockfish 官方参考值完全一致。
 这是引擎的“正确性闸门”：任何 movegen 规则 bug 都会让这个数字偏离，此时**禁止**继续做搜索。
 
+## 运行搜索基准（M4.0，仅测量）
+
+`bench` 子命令运行一个**确定性搜索测量框架**，只驱动既有搜索入口并逐项记录结果，不改变棋力或搜索语义。输出行以固定前缀 `bench_result` / `bench_summary` / `bench_error` 开头，可用 `grep '^bench_'` 过滤。
+
+```bash
+cargo run --release -- bench help                              # 帮助
+cargo run --release -- bench smoke                           # 锁定基线的快速校验
+cargo run --release -- bench standard --mode all --repeat 1
+cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 3
+```
+
+- `smoke`：两个锁定 fixture（startpos / queen-win，disabled 深度 3），精确校验 nodes/score/bestmove/PV。
+- `standard`：10 个单局面 fixture（开局、战术中局、封闭中局、王暴露、高分支、车兵残局、KQK、KRK、halfmove 上下文），三种 TT 模式 `disabled`/`cold`/`warm`，默认 `repeat 1`。
+- `throughput`：固定 nodes 预算测 NPS（默认 100000，默认 `repeat 3`）。
+- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`。
+
+完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
+
 ## 手工 UCI 示例
 
 通过 stdin 逐行输入：
