@@ -4,6 +4,17 @@ use chess_engine_demo::chess::types::START_FEN;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // `cargo run -- bench <suite> [options]` runs the M4.0 deterministic
+    // search measurement harness. Example: `cargo run --release -- bench smoke`.
+    if args.len() >= 2 && args[1] == "bench" {
+        let sub: Vec<String> = args[2..].to_vec();
+        if let Err(e) = chess_engine_demo::engine::bench::run(&sub) {
+            eprintln!("bench_error {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // `cargo run -- perft <depth> [<fen>]` runs a Perft node count
     // (Phase-2 verification). Example: `cargo run -- perft 4`.
     if args.len() >= 2 && args[1] == "perft" {
