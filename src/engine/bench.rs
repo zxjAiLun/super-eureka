@@ -452,6 +452,40 @@ fn format_result_line(r: &BenchResult) -> String {
     )
 }
 
+/// Check the fixed-depth complete-search invariants for a *completed* search.
+/// Used for both the measured run and the warm-up, in EVERY mode
+/// (disabled / cold / warm). A fixed-depth search must reach the requested
+/// depth, must not stop early, and must return a real (non-None) score.
+/// This is what keeps the cold/warm node counts a trustworthy regression
+/// base — a partial fixed-depth result would otherwise be mistaken for a
+/// genuine node-count improvement.
+fn check_fixed_depth_complete(
+    fx: &Fixture,
+    label: &str,
+    out: &SearchOutcome,
+    d: u32,
+) -> Result<(), String> {
+    if out.stopped {
+        return Err(format!(
+            "fixture {} ({} depth {}): stopped on a fixed-depth complete search",
+            fx.id, label, d
+        ));
+    }
+    if out.completed_depth != d {
+        return Err(format!(
+            "fixture {} ({} depth {}): completed_depth {} != requested",
+            fx.id, label, d, out.completed_depth
+        ));
+    }
+    if out.score.is_none() {
+        return Err(format!(
+            "fixture {} ({} depth {}): score is None",
+            fx.id, label, d
+        ));
+    }
+    Ok(())
+}
+
 /// Validate a completed run: position fully restored, bestmove/PV legal,
 /// fixed-depth complete-search invariants, and any locked exact fields.
 #[allow(clippy::too_many_arguments)]
@@ -505,28 +539,14 @@ fn validate(
         }
         pv_pos.make_move(*m);
     }
-    // Fixed-depth complete-search invariants (disabled only).
+    // Fixed-depth complete-search invariants. Enforced for EVERY mode
+    // (disabled / cold / warm): a fixed-depth *measured* search must reach
+    // the requested depth, must not stop early, and must return a real
+    // (non-None) score. This is what keeps the cold/warm node counts a
+    // trustworthy regression base — a partial fixed-depth result would
+    // otherwise be mistaken for a genuine node-count improvement.
     if let LimitKind::Depth(d) = actual_limit {
-        if mode == BenchMode::Disabled {
-            if outcome.stopped {
-                return Err(format!(
-                    "fixture {} (disabled depth {}): stopped on a fixed-depth complete search",
-                    fx.id, d
-                ));
-            }
-            if outcome.completed_depth != d {
-                return Err(format!(
-                    "fixture {} (disabled depth {}): completed_depth {} != requested",
-                    fx.id, d, outcome.completed_depth
-                ));
-            }
-            if outcome.score.is_none() {
-                return Err(format!(
-                    "fixture {} (disabled depth {}): score is None",
-                    fx.id, d
-                ));
-            }
-        }
+        check_fixed_depth_complete(fx, mode.as_str(), outcome, d)?;
     }
     // Locked exact assertions (disabled only).
     if mode == BenchMode::Disabled {
@@ -568,6 +588,41 @@ fn validate(
 // Core run
 // ---------------------------------------------------------------------------
 
+/// Run + validate the warm-up search (warm mode only). The warm-up is NOT
+/// counted in the measured result; it only populates the (shared) TT. If it
+/// does not complete successfully, we return a clear error and the caller
+/// (`run_one`) propagates it, so the measured run never executes on a
+/// half-warmed TT — which would corrupt the cold/warm comparison.
+fn run_warmup(
+    fx: &Fixture,
+    actual_limit: LimitKind,
+    tt: &mut TranspositionTable,
+) -> Result<(), String> {
+    let mut pos =
+        parse_fen(fx.fen).map_err(|e| format!("fixture {}: invalid FEN: {}", fx.id, e))?;
+    let hist = effective_history(fx, &pos);
+    let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+    let limits = limits_for(actual_limit);
+    let out = search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, tt).ok_or_else(
+        || {
+            format!(
+                "fixture {} (warm-up): no legal moves (terminal root)",
+                fx.id
+            )
+        },
+    )?;
+    if out.score.is_none() {
+        return Err(format!("fixture {} (warm-up): score is None", fx.id));
+    }
+    // A fixed-depth warm-up must finish the requested depth. A node-budget
+    // warm-up (throughput suite) may stop mid-iteration at the budget, so
+    // we do NOT require a specific completed_depth there.
+    if let LimitKind::Depth(d) = actual_limit {
+        check_fixed_depth_complete(fx, "warm-up", &out, d)?;
+    }
+    Ok(())
+}
+
 /// Run one (fixture, mode, repeat) measurement.
 fn run_one(
     cfg: &BenchArgs,
@@ -590,13 +645,12 @@ fn run_one(
     };
 
     // Warm-up (warm mode only) — not counted in the measured result.
+    // The warm-up must itself complete a full fixed-depth search (or, for the
+    // node-budget throughtput suite, finish with a usable score); if it does
+    // not, we must NOT treat `tt` as a fully-warmed table, so we bail with
+    // a clear error instead of measuring on a half-warmed TT.
     if mode == BenchMode::Warm {
-        let mut pos =
-            parse_fen(fx.fen).map_err(|e| format!("fixture {}: invalid FEN: {}", fx.id, e))?;
-        let hist = effective_history(fx, &pos);
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let limits = limits_for(actual_limit);
-        search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, &mut tt);
+        run_warmup(fx, actual_limit, &mut tt)?;
     }
 
     // Measured run: fresh Position / SearchContext / history. Same TT for warm.
@@ -969,6 +1023,94 @@ mod tests {
         assert!(r.score.is_some());
         // run_one validates bestmove/PV legality and full restoration internally.
         assert!(!r.best_move.is_empty());
+    }
+
+    #[test]
+    fn cold_depth1_completes() {
+        // P1 hardening: a fixed-depth COLD search must still reach the
+        // requested depth, not stop early, and return a real score. `run_one`
+        // now enforces fixed-depth completeness for every mode (not just
+        // disabled) via `validate` -> `check_fixed_depth_complete`.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(1),
+            history: None,
+            locked: None,
+        };
+        let cfg = BenchArgs {
+            suite: Suite::Standard,
+            mode: BenchMode::Cold,
+            repeat: 1,
+            nodes: 100_000,
+        };
+        let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
+        assert_eq!(r.completed_depth, 1);
+        assert!(!r.stopped);
+        assert!(r.score.is_some());
+        // bestmove present; PV legal replay (validate already enforces this,
+        // re-asserted here for clarity).
+        assert!(!r.best_move.is_empty());
+        let mut pv_pos = parse_fen(fx.fen).unwrap();
+        for m_uci in r.pv.split_whitespace() {
+            let legal: Vec<String> = generate_legal_moves(&mut pv_pos)
+                .iter()
+                .map(|m| move_to_uci(*m))
+                .collect();
+            assert!(
+                legal.contains(&m_uci.to_string()),
+                "cold PV move {} illegal",
+                m_uci
+            );
+            let m = *generate_legal_moves(&mut pv_pos)
+                .iter()
+                .find(|m| move_to_uci(**m) == m_uci)
+                .expect("cold PV move must be legal");
+            pv_pos.make_move(m);
+        }
+    }
+
+    #[test]
+    fn warm_depth1_warmup_and_measured_completes() {
+        // P1 hardening: warm mode runs a warm-up (validated to complete the
+        // requested depth) and then a measured run on the same TT. Both must
+        // finish depth 1 with a real score; `run_one` bails if either fails,
+        // so the measured run never executes on a half-warmed TT.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(1),
+            history: None,
+            locked: None,
+        };
+        let cfg = BenchArgs {
+            suite: Suite::Standard,
+            mode: BenchMode::Warm,
+            repeat: 1,
+            nodes: 100_000,
+        };
+        let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
+        assert_eq!(r.completed_depth, 1);
+        assert!(!r.stopped);
+        assert!(r.score.is_some());
+        assert!(!r.best_move.is_empty());
+        let mut pv_pos = parse_fen(fx.fen).unwrap();
+        for m_uci in r.pv.split_whitespace() {
+            let legal: Vec<String> = generate_legal_moves(&mut pv_pos)
+                .iter()
+                .map(|m| move_to_uci(*m))
+                .collect();
+            assert!(
+                legal.contains(&m_uci.to_string()),
+                "warm PV move {} illegal",
+                m_uci
+            );
+            let m = *generate_legal_moves(&mut pv_pos)
+                .iter()
+                .find(|m| move_to_uci(**m) == m_uci)
+                .expect("warm PV move must be legal");
+            pv_pos.make_move(m);
+        }
     }
 
     // Small helper to look up a fixture by id without leaking the lists.
