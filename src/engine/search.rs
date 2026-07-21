@@ -492,10 +492,6 @@ fn store_tt_score(
     }
 }
 
-/// Reorder `moves` so the TT hash move (if legal and present) sits at index
-/// 0, while every other move keeps its existing MVV-LVA relative order.
-/// Never drops, duplicates, or reorders around the hash move; an illegal /
-/// absent hash move is ignored (no panic).
 /// M4.1 quiet-move-ordering heuristic state, local to a single
 /// `search_best_move` call. Created once at the start of the call and
 /// carried through all iterative-deepening iterations; re-zeroed on the
@@ -504,16 +500,30 @@ fn store_tt_score(
 ///
 /// Only `SearchProfile::Current` builds one — the `M4Reference` path
 /// skips it entirely, so the historical baseline is untouched.
+///
+/// Bounded normalization cap for the history table (spec §4.1/§4.3).
+/// Every `history` entry is capped at this value; this bounds table
+/// growth and prevents overflow within a single search. It is a cap,
+/// NOT a periodic decay.
+const M4_HISTORY_CAP: i32 = 16_384;
+
 struct SearchHeuristics {
     /// `killers[ply] = [slot0, slot1]`; grown on demand via
     /// [`SearchHeuristics::ensure_ply`].
     killers: Vec<[Option<Move>; 2]>,
+    /// `history[color][from][to]`; reset to zero at construction and
+    /// re-zeroed on the next search. Updated only on quiet beta-cutoffs
+    /// (see [`SearchHeuristics::record_history`]); consulted only for
+    /// remaining quiet moves in `order_moves_with_hash_and_killers`.
+    /// Distinct from the search-line `SearchPath` Zobrist stack.
+    history: [[[i32; 64]; 64]; 2],
 }
 
 impl SearchHeuristics {
     fn new() -> Self {
         SearchHeuristics {
             killers: Vec::new(),
+            history: [[[0; 64]; 64]; 2],
         }
     }
 
@@ -541,30 +551,69 @@ impl SearchHeuristics {
             k[0] = Some(m);
         }
     }
+
+    /// Record `m` into the history table after a real *quiet* beta-cutoff
+    /// at this node, whose remaining search depth is `d` (the depth at
+    /// which `m` is played). Uses the locked, overflow-free formula from
+    /// spec §4.2: reward `d*d`, capped at `M4_HISTORY_CAP` (bounded
+    /// normalization, never periodic decay). `pos` must be the parent
+    /// node (the mover's side to move) — i.e. after the move's
+    /// `unmake_move` — which is exactly where this is called.
+    fn record_history(&mut self, pos: &Position, m: Move, d: u32) {
+        // Lossless widening first; NO reliance on any "depth <= 64" bound.
+        let dd = u64::from(d); // d: u32 depth, widened
+        let bonus = dd
+            .saturating_mul(dd) // d*d, never overflows u64
+            .min(M4_HISTORY_CAP as u64) as i32; // cap before i32 cast
+        let color = pos.side_to_move() as usize; // mover's color
+        let idx = m.from as usize;
+        let jdx = m.to as usize;
+        let updated = self.history[color][idx][jdx]
+            .saturating_add(bonus)
+            .min(M4_HISTORY_CAP); // bounded normalization
+        self.history[color][idx][jdx] = updated;
+    }
 }
 
-/// Reorder `moves` in place for `SearchProfile::Current` non-root nodes:
-/// TT hash move first, then promotions, then captures + en passant
-/// (MVV-LVA within each), then killer slot 0, then killer slot 1, then
-/// the remaining quiet moves in generation order (the history-sorted quiet
-/// band and its deterministic tie-break are added by the History-Heuristic
-/// commit, Commit 4). Every legal move appears exactly once.
+/// Reorder `moves` in place for `SearchProfile::Current` non-root nodes,
+/// per the seven-level priority of spec §5: TT hash move first, then
+/// promotions, then captures + en passant (MVV-LVA within each), then
+/// killer slot 0, then killer slot 1, then the remaining quiet moves
+/// sorted by `history[color][from][to]` **descending** with a
+/// deterministic `(from, to)` ascending tie-break (Commit 4 levels 6-7).
+/// Every legal move appears exactly once.
 ///
 /// A killer is placed only if it is present in `moves` and has not
 /// already been placed (i.e. it is not the TT hash move); it is a quiet
 /// move by construction (only quiet cutoffs are recorded as killers).
-/// Sort key for [`order_moves_with_hash_and_killers`]: (bucket,
-/// existing `move_order_key`, original index, move). Bucket 0..=5
-/// encodes the §5 level (TT hash, promotion, capture/ep, killer0,
-/// killer1, remaining quiet).
-type KillerOrderKey = (i32, (u8, i32, i32), usize, Move);
+/// Sort key for [`order_moves_with_hash_and_killers`]:
+/// `(bucket, mvkey, hist_rank, orig_index, move)`. `bucket` 0..=5
+/// encodes the §5 level. `mvkey` is the tactical `move_order_key`
+/// (MVV-LVA) used to rank promotions / captures+ep within their
+/// buckets. `hist_rank` is the within-quiet-band tie-break (higher =
+/// searched first): for the remaining quiets it combines the history score
+/// (descending) with a deterministic `(from, to)` ascending break; it is
+/// 0 for tacticals and the singleton buckets. `orig_index` is the final
+/// stable tie-break.
+type KillerOrderKey = (i32, (u8, i32, i32), i64, usize, Move);
 
 fn order_moves_with_hash_and_killers(
     pos: &Position,
     moves: &mut [Move],
     hash_move: Option<Move>,
-    killers: &[Option<Move>; 2],
+    h: Option<&SearchHeuristics>,
+    ply: usize,
 ) {
+    // Resolve this ply's killers (empty when no heuristic state exists).
+    let killers = if let Some(hh) = h {
+        if hh.killers.len() > ply {
+            hh.killers[ply]
+        } else {
+            [None, None]
+        }
+    } else {
+        [None, None]
+    };
     let mut keyed: Vec<KillerOrderKey> = moves
         .iter()
         .enumerate()
@@ -580,24 +629,48 @@ fn order_moves_with_hash_and_killers(
             } else if Some(m) == killers[1] {
                 4 // killer slot 1 (quiet)
             } else {
-                5 // remaining quiet moves
+                5 // remaining quiet moves (history-sorted, levels 6-7)
             };
-            (bucket, move_order_key(pos, m), i, m)
+            // Tactical key (for MVV-LVA buckets) and quiet-band history
+            // tie-break (for the remaining quiets). Singletons / tacticals
+            // that are not captures+ep/promotions use the zeroed defaults.
+            let mvkey = move_order_key(pos, m);
+            // Within-quiet-band tie-break (higher = searched first):
+            // history descending, then (from, to) ascending. Encoded as a
+            // single descending integer: bigger history first, then smaller
+            // from, then smaller to.
+            let hist_rank: i64 = if bucket == 5 {
+                let hist = if let Some(hh) = h {
+                    let color = pos.side_to_move() as usize;
+                    hh.history[color][m.from as usize][m.to as usize]
+                } else {
+                    0
+                };
+                (hist as i64) * 4096 - (m.from as i64) * 64 - (m.to as i64)
+            } else {
+                0
+            };
+            (bucket, mvkey, hist_rank, i, m)
         })
         .collect();
-    // Ascending bucket, then descending `move_order_key` (MVV-LVA within
-    // tacticals; all-equal for quiets), then ascending original index
+    // Ascending bucket, then descending `mvkey` (MVV-LVA), then
+    // descending `hist_rank` (history), then ascending original index
     // (deterministic tie-break).
     keyed.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then_with(|| b.1.cmp(&a.1))
-            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| b.2.cmp(&a.2))
+            .then_with(|| a.3.cmp(&b.3))
     });
-    for (i, (_, _, _, m)) in keyed.into_iter().enumerate() {
+    for (i, (_, _, _, _, m)) in keyed.into_iter().enumerate() {
         moves[i] = m;
     }
 }
 
+/// Reorder `moves` so the TT hash move (if legal and present) sits at
+/// index 0, while every other move keeps its existing MVV-LVA relative
+/// order. Never drops, duplicates, or reorders around the hash move; an
+/// illegal / absent hash move is ignored (no panic).
 fn order_moves_with_hash(pos: &Position, moves: &mut [Move], hash_move: Option<Move>) {
     // First the existing stable MVV-LVA order.
     order_moves(pos, moves);
@@ -984,22 +1057,22 @@ fn negamax_entered_impl(
         };
     }
 
-    // M4.1 Commit 3: for `Current`, lift killers (levels 4-5) ahead
-    // of the remaining quiets; `M4Reference` keeps the exact M4.0
-    // ordering. Killers are read from this `ply` (grown lazily; empty
-    // until a quiet cutoff records one in a prior iteration).
-    let killers = if _profile == SearchProfile::Current {
-        if let Some(h) = heur {
-            h.ensure_ply(ply as usize);
-            h.killers[ply as usize]
-        } else {
-            [None, None]
-        }
-    } else {
-        [None, None]
-    };
+    // M4.1: for `Current`, apply the seven-level ordering (§5) at this
+    // non-root ordinary negamax node — TT hash lift, promotions, MVV-LVA
+    // captures/ep, killer slot 0, killer slot 1, then the remaining
+    // quiets sorted by history descending (Commit 4) with a deterministic
+    // (from,to) tie-break. `M4Reference` keeps the exact M4.0 ordering.
+    // Killers are read from this `ply` (grown lazily; empty until a quiet
+    // cutoff records one in a prior iteration); history is the per-search
+    // table carried in `heur`.
     if _profile == SearchProfile::Current {
-        order_moves_with_hash_and_killers(pos, &mut moves, tt_probe.hash_move, &killers);
+        order_moves_with_hash_and_killers(
+            pos,
+            &mut moves,
+            tt_probe.hash_move,
+            heur.as_ref(),
+            ply as usize,
+        );
     } else {
         // M2.2 + M3.2: stable MVV-LVA order, then lift the TT hash
         // move (if legal and present) to index 0 without disturbing the
@@ -1068,13 +1141,18 @@ fn negamax_entered_impl(
             alpha = best;
         }
         if alpha >= beta {
-            // M4.1 Commit 3: a *quiet* beta-cutoff at this non-root
-            // node records `m` as a killer for `ply`. Tactical cutoffs
-            // (capture / en passant / promotion) are excluded per spec §3.2.
+            // M4.1: a *quiet* beta-cutoff at this non-root node records
+            // `m` as a killer (Commit 3) AND into the history table
+            // (Commit 4) for `ply` / the remaining depth `depth`. Tactical
+            // cutoffs (capture / en passant / promotion) are excluded per
+            // spec §3.2 / §4.4. `pos` is already the parent node here
+            // (after `path.pop()` + `pos.unmake_move(undo)`), so
+            // `pos.side_to_move()` is the mover's color.
             if _profile == SearchProfile::Current {
                 if let Some(h) = heur {
                     if !is_tactical(pos, m) {
                         h.record_killer(ply as usize, m);
+                        h.record_history(pos, m, depth);
                     }
                 }
             }
@@ -1745,9 +1823,10 @@ pub(crate) fn search_best_move_with_history(
 /// M4.0 behavior by delegating to
 /// [`search_best_move_with_history_tt_and_profile`] with
 /// `SearchProfile::M4Reference`. Its signature is unchanged and its output is
-/// byte-identical to pre-M4.1 (no killer moves, no history heuristic yet —
-/// those land in later M4.1 commits). The persistent UCI `Hash` table is
-/// threaded through every recursion exactly as before.
+/// byte-identical to the pre-M4.1 M4.0 baseline — killer (Commit 3)
+/// and history (Commit 4) ordering are applied only under
+/// `SearchProfile::Current`, never under `M4Reference`. The persistent
+/// UCI `Hash` table is threaded through every recursion exactly as before.
 pub(crate) fn search_best_move_with_history_and_tt(
     pos: &mut Position,
     game_history: &[ZobristKey],
@@ -1801,7 +1880,9 @@ fn search_best_move_impl(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
-    // M4.1: threaded for Commit 3/4 (killer/history), not yet consumed.
+    // M4.1: threaded through to non-root negamax. `Current` applies
+    // killer (Commit 3) + history (Commit 4) ordering; `M4Reference`
+    // leaves every search behavior byte-identical to M4.0.
     _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
@@ -4800,6 +4881,115 @@ mod tests {
         // A second table (a fresh `search_best_move` call) is independent.
         let fresh = SearchHeuristics::new();
         assert_eq!(fresh.killers.len(), 0, "fresh per-search table");
+
+        // Re-recording the move now in slot1 promotes it back to slot0
+        // (P2.2 gap: the slot1 -> slot0 promotion path).
+        h.record_killer(1, q1);
+        assert_eq!(h.killers[1][0], Some(q1), "slot1 promotes to slot0");
+        assert_eq!(h.killers[1][1], Some(q2), "old slot0 demoted to slot1");
+        assert_ne!(h.killers[1][0], h.killers[1][1], "slot0 != slot1");
+
+        // History unit (spec §4 / §8.1): `d*d` capped at M4_HISTORY_CAP,
+        // no overflow for ANY legal u32 depth, table fresh per search.
+        let hpos = parse_fen(START_FEN).unwrap();
+        let hm = find_move(&hpos, "g1f3");
+        let c = hpos.side_to_move() as usize;
+        // Small depth: bonus = d*d = 9.
+        h.record_history(&hpos, hm, 3);
+        assert_eq!(h.history[c][hm.from as usize][hm.to as usize], 9);
+        // Repeated records saturate-add (still under cap).
+        h.record_history(&hpos, hm, 3); // +9 -> 18
+        assert_eq!(h.history[c][hm.from as usize][hm.to as usize], 18);
+        // Huge depth caps at M4_HISTORY_CAP (no overflow even for u32::MAX).
+        h.record_history(&hpos, hm, u32::MAX);
+        assert_eq!(
+            h.history[c][hm.from as usize][hm.to as usize],
+            M4_HISTORY_CAP
+        );
+        // A fresh table starts at zero (per-search lifecycle).
+        assert_eq!(fresh.history[c][hm.from as usize][hm.to as usize], 0);
+    }
+
+    #[test]
+    fn m4_history_ordering_priority() {
+        // The remaining-quiet band (level 6) is sorted by
+        // `history[color][from][to]` descending, with a deterministic
+        // (from,to) ascending tie-break (level 7). Captures / promotions
+        // keep their existing MVV-LVA ranking and never enter the history
+        // band. Each move appears exactly once.
+        let mut pos =
+            parse_fen("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut moves = generate_legal_moves(&mut pos);
+        let orig = moves.clone();
+
+        // Two quiet moves with distinct history so the descending order is
+        // observable: assign larger history to `a` (depth 5 -> 25) and
+        // smaller to `b` (depth 3 -> 9).
+        let a = find_move(&pos, "b1c3"); // quiet knight, higher history
+        let b = find_move(&pos, "g1f3"); // quiet knight, lower history
+        let cap = find_move(&pos, "e4d5"); // capture (stays in MVV-LVA band)
+
+        let color = pos.side_to_move() as usize;
+        let mut h = SearchHeuristics::new();
+        h.history[color][a.from as usize][a.to as usize] = 25;
+        h.history[color][b.from as usize][b.to as usize] = 9;
+
+        order_moves_with_hash_and_killers(&pos, &mut moves, None, Some(&h), 0);
+
+        // Every original move appears exactly once.
+        assert_eq!(moves.len(), orig.len());
+        assert!(moves.iter().all(|m| orig.contains(m)));
+
+        let idx = |m: Move| moves.iter().position(|&x| x == m).unwrap();
+        // Capture (level 3) precedes the quiet band (level 6).
+        assert!(idx(cap) < idx(a), "capture before quiets");
+        assert!(idx(cap) < idx(b), "capture before quiets");
+        // Higher-history quiet move precedes lower-history quiet move.
+        assert!(idx(a) < idx(b), "history-desc quiet ordering");
+    }
+
+    #[test]
+    fn m4_killer_recorded_on_real_quiet_beta_cutoff() {
+        // P2.2 gap: verify the KILLER (and history) table is populated
+        // through the REAL beta-cutoff integration path inside
+        // `negamax_entered_impl` — not just by calling `record_killer`
+        // directly. Drive a non-root search under `Current` with live
+        // heuristic state and assert at least one quiet cutoff was recorded.
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let mut tt = TranspositionTable::disabled();
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let mut pv = PvTable::default();
+        // Live heuristic state, threaded exactly as the production path does.
+        let mut heur = Some(SearchHeuristics::new());
+        let r = negamax_entered_impl(
+            &mut pos,
+            3,
+            1,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut pv,
+            &mut path,
+            &mut tt,
+            &mut heur,
+        );
+        assert!(r.is_some(), "non-root search returns a score");
+        // A real fixed-depth search MUST have produced >= 1 quiet beta-cutoff.
+        let total: usize = heur
+            .as_ref()
+            .unwrap()
+            .killers
+            .iter()
+            .map(|k| k.iter().filter(|s| s.is_some()).count())
+            .sum();
+        assert!(total > 0, "real quiet beta-cutoff recorded a killer");
     }
 
     #[test]
@@ -4818,8 +5008,12 @@ mod tests {
         let k1 = find_move(&pos, "d2d4"); // quiet pawn (killer slot 1)
         let quiet_other = find_move(&pos, "b2b3"); // remaining quiet
 
-        let killers = [Some(k0), Some(k1)];
-        order_moves_with_hash_and_killers(&pos, &mut moves, Some(tt_move), &killers);
+        // Build the heuristic state for this ply: killers [k0, k1] and a
+        // zeroed history table (single remaining quiet -> history tie).
+        let mut h = SearchHeuristics::new();
+        h.ensure_ply(0);
+        h.killers[0] = [Some(k0), Some(k1)];
+        order_moves_with_hash_and_killers(&pos, &mut moves, Some(tt_move), Some(&h), 0);
 
         // Level 1: TT hash move lifted to index 0.
         assert_eq!(moves[0], tt_move, "TT move first");
