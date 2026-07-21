@@ -40,6 +40,27 @@ use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
+/// M4.1 internal search configuration. Crate-private only: it selects the
+/// move-ordering strategy used by the search core and is NEVER exposed through
+/// the public API or the UCI surface.
+///
+/// * `M4Reference` reproduces the M4.0 production behavior exactly: no killer
+///   moves, no history heuristic. The historical baseline (e.g. `bench smoke`
+///   startpos d3 disabled = 1149 / queen-win d3 disabled = 963) is preserved
+///   verbatim on this profile.
+/// * `Current` is the production configuration that enables M4.1 quiet move
+///   ordering (killer moves + history heuristic), landed in later M4.1 commits.
+///
+/// In Commit 2 only the plumbing exists; neither profile changes search behavior
+/// yet, so both produce identical output. The branching that makes `Current`
+/// differ is confined to non-root ordinary negamax nodes and arrives in
+/// subsequent commits.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum SearchProfile {
+    M4Reference,
+    Current,
+}
+
 pub const MATE: i32 = 1_000_000;
 
 /// Maximum quiescence ply. A "check → evasion → check → ..." sequence has no
@@ -752,7 +773,19 @@ fn negamax_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    negamax_entered_impl(pos, depth, ply, alpha, beta, ctx, limits, pv, path, tt)
+    negamax_entered_impl(
+        pos,
+        depth,
+        ply,
+        alpha,
+        beta,
+        ctx,
+        limits,
+        SearchProfile::M4Reference,
+        pv,
+        path,
+        tt,
+    )
 }
 
 /// The negamax body, for a node the caller has ALREADY counted. Threads a
@@ -775,6 +808,8 @@ fn negamax_entered_impl(
     beta: i32,
     ctx: &SearchContext,
     limits: &SearchLimits,
+    // M4.1: threaded for Commit 3/4 (killer/history); not yet consumed.
+    _profile: SearchProfile,
     pv: &mut PvTable,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
@@ -879,6 +914,7 @@ fn negamax_entered_impl(
                     -alpha,
                     ctx,
                     limits,
+                    _profile,
                     pv,
                     path,
                     tt,
@@ -1336,6 +1372,8 @@ fn root_search(
     claim_fallback: Move,
     ctx: &SearchContext,
     limits: &SearchLimits,
+    // M4.1: forwarded to the non-root negamax node (Commit 3/4 consumes it).
+    _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
 ) -> Option<RootIteration> {
@@ -1408,6 +1446,7 @@ fn root_search(
                     -alpha,
                     ctx,
                     limits,
+                    _profile,
                     &mut pv,
                     path,
                     tt,
@@ -1506,7 +1545,14 @@ pub fn search_best_move(
     let mut path = SearchPath::new(vec![pos.zobrist_key()]);
     let root_len = path.len();
     let mut tt = TranspositionTable::disabled();
-    let r = search_best_move_impl(pos, limits, ctx, &mut path, &mut tt);
+    let r = search_best_move_impl(
+        pos,
+        limits,
+        ctx,
+        SearchProfile::M4Reference,
+        &mut path,
+        &mut tt,
+    );
     path.restore_root(root_len);
     r
 }
@@ -1541,18 +1587,27 @@ pub(crate) fn search_best_move_with_history(
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
     let mut tt = TranspositionTable::disabled();
-    let r = search_best_move_impl(pos, limits, ctx, &mut path, &mut tt);
+    let r = search_best_move_impl(
+        pos,
+        limits,
+        ctx,
+        SearchProfile::M4Reference,
+        &mut path,
+        &mut tt,
+    );
     path.restore_root(root_len);
     r
 }
 
-/// History-aware, TT-aware entry. This is the ONLY new public/crate
-/// search entry added by the M3.2 integration: it accepts a caller-owned
-/// `TranspositionTable` (the persistent UCI `Hash` table) and threads it
-/// through every recursion. The M3.2 Phase-3 UCI layer now calls this as
-/// its production search path: it hands in the shared `Arc<Mutex<TT>>`
-/// guard acquired for the whole search run. Its control flow, TT probe/store,
-/// scoring, PV, and node counting are unchanged from the Phase-2 integration.
+/// History-aware, TT-aware entry (M4.1: now the M4.0 *reference* path).
+///
+/// This was the original M3.2 production entry. M4.1 preserves its exact
+/// M4.0 behavior by delegating to
+/// [`search_best_move_with_history_tt_and_profile`] with
+/// `SearchProfile::M4Reference`. Its signature is unchanged and its output is
+/// byte-identical to pre-M4.1 (no killer moves, no history heuristic yet —
+/// those land in later M4.1 commits). The persistent UCI `Hash` table is
+/// threaded through every recursion exactly as before.
 pub(crate) fn search_best_move_with_history_and_tt(
     pos: &mut Position,
     game_history: &[ZobristKey],
@@ -1560,12 +1615,40 @@ pub(crate) fn search_best_move_with_history_and_tt(
     ctx: &SearchContext,
     tt: &mut TranspositionTable,
 ) -> Option<SearchOutcome> {
+    search_best_move_with_history_tt_and_profile(
+        pos,
+        game_history,
+        limits,
+        ctx,
+        tt,
+        SearchProfile::M4Reference,
+    )
+}
+
+/// Profile-aware search entry (M4.1). Threads `profile` through the whole
+/// search core so the move-ordering strategy can differ by [`SearchProfile`].
+/// The UCI production path calls this with `SearchProfile::Current`; the
+/// historical M4.0 reference entry
+/// ([`search_best_move_with_history_and_tt`]) and the in-crate tests call it
+/// with `SearchProfile::M4Reference` to reproduce the locked baseline exactly.
+///
+/// No new UCI `option` is exposed by this change — the UCI surface is
+/// unchanged. The caller-owned persistent `TranspositionTable` is threaded
+/// through every recursion exactly as the original entry did.
+pub(crate) fn search_best_move_with_history_tt_and_profile(
+    pos: &mut Position,
+    game_history: &[ZobristKey],
+    limits: &SearchLimits,
+    ctx: &SearchContext,
+    tt: &mut TranspositionTable,
+    profile: SearchProfile,
+) -> Option<SearchOutcome> {
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
-    let r = search_best_move_impl(pos, limits, ctx, &mut path, tt);
+    let r = search_best_move_impl(pos, limits, ctx, profile, &mut path, tt);
     path.restore_root(root_len);
     r
 }
@@ -1578,6 +1661,8 @@ fn search_best_move_impl(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
+    // M4.1: threaded for Commit 3/4 (killer/history), not yet consumed.
+    _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
 ) -> Option<SearchOutcome> {
@@ -1640,6 +1725,7 @@ fn search_best_move_impl(
             fallback,
             ctx,
             limits,
+            _profile,
             path,
             tt,
         ) {
@@ -2036,6 +2122,7 @@ mod tests {
             &mut p,
             &limits,
             ctx,
+            SearchProfile::M4Reference,
             &mut path,
             &mut TranspositionTable::disabled(),
         );
@@ -2586,6 +2673,7 @@ mod tests {
                     i32::MAX - 1000,
                     &ctx,
                     &limits,
+                    SearchProfile::M4Reference,
                     &mut pv,
                     &mut path,
                     &mut TranspositionTable::disabled(),
@@ -3235,6 +3323,7 @@ mod tests {
             m,     // fallback (also g1f3 here)
             &ctx,
             &limits,
+            SearchProfile::M4Reference,
             &mut path,
             &mut TranspositionTable::disabled(),
         )
@@ -3533,6 +3622,7 @@ mod tests {
             fallback,
             &ctx,
             &limits,
+            SearchProfile::M4Reference,
             &mut path,
             &mut TranspositionTable::disabled(),
         )
@@ -4206,6 +4296,7 @@ mod tests {
             m,
             &ctx,
             &limits,
+            SearchProfile::M4Reference,
             &mut path,
             &mut tt,
         );
@@ -4418,6 +4509,78 @@ mod tests {
         );
     }
 
+    // ---- §8.1 / M4.1 (Commit 2): profile plumbing -----------------------
+    #[test]
+    fn m4_profile_reference_reproduces_baseline() {
+        // The new profile-aware entry, driven with `M4Reference`, must
+        // reproduce the locked M4.0 smoke numbers EXACTLY. This is the
+        // contract that keeps the historical baseline valid after the M4.1
+        // refactor (the old `search_best_move_with_history_and_tt` now
+        // delegates here with `M4Reference`).
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let mut tt = TranspositionTable::disabled();
+        let hist_key = pos.zobrist_key();
+        let out = search_best_move_with_history_tt_and_profile(
+            &mut pos,
+            &[hist_key],
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::M4Reference,
+        )
+        .expect("outcome");
+        assert_eq!(
+            ctx.nodes.load(Ordering::Relaxed),
+            1149,
+            "M4Reference startpos d3 node count unchanged"
+        );
+        assert_eq!(move_to_uci(out.best_move), "b1c3");
+        assert_eq!(out.score, Some(50));
+        assert_eq!(
+            out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
+            vec!["b1c3", "b8c6", "g1f3"]
+        );
+    }
+
+    #[test]
+    fn m4_profile_current_matches_reference_smoke() {
+        // In Commit 2 the profile plumbing exists but neither profile changes
+        // search behavior yet, so `Current` reproduces the M4.0 baseline
+        // exactly (node count, score, best move, PV). Later commits that
+        // enable killer/history ordering on `Current` keep these hard
+        // correctness items equal but are free to change node count / tie-
+        // broken best move / PV -- those are NOT asserted here.
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let mut tt = TranspositionTable::disabled();
+        let hist_key = pos.zobrist_key();
+        let out = search_best_move_with_history_tt_and_profile(
+            &mut pos,
+            &[hist_key],
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::Current,
+        )
+        .expect("outcome");
+        assert_eq!(ctx.nodes.load(Ordering::Relaxed), 1149);
+        assert_eq!(move_to_uci(out.best_move), "b1c3");
+        assert_eq!(out.score, Some(50));
+        assert_eq!(
+            out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
+            vec!["b1c3", "b8c6", "g1f3"]
+        );
+    }
+
     // ---- §15: enabled cold ----------------------------------------------------
 
     #[test]
@@ -4529,7 +4692,14 @@ mod tests {
         };
         // Call the same impl the production path uses, passing the ENABLED
         // table and the real path — NOT a freshly rebuilt one.
-        let out = search_best_move_impl(&mut pos, &limits, &ctx, &mut path, &mut tt);
+        let out = search_best_move_impl(
+            &mut pos,
+            &limits,
+            &ctx,
+            SearchProfile::M4Reference,
+            &mut path,
+            &mut tt,
+        );
         assert!(out.is_some(), "search completes");
 
         // Every state must be EXACTLY restored, proving the search used

@@ -100,12 +100,13 @@ fn spawn_search(
         let (mut pos, game_history) = game.into_search_parts();
         // Acquire the (only) mutable TT guard and keep it for the whole run.
         let mut guard = lock_tt_recover(&tt);
-        match search::search_best_move_with_history_and_tt(
+        match search::search_best_move_with_history_tt_and_profile(
             &mut pos,
             &game_history,
             &limits,
             &ctx,
             &mut guard,
+            search::SearchProfile::Current,
         ) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
             None => println!("bestmove 0000"),
