@@ -613,14 +613,30 @@ fn validate(
     // flag starts false, so a budgeted run must stop exactly at the budget:
     // consumed nodes must not exceed the budget, the outcome must report
     // stopped, and the consumed count must equal the budget (atomic budget
-    // semantic). Violations are emitted as `bench_error` (non-fatal
-    // warning), consistent with the determinism check.
+    // semantic). Unlike the determinism check (a soft warning), a budget
+    // violation is a fatal validation error: a partial/over-budget result
+    // would be mistaken for a genuine throughput measurement, so `validate`
+    // returns `Err`, `run_one` propagates it, the offending `bench_result`
+    // is never printed, it is excluded from `bench_summary`, and the CLI
+    // exits non-zero.
     if let LimitKind::Nodes(n) = actual_limit {
-        if nodes > n || !outcome.stopped || nodes != n {
-            eprintln!(
-                "bench_error node-budget: fixture={} nodes={} budget={} stopped={}",
-                fx.id, nodes, n, outcome.stopped
-            );
+        if nodes > n {
+            return Err(format!(
+                "fixture {}: node count {} exceeds budget {}",
+                fx.id, nodes, n
+            ));
+        }
+        if !outcome.stopped {
+            return Err(format!(
+                "fixture {}: node-budget search did not report stopped",
+                fx.id
+            ));
+        }
+        if nodes != n {
+            return Err(format!(
+                "fixture {}: node count {} != requested budget {}",
+                fx.id, nodes, n
+            ));
         }
     }
     // Locked exact assertions (disabled mode, reference profile only).
@@ -1427,6 +1443,84 @@ mod tests {
         assert!(r.nodes <= n, "node budget must not be exceeded");
         assert_eq!(r.nodes, n, "node budget must be hit exactly");
         assert!(r.stopped, "budgeted run must report stopped");
+    }
+
+    #[test]
+    fn node_budget_invalid_results_rejected() {
+        // A node-budget violation must be a FATAL validation error, not a
+        // warning: `validate` returns Err, so `run_one` would abort and
+        // the CLI would exit non-zero instead of emitting untrustworthy
+        // throughput data. We test `validate` directly against a real
+        // position with two deliberately wrong (nodes, stopped) pairs.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Nodes(50),
+            history: None,
+            locked: None,
+        };
+        let mut pos = parse_fen(fx.fen).unwrap();
+        let hist = effective_history(&fx, &pos);
+        let snap = Snapshot {
+            fen: to_fen(&pos),
+            zobrist: pos.zobrist_key(),
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = limits_for(fx.limit);
+        let mut tt = TranspositionTable::disabled();
+        let out = search_one(
+            &mut pos,
+            &hist,
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::M4Reference,
+        )
+        .unwrap();
+        let nodes = ctx.nodes.load(Ordering::Relaxed);
+
+        // Case A: budget not fully consumed (nodes < budget), stopped == true.
+        let under = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::M4Reference,
+            &snap,
+            &pos,
+            &hist,
+            &out,
+            nodes.saturating_sub(1),
+            fx.limit,
+        );
+        assert!(
+            under.is_err(),
+            "under-budget (nodes != budget) must be rejected: {:?}",
+            under.err()
+        );
+
+        // Case B: budget consumed but stop flag not reported.
+        let bad_stopped = SearchOutcome {
+            best_move: out.best_move,
+            score: out.score,
+            completed_depth: out.completed_depth,
+            stopped: false,
+            pv: out.pv,
+        };
+        let no_stop = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::M4Reference,
+            &snap,
+            &pos,
+            &hist,
+            &bad_stopped,
+            nodes,
+            fx.limit,
+        );
+        assert!(
+            no_stop.is_err(),
+            "missing stopped flag must be rejected: {:?}",
+            no_stop.err()
+        );
     }
 
     // Small helper to look up a fixture by id without leaking the lists.
