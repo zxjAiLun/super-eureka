@@ -40,7 +40,7 @@ use crate::engine::eval::evaluate;
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
-/// M4.1 internal search configuration. Crate-private only: it selects the
+/// M4.1+ internal search configuration. Crate-private only: it selects the
 /// move-ordering strategy used by the search core and is NEVER exposed through
 /// the public API or the UCI surface.
 ///
@@ -48,16 +48,28 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   moves, no history heuristic. The historical baseline (e.g. `bench smoke`
 ///   startpos d3 disabled = 1149 / queen-win d3 disabled = 963) is preserved
 ///   verbatim on this profile.
-/// * `Current` is the production configuration that enables M4.1 quiet move
-///   ordering (killer moves + history heuristic), landed in later M4.1 commits.
+/// * `M41Reference` reproduces the M4.1 full-window search exactly: M4.1
+///   quiet move ordering (killer moves + history heuristic) with NO principal
+///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
+///   keeps M4.2 replayable once `Current` enables PVS.
+/// * `Current` is the production configuration: M4.1 quiet move ordering plus
+///   the M4.2 PVS (landed in later M4.2 commits).
 ///
-/// In Commit 2 only the plumbing exists; neither profile changes search behavior
-/// yet, so both produce identical output. The branching that makes `Current`
-/// differ is confined to non-root ordinary negamax nodes and arrives in
-/// subsequent commits.
+/// In Commit 2 only the profile plumbing exists: `M41Reference` and `Current`
+/// share the M4.1 full-window path (both build killer/history state and use the
+/// seven-level ordering at non-root nodes; the root stays M4.0-ordered), while
+/// `M4Reference` keeps every search behavior byte-identical to M4.0. The
+/// branching that makes `Current` differ (PVS) arrives in later commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchProfile {
     M4Reference,
+    // Dormant until Commit 5 exposes `--profile m4.1` through the bench
+    // CLI; it is constructed there (and in tests now). Allowed as dead in
+    // production for Commit 2 per the M4.2 spec's compile-safety scope
+    // (the variant must exist so `profile_str` stays exhaustive, but the CLI
+    // must NOT accept `--profile m4.1` yet, so no production path builds it).
+    #[allow(dead_code)]
+    M41Reference,
     Current,
 }
 
@@ -1057,15 +1069,16 @@ fn negamax_entered_impl(
         };
     }
 
-    // M4.1: for `Current`, apply the seven-level ordering (§5) at this
-    // non-root ordinary negamax node — TT hash lift, promotions, MVV-LVA
-    // captures/ep, killer slot 0, killer slot 1, then the remaining
-    // quiets sorted by history descending (Commit 4) with a deterministic
-    // (from,to) tie-break. `M4Reference` keeps the exact M4.0 ordering.
+    // M4.1: for non-M4Reference profiles (`M41Reference` and `Current`),
+    // apply the seven-level ordering (§5) at this non-root ordinary negamax
+    // node — TT hash lift, promotions, MVV-LVA captures/ep, killer slot 0,
+    // killer slot 1, then the remaining quiets sorted by history descending
+    // (Commit 4) with a deterministic (from,to) tie-break. `M4Reference`
+    // keeps the exact M4.0 ordering.
     // Killers are read from this `ply` (grown lazily; empty until a quiet
     // cutoff records one in a prior iteration); history is the per-search
     // table carried in `heur`.
-    if _profile == SearchProfile::Current {
+    if _profile != SearchProfile::M4Reference {
         order_moves_with_hash_and_killers(
             pos,
             &mut moves,
@@ -1148,7 +1161,7 @@ fn negamax_entered_impl(
             // spec §3.2 / §4.4. `pos` is already the parent node here
             // (after `path.pop()` + `pos.unmake_move(undo)`), so
             // `pos.side_to_move()` is the mover's color.
-            if _profile == SearchProfile::Current {
+            if _profile != SearchProfile::M4Reference {
                 if let Some(h) = heur {
                     if !is_tactical(pos, m) {
                         h.record_killer(ply as usize, m);
@@ -1880,9 +1893,10 @@ fn search_best_move_impl(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
-    // M4.1: threaded through to non-root negamax. `Current` applies
-    // killer (Commit 3) + history (Commit 4) ordering; `M4Reference`
-    // leaves every search behavior byte-identical to M4.0.
+    // M4.1: threaded through to non-root negamax. Non-M4Reference profiles
+    // (`M41Reference` and `Current`) apply killer (Commit 3) + history
+    // (Commit 4) ordering; `M4Reference` leaves every search behavior
+    // byte-identical to M4.0.
     _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
@@ -1895,12 +1909,13 @@ fn search_best_move_impl(
     // single iteration (e.g. stopped before depth 1 finishes).
     let fallback = root_moves[0];
 
-    // M4.1 Commit 3: build the per-search heuristic state ONLY for the
-    // `Current` profile. `M4Reference` skips it entirely (no killer/
-    // history ordering), preserving the exact M4.0 baseline. The table
+    // M4.1 Commit 3: build the per-search heuristic state ONLY for
+    // non-M4Reference profiles (`M41Reference` and `Current`).
+    // `M4Reference` skips it entirely (no killer/history ordering),
+    // preserving the exact M4.0 baseline. The table
     // lives for the whole iterative-deepening loop and is dropped on
     // return (re-zeroed for the next independent `go`).
-    let mut heuristics: Option<SearchHeuristics> = if _profile == SearchProfile::Current {
+    let mut heuristics: Option<SearchHeuristics> = if _profile != SearchProfile::M4Reference {
         Some(SearchHeuristics::new())
     } else {
         None
@@ -4848,6 +4863,111 @@ mod tests {
         // Position fully restored by both searches.
         assert_eq!(fen_r.as_str(), fen, "reference restored");
         assert_eq!(fen_c.as_str(), fen, "current restored");
+    }
+
+    #[test]
+    fn m4_profile_m41reference_matches_current_pre_pvs() {
+        // In Commit 2 neither `M41Reference` nor `Current` enables PVS yet,
+        // so both must produce byte-identical fixed-depth results (score,
+        // best move, PV, node count, full Position restoration). This is the
+        // pre-PVS parity contract: `M41Reference` is a replayable M4.1
+        // baseline, and `Current` must match it until PVS lands.
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+
+        let mut pos_a = parse_fen(START_FEN).unwrap();
+        let ctx_a = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt_a = TranspositionTable::disabled();
+        let key_a = pos_a.zobrist_key();
+        let out_a = search_best_move_with_history_tt_and_profile(
+            &mut pos_a,
+            &[key_a],
+            &limits,
+            &ctx_a,
+            &mut tt_a,
+            SearchProfile::M41Reference,
+        )
+        .expect("m41 outcome");
+        let fen_a = to_fen(&pos_a);
+
+        let mut pos_b = parse_fen(START_FEN).unwrap();
+        let ctx_b = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt_b = TranspositionTable::disabled();
+        let key_b = pos_b.zobrist_key();
+        let out_b = search_best_move_with_history_tt_and_profile(
+            &mut pos_b,
+            &[key_b],
+            &limits,
+            &ctx_b,
+            &mut tt_b,
+            SearchProfile::Current,
+        )
+        .expect("current outcome");
+        let fen_b = to_fen(&pos_b);
+
+        assert_eq!(out_a.score, out_b.score, "score parity pre-PVS");
+        assert_eq!(out_a.best_move, out_b.best_move, "bestmove parity pre-PVS");
+        assert_eq!(out_a.pv, out_b.pv, "PV parity pre-PVS");
+        assert_eq!(
+            ctx_a.nodes.load(Ordering::Relaxed),
+            ctx_b.nodes.load(Ordering::Relaxed),
+            "node count parity pre-PVS"
+        );
+        assert_eq!(fen_a.as_str(), START_FEN, "m41 restores position");
+        assert_eq!(fen_b.as_str(), START_FEN, "current restores position");
+    }
+
+    #[test]
+    fn m4_profile_m41reference_uses_m4_1_ordering() {
+        // `M41Reference` must take the M4.1 path (killer/history seven-level
+        // ordering), NOT the M4.0 path. On startpos d3 the M4.1 ordering
+        // yields a different node count than the M4.0 `M4Reference` baseline
+        // (1149). We assert the two counts DIFFER, proving `M41Reference`
+        // genuinely runs the M4.1 path rather than silently falling back to
+        // M4.0. Exact per-fixture counts are not frozen here (they belong to
+        // the M4.1 benchmark report).
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+
+        let mut pos_r = parse_fen(START_FEN).unwrap();
+        let ctx_r = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt_r = TranspositionTable::disabled();
+        let key_r = pos_r.zobrist_key();
+        let _out_r = search_best_move_with_history_tt_and_profile(
+            &mut pos_r,
+            &[key_r],
+            &limits,
+            &ctx_r,
+            &mut tt_r,
+            SearchProfile::M4Reference,
+        )
+        .expect("reference outcome");
+
+        let mut pos_m = parse_fen(START_FEN).unwrap();
+        let ctx_m = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt_m = TranspositionTable::disabled();
+        let key_m = pos_m.zobrist_key();
+        let _out_m = search_best_move_with_history_tt_and_profile(
+            &mut pos_m,
+            &[key_m],
+            &limits,
+            &ctx_m,
+            &mut tt_m,
+            SearchProfile::M41Reference,
+        )
+        .expect("m41 outcome");
+
+        let nodes_r = ctx_r.nodes.load(Ordering::Relaxed);
+        let nodes_m = ctx_m.nodes.load(Ordering::Relaxed);
+        assert_eq!(nodes_r, 1149, "M4Reference startpos d3 = 1149");
+        assert_ne!(
+            nodes_m, nodes_r,
+            "M41Reference must NOT equal the M4.0 node count"
+        );
     }
 
     #[test]

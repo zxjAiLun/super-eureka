@@ -6,7 +6,8 @@
 //! - `reference` (the default) calls the exact M4.0 entry
 //!   ([`search_best_move_with_history_and_tt`]), preserving the historical
 //!   baseline byte-for-byte;
-//! - `current` calls the profile-aware entry with `SearchProfile::Current`.
+//! - `current` (and the Commit-2-added, not-yet-CLI-exposed `m4.1`)
+//!   call the profile-aware entry; `reference` uses the exact M4.0 entry.
 //!
 //! The harness itself never alters search behavior.
 //!
@@ -120,6 +121,7 @@ struct BenchArgs {
 fn profile_str(p: SearchProfile) -> &'static str {
     match p {
         SearchProfile::M4Reference => "reference",
+        SearchProfile::M41Reference => "m4.1",
         SearchProfile::Current => "current",
     }
 }
@@ -411,7 +413,8 @@ fn throughput_fixtures() -> Vec<Fixture> {
 /// - `reference` calls the exact M4.0 entry
 ///   ([`search_best_move_with_history_and_tt`]), preserving the historical
 ///   baseline byte-for-byte;
-/// - `current` calls the profile-aware entry with `SearchProfile::Current`.
+/// - `current` (and the not-yet-CLI-exposed `m4.1`) calls the
+///   profile-aware entry; `reference` uses the exact M4.0 entry.
 ///
 /// Commit 5 keeps `search.rs` untouched: it only selects which *existing*
 /// entry to drive, and never alters search semantics.
@@ -1064,6 +1067,17 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(f.profile, SearchProfile::M4Reference);
+    }
+
+    #[test]
+    fn profile_str_maps_all_variants() {
+        // Compile-time exhaustiveness: every `SearchProfile` variant maps to a
+        // stable CLI string. `m4.1` is the internal string for `M41Reference`
+        // but is NOT accepted by `parse_args` until Commit 5 (see
+        // `parse_valid_profile` / `parse_invalid_no_panic`).
+        assert_eq!(profile_str(SearchProfile::M4Reference), "reference");
+        assert_eq!(profile_str(SearchProfile::M41Reference), "m4.1");
+        assert_eq!(profile_str(SearchProfile::Current), "current");
     }
 
     #[test]
