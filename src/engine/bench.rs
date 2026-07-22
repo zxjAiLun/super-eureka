@@ -1,9 +1,14 @@
 //! M4.0 deterministic search benchmark harness.
 //!
-//! This module does **not** change search semantics. It only drives the
-//! *existing* history-aware, TT-aware search entry
-//! (`search::search_best_move_with_history_and_tt`) and records
-//! correctness + performance fields for later comparison.
+//! This module does **not** change search semantics. It only *drives*
+//! existing search entries and records correctness + performance fields for
+//! later comparison:
+//! - `reference` (the default) calls the exact M4.0 entry
+//!   ([`search_best_move_with_history_and_tt`]), preserving the historical
+//!   baseline byte-for-byte;
+//! - `current` calls the profile-aware entry with `SearchProfile::Current`.
+//!
+//! The harness itself never alters search behavior.
 //!
 //! It cleanly separates:
 //! - fixed-depth node count  -> search-tree efficiency
@@ -547,6 +552,7 @@ fn check_fixed_depth_complete(
 fn validate(
     fx: &Fixture,
     mode: BenchMode,
+    profile: SearchProfile,
     snap: &Snapshot,
     pos: &Position,
     hist: &[ZobristKey],
@@ -603,8 +609,25 @@ fn validate(
     if let LimitKind::Depth(d) = actual_limit {
         check_fixed_depth_complete(fx, mode.as_str(), outcome, d)?;
     }
-    // Locked exact assertions (disabled only).
-    if mode == BenchMode::Disabled {
+    // Node-budget measured-run invariant. There is no deadline and the stop
+    // flag starts false, so a budgeted run must stop exactly at the budget:
+    // consumed nodes must not exceed the budget, the outcome must report
+    // stopped, and the consumed count must equal the budget (atomic budget
+    // semantic). Violations are emitted as `bench_error` (non-fatal
+    // warning), consistent with the determinism check.
+    if let LimitKind::Nodes(n) = actual_limit {
+        if nodes > n || !outcome.stopped || nodes != n {
+            eprintln!(
+                "bench_error node-budget: fixture={} nodes={} budget={} stopped={}",
+                fx.id, nodes, n, outcome.stopped
+            );
+        }
+    }
+    // Locked exact assertions (disabled mode, reference profile only).
+    // `1149`/`963` precise locks belong to `M4Reference`; under `Current`
+    // a fixed-depth run may legitimately produce different node counts,
+    // bestmoves, and PVs, so the lock must not be applied.
+    if mode == BenchMode::Disabled && profile == SearchProfile::M4Reference {
         if let Some(locked) = &fx.locked {
             if outcome.score != Some(locked.score) {
                 return Err(format!(
@@ -724,7 +747,17 @@ fn run_one(
     let elapsed = start.elapsed();
     let nodes = ctx.nodes.load(Ordering::Relaxed);
 
-    validate(fx, mode, &snap, &pos, &hist, &outcome, nodes, actual_limit)?;
+    validate(
+        fx,
+        mode,
+        cfg.profile,
+        &snap,
+        &pos,
+        &hist,
+        &outcome,
+        nodes,
+        actual_limit,
+    )?;
 
     let elapsed_us = elapsed.as_micros();
     let nps = if elapsed_us > 0 {
@@ -1215,6 +1248,185 @@ mod tests {
                 .expect("warm PV move must be legal");
             pv_pos.make_move(m);
         }
+    }
+
+    // ---- P1 hardening: smoke exact-lock is reference-only ----
+
+    #[test]
+    fn smoke_defaults_to_reference_profile() {
+        let a = parse_args(&["smoke".to_string()]).unwrap();
+        assert_eq!(a.suite, Suite::Smoke);
+        assert_eq!(a.profile, SearchProfile::M4Reference);
+    }
+
+    #[test]
+    fn smoke_reference_locks_exactly() {
+        // `bench smoke` (and `bench smoke --profile reference`) must still
+        // enforce the exact 1149 / 963 locks.
+        for fx in smoke_fixtures() {
+            let cfg = BenchArgs {
+                suite: Suite::Smoke,
+                mode: BenchMode::Disabled,
+                repeat: 1,
+                nodes: 100_000,
+                profile: SearchProfile::M4Reference,
+            };
+            let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
+            let locked = fx.locked.expect("smoke fixture must be locked");
+            assert_eq!(r.nodes, locked.nodes, "{} reference nodes", fx.id);
+            assert_eq!(
+                r.best_move, locked.best_move,
+                "{} reference bestmove",
+                fx.id
+            );
+            assert_eq!(r.score, Some(locked.score), "{} reference score", fx.id);
+            let pv_uci: Vec<String> = r.pv.split_whitespace().map(|s| s.to_string()).collect();
+            let want: Vec<String> = locked.pv.iter().map(|s| s.to_string()).collect();
+            assert_eq!(pv_uci, want, "{} reference PV", fx.id);
+        }
+    }
+
+    #[test]
+    fn smoke_current_runs_both_fixtures() {
+        // `bench smoke --profile current` runs Current on both fixtures:
+        // fixed-depth completes, score present, bestmove legal, position
+        // restored, and the emitted profile is `current`. The exact
+        // reference lock must NOT be applied.
+        for fx in smoke_fixtures() {
+            let cfg = BenchArgs {
+                suite: Suite::Smoke,
+                mode: BenchMode::Disabled,
+                repeat: 1,
+                nodes: 100_000,
+                profile: SearchProfile::Current,
+            };
+            let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
+                .unwrap_or_else(|e| panic!("current smoke {} must complete: {}", fx.id, e));
+            assert_eq!(r.profile, "current");
+            if let LimitKind::Depth(d) = fx.limit {
+                assert_eq!(r.completed_depth, d, "{} current depth", fx.id);
+            }
+            assert!(!r.stopped, "{} current must not stop early", fx.id);
+            assert!(r.score.is_some(), "{} current score", fx.id);
+            assert!(!r.best_move.is_empty());
+        }
+    }
+
+    #[test]
+    fn current_profile_ignores_reference_lock() {
+        // Direct contract test: with a deliberately-wrong locked block,
+        // `validate` under `Current` must NOT error, while under
+        // `M4Reference` it must. This proves the lock is scoped to the
+        // reference profile regardless of Current's actual output.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(3),
+            history: None,
+            locked: Some(Locked {
+                nodes: 1, // wrong on purpose
+                score: 999,
+                best_move: "e2e4",
+                pv: &["e2e4"],
+            }),
+        };
+        let mut pos = parse_fen(fx.fen).unwrap();
+        let hist = effective_history(&fx, &pos);
+        let snap = Snapshot {
+            fen: to_fen(&pos),
+            zobrist: pos.zobrist_key(),
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = limits_for(fx.limit);
+
+        // Current: wrong lock must be ignored.
+        let mut tt = TranspositionTable::disabled();
+        let out = search_one(
+            &mut pos,
+            &hist,
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::Current,
+        )
+        .unwrap();
+        let nodes = ctx.nodes.load(Ordering::Relaxed);
+        let cur = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::Current,
+            &snap,
+            &pos,
+            &hist,
+            &out,
+            nodes,
+            fx.limit,
+        );
+        assert!(
+            cur.is_ok(),
+            "Current profile must not enforce reference lock: {:?}",
+            cur.err()
+        );
+
+        // Reference: same wrong lock must be enforced (negative control).
+        let mut pos2 = parse_fen(fx.fen).unwrap();
+        let hist2 = effective_history(&fx, &pos2);
+        let snap2 = Snapshot {
+            fen: to_fen(&pos2),
+            zobrist: pos2.zobrist_key(),
+        };
+        let ctx2 = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt2 = TranspositionTable::disabled();
+        let out2 = search_one(
+            &mut pos2,
+            &hist2,
+            &limits,
+            &ctx2,
+            &mut tt2,
+            SearchProfile::M4Reference,
+        )
+        .unwrap();
+        let nodes2 = ctx2.nodes.load(Ordering::Relaxed);
+        let refr = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::M4Reference,
+            &snap2,
+            &pos2,
+            &hist2,
+            &out2,
+            nodes2,
+            fx.limit,
+        );
+        assert!(
+            refr.is_err(),
+            "M4Reference profile must enforce the exact lock"
+        );
+    }
+
+    #[test]
+    fn node_budget_measured_hits_exact() {
+        // Small node-budget measured run must stop exactly at the budget.
+        // Not a 100k run; just enough to exercise the atomic budget semantic.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(1),
+            history: None,
+            locked: None,
+        };
+        let n: u64 = 50;
+        let cfg = BenchArgs {
+            suite: Suite::Throughput,
+            mode: BenchMode::Disabled,
+            repeat: 1,
+            nodes: n,
+            profile: SearchProfile::M4Reference,
+        };
+        let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
+        assert!(r.nodes <= n, "node budget must not be exceeded");
+        assert_eq!(r.nodes, n, "node budget must be hit exactly");
+        assert!(r.stopped, "budgeted run must report stopped");
     }
 
     // Small helper to look up a fixture by id without leaking the lists.
