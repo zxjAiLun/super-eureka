@@ -24,7 +24,8 @@ use crate::chess::position::Position;
 use crate::chess::types::START_FEN;
 use crate::chess::ZobristKey;
 use crate::engine::search::{
-    search_best_move_with_history_and_tt, SearchContext, SearchLimits, SearchOutcome, MATE,
+    search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
+    SearchContext, SearchLimits, SearchOutcome, SearchProfile, MATE,
 };
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
 
@@ -106,6 +107,16 @@ struct BenchArgs {
     repeat: u32,
     /// Throughput node budget (default 100_000).
     nodes: u64,
+    /// Search profile (default reference == M4.0 baseline behavior).
+    profile: SearchProfile,
+}
+
+/// Render a `SearchProfile` as its CLI string (also used in bench output).
+fn profile_str(p: SearchProfile) -> &'static str {
+    match p {
+        SearchProfile::M4Reference => "reference",
+        SearchProfile::Current => "current",
+    }
 }
 
 /// One measured search result.
@@ -113,6 +124,7 @@ struct BenchResult {
     suite: &'static str,
     fixture: &'static str,
     mode: &'static str,
+    profile: &'static str,
     repeat: u32,
     limit: String,
     score: Option<i32>,
@@ -161,6 +173,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         Suite::Throughput => 3,
     };
     let mut nodes = 100_000u64;
+    let mut profile = SearchProfile::M4Reference;
 
     while let Some(tok) = it.next() {
         match tok.as_str() {
@@ -208,6 +221,22 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 }
                 nodes = n;
             }
+            "--profile" => {
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --profile requires a value".to_string())?
+                    .clone();
+                profile = match v.as_str() {
+                    "reference" => SearchProfile::M4Reference,
+                    "current" => SearchProfile::Current,
+                    other => {
+                        return Err(format!(
+                            "bench: invalid --profile '{}' (expected reference|current)",
+                            other
+                        ));
+                    }
+                };
+            }
             other => {
                 return Err(format!("bench: unknown argument '{}'", other));
             }
@@ -219,6 +248,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         mode,
         repeat,
         nodes,
+        profile,
     })
 }
 
@@ -371,6 +401,30 @@ fn throughput_fixtures() -> Vec<Fixture> {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Dispatch one search through the selected profile.
+///
+/// - `reference` calls the exact M4.0 entry
+///   ([`search_best_move_with_history_and_tt`]), preserving the historical
+///   baseline byte-for-byte;
+/// - `current` calls the profile-aware entry with `SearchProfile::Current`.
+///
+/// Commit 5 keeps `search.rs` untouched: it only selects which *existing*
+/// entry to drive, and never alters search semantics.
+fn search_one(
+    pos: &mut Position,
+    hist: &[ZobristKey],
+    limits: &SearchLimits,
+    ctx: &SearchContext,
+    tt: &mut TranspositionTable,
+    profile: SearchProfile,
+) -> Option<SearchOutcome> {
+    if profile == SearchProfile::M4Reference {
+        search_best_move_with_history_and_tt(pos, hist, limits, ctx, tt)
+    } else {
+        search_best_move_with_history_tt_and_profile(pos, hist, limits, ctx, tt, profile)
+    }
+}
+
 /// Effective history for a fixture: explicit if provided, else the single root key.
 fn effective_history(fx: &Fixture, pos: &Position) -> Vec<ZobristKey> {
     match &fx.history {
@@ -435,10 +489,11 @@ fn median_u64(v: &[u64]) -> u64 {
 /// Format one result line. Stable key order, integers, quoted PV.
 fn format_result_line(r: &BenchResult) -> String {
     format!(
-        "bench_result suite={} fixture={} mode={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\"",
+        "bench_result suite={} fixture={} mode={} profile={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\"",
         r.suite,
         r.fixture,
         r.mode,
+        r.profile,
         r.repeat,
         r.limit,
         fmt_score(r.score),
@@ -596,6 +651,7 @@ fn validate(
 fn run_warmup(
     fx: &Fixture,
     actual_limit: LimitKind,
+    profile: SearchProfile,
     tt: &mut TranspositionTable,
 ) -> Result<(), String> {
     let mut pos =
@@ -603,14 +659,12 @@ fn run_warmup(
     let hist = effective_history(fx, &pos);
     let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
     let limits = limits_for(actual_limit);
-    let out = search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, tt).ok_or_else(
-        || {
-            format!(
-                "fixture {} (warm-up): no legal moves (terminal root)",
-                fx.id
-            )
-        },
-    )?;
+    let out = search_one(&mut pos, &hist, &limits, &ctx, tt, profile).ok_or_else(|| {
+        format!(
+            "fixture {} (warm-up): no legal moves (terminal root)",
+            fx.id
+        )
+    })?;
     if out.score.is_none() {
         return Err(format!("fixture {} (warm-up): score is None", fx.id));
     }
@@ -650,7 +704,7 @@ fn run_one(
     // not, we must NOT treat `tt` as a fully-warmed table, so we bail with
     // a clear error instead of measuring on a half-warmed TT.
     if mode == BenchMode::Warm {
-        run_warmup(fx, actual_limit, &mut tt)?;
+        run_warmup(fx, actual_limit, cfg.profile, &mut tt)?;
     }
 
     // Measured run: fresh Position / SearchContext / history. Same TT for warm.
@@ -665,7 +719,7 @@ fn run_one(
     let limits = limits_for(actual_limit);
 
     let start = Instant::now();
-    let outcome = search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, &mut tt)
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, cfg.profile)
         .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
     let elapsed = start.elapsed();
     let nodes = ctx.nodes.load(Ordering::Relaxed);
@@ -688,6 +742,7 @@ fn run_one(
         suite: cfg.suite.as_str(),
         fixture: fx.id,
         mode: mode.as_str(),
+        profile: profile_str(cfg.profile),
         repeat,
         limit: limit_str,
         score: outcome.score,
@@ -727,7 +782,13 @@ fn check_determinism(results: &[BenchResult]) {
     }
 }
 
-fn print_summary(suite: Suite, modes: &[BenchMode], fixtures: &[Fixture], results: &[BenchResult]) {
+fn print_summary(
+    suite: Suite,
+    modes: &[BenchMode],
+    fixtures: &[Fixture],
+    results: &[BenchResult],
+    profile: &'static str,
+) {
     let aggregate_nodes: u64 = results.iter().map(|r| r.nodes).sum();
     let mut elapsed_vec: Vec<u128> = results.iter().map(|r| r.elapsed_us).collect();
     let mut nps_vec: Vec<u64> = results.iter().map(|r| r.nps).collect();
@@ -745,8 +806,9 @@ fn print_summary(suite: Suite, modes: &[BenchMode], fixtures: &[Fixture], result
     check_determinism(results);
 
     println!(
-        "bench_summary suite={} mode={} fixture_count={} measured_run_count={} aggregate_nodes={} median_elapsed_us={} median_nps={}",
+        "bench_summary suite={} profile={} mode={} fixture_count={} measured_run_count={} aggregate_nodes={} median_elapsed_us={} median_nps={}",
         suite.as_str(),
+        profile,
         mode_str,
         fixtures.len(),
         results.len(),
@@ -783,7 +845,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
         }
     }
-    print_summary(cfg.suite, &modes, &fixtures, &results);
+    print_summary(
+        cfg.suite,
+        &modes,
+        &fixtures,
+        &results,
+        profile_str(cfg.profile),
+    );
     Ok(())
 }
 
@@ -803,6 +871,9 @@ fn print_help() {
     println!("  --mode <disabled|cold|warm|all>  default: smoke=disabled, standard=all, throughput=disabled");
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
     println!("  --nodes <N>                       throughput node budget (default 100000)");
+    println!(
+        "  --profile <reference|current>     search profile (default reference == M4.0 baseline)"
+    );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
 }
@@ -904,6 +975,8 @@ mod tests {
         assert_eq!(c.mode, BenchMode::Disabled);
         assert_eq!(c.repeat, 3);
         assert_eq!(c.nodes, 100_000);
+        // --profile defaults to reference (M4.0 baseline).
+        assert_eq!(c.profile, SearchProfile::M4Reference);
     }
 
     #[test]
@@ -921,6 +994,27 @@ mod tests {
         assert_eq!(a.mode, BenchMode::Warm);
         assert_eq!(a.repeat, 2);
         assert_eq!(a.nodes, 50_000);
+        // unspecified --profile stays at the reference default.
+        assert_eq!(a.profile, SearchProfile::M4Reference);
+    }
+
+    #[test]
+    fn parse_valid_profile() {
+        let r = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "current".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(r.profile, SearchProfile::Current);
+
+        let f = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "reference".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(f.profile, SearchProfile::M4Reference);
     }
 
     #[test]
@@ -940,6 +1034,11 @@ mod tests {
                 "0".to_string(),
             ],
             vec!["smoke".to_string(), "--bogus".to_string()],
+            vec![
+                "smoke".to_string(),
+                "--profile".to_string(),
+                "foo".to_string(),
+            ],
         ];
         for c in cases {
             assert!(parse_args(&c).is_err(), "expected error for args {:?}", c);
@@ -971,6 +1070,7 @@ mod tests {
             suite: "standard",
             fixture: "startpos",
             mode: "disabled",
+            profile: "reference",
             repeat: 1,
             limit: "depth:4".to_string(),
             score: Some(0),
@@ -988,7 +1088,8 @@ mod tests {
         let i = |k: &str| line.find(k).unwrap_or(usize::MAX);
         assert!(i("suite=") < i("fixture="));
         assert!(i("fixture=") < i("mode="));
-        assert!(i("mode=") < i("repeat="));
+        assert!(i("mode=") < i("profile="));
+        assert!(i("profile=") < i("repeat="));
         assert!(i("repeat=") < i("limit="));
         assert!(i("limit=") < i("score="));
         assert!(i("score=") < i("bestmove="));
@@ -1016,6 +1117,7 @@ mod tests {
             mode: BenchMode::Disabled,
             repeat: 1,
             nodes: 100_000,
+            profile: SearchProfile::M4Reference,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1043,6 +1145,7 @@ mod tests {
             mode: BenchMode::Cold,
             repeat: 1,
             nodes: 100_000,
+            profile: SearchProfile::M4Reference,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1088,6 +1191,7 @@ mod tests {
             mode: BenchMode::Warm,
             repeat: 1,
             nodes: 100_000,
+            profile: SearchProfile::M4Reference,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
