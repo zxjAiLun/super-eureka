@@ -419,13 +419,14 @@ fn pvs_needs_research(score: i32, alpha: i32, beta: i32) -> bool {
 /// Explicit classification of one child edge's result (M4.2 Commit 3
 /// hardening, P1.1). The parent commits state by MATCHING on this variant —
 /// it never infers "was this a fail-low?" from `score > best`. That matters
-/// because the parent's running `best` starts at `i32::MIN + 1000`, well
-/// below the caller's `alpha`: a first-move full search can legitimately
-/// return a score BELOW the caller alpha, leaving `best < alpha`. A later
-/// null-window scout that fails LOW is only an UPPER bound on its child, yet
-/// its (negated) score can still exceed such a depressed `best`. Committing
-/// it would corrupt the parent with an upper-bound score and an upper-bound
-/// PV. The explicit variant guarantees a `ScoutFailLow` is dropped whole.
+/// because this engine is fail-soft COMPATIBLE: an interior node usually
+/// returns a window-clamped score, but a TT `Exact` hit returns the real
+/// decoded score unconditionally, a TT `Lower`/`Upper` cutoff returns the
+/// real stored bound score (never a raw alpha/beta), and terminal mate /
+/// stalemate scores propagate unclamped. A null-window scout can therefore
+/// return a score ANYWHERE relative to the parent's window — including
+/// strictly above the parent's running `best` while still failing low, and
+/// at or above `beta`.
 enum MoveOutcome {
     /// A real candidate score: a full-window search (first move / non-Current
     /// profile / depth-0 / caller-null-window / overflow fallback), a
@@ -434,13 +435,21 @@ enum MoveOutcome {
     /// killer-history.
     Candidate(i32),
     /// A null-window scout that failed LOW (`scout_score <= alpha_before_move`).
-    /// An upper bound only: it must NOT update best / node_best_move / PV /
-    /// alpha, must NOT trigger a beta cutoff, and must NOT reward
-    /// killer/history. It is dropped entirely.
-    ScoutFailLow,
-    /// A null-window scout that failed HIGH (`scout_score >= beta`). A valid
-    /// lower bound and a real cutoff candidate: its legal scout line is
-    /// committed once and (if quiet) killer/history is rewarded once.
+    /// Its PV/move is NOT committable: it must never update best /
+    /// node_best_move / PV / alpha, never trigger a beta cutoff, and never
+    /// reward killer/history. Its NUMERIC value, however, is still part of
+    /// search correctness — it is a valid upper bound on this child, so the
+    /// parent folds it into `fail_low_upper` and lifts the score it returns
+    /// and stores with it (P1.1: discarding the number entirely would let a
+    /// fail-low node store a TT `Bound::Upper` that under-states the real
+    /// node value and later cause wrong TT cutoffs).
+    ScoutFailLow(i32),
+    /// A null-window scout that failed HIGH (`scout_score >= beta`) —
+    /// reachable because child searches are fail-soft compatible (a TT
+    /// Exact / Lower / Upper hit or a mate score can carry the scout
+    /// outside its null window). A valid lower bound and a real cutoff
+    /// candidate: its legal scout line is committed once and (if quiet)
+    /// killer/history is rewarded once. A fail-high is never re-searched.
     ScoutFailHigh(i32),
 }
 
@@ -460,21 +469,28 @@ enum MoveOutcome {
 /// `pvs_m41reference_never_scouts`.
 #[cfg(test)]
 mod pvs_counters {
-    use std::cell::Cell;
+    use super::Move;
+    use std::cell::{Cell, RefCell};
     thread_local! {
         /// A null-window scout search was launched for a later move.
         pub static SCOUT: Cell<usize> = const { Cell::new(0) };
-        /// A scout failed LOW (`scout_score <= alpha_before_move`): dropped
-        /// as an upper bound, never committed to the parent.
+        /// A scout failed LOW (`scout_score <= alpha_before_move`): its
+        /// PV/move is never committed to the parent; its numeric value is
+        /// folded into the parent's `fail_low_upper` bound.
         pub static SCOUT_FAIL_LOW: Cell<usize> = const { Cell::new(0) };
-        /// A fail-low scout whose (dropped) score was strictly GREATER than
-        /// the parent's running `best`. This is exactly the P1.1 hazard: if
-        /// the parent committed on `score > best` it would wrongly adopt this
-        /// upper-bound score/PV. Counting it lets a test prove the adversarial
-        /// case really occurred AND that the parent still dropped it.
+        /// A fail-low scout whose score was strictly GREATER than the
+        /// parent's running `best`. This is exactly the P1.1 hazard: if the
+        /// parent committed on `score > best` it would wrongly adopt this
+        /// upper-bound score/PV as exact. Reachable because child searches
+        /// are fail-soft compatible (e.g. a TT Exact hit returns the real
+        /// score even outside the scout's null window). Counting it lets a
+        /// test prove the adversarial case really occurred AND that the
+        /// parent kept only the numeric bound, not the move/PV.
         pub static SCOUT_FAIL_LOW_EXCEEDS_BEST: Cell<usize> = const { Cell::new(0) };
         /// A scout failed HIGH (`scout_score >= beta`): a real cutoff whose
-        /// legal scout line is committed once (no re-search).
+        /// legal scout line is committed once (no re-search). Reachable via
+        /// the same fail-soft paths (TT Exact / Lower / Upper hits, mate
+        /// scores) that can carry a scout outside its null window.
         pub static SCOUT_FAIL_HIGH: Cell<usize> = const { Cell::new(0) };
         /// A scout landed inside the window and a full re-search was WANTED.
         pub static RESEARCH_ATTEMPT: Cell<usize> = const { Cell::new(0) };
@@ -496,6 +512,30 @@ mod pvs_counters {
         /// Abort observed while the full re-search subtree was running
         /// (phase C: the re-search ran out of budget after entering).
         pub static ABORT_IN_RESEARCH: Cell<usize> = const { Cell::new(0) };
+        /// Exact call count of `SearchHeuristics::record_killer` (P2:
+        /// exact-once proof — a scout+re-search double reward would call it
+        /// twice for one cutoff, which two-run table equality cannot see).
+        pub static RECORD_KILLER_CALLS: Cell<usize> = const { Cell::new(0) };
+        /// Exact call count of `SearchHeuristics::record_history`.
+        pub static RECORD_HISTORY_CALLS: Cell<usize> = const { Cell::new(0) };
+        /// Sum of the ACTUAL deltas `record_history` applied to the table
+        /// (post-cap). The table's total mass must equal this exactly; a
+        /// double deposit would double-count here vs the reward events.
+        pub static HISTORY_TOTAL_DELTA: Cell<i64> = const { Cell::new(0) };
+        /// For every completed full re-search: the child PV row as the
+        /// SCOUT left it, paired with the row the RE-SEARCH rewrote (P2:
+        /// lets a test distinguish the two lines and prove the parent
+        /// committed the re-searched one).
+        pub static RESEARCH_PV_PAIRS: RefCell<Vec<(Vec<Move>, Vec<Move>)>> =
+            const { RefCell::new(Vec::new()) };
+        /// A re-searched move became the node's best move AND, at that
+        /// commit, the parent's committed child line (its PV tail below the
+        /// move) was verified equal to the row the RE-SEARCH rewrote — never
+        /// a stale scout row. This is the direct structural proof that the
+        /// parent copies the re-search line (P2.2). The equality itself is
+        /// asserted inline at the commit site; this counter only proves the
+        /// adversarial path was actually exercised at least once.
+        pub static RESEARCH_ROW_COMMITTED: Cell<usize> = const { Cell::new(0) };
     }
     pub fn reset() {
         SCOUT.set(0);
@@ -509,6 +549,11 @@ mod pvs_counters {
         ABORT_IN_SCOUT.set(0);
         ABORT_RESEARCH_ACQUIRE.set(0);
         ABORT_IN_RESEARCH.set(0);
+        RECORD_KILLER_CALLS.set(0);
+        RECORD_HISTORY_CALLS.set(0);
+        HISTORY_TOTAL_DELTA.set(0);
+        RESEARCH_PV_PAIRS.with_borrow_mut(Vec::clear);
+        RESEARCH_ROW_COMMITTED.set(0);
     }
     pub fn mark_scout() {
         SCOUT.set(SCOUT.get() + 1);
@@ -542,6 +587,19 @@ mod pvs_counters {
     }
     pub fn mark_abort_in_research() {
         ABORT_IN_RESEARCH.set(ABORT_IN_RESEARCH.get() + 1);
+    }
+    pub fn mark_record_killer_call() {
+        RECORD_KILLER_CALLS.set(RECORD_KILLER_CALLS.get() + 1);
+    }
+    pub fn mark_record_history_call(delta: i64) {
+        RECORD_HISTORY_CALLS.set(RECORD_HISTORY_CALLS.get() + 1);
+        HISTORY_TOTAL_DELTA.set(HISTORY_TOTAL_DELTA.get() + delta);
+    }
+    pub fn record_research_pv_pair(scout_row: Vec<Move>, research_row: Vec<Move>) {
+        RESEARCH_PV_PAIRS.with_borrow_mut(|v| v.push((scout_row, research_row)));
+    }
+    pub fn mark_research_row_committed() {
+        RESEARCH_ROW_COMMITTED.set(RESEARCH_ROW_COMMITTED.get() + 1);
     }
 }
 
@@ -739,6 +797,8 @@ impl SearchHeuristics {
     /// - `m == slot1` -> promoted to slot0, old slot0 demoted to slot1;
     /// - brand-new `m` -> inserted at slot0, old slot0 demoted to slot1.
     fn record_killer(&mut self, ply: usize, m: Move) {
+        #[cfg(test)]
+        pvs_counters::mark_record_killer_call();
         self.ensure_ply(ply);
         let k = &mut self.killers[ply];
         if k[0] != Some(m) {
@@ -766,6 +826,10 @@ impl SearchHeuristics {
         let updated = self.history[color][idx][jdx]
             .saturating_add(bonus)
             .min(M4_HISTORY_CAP); // bounded normalization
+        #[cfg(test)]
+        pvs_counters::mark_record_history_call(
+            i64::from(updated) - i64::from(self.history[color][idx][jdx]),
+        );
         self.history[color][idx][jdx] = updated;
     }
 }
@@ -1277,6 +1341,12 @@ fn negamax_entered_impl(
     }
 
     let mut node_best_move: Option<Move> = None;
+    // P1.1: the running maximum of all fail-low scout scores. A fail-low
+    // scout's PV is not committable, but the numeric value it returns is a
+    // valid upper bound on its child and therefore part of this node's own
+    // upper bound. It is folded into the RETURNED/STORED score only (never
+    // into best / alpha / PV / cutoff / heuristics below).
+    let mut fail_low_upper: Option<i32> = None;
     for (move_idx, m) in moves.into_iter().enumerate() {
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
@@ -1293,6 +1363,13 @@ fn negamax_entered_impl(
                 return None;
             }
         };
+
+        // P2.2: when this move goes through a full re-search, remember the
+        // child PV row the RE-SEARCH rewrote, so the commit block can verify
+        // (inline) that the parent copies exactly this row — never a stale
+        // scout row — whenever this move becomes the node's best.
+        #[cfg(test)]
+        let mut researched_row: Option<Vec<Move>> = None;
 
         // Resolve the child window into an EXPLICIT `MoveOutcome` (P1.1).
         // Terminal / IntendedClaim children are exact results and are never
@@ -1375,6 +1452,11 @@ fn negamax_entered_impl(
                             // the committed line is the re-searched one.
                             #[cfg(test)]
                             pvs_counters::mark_research_attempt();
+                            // P2: snapshot the child PV row the SCOUT left,
+                            // so a test can prove the parent commits the
+                            // re-searched line, never this stale scout line.
+                            #[cfg(test)]
+                            let scout_child_row = pv.lines[(ply + 1) as usize].clone();
                             if !try_enter_node(ctx, limits) {
                                 // Phase B: re-search node acquisition failed.
                                 #[cfg(test)]
@@ -1399,7 +1481,22 @@ fn negamax_entered_impl(
                                 tt,
                                 heur,
                             ) {
-                                Some(s) => MoveOutcome::Candidate(-s),
+                                Some(s) => {
+                                    // P2: pair the scout's stale child row
+                                    // with the row the re-search rewrote, and
+                                    // remember the re-search row so the commit
+                                    // block can prove the parent copies it.
+                                    #[cfg(test)]
+                                    {
+                                        let research_row = pv.lines[(ply + 1) as usize].clone();
+                                        pvs_counters::record_research_pv_pair(
+                                            scout_child_row,
+                                            research_row.clone(),
+                                        );
+                                        researched_row = Some(research_row);
+                                    }
+                                    MoveOutcome::Candidate(-s)
+                                }
                                 None => {
                                     // Phase C: the full re-search subtree aborted.
                                     #[cfg(test)]
@@ -1410,29 +1507,34 @@ fn negamax_entered_impl(
                                 }
                             }
                         } else if scout_score <= alpha_before_move {
-                            // Scout failed LOW. This is an UPPER bound on the
-                            // child only; it must be dropped whole. We do NOT
-                            // re-search and — critically — we do NOT let its
-                            // score/PV reach the parent, even though its scout
-                            // child PV row is populated. Classifying it
-                            // explicitly (rather than relying on `score > best`)
-                            // is the P1.1 fix: `best` may still sit below the
-                            // caller alpha after a low-scoring first move, so a
-                            // fail-low score could otherwise beat `best`.
+                            // Scout failed LOW. Its move/PV are NOT
+                            // committable — we do NOT re-search and we do NOT
+                            // let its line reach the parent's best / PV /
+                            // alpha / cutoff / heuristics. Its NUMERIC value
+                            // IS kept: a fail-soft-compatible child can
+                            // return a real upper bound above the running
+                            // `best` (e.g. via a TT Exact hit), and dropping
+                            // that number would make this node's returned
+                            // score / stored TT `Bound::Upper` under-state
+                            // the true node value (P1.1).
                             #[cfg(test)]
                             {
                                 pvs_counters::mark_scout_fail_low();
-                                // Record when the dropped fail-low score would
-                                // have beaten `best` — the exact P1.1 hazard.
+                                // Record when the fail-low score exceeded
+                                // `best` — the exact P1.1 hazard where the
+                                // numeric bound (and only the bound) matters.
                                 if scout_score > best {
                                     pvs_counters::mark_scout_fail_low_exceeds_best();
                                 }
                             }
-                            MoveOutcome::ScoutFailLow
+                            MoveOutcome::ScoutFailLow(scout_score)
                         } else {
-                            // Scout failed HIGH (`scout_score >= beta`). A valid
-                            // lower bound and a real cutoff candidate: its legal
-                            // scout line is committed once below and (if quiet)
+                            // Scout failed HIGH (`scout_score >= beta`) — a
+                            // reachable fail-soft outcome (TT Exact / Lower /
+                            // Upper hits and mate scores can carry the scout
+                            // outside its null window). A valid lower bound
+                            // and a real cutoff candidate: its legal scout
+                            // line is committed once below and (if quiet)
                             // killer/history is rewarded once. We never
                             // re-search a fail-high.
                             #[cfg(test)]
@@ -1448,13 +1550,17 @@ fn negamax_entered_impl(
         pos.unmake_move(undo);
 
         // Commit parent state by MATCHING on the explicit outcome (P1.1). A
-        // `ScoutFailLow` is an upper bound only and is dropped entirely — it
-        // never updates best / node_best_move / PV / alpha, never triggers a
-        // cutoff, and never rewards killer/history. Every other outcome
-        // (full search, re-searched scout, terminal, intended claim, and a
-        // fail-high scout) carries a real candidate score.
+        // `ScoutFailLow` never updates best / node_best_move / PV / alpha,
+        // never triggers a cutoff, and never rewards killer/history — but
+        // its NUMERIC upper bound is retained in `fail_low_upper` so the
+        // node's returned/stored score cannot under-state the true value.
+        // Every other outcome (full search, re-searched scout, terminal,
+        // intended claim, and a fail-high scout) carries a real candidate.
         let score = match outcome {
-            MoveOutcome::ScoutFailLow => continue,
+            MoveOutcome::ScoutFailLow(s) => {
+                fail_low_upper = Some(fail_low_upper.map_or(s, |u| u.max(s)));
+                continue;
+            }
             MoveOutcome::Candidate(s) | MoveOutcome::ScoutFailHigh(s) => s,
         };
 
@@ -1466,6 +1572,22 @@ fn negamax_entered_impl(
             best = score;
             node_best_move = Some(m);
             pv.set_from_child(ply, m);
+            // P2.2: a re-searched move that becomes the node's best commits
+            // the row the RE-SEARCH rewrote (`set_from_child` copies
+            // `pv.lines[ply + 1]`, which the re-search overwrote AFTER the
+            // scout). Prove it structurally: the parent's committed child
+            // line (the PV tail below `m`) equals the recorded re-search row,
+            // never a stale scout row.
+            #[cfg(test)]
+            if let Some(research_row) = researched_row.as_ref() {
+                let committed_tail = &pv.lines[ply as usize][1..];
+                assert_eq!(
+                    committed_tail,
+                    research_row.as_slice(),
+                    "parent must commit the re-search child row, not a stale scout row"
+                );
+                pvs_counters::mark_research_row_committed();
+            }
         }
         if best > alpha {
             alpha = best;
@@ -1499,12 +1621,22 @@ fn negamax_entered_impl(
         }
     }
 
-    // Completed the whole node (or hit a normal beta cutoff). Store one entry
-    // under the caller window; a deeper abort never reaches here, so no
-    // partial node is ever cached.
-    let bound = classify_tt_bound(best, caller_alpha, caller_beta);
-    store_tt_score(tt, key, depth, best, ply, bound, node_best_move);
-    Some(best)
+    // Completed the whole node (or hit a normal beta cutoff). The score we
+    // return and store lifts the exact-search `best` by any retained
+    // fail-low scout upper bound (P1.1): "the fail-low scout's PV is not
+    // committable, but the numeric upper bound it provides is still part of
+    // search correctness". On an all-fail-low node this prevents storing a
+    // TT `Bound::Upper` that claims `value <= best` when a dropped scout
+    // proved only `value <= fail_low_upper` with `fail_low_upper > best`.
+    // `node_best_move` / PV remain driven by real candidates only. When a
+    // beta cutoff or an alpha improvement occurred, `best >= alpha >=` every
+    // fail-low scout score, so the lift is a no-op there.
+    let returned_score = fail_low_upper.map_or(best, |u| best.max(u));
+    // Store one entry under the caller window; a deeper abort never reaches
+    // here, so no partial node is ever cached.
+    let bound = classify_tt_bound(returned_score, caller_alpha, caller_beta);
+    store_tt_score(tt, key, depth, returned_score, ply, bound, node_best_move);
+    Some(returned_score)
 }
 
 /// Is `m` a "tactical" move — one that quiescence must resolve?
@@ -5760,20 +5892,21 @@ mod tests {
         //  * every later QUIET move keeps White up Q vs R+P.
         //
         // The caller window `[400, 500]` sits ABOVE every true value, so the
-        // whole node fails low: each later quiet move's null-window scout is an
-        // upper bound that the engine MUST drop. The returned score and PV must
-        // reflect ONLY the first full-window move; no re-search / fail-high /
-        // cutoff / heuristic reward may occur on a fail-low node.
+        // whole node fails low: each later quiet move's null-window scout
+        // fails low. Its MOVE/PV must never be committed — the parent PV must
+        // still start with the first full-window move — but its NUMERIC value
+        // is a legitimate upper bound folded into the returned score, so the
+        // returned score is `>= v0` (never below the first move's value) and
+        // still `<= ALPHA` (the node genuinely fails low). No re-search /
+        // cutoff / heuristic reward may occur on an all-fail-low node.
         //
-        // NOTE on the `SCOUT_FAIL_LOW_EXCEEDS_BEST` counter: this engine's
-        // negamax is alpha-beta bound-clamped (exact in-window, clamped at the
-        // bounds). A fail-low scout is clamped to exactly `alpha`, and the first
-        // full-window move also clamps to `>= alpha`, so `best >= alpha >=
-        // scout_score` always holds — the "scout_score > best" adversarial case
-        // from the original P1.1 write-up is therefore UNREACHABLE here. The
-        // explicit `MoveOutcome::ScoutFailLow` drop is what makes the contract
-        // safe regardless; we test the observable guarantee (fail-low dropped),
-        // not the unreachable sub-case.
+        // NOTE: this engine is fail-soft COMPATIBLE (TT Exact hits, TT
+        // Lower/Upper cutoffs, and mate scores return real values outside
+        // the window), so `scout_score > best` and even `scout_score >=
+        // beta` are reachable in general. This fixture uses a disabled TT
+        // and no mate lines, so here the scouts stay window-bounded; the
+        // dedicated bound-regression and fail-high tests below drive the
+        // fail-soft cases deterministically via a pre-filled TT.
         const FEN: &str = "6k1/8/8/2p5/3r4/8/8/Q5K1 w - - 0 1";
         const DEPTH: u32 = 2;
         const ALPHA: i32 = 400; // above every true move value -> whole node fails low
@@ -5867,15 +6000,21 @@ mod tests {
         // NOTE: the `PARENT_QUIET_REWARD` / `PARENT_TACTICAL_CUTOFF`
         // counters are GLOBAL across the whole search tree (they fire in every
         // non-root node, including deeper subtrees), so they cannot isolate
-        // "the parent node itself". The P1.1 contract — a fail-low scout
-        // must not corrupt the parent — is proven directly below by the
-        // parent's committed state: `got == v0` (score unchanged) and the
-        // PV starts with `move0` (not a scout's move).
+        // "the parent node itself". The P1.1 contract is proven below by the
+        // parent's committed state: the PV starts with `move0` (never a scout
+        // move) while the returned score keeps every fail-low scout's
+        // numeric upper bound (`v0 <= got <= ALPHA`).
 
-        // The parent kept ONLY the first full-window move's score and PV.
-        assert_eq!(
-            got, v0,
-            "returned score is the first move's value, not a scout bound"
+        // The parent kept ONLY the first full-window move's PV; the returned
+        // score folds in the fail-low scouts' numeric upper bounds, so it
+        // may exceed `v0` but never escapes the fail-low region.
+        assert!(
+            got >= v0,
+            "returned score keeps the fail-low scouts' upper bounds (got={got} >= v0={v0})"
+        );
+        assert!(
+            got <= ALPHA,
+            "node still fails low overall (got={got} <= alpha={ALPHA})"
         );
         assert_eq!(
             pv.lines[1].first().copied(),
@@ -5952,6 +6091,12 @@ mod tests {
             let mut heur = Some(SearchHeuristics::new());
             let mut path = SearchPath::new(vec![pos.zobrist_key()]);
             let root_len = path.len();
+            // P2: capture the full SearchPath fingerprint (not just len/keys)
+            // so an unbalanced push/pop that happened to restore the length
+            // but corrupted the repetition context or the immutable base
+            // prefix cannot pass silently.
+            let before_sig = path.repetition_signature();
+            let before_base_len = path.base_len();
             let mut pv = PvTable::default();
             let r = negamax_entered_impl(
                 &mut pos,
@@ -5988,9 +6133,27 @@ mod tests {
                 before_key,
                 "key restored (budget={budget})"
             );
-            assert!(
-                ctx.nodes.load(Ordering::Relaxed) <= budget,
-                "nodes within budget (budget={budget})"
+            // P2: an abort here is ALWAYS budget exhaustion (no stop flag is
+            // set), so `try_enter_node` fails exactly when the counter has
+            // consumed the whole budget — the node count is EQUAL to the
+            // budget, never merely `<=` it. A weaker `<=` would hide an early
+            // return that left budget unused.
+            assert_eq!(
+                ctx.nodes.load(Ordering::Relaxed),
+                budget,
+                "an aborted node consumes exactly its budget (budget={budget})"
+            );
+            // P2: the repetition signature and the immutable base prefix are
+            // both restored — proves push/pop balance beyond the raw length.
+            assert_eq!(
+                path.repetition_signature(),
+                before_sig,
+                "repetition signature restored (budget={budget})"
+            );
+            assert_eq!(
+                path.base_len(),
+                before_base_len,
+                "base prefix length restored (budget={budget})"
             );
             assert!(
                 tt.probe(parent_key_probe).is_none(),
@@ -6169,16 +6332,17 @@ mod tests {
             pvs_counters::PARENT_QUIET_REWARD.get() > 0,
             "the re-search produced a quiet beta-cutoff with a single reward"
         );
-        // The scout-fail-high branch is unreachable in this PVS: a null-window
-        // scout is searched in [-(alpha+1), -alpha], so `scout_score` is
-        // bounded to [alpha, alpha+1]; since the scout only fires when
-        // `alpha+1 < beta`, `scout_score` can never reach `beta`. The cutoff
-        // still occurs — via the re-search's full window — so this is a
-        // performance nuance, not a correctness bug. Assert it stays silent.
+        // In THIS fixture (disabled TT, no mate lines in window) every scout
+        // stays window-bounded, so the in-window improvement goes through the
+        // re-search rather than a direct fail-high. That is a property of
+        // the fixture, NOT of the engine: scouts are fail-soft compatible
+        // and CAN fail high (see `pvs_scout_fail_high_via_tt_exact_*`, which
+        // drives `scout_score >= beta` deterministically via a pre-filled
+        // TT Exact entry).
         assert_eq!(
             pvs_counters::SCOUT_FAIL_HIGH.get(),
             0,
-            "the scout-fail-high branch is dead (cutoffs go through re-search)"
+            "no fail-high occurs in this disabled-TT fixture (in-window scouts re-search)"
         );
         // No budget abort in an unbounded search: every attempt entered.
         assert_eq!(
@@ -6224,6 +6388,32 @@ mod tests {
             "the committed (re-searched) PV is a legal line"
         );
 
+        // P2: every completed full re-search recorded the child PV row as the
+        // SCOUT left it paired with the row the RE-SEARCH rewrote. First, the
+        // pairing is exhaustive — one pair per re-search that returned a
+        // score (aborted re-searches propagate `None` and record nothing).
+        let pairs = pvs_counters::RESEARCH_PV_PAIRS.with_borrow(|v| v.clone());
+        assert_eq!(
+            pairs.len(),
+            pvs_counters::RESEARCH_ENTERED.get(),
+            "one (scout,research) child-row pair captured per completed re-search"
+        );
+        // The re-search clears + rewrites the child PV row before returning,
+        // so when a re-searched move becomes a node's best move the parent
+        // copies exactly the RE-SEARCH row (never a stale scout row). This is
+        // proven STRUCTURALLY and inline at the commit site (an `assert_eq!`
+        // comparing the parent's committed child tail against the recorded
+        // re-search row), and `RESEARCH_ROW_COMMITTED` proves that guarded
+        // commit path was actually exercised. (We do NOT require the scout
+        // and re-search rows to differ: a null-window scout that improves
+        // alpha frequently finds the same best child line — the invariant
+        // under test is that the committed row is a genuine re-search
+        // product, not that it is textually distinct from the scout row.)
+        assert!(
+            pvs_counters::RESEARCH_ROW_COMMITTED.get() > 0,
+            "at least one re-searched move became a node best and committed its re-search child row"
+        );
+
         let mut pos_m = parse_fen(START_FEN).unwrap();
         let ctx_m = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let mut tt_m = TranspositionTable::disabled();
@@ -6240,6 +6430,316 @@ mod tests {
         assert_eq!(
             out_c.score, out_m.score,
             "PVS preserves the fixed-depth root score"
+        );
+    }
+
+    #[test]
+    fn pvs_scout_fail_low_bound_preserved_via_tt_current() {
+        // P1.1 (the core bound-safety regression). A null-window scout that
+        // fails LOW must not commit its move/PV, but its NUMERIC upper bound
+        // MUST survive: dropping it would let an all-fail-low node store a TT
+        // `Bound::Upper` that UNDER-states the real node value and later cause
+        // a wrong TT cutoff. "The fail-low scout's PV is not committable, but
+        // the numeric upper bound it provides is still part of search
+        // correctness."
+        //
+        // We drive the fail-soft case deterministically with a pre-filled,
+        // ENABLED TT. On a quiet-only position (no captures / promotions /
+        // mates, so ordering and every child value are fully controlled) at
+        // caller window `[alpha=100, beta=200]`, depth 2:
+        //   * the FIRST ordered move's child returns Exact -40  -> parent
+        //     candidate 40  (below alpha: node fails low, `best = 40`);
+        //   * the SECOND ordered move's child returns Exact -80  -> its scout
+        //     score 80 is an UPPER bound that is BOTH `<= alpha` (fails low)
+        //     AND `> best` (the exact P1.1 hazard) -> dropped from best/PV but
+        //     folded into `fail_low_upper = 80`;
+        //   * every later move's child returns Exact -30 -> scout 30, also a
+        //     dropped fail-low, does not raise `fail_low_upper`.
+        // The node must return `80` (not `40`) and store a TT `Bound::Upper`
+        // of `80`, which does NOT under-state the true full-window value.
+        const FEN: &str = "4k3/8/8/8/8/5N2/4P3/4K3 w - - 0 1";
+        const DEPTH: u32 = 2;
+        const ALPHA: i32 = 100;
+        const BETA: i32 = 200;
+
+        // The exact move order the parent will apply on its first iteration
+        // (Current profile, no hash move, empty heuristics, ply 1).
+        let ordered: Vec<Move> = {
+            let mut pos = parse_fen(FEN).unwrap();
+            let mut moves = generate_legal_moves(&mut pos);
+            let empty = SearchHeuristics::new();
+            order_moves_with_hash_and_killers(&pos, &mut moves, None, Some(&empty), 1);
+            // Position is quiet-only, so the two controlled moves are quiet.
+            assert!(!is_tactical(&pos, moves[0]), "no captures in fixture");
+            assert!(!is_tactical(&pos, moves[1]), "no captures in fixture");
+            moves
+        };
+        let child_score = |idx: usize| -> i32 {
+            match idx {
+                0 => -40, // parent candidate 40 (below alpha -> fails low)
+                1 => -80, // scout 80: <= alpha (fail low) AND > best (hazard)
+                _ => -30, // scout 30: dropped fail-low, does not lift the bound
+            }
+        };
+        // Pre-fill every child's Exact TT entry so the whole subtree is
+        // deterministic. Child depth 2 >= the child's requested depth (1).
+        let prefill = |tt: &mut TranspositionTable| {
+            let mut pos = parse_fen(FEN).unwrap();
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            for (idx, &m) in ordered.iter().enumerate() {
+                let undo = pos.make_move(m);
+                path.push_child(&pos);
+                let ckey = current_tt_key(&pos, &path);
+                store_tt_score(tt, ckey, DEPTH, child_score(idx), 2, Bound::Exact, None);
+                path.pop();
+                pos.unmake_move(undo);
+            }
+        };
+
+        // --- Oracle: the true full-window value of this exact node. ---
+        let oracle = {
+            let mut pos = parse_fen(FEN).unwrap();
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits::default();
+            let mut tt = TranspositionTable::new_mb(1).unwrap();
+            prefill(&mut tt);
+            let mut heur = Some(SearchHeuristics::new());
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let mut pv = PvTable::default();
+            negamax_entered_impl(
+                &mut pos,
+                DEPTH,
+                1,
+                i32::MIN + 1000,
+                i32::MAX - 1000,
+                &ctx,
+                &limits,
+                SearchProfile::Current,
+                &mut pv,
+                &mut path,
+                &mut tt,
+                &mut heur,
+            )
+            .expect("oracle node completes")
+        };
+        assert_eq!(oracle, 80, "true full-window node value is 80");
+
+        // --- Real fail-low node under the tight caller window. ---
+        pvs_counters::reset();
+        let mut pos = parse_fen(FEN).unwrap();
+        let parent_probe_key = {
+            let path = SearchPath::new(vec![pos.zobrist_key()]);
+            current_tt_key(&pos, &path)
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        prefill(&mut tt);
+        let mut heur = Some(SearchHeuristics::new());
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let mut pv = PvTable::default();
+        let got = negamax_entered_impl(
+            &mut pos,
+            DEPTH,
+            1,
+            ALPHA,
+            BETA,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut pv,
+            &mut path,
+            &mut tt,
+            &mut heur,
+        )
+        .expect("parent node completes");
+
+        // The hazard genuinely occurred: a fail-low scout scored ABOVE `best`.
+        assert!(
+            pvs_counters::SCOUT_FAIL_LOW.get() > 0,
+            "later scouts failed low"
+        );
+        assert!(
+            pvs_counters::SCOUT_FAIL_LOW_EXCEEDS_BEST.get() > 0,
+            "a dropped fail-low scout scored above the running best (the P1.1 hazard)"
+        );
+        // A fail-low node never re-searches, never fails high, never cuts off.
+        assert_eq!(
+            pvs_counters::RESEARCH_ENTERED.get(),
+            0,
+            "fail-low never re-searches"
+        );
+        assert_eq!(pvs_counters::SCOUT_FAIL_HIGH.get(), 0, "no fail-high");
+        assert_eq!(
+            pvs_counters::PARENT_QUIET_REWARD.get(),
+            0,
+            "no beta cutoff -> no heuristic reward on a fail-low node"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_KILLER_CALLS.get(),
+            0,
+            "no killer recorded on a fail-low node"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_HISTORY_CALLS.get(),
+            0,
+            "no history recorded on a fail-low node"
+        );
+
+        // The returned score keeps the dropped scout's numeric upper bound
+        // (80), NOT the first move's 40 — yet still fails low overall.
+        assert_eq!(
+            got, 80,
+            "returned score lifts to the fail-low scout's upper bound"
+        );
+        assert!((80..=ALPHA).contains(&got), "80 <= got <= alpha");
+        // The committed PV/best move are still ONLY the first full-window move.
+        assert_eq!(
+            pv.lines[1].first().copied(),
+            Some(ordered[0]),
+            "parent PV starts with the first full-window move, not a scout move"
+        );
+
+        // The stored TT entry is an Upper bound that does NOT under-state the
+        // true value: `oracle (80) <= stored <= caller alpha (100)`. Dropping
+        // the scout bound (the P1.1 bug) would have stored `40 < oracle`.
+        let entry = tt.probe(parent_probe_key).expect("parent TT entry stored");
+        assert_eq!(entry.bound, Bound::Upper, "fail-low node stores Upper");
+        let stored = score_from_tt(entry.score, 1).expect("decodes");
+        assert!(
+            stored >= oracle,
+            "stored Upper {stored} must not under-state the true value {oracle}"
+        );
+        assert!(
+            stored <= ALPHA,
+            "stored Upper {stored} stays at/below caller alpha {ALPHA}"
+        );
+    }
+
+    #[test]
+    fn pvs_scout_fail_high_via_tt_exact_current() {
+        // P1.2 (the core fail-high regression). This engine is fail-soft
+        // COMPATIBLE: a TT Exact hit returns the real stored score even OUTSIDE
+        // the probing window. A null-window scout can therefore come back at or
+        // above `beta` -> a genuine `MoveOutcome::ScoutFailHigh` that is a real
+        // cutoff (NOT dead code, NOT re-searched). We drive it deterministically
+        // with a pre-filled enabled TT on a quiet-only position, caller window
+        // `[alpha=0, beta=100]`, depth 2:
+        //   * the FIRST ordered move's child returns Exact -50 -> candidate 50,
+        //     `best = 50`, `alpha = 50` (does not cut off);
+        //   * the SECOND ordered move's null-window scout `[-51, -50]` hits its
+        //     child's Exact -100 (returned despite being out of window) -> scout
+        //     score 100 `>= beta` -> fail HIGH: committed once, no re-search,
+        //     and (quiet) rewards killer/history exactly once.
+        const FEN: &str = "4k3/8/8/8/8/5N2/4P3/4K3 w - - 0 1";
+        const DEPTH: u32 = 2;
+        const ALPHA: i32 = 0;
+        const BETA: i32 = 100;
+
+        let ordered: Vec<Move> = {
+            let mut pos = parse_fen(FEN).unwrap();
+            let mut moves = generate_legal_moves(&mut pos);
+            let empty = SearchHeuristics::new();
+            order_moves_with_hash_and_killers(&pos, &mut moves, None, Some(&empty), 1);
+            assert!(!is_tactical(&pos, moves[0]), "first move is quiet");
+            assert!(
+                !is_tactical(&pos, moves[1]),
+                "the fail-high move is quiet (rewards killer/history)"
+            );
+            moves
+        };
+        // Only the first two children are visited before the cutoff; pre-fill
+        // exactly those two so the scenario is unambiguous.
+        let prefill = |tt: &mut TranspositionTable| {
+            let mut pos = parse_fen(FEN).unwrap();
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            for (idx, &m) in ordered.iter().take(2).enumerate() {
+                let undo = pos.make_move(m);
+                path.push_child(&pos);
+                let ckey = current_tt_key(&pos, &path);
+                let s = if idx == 0 { -50 } else { -100 };
+                store_tt_score(tt, ckey, DEPTH, s, 2, Bound::Exact, None);
+                path.pop();
+                pos.unmake_move(undo);
+            }
+        };
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(FEN).unwrap();
+        let parent_probe_key = {
+            let path = SearchPath::new(vec![pos.zobrist_key()]);
+            current_tt_key(&pos, &path)
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits::default();
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        prefill(&mut tt);
+        let mut heur = Some(SearchHeuristics::new());
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let mut pv = PvTable::default();
+        let got = negamax_entered_impl(
+            &mut pos,
+            DEPTH,
+            1,
+            ALPHA,
+            BETA,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut pv,
+            &mut path,
+            &mut tt,
+            &mut heur,
+        )
+        .expect("parent node completes");
+
+        // A real fail-high occurred through a fail-soft (out-of-window) return.
+        assert!(
+            pvs_counters::SCOUT_FAIL_HIGH.get() > 0,
+            "a scout failed high (fail-soft compatible; NOT dead code)"
+        );
+        // A fail-high is a direct cutoff: it is NEVER re-searched.
+        assert_eq!(
+            pvs_counters::RESEARCH_ATTEMPT.get(),
+            0,
+            "fail-high never even attempts a re-search"
+        );
+        assert_eq!(
+            pvs_counters::RESEARCH_ENTERED.get(),
+            0,
+            "fail-high never re-searches"
+        );
+        // The quiet fail-high cutoff rewarded killer + history EXACTLY once.
+        assert_eq!(
+            pvs_counters::PARENT_QUIET_REWARD.get(),
+            1,
+            "one quiet cutoff reward"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_KILLER_CALLS.get(),
+            1,
+            "killer recorded exactly once"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_HISTORY_CALLS.get(),
+            1,
+            "history recorded exactly once"
+        );
+
+        // The node returns the fail-high score and commits the fail-high move.
+        assert_eq!(got, 100, "returned score is the fail-high cutoff value");
+        assert_eq!(
+            pv.lines[1].first().copied(),
+            Some(ordered[1]),
+            "PV starts with the fail-high move"
+        );
+        // The stored TT entry is a Lower bound (a proven cutoff).
+        let entry = tt.probe(parent_probe_key).expect("parent TT entry stored");
+        assert_eq!(entry.bound, Bound::Lower, "fail-high node stores Lower");
+        assert_eq!(
+            score_from_tt(entry.score, 1),
+            Some(100),
+            "stored Lower is the cutoff value"
         );
     }
 
