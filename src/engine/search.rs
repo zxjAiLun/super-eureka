@@ -53,13 +53,15 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
 ///   keeps M4.2 replayable once `Current` enables PVS.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
-///   the M4.2 PVS (landed in later M4.2 commits).
+///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
-/// In Commit 2 only the profile plumbing exists: `M41Reference` and `Current`
-/// share the M4.1 full-window path (both build killer/history state and use the
-/// seven-level ordering at non-root nodes; the root stays M4.0-ordered), while
-/// `M4Reference` keeps every search behavior byte-identical to M4.0. The
-/// branching that makes `Current` differ (PVS) arrives in later commits.
+/// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
+/// non-root nodes, NO PVS at either the root or a non-root node), while
+/// `Current` enables the null-window scout + re-search at every non-root node
+/// AND at the root. `M4Reference` keeps every search behavior byte-identical to
+/// M4.0. Move ordering at the root itself is the pure hash-move lift in all
+/// profiles (no MVV-LVA / killer / history reorder); PVS changes only the
+/// WINDOW a later root move is searched with, never the root move order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchProfile {
     M4Reference,
@@ -536,6 +538,43 @@ mod pvs_counters {
         /// asserted inline at the commit site; this counter only proves the
         /// adversarial path was actually exercised at least once.
         pub static RESEARCH_ROW_COMMITTED: Cell<usize> = const { Cell::new(0) };
+
+        // --- Root PVS counters (M4.2 Commit 4). Deliberately DISTINCT from
+        // the non-root counters above: a scout / re-search / fail-low at the
+        // root is attributed strictly to `root_search`, never confused with a
+        // deeper non-root node, so a test can prove the ROOT PVS path itself
+        // fired (and, for the reference profiles, that it did NOT). ---
+        /// `Current`'s first root move used the full window (never scouted).
+        pub static ROOT_FIRST_FULL: Cell<usize> = const { Cell::new(0) };
+        /// A null-window scout was launched for a later `Current` root move.
+        pub static ROOT_SCOUT: Cell<usize> = const { Cell::new(0) };
+        /// A root scout failed low (`scout_score <= alpha_before_move`): not
+        /// committable, not re-searched. The root keeps NO numeric bound —
+        /// the running exact candidate / claim floor already dominates it.
+        pub static ROOT_FAIL_LOW: Cell<usize> = const { Cell::new(0) };
+        /// A root scout improved alpha (`scout_score > alpha_before_move`) so a
+        /// full re-search was WANTED (root has no beta cutoff, so EVERY
+        /// improving scout re-searches — there is no fail-high shortcut).
+        pub static ROOT_RESEARCH_ATTEMPT: Cell<usize> = const { Cell::new(0) };
+        /// The root full re-search acquired its node and ran.
+        pub static ROOT_RESEARCH_ENTERED: Cell<usize> = const { Cell::new(0) };
+        /// A re-searched root move became the root best AND its committed root
+        /// PV tail was verified (inline) equal to the re-search child row.
+        pub static ROOT_RESEARCH_ROW_COMMITTED: Cell<usize> = const { Cell::new(0) };
+        /// One increment per root move whose edge was fully resolved (probe +
+        /// search + cleanup), INCLUDING dropped fail-lows. Proves the root
+        /// visits every legal move (no beta cutoff / early break).
+        pub static ROOT_MOVES_VISITED: Cell<usize> = const { Cell::new(0) };
+        /// Abort while the root null-window scout subtree ran (phase A).
+        pub static ROOT_ABORT_IN_SCOUT: Cell<usize> = const { Cell::new(0) };
+        /// Abort acquiring the root re-search node (phase B).
+        pub static ROOT_ABORT_RESEARCH_ACQUIRE: Cell<usize> = const { Cell::new(0) };
+        /// Abort while the root full re-search subtree ran (phase C).
+        pub static ROOT_ABORT_IN_RESEARCH: Cell<usize> = const { Cell::new(0) };
+        /// For every completed root re-search: the child PV row as the SCOUT
+        /// left it, paired with the row the RE-SEARCH rewrote.
+        pub static ROOT_RESEARCH_PV_PAIRS: RefCell<Vec<(Vec<Move>, Vec<Move>)>> =
+            const { RefCell::new(Vec::new()) };
     }
     pub fn reset() {
         SCOUT.set(0);
@@ -554,6 +593,17 @@ mod pvs_counters {
         HISTORY_TOTAL_DELTA.set(0);
         RESEARCH_PV_PAIRS.with_borrow_mut(Vec::clear);
         RESEARCH_ROW_COMMITTED.set(0);
+        ROOT_FIRST_FULL.set(0);
+        ROOT_SCOUT.set(0);
+        ROOT_FAIL_LOW.set(0);
+        ROOT_RESEARCH_ATTEMPT.set(0);
+        ROOT_RESEARCH_ENTERED.set(0);
+        ROOT_RESEARCH_ROW_COMMITTED.set(0);
+        ROOT_MOVES_VISITED.set(0);
+        ROOT_ABORT_IN_SCOUT.set(0);
+        ROOT_ABORT_RESEARCH_ACQUIRE.set(0);
+        ROOT_ABORT_IN_RESEARCH.set(0);
+        ROOT_RESEARCH_PV_PAIRS.with_borrow_mut(Vec::clear);
     }
     pub fn mark_scout() {
         SCOUT.set(SCOUT.get() + 1);
@@ -600,6 +650,39 @@ mod pvs_counters {
     }
     pub fn mark_research_row_committed() {
         RESEARCH_ROW_COMMITTED.set(RESEARCH_ROW_COMMITTED.get() + 1);
+    }
+    pub fn mark_root_first_full() {
+        ROOT_FIRST_FULL.set(ROOT_FIRST_FULL.get() + 1);
+    }
+    pub fn mark_root_scout() {
+        ROOT_SCOUT.set(ROOT_SCOUT.get() + 1);
+    }
+    pub fn mark_root_fail_low() {
+        ROOT_FAIL_LOW.set(ROOT_FAIL_LOW.get() + 1);
+    }
+    pub fn mark_root_research_attempt() {
+        ROOT_RESEARCH_ATTEMPT.set(ROOT_RESEARCH_ATTEMPT.get() + 1);
+    }
+    pub fn mark_root_research_entered() {
+        ROOT_RESEARCH_ENTERED.set(ROOT_RESEARCH_ENTERED.get() + 1);
+    }
+    pub fn mark_root_research_row_committed() {
+        ROOT_RESEARCH_ROW_COMMITTED.set(ROOT_RESEARCH_ROW_COMMITTED.get() + 1);
+    }
+    pub fn mark_root_move_visited() {
+        ROOT_MOVES_VISITED.set(ROOT_MOVES_VISITED.get() + 1);
+    }
+    pub fn mark_root_abort_in_scout() {
+        ROOT_ABORT_IN_SCOUT.set(ROOT_ABORT_IN_SCOUT.get() + 1);
+    }
+    pub fn mark_root_abort_research_acquire() {
+        ROOT_ABORT_RESEARCH_ACQUIRE.set(ROOT_ABORT_RESEARCH_ACQUIRE.get() + 1);
+    }
+    pub fn mark_root_abort_in_research() {
+        ROOT_ABORT_IN_RESEARCH.set(ROOT_ABORT_IN_RESEARCH.get() + 1);
+    }
+    pub fn record_root_research_pv_pair(scout_row: Vec<Move>, research_row: Vec<Move>) {
+        ROOT_RESEARCH_PV_PAIRS.with_borrow_mut(|v| v.push((scout_row, research_row)));
     }
 }
 
@@ -751,8 +834,9 @@ fn store_tt_score(
 /// next independent `go`/`search` call. Never persisted across games or
 /// into quiescence.
 ///
-/// Only `SearchProfile::Current` builds one — the `M4Reference` path
-/// skips it entirely, so the historical baseline is untouched.
+/// `M41Reference` and `Current` build one; the `M4Reference` path skips it
+/// entirely (no killer/history ordering), so the historical baseline is
+/// untouched.
 ///
 /// Bounded normalization cap for the history table (spec §4.1/§4.3).
 /// Every `history` entry is capped at this value; this bounds table
@@ -2042,11 +2126,43 @@ fn score_to_uci(score: i32) -> String {
     }
 }
 
+/// Explicit classification of one ROOT move edge (M4.2 Commit 4). The root
+/// commits state by MATCHING on this variant, never by inferring "was this a
+/// fail-low?" from a score comparison. The root is simpler than a non-root
+/// node: it has NO beta cutoff, so a scout that improves alpha is ALWAYS
+/// re-searched (there is no fail-high shortcut variant), and a fail-low scout
+/// is simply dropped WITHOUT retaining a numeric bound — the root's running
+/// exact candidate / claim floor already sits at or above `alpha_before_move`,
+/// which already dominates a fail-low scout's upper bound. This engine is
+/// fail-soft COMPATIBLE: the re-search decision (`scout_score >
+/// alpha_before_move`) never assumes a scout return is clamped into its null
+/// window; a fail-soft value above the window still re-searches correctly.
+enum RootMoveOutcome {
+    /// A real candidate score: a full-window search (first move, or a
+    /// reference profile), a re-searched scout, a terminal child, or an
+    /// intended-claim child. Participates in best / best_move / root PV /
+    /// alpha normally.
+    Candidate(i32),
+    /// A later `Current` root scout that failed low
+    /// (`scout_score <= alpha_before_move`). Not committable and not
+    /// re-searched; the root retains no numeric bound from it.
+    ScoutFailLow,
+}
+
 /// Search one root ply to `depth`, returning the completed iteration (its
 /// score and full principal variation) or `None` if aborted. The PV table is
 /// (re)allocated per call, sized to this iteration's depth plus the quiescence
 /// cap — never to `limits.depth`, so an absurd `go depth` cannot trigger a
 /// huge one-shot allocation.
+///
+/// M4.2 Commit 4: under `SearchProfile::Current` the root runs Principal
+/// Variation Search — the first root move takes the full window, later moves
+/// are scouted with a null window and re-searched at full width only if the
+/// scout improves alpha. `M4Reference` and `M41Reference` keep the full-window
+/// root unchanged (byte-identical root node counts / scores / PV). There is no
+/// root beta cutoff in any profile: every legal root move is checked, moves
+/// that may improve alpha are fully re-searched, and the final root best score
+/// is exact.
 #[allow(clippy::too_many_arguments)]
 fn root_search(
     pos: &mut Position,
@@ -2056,9 +2172,11 @@ fn root_search(
     claim_fallback: Move,
     ctx: &SearchContext,
     limits: &SearchLimits,
-    // M4.1: forwarded to the non-root negamax node (Commit 3
-    // consumes it; history in Commit 4).
-    _profile: SearchProfile,
+    // M4.1: forwarded to the non-root negamax node for killer/history
+    // ordering. M4.2 Commit 4: ALSO consumed at the root itself to gate root
+    // PVS (`Current` scouts later root moves; the reference profiles keep the
+    // full-window root).
+    profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
     // M4.1: killer/history state forwarded to the non-root negamax
@@ -2104,7 +2222,12 @@ fn root_search(
         }
     }
 
-    for &mut m in root_moves {
+    for (move_idx, &mut m) in root_moves.iter_mut().enumerate() {
+        // Capture the window BEFORE this move so the scout window and the
+        // re-search both see the same `alpha_before_move`. For the reference
+        // profiles (and the first move) this equals the running `alpha`, so
+        // the full-window search below is byte-identical to the pre-PVS root.
+        let alpha_before_move = alpha;
         let undo = pos.make_move(m);
         path.push_child(pos);
 
@@ -2118,55 +2241,206 @@ fn root_search(
             }
         };
 
-        // Terminal (mate / stalemate) FIRST — never overridden by a claim.
-        let child = match probe {
-            ChildProbe::Terminal(s) => Some(s),
-            ChildProbe::IntendedClaim => Some(0), // mover claims on this intended move
+        // P2: when this root move goes through a full re-search, remember the
+        // child PV row the RE-SEARCH rewrote so the commit block can verify
+        // inline that the root copies exactly that row — never a stale scout
+        // row — whenever this move becomes the root best.
+        #[cfg(test)]
+        let mut researched_row: Option<Vec<Move>> = None;
+
+        // Resolve the child window into an EXPLICIT `RootMoveOutcome`. Terminal
+        // / IntendedClaim children are exact results and are never scouted or
+        // re-searched; only a `Continue` child may take the root PVS path.
+        let outcome = match probe {
+            // mate/stalemate edge, parent (root) perspective
+            ChildProbe::Terminal(s) => RootMoveOutcome::Candidate(s),
+            // mover claims on this intended move
+            ChildProbe::IntendedClaim => RootMoveOutcome::Candidate(0),
             ChildProbe::Continue => {
-                // Manual probe already spent the single node. Recurse into the
-                // ENTERED body — NEVER negamax_impl (double count). Handle a
-                // deeper abort EXPLICITLY before cleanup.
-                match negamax_entered_impl(
-                    pos,
-                    depth - 1,
-                    1,
-                    -beta,
-                    -alpha,
-                    ctx,
-                    limits,
-                    _profile,
-                    &mut pv,
-                    path,
-                    tt,
-                    heur,
-                ) {
-                    Some(s) => Some(-s),
-                    None => {
-                        path.pop();
-                        pos.unmake_move(undo);
-                        return None; // aborted (deeper recursion)
+                // The manual probe already spent the single node for this
+                // child. Root PVS uses the SAME window helper as a non-root
+                // node (its behavior is unchanged): first move / reference
+                // profile -> Full; a later `Current` move -> Scout.
+                match pvs_child_window(profile, move_idx == 0, depth, alpha_before_move, beta) {
+                    ChildWindow::Full => {
+                        #[cfg(test)]
+                        if move_idx == 0 && profile == SearchProfile::Current {
+                            pvs_counters::mark_root_first_full();
+                        }
+                        // Full-window search. Recurse into the ENTERED body —
+                        // NEVER negamax_impl (double count). Handle a deeper
+                        // abort EXPLICITLY before cleanup.
+                        match negamax_entered_impl(
+                            pos,
+                            depth - 1,
+                            1,
+                            -beta,
+                            -alpha_before_move,
+                            ctx,
+                            limits,
+                            profile,
+                            &mut pv,
+                            path,
+                            tt,
+                            heur,
+                        ) {
+                            Some(s) => RootMoveOutcome::Candidate(-s),
+                            None => {
+                                path.pop();
+                                pos.unmake_move(undo);
+                                return None; // aborted (deeper recursion)
+                            }
+                        }
+                    }
+                    ChildWindow::Scout { scout_beta } => {
+                        // Null-window scout for a later `Current` root move.
+                        // Child window is `[-scout_beta, -alpha_before_move]`;
+                        // the probe already spent this child's single node.
+                        #[cfg(test)]
+                        pvs_counters::mark_root_scout();
+                        let scout_score = match negamax_entered_impl(
+                            pos,
+                            depth - 1,
+                            1,
+                            -scout_beta,
+                            -alpha_before_move,
+                            ctx,
+                            limits,
+                            profile,
+                            &mut pv,
+                            path,
+                            tt,
+                            heur,
+                        ) {
+                            Some(s) => -s,
+                            None => {
+                                // Phase A: the root scout's subtree aborted.
+                                #[cfg(test)]
+                                pvs_counters::mark_root_abort_in_scout();
+                                path.pop();
+                                pos.unmake_move(undo);
+                                return None;
+                            }
+                        };
+                        // The root has NO beta cutoff, so there is no fail-high
+                        // shortcut: ANY scout that improves alpha
+                        // (`scout_score > alpha_before_move`) must be fully
+                        // re-searched before it can become the root best. This
+                        // condition is fail-soft SAFE — it never assumes the
+                        // scout return was clamped into its null window; a
+                        // fail-soft value above the window still re-searches.
+                        if scout_score > alpha_before_move {
+                            #[cfg(test)]
+                            pvs_counters::mark_root_research_attempt();
+                            // P2: snapshot the child PV row the SCOUT left, so
+                            // a test can prove the root commits the re-searched
+                            // line, never this stale scout line.
+                            #[cfg(test)]
+                            let scout_child_row = pv.lines[1].clone();
+                            // Re-search: the child stays made and the SearchPath
+                            // stays pushed (NO pop/unmake, NO re-probe). Acquire
+                            // exactly ONE more real node for the re-search.
+                            if !try_enter_node(ctx, limits) {
+                                // Phase B: re-search node acquisition failed.
+                                #[cfg(test)]
+                                pvs_counters::mark_root_abort_research_acquire();
+                                path.pop();
+                                pos.unmake_move(undo);
+                                return None;
+                            }
+                            #[cfg(test)]
+                            pvs_counters::mark_root_research_entered();
+                            match negamax_entered_impl(
+                                pos,
+                                depth - 1,
+                                1,
+                                -beta,
+                                -alpha_before_move,
+                                ctx,
+                                limits,
+                                profile,
+                                &mut pv,
+                                path,
+                                tt,
+                                heur,
+                            ) {
+                                Some(s) => {
+                                    #[cfg(test)]
+                                    {
+                                        let research_row = pv.lines[1].clone();
+                                        pvs_counters::record_root_research_pv_pair(
+                                            scout_child_row,
+                                            research_row.clone(),
+                                        );
+                                        researched_row = Some(research_row);
+                                    }
+                                    RootMoveOutcome::Candidate(-s)
+                                }
+                                None => {
+                                    // Phase C: the full re-search subtree aborted.
+                                    #[cfg(test)]
+                                    pvs_counters::mark_root_abort_in_research();
+                                    path.pop();
+                                    pos.unmake_move(undo);
+                                    return None;
+                                }
+                            }
+                        } else {
+                            // Scout failed low at the root: its move/PV are NOT
+                            // committable and it is NOT re-searched. Unlike a
+                            // non-root node, the root keeps NO numeric bound —
+                            // `alpha_before_move` (the running exact candidate /
+                            // claim floor) already sits at or above this scout's
+                            // upper bound, so nothing is lost.
+                            #[cfg(test)]
+                            pvs_counters::mark_root_fail_low();
+                            RootMoveOutcome::ScoutFailLow
+                        }
                     }
                 }
             }
         };
 
         path.pop();
-        let score = match child {
-            Some(s) => s,
-            None => unreachable!(),
-        };
         pos.unmake_move(undo);
+        #[cfg(test)]
+        pvs_counters::mark_root_move_visited();
+
+        // Commit root state by MATCHING on the explicit outcome. A fail-low
+        // scout never updates best / best_move / root PV / alpha. Every other
+        // outcome carries a real candidate.
+        let score = match outcome {
+            RootMoveOutcome::ScoutFailLow => continue,
+            RootMoveOutcome::Candidate(s) => s,
+        };
 
         if score > best_score {
             best_score = score;
             best_move = Some(m);
             // Record the root PV: this move followed by the child's PV.
             pv.set_from_child(0, m);
+            // P2: a re-searched root move that becomes the root best commits
+            // the row the RE-SEARCH rewrote (`set_from_child` copies
+            // `pv.lines[1]`, which the re-search overwrote AFTER the scout).
+            // Prove it structurally: the committed root PV tail equals the
+            // recorded re-search row, never a stale scout row.
+            #[cfg(test)]
+            if let Some(research_row) = researched_row.as_ref() {
+                let committed_tail = &pv.lines[0][1..];
+                assert_eq!(
+                    committed_tail,
+                    research_row.as_slice(),
+                    "root must commit the re-search child row, not a stale scout row"
+                );
+                pvs_counters::mark_root_research_row_committed();
+            }
         }
         if best_score > alpha {
             alpha = best_score;
         }
-        // No beta cutoff at the root: real scores for every root move.
+        // No root beta cutoff: all root moves are checked; moves that may
+        // improve alpha are fully re-searched; the final root best score is
+        // exact.
     }
 
     // A claimable root with no real move beating 0 returns the claim itself
@@ -6948,5 +7222,678 @@ mod tests {
         );
         assert_eq!(path.base_len(), saved_base_len, "base_len restored");
         assert_eq!(path.len(), saved_keys.len(), "path length restored");
+    }
+
+    // ==== M4.2 Commit 4: root Principal Variation Search =====================
+    //
+    // These tests exercise the ROOT PVS edges specifically (the non-root PVS
+    // edges are covered by the `pvs_*` tests above). They rely on the
+    // `ROOT_*` event counters in `pvs_counters`, which are reset per test and
+    // are thread-local (each `#[test]` runs on its own thread, so the counts
+    // observe only this test's search). Where a precise per-iteration count is
+    // needed, we call the private `root_search` directly for a SINGLE depth
+    // (iterative deepening would otherwise accumulate counts across depths).
+
+    /// A queen-win fixture: White (to move) can win Black's queen with
+    /// `Qe4xa4` (`e4a4`), by far the best root move. Used to force a known
+    /// strong / weak split at the root.
+    const ROOT_QWIN_FEN: &str = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1";
+
+    /// Pick any legal root move that is NOT `e4a4` (guaranteed to exist and to
+    /// be strictly worse than winning the queen), plus the `e4a4` move itself.
+    fn root_weak_and_qxa4(fen: &str) -> (Move, Move) {
+        let mut pos = parse_fen(fen).unwrap();
+        let qxa4 = find_move(&pos, "e4a4");
+        let moves = generate_legal_moves(&mut pos);
+        let weak = *moves
+            .iter()
+            .find(|m| **m != qxa4)
+            .expect("a non-Qxa4 legal move exists");
+        (weak, qxa4)
+    }
+
+    #[test]
+    fn root_pvs_profile_isolation() {
+        // The reference profiles keep a full-window root: at the ROOT they must
+        // NEVER scout, fail-low a scout, attempt or enter a re-search, and must
+        // never mark the `Current`-only "first root move full" event. `Current`
+        // runs root PVS and, on a multi-move position, scouts later root moves.
+        let depth = 3;
+
+        for profile in [SearchProfile::M4Reference, SearchProfile::M41Reference] {
+            pvs_counters::reset();
+            let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+            let mut root_moves = generate_legal_moves(&mut pos.clone());
+            let fallback = root_moves[0];
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits {
+                depth: Some(depth),
+                ..Default::default()
+            };
+            let mut heur = if profile == SearchProfile::M4Reference {
+                None
+            } else {
+                Some(SearchHeuristics::new())
+            };
+            root_search(
+                &mut pos,
+                depth,
+                &mut root_moves,
+                false,
+                fallback,
+                &ctx,
+                &limits,
+                profile,
+                &mut path,
+                &mut TranspositionTable::disabled(),
+                &mut heur,
+            )
+            .expect("iteration completes");
+            assert_eq!(
+                pvs_counters::ROOT_SCOUT.get(),
+                0,
+                "{profile:?} never scouts at the root"
+            );
+            assert_eq!(
+                pvs_counters::ROOT_FAIL_LOW.get(),
+                0,
+                "{profile:?} never fails a root scout low"
+            );
+            assert_eq!(
+                pvs_counters::ROOT_RESEARCH_ATTEMPT.get(),
+                0,
+                "{profile:?} never attempts a root re-search"
+            );
+            assert_eq!(
+                pvs_counters::ROOT_RESEARCH_ENTERED.get(),
+                0,
+                "{profile:?} never re-searches at the root"
+            );
+            assert_eq!(
+                pvs_counters::ROOT_FIRST_FULL.get(),
+                0,
+                "{profile:?} never marks the Current-only first-full root event"
+            );
+        }
+
+        // Current: root PVS scouts later root moves and marks the first full.
+        pvs_counters::reset();
+        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+        let mut root_moves = generate_legal_moves(&mut pos.clone());
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            false,
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+        assert!(
+            pvs_counters::ROOT_SCOUT.get() > 0,
+            "Current scouts later root moves"
+        );
+        assert!(
+            pvs_counters::ROOT_FIRST_FULL.get() > 0,
+            "Current searches the first root move full-window"
+        );
+    }
+
+    #[test]
+    fn root_pvs_real_path_counters_fire_in_real_search() {
+        // Prove the ROOT PVS branches actually execute inside a real `Current`
+        // iterative-deepening search — not merely that a node count changed.
+        // The queen-win fixture is chosen because raw depth-1 move generation
+        // does NOT put the winning `Qxa4` first, so a later root move's scout
+        // genuinely improves alpha and is fully re-searched. (At startpos the
+        // ordering is so good that the best move is searched first at every
+        // depth and NO root re-search ever fires — that is correct, efficient
+        // PVS, so it cannot exercise the re-search branch. The re-search branch
+        // is also proven deterministically by
+        // `root_pvs_scout_improves_alpha_triggers_research`.)
+        pvs_counters::reset();
+        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(4),
+            ..Default::default()
+        };
+        let mut tt = TranspositionTable::disabled();
+        let key = pos.zobrist_key();
+        let out = search_best_move_with_history_tt_and_profile(
+            &mut pos,
+            &[key],
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::Current,
+        )
+        .expect("current outcome");
+
+        assert!(
+            pvs_counters::ROOT_FIRST_FULL.get() > 0,
+            "the first root move is searched full-window"
+        );
+        assert!(
+            pvs_counters::ROOT_SCOUT.get() > 0,
+            "later root moves are scouted"
+        );
+        assert!(
+            pvs_counters::ROOT_FAIL_LOW.get() > 0,
+            "some root scouts fail low and are dropped"
+        );
+        assert!(
+            pvs_counters::ROOT_RESEARCH_ENTERED.get() > 0,
+            "some root scouts improve alpha and trigger a full re-search"
+        );
+        assert_eq!(
+            pvs_counters::ROOT_RESEARCH_ATTEMPT.get(),
+            pvs_counters::ROOT_RESEARCH_ENTERED.get(),
+            "no budget abort here: every attempted root re-search entered"
+        );
+        assert!(pv_is_legal(ROOT_QWIN_FEN, &out.pv), "root PV is legal");
+        assert_eq!(out.pv.first().copied(), Some(out.best_move));
+    }
+
+    #[test]
+    fn root_pvs_scout_fail_low_not_committed() {
+        // With the winning move FIRST, its full-window search sets a high
+        // alpha; a later WEAK move's scout then fails low and must be dropped:
+        // no re-search, no change to best move / PV, and every root move is
+        // still visited (no root beta cutoff).
+        let (weak, qxa4) = root_weak_and_qxa4(ROOT_QWIN_FEN);
+        let mut root_moves = vec![qxa4, weak];
+        let depth = 3;
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        let iter = root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            false,
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+
+        assert!(
+            pvs_counters::ROOT_FAIL_LOW.get() > 0,
+            "the weak later move failed the root scout low"
+        );
+        assert_eq!(
+            pvs_counters::ROOT_RESEARCH_ENTERED.get(),
+            0,
+            "a fail-low root scout never re-searches"
+        );
+        assert_eq!(
+            pvs_counters::ROOT_MOVES_VISITED.get(),
+            2,
+            "every root move is visited (no root beta cutoff)"
+        );
+        assert_eq!(
+            move_to_uci(iter.best_move),
+            "e4a4",
+            "best move stays the first full-window winner"
+        );
+        assert_eq!(iter.score, 890, "root score is the winning value");
+        assert_eq!(
+            iter.pv.first().copied(),
+            Some(iter.best_move),
+            "root PV starts with the winner, never the fail-low scout move"
+        );
+        assert!(pv_is_legal(ROOT_QWIN_FEN, &iter.pv));
+    }
+
+    #[test]
+    fn root_pvs_scout_improves_alpha_triggers_research() {
+        // With a WEAK move FIRST (setting a low alpha) and the winning move
+        // LATER, the winner's null-window scout improves alpha and MUST be
+        // fully re-searched before it can become the root best. The committed
+        // root PV tail is the re-search line (asserted structurally inside
+        // `root_search`; here we confirm the re-search fired and the result is
+        // the real winning line).
+        let (weak, qxa4) = root_weak_and_qxa4(ROOT_QWIN_FEN);
+        let mut root_moves = vec![weak, qxa4];
+        let depth = 3;
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        let iter = root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            false,
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+
+        assert!(
+            pvs_counters::ROOT_SCOUT.get() > 0,
+            "the later winning move was scouted"
+        );
+        assert!(
+            pvs_counters::ROOT_RESEARCH_ATTEMPT.get() > 0,
+            "the improving scout attempted a full re-search"
+        );
+        assert_eq!(
+            pvs_counters::ROOT_RESEARCH_ENTERED.get(),
+            pvs_counters::ROOT_RESEARCH_ATTEMPT.get(),
+            "no budget abort: attempted re-search entered"
+        );
+        assert!(
+            pvs_counters::ROOT_RESEARCH_ROW_COMMITTED.get() > 0,
+            "the re-searched winner became best and committed its re-search row"
+        );
+        assert_eq!(
+            move_to_uci(iter.best_move),
+            "e4a4",
+            "the fully re-searched winner is the root best move"
+        );
+        assert_eq!(iter.score, 890, "root score is the winning value");
+        assert_eq!(iter.pv.first().copied(), Some(iter.best_move));
+        assert!(pv_is_legal(ROOT_QWIN_FEN, &iter.pv));
+    }
+
+    #[test]
+    fn root_pvs_visits_every_root_move() {
+        // A single-iteration `Current` root search must visit EVERY legal root
+        // move — there is no root beta cutoff.
+        let depth = 2;
+        let legal_count = generate_legal_moves(&mut parse_fen(ROOT_QWIN_FEN).unwrap()).len();
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
+        let mut root_moves = generate_legal_moves(&mut pos.clone());
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            false,
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+        assert_eq!(
+            pvs_counters::ROOT_MOVES_VISITED.get(),
+            legal_count,
+            "root visited every legal move (no beta cutoff)"
+        );
+    }
+
+    #[test]
+    fn root_pvs_score_parity_m41_vs_current() {
+        // The hard correctness contract (spec §9.5): at a fixed depth,
+        // `Current` (root + non-root PVS) and `M41Reference` (full-window)
+        // return the IDENTICAL score (mate distance included, since it is
+        // encoded in the score), a legal best move / PV, and a fully restored
+        // root position. They are FREE to differ in node count / move / PV
+        // ordering. We check both a disabled and an enabled TT.
+        // Fixtures: startpos, queen-win, a mate-in-1, and insufficient material.
+        let cases: &[(&str, u32, bool)] = &[
+            (START_FEN, 3, false),
+            (ROOT_QWIN_FEN, 3, false),
+            // Ra8# mate-in-1: White Ra1, Kh1; Black Kg8 boxed by its own pawns.
+            ("6k1/5ppp/8/8/8/8/8/R6K w - - 0 1", 2, true),
+            // K vs K: automatic insufficient-material draw (root short-circuit).
+            ("8/8/8/8/8/8/8/K6k w - - 0 1", 2, false),
+        ];
+
+        for &(fen, depth, is_mate) in cases {
+            for enabled in [false, true] {
+                let run = |profile: SearchProfile| {
+                    let mut pos = parse_fen(fen).unwrap();
+                    let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+                    let limits = SearchLimits {
+                        depth: Some(depth),
+                        ..Default::default()
+                    };
+                    let mut tt = if enabled {
+                        TranspositionTable::new_mb(1).unwrap()
+                    } else {
+                        TranspositionTable::disabled()
+                    };
+                    let key = pos.zobrist_key();
+                    let out = search_best_move_with_history_tt_and_profile(
+                        &mut pos,
+                        &[key],
+                        &limits,
+                        &ctx,
+                        &mut tt,
+                        profile,
+                    )
+                    .expect("outcome");
+                    (out, to_fen(&pos))
+                };
+
+                let (out_ref, fen_ref) = run(SearchProfile::M41Reference);
+                let (out_cur, fen_cur) = run(SearchProfile::Current);
+
+                assert_eq!(
+                    out_cur.score, out_ref.score,
+                    "score parity failed: fen={fen} depth={depth} enabled={enabled}"
+                );
+                if is_mate {
+                    let s = out_cur.score.expect("mate score present");
+                    assert!(
+                        s > MATE - 1000,
+                        "mate fixture must score a mate for both profiles (fen={fen}, s={s})"
+                    );
+                }
+                assert!(
+                    pv_is_legal(fen, &out_ref.pv),
+                    "m41 PV legal: fen={fen} enabled={enabled}"
+                );
+                assert!(
+                    pv_is_legal(fen, &out_cur.pv),
+                    "current PV legal: fen={fen} enabled={enabled}"
+                );
+                assert_eq!(fen_ref.as_str(), fen, "m41 restored: fen={fen}");
+                assert_eq!(fen_cur.as_str(), fen, "current restored: fen={fen}");
+            }
+        }
+    }
+
+    #[test]
+    fn root_pvs_claimable_root_no_winning_move_keeps_floor() {
+        // A claimable root (fifty-move / threefold available) has a 0 floor.
+        // When no real move beats the claim, `Current`'s root PVS must still
+        // report the claim: score 0, the stable fallback, and an EMPTY PV
+        // (never a faked line) — proving root PVS respects the claim floor.
+        let fen = "4k3/3q4/8/8/8/8/4P3/K7 w - - 100 50";
+        let depth = 2;
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(fen).unwrap();
+        let mut root_moves = generate_legal_moves(&mut pos.clone());
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        let iter = root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            true, // root_claimable
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+        assert_eq!(iter.score, 0, "claim floor holds under Current root PVS");
+        assert_eq!(
+            iter.best_move, fallback,
+            "claim placeholder is the stable fallback"
+        );
+        assert!(iter.pv.is_empty(), "claim placeholder PV is empty");
+    }
+
+    #[test]
+    fn root_pvs_claimable_root_winning_scout_re_searches() {
+        // A claimable root (0 floor) where a LATER move truly wins: its scout
+        // improves the 0 floor and MUST be fully re-searched before it can be
+        // reported, returning the real winning score and a legal, non-empty PV
+        // (never the null-window scout line).
+        let claim_fen = "7k/8/8/8/q3Q2p/8/8/4K3 w - - 100 50";
+        let (weak, qxa4) = root_weak_and_qxa4(claim_fen);
+        let mut root_moves = vec![weak, qxa4];
+        let depth = 3;
+
+        pvs_counters::reset();
+        let mut pos = parse_fen(claim_fen).unwrap();
+        let fallback = root_moves[0];
+        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let mut heur = Some(SearchHeuristics::new());
+        let iter = root_search(
+            &mut pos,
+            depth,
+            &mut root_moves,
+            true, // root_claimable
+            fallback,
+            &ctx,
+            &limits,
+            SearchProfile::Current,
+            &mut path,
+            &mut TranspositionTable::disabled(),
+            &mut heur,
+        )
+        .expect("iteration completes");
+        assert!(
+            pvs_counters::ROOT_SCOUT.get() > 0,
+            "the winning later move was scouted"
+        );
+        assert!(
+            pvs_counters::ROOT_RESEARCH_ENTERED.get() > 0,
+            "the winning scout improved the 0 floor and was re-searched"
+        );
+        assert_eq!(
+            move_to_uci(iter.best_move),
+            "e4a4",
+            "the re-searched winner beats the claim floor"
+        );
+        assert_eq!(iter.score, 890, "root reports the real winning score");
+        assert!(
+            !iter.pv.is_empty(),
+            "a real winning line has a non-empty PV"
+        );
+        assert_eq!(iter.pv.first().copied(), Some(iter.best_move));
+        assert!(pv_is_legal(claim_fen, &iter.pv));
+    }
+
+    #[test]
+    fn root_pvs_abort_restores_state_and_no_partial_root_tt() {
+        // Sweep node budgets over a single-depth `Current` root search whose
+        // move list is [weak, Qxa4]: the weak move sets a low alpha, so the
+        // winning `Qxa4` scout always improves alpha and re-searches. This
+        // reaches all three ROOT abort phases:
+        //   A) inside a root scout        -> ROOT_ABORT_IN_SCOUT
+        //   B) acquiring the re-search    -> ROOT_ABORT_RESEARCH_ACQUIRE
+        //   C) inside the root re-search  -> ROOT_ABORT_IN_RESEARCH
+        // Every aborted run must return None, consume EXACTLY its budget,
+        // fully restore board / FEN / Zobrist / SearchPath, and leave NO TT
+        // entry for the unfinished ROOT node.
+        let (weak, qxa4) = root_weak_and_qxa4(ROOT_QWIN_FEN);
+        let depth = 3;
+        let root = parse_fen(ROOT_QWIN_FEN).unwrap();
+        // Key the aborted root would have stored under (root at ply 0).
+        let root_key_probe = {
+            let path = SearchPath::new(vec![root.zobrist_key()]);
+            current_tt_key(&root, &path)
+        };
+
+        // Unbudgeted baseline node count for this exact root search.
+        let full_nodes = {
+            let mut pos = root;
+            let mut root_moves = vec![weak, qxa4];
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits {
+                depth: Some(depth),
+                ..Default::default()
+            };
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let mut heur = Some(SearchHeuristics::new());
+            root_search(
+                &mut pos,
+                depth,
+                &mut root_moves,
+                false,
+                root_moves_fallback(&[weak, qxa4]),
+                &ctx,
+                &limits,
+                SearchProfile::Current,
+                &mut path,
+                &mut TranspositionTable::disabled(),
+                &mut heur,
+            )
+            .expect("unbudgeted root completes");
+            ctx.nodes.load(Ordering::Relaxed)
+        };
+        assert!(full_nodes > 8, "root has a non-trivial subtree");
+
+        pvs_counters::reset();
+        let cap = full_nodes.saturating_sub(1).min(2000);
+        for budget in 1..=cap {
+            let mut pos = root;
+            let before_fen = to_fen(&pos);
+            let before_key = pos.zobrist_key();
+            let mut root_moves = vec![weak, qxa4];
+            let fallback = root_moves[0];
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits {
+                nodes: Some(budget),
+                ..Default::default()
+            };
+            let mut tt = TranspositionTable::new_mb(1).unwrap();
+            let mut heur = Some(SearchHeuristics::new());
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let root_len = path.len();
+            let before_sig = path.repetition_signature();
+            let before_base_len = path.base_len();
+            let r = root_search(
+                &mut pos,
+                depth,
+                &mut root_moves,
+                false,
+                fallback,
+                &ctx,
+                &limits,
+                SearchProfile::Current,
+                &mut path,
+                &mut tt,
+                &mut heur,
+            );
+            assert!(r.is_none(), "budget {budget} < {full_nodes} must abort");
+            assert_eq!(
+                ctx.nodes.load(Ordering::Relaxed),
+                budget,
+                "an aborted root consumes exactly its budget (budget={budget})"
+            );
+            assert_eq!(
+                path.len(),
+                root_len,
+                "path length restored (budget={budget})"
+            );
+            assert_eq!(
+                path.keys(),
+                &[before_key],
+                "path restored to root key (budget={budget})"
+            );
+            assert_eq!(
+                to_fen(&pos),
+                before_fen,
+                "position restored (budget={budget})"
+            );
+            assert_eq!(
+                pos.zobrist_key(),
+                before_key,
+                "key restored (budget={budget})"
+            );
+            assert_eq!(
+                path.repetition_signature(),
+                before_sig,
+                "repetition signature restored (budget={budget})"
+            );
+            assert_eq!(
+                path.base_len(),
+                before_base_len,
+                "base prefix length restored (budget={budget})"
+            );
+            assert!(
+                tt.probe(root_key_probe).is_none(),
+                "aborted root left no TT entry (budget={budget})"
+            );
+
+            if pvs_counters::ROOT_ABORT_IN_SCOUT.get() > 0
+                && pvs_counters::ROOT_ABORT_RESEARCH_ACQUIRE.get() > 0
+                && pvs_counters::ROOT_ABORT_IN_RESEARCH.get() > 0
+            {
+                break;
+            }
+        }
+
+        assert!(
+            pvs_counters::ROOT_ABORT_IN_SCOUT.get() > 0,
+            "phase A: root scout-internal abort observed"
+        );
+        assert!(
+            pvs_counters::ROOT_ABORT_RESEARCH_ACQUIRE.get() > 0,
+            "phase B: root re-search node-acquisition abort observed"
+        );
+        assert!(
+            pvs_counters::ROOT_ABORT_IN_RESEARCH.get() > 0,
+            "phase C: root re-search-internal abort observed"
+        );
+    }
+
+    /// Tiny helper: the stable fallback is the first move of a root list.
+    fn root_moves_fallback(moves: &[Move]) -> Move {
+        moves[0]
     }
 }
