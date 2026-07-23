@@ -45,8 +45,8 @@ cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 
 - `smoke`：两个锁定 fixture（startpos / queen-win，disabled 深度 3），精确校验 nodes/score/bestmove/PV。
 - `standard`：10 个单局面 fixture（开局、战术中局、封闭中局、王暴露、高分支、车兵残局、KQK、KRK、halfmove 上下文），三种 TT 模式 `disabled`/`cold`/`warm`，默认 `repeat 1`。
 - `throughput`：固定 nodes 预算测 NPS（默认 100000，默认 `repeat 3`）。
-- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--profile reference|current`。
-- `--profile` 选择搜索配置：**默认 `reference`**，逐字节复现 M4.0 基线（不启用 killer / history）；`current` 启用 M4.1 的 killer + history 安静着法排序。M4.1 的 Reference / Current A/B 节点与 NPS 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`。
+- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--profile reference|m4.1|current`。
+- `--profile` 选择搜索配置：**默认 `reference`**，逐字节复现 M4.0 基线（不启用 killer / history）；`m4.1` 启用 M4.1 的 killer + history 安静着法排序但保持完整窗口（无 PVS）；`current` 在 `m4.1` 之上叠加 root / 非 root PVS。M4.1 的 Reference / Current A/B 节点与 NPS 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的三代 profile 对照见 `docs/benchmarks/m4.2-principal-variation-search.md`。
 
 完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
 

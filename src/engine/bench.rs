@@ -6,8 +6,13 @@
 //! - `reference` (the default) calls the exact M4.0 entry
 //!   ([`search_best_move_with_history_and_tt`]), preserving the historical
 //!   baseline byte-for-byte;
-//! - `current` (and the Commit-2-added, not-yet-CLI-exposed `m4.1`)
-//!   call the profile-aware entry; `reference` uses the exact M4.0 entry.
+//! - `reference` (the default) calls the exact M4.0 entry
+//!   ([`search_best_move_with_history_and_tt`]), preserving the historical
+//!   baseline byte-for-byte;
+//! - `m4.1` and `current` call the profile-aware entry. `m4.1` selects
+//!   [`SearchProfile::M41Reference`] (M4.1 full-window quiet ordering,
+//!   no root/non-root PVS); `current` selects [`SearchProfile::Current`]
+//!   (M4.1 ordering + PVS). `reference` uses the exact M4.0 entry.
 //!
 //! The harness itself never alters search behavior.
 //!
@@ -235,10 +240,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .clone();
                 profile = match v.as_str() {
                     "reference" => SearchProfile::M4Reference,
+                    "m4.1" => SearchProfile::M41Reference,
                     "current" => SearchProfile::Current,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|current)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|current)",
                             other
                         ));
                     }
@@ -413,8 +419,10 @@ fn throughput_fixtures() -> Vec<Fixture> {
 /// - `reference` calls the exact M4.0 entry
 ///   ([`search_best_move_with_history_and_tt`]), preserving the historical
 ///   baseline byte-for-byte;
-/// - `current` (and the not-yet-CLI-exposed `m4.1`) calls the
-///   profile-aware entry; `reference` uses the exact M4.0 entry.
+/// - `m4.1` and `current` call the profile-aware entry. `m4.1` selects
+///   [`SearchProfile::M41Reference`] (M4.1 full-window quiet ordering,
+///   no PVS); `current` selects [`SearchProfile::Current`] (M4.1 ordering
+///   + PVS). `reference` uses the exact M4.0 entry.
 ///
 /// Commit 5 keeps `search.rs` untouched: it only selects which *existing*
 /// entry to drive, and never alters search semantics.
@@ -924,7 +932,7 @@ fn print_help() {
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
     println!("  --nodes <N>                       throughput node budget (default 100000)");
     println!(
-        "  --profile <reference|current>     search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|current>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1067,14 +1075,23 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(f.profile, SearchProfile::M4Reference);
+
+        // Commit 5 exposes `m4.1` on the CLI; it maps to the M4.1 full-window
+        // reference profile (quiet ordering, no PVS).
+        let m = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "m4.1".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(m.profile, SearchProfile::M41Reference);
     }
 
     #[test]
     fn profile_str_maps_all_variants() {
         // Compile-time exhaustiveness: every `SearchProfile` variant maps to a
-        // stable CLI string. `m4.1` is the internal string for `M41Reference`
-        // but is NOT accepted by `parse_args` until Commit 5 (see
-        // `parse_valid_profile` / `parse_invalid_no_panic`).
+        // stable CLI string. Commit 5 exposes `m4.1` on the CLI (see
+        // `parse_valid_profile`); it round-trips through `profile_str`.
         assert_eq!(profile_str(SearchProfile::M4Reference), "reference");
         assert_eq!(profile_str(SearchProfile::M41Reference), "m4.1");
         assert_eq!(profile_str(SearchProfile::Current), "current");
