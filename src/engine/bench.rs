@@ -6,9 +6,6 @@
 //! - `reference` (the default) calls the exact M4.0 entry
 //!   ([`search_best_move_with_history_and_tt`]), preserving the historical
 //!   baseline byte-for-byte;
-//! - `reference` (the default) calls the exact M4.0 entry
-//!   ([`search_best_move_with_history_and_tt`]), preserving the historical
-//!   baseline byte-for-byte;
 //! - `m4.1` and `current` call the profile-aware entry. `m4.1` selects
 //!   [`SearchProfile::M41Reference`] (M4.1 full-window quiet ordering,
 //!   no root/non-root PVS); `current` selects [`SearchProfile::Current`]
