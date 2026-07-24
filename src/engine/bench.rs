@@ -117,6 +117,8 @@ struct BenchArgs {
     nodes: u64,
     /// Search profile (default reference == M4.0 baseline behavior).
     profile: SearchProfile,
+    /// Optional throughput-only fixture filter.
+    fixture: Option<&'static str>,
 }
 
 /// Render a `SearchProfile` as its CLI string (also used in bench output).
@@ -183,6 +185,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     };
     let mut nodes = 100_000u64;
     let mut profile = SearchProfile::M4Reference;
+    let mut fixture: Option<&'static str> = None;
 
     while let Some(tok) = it.next() {
         match tok.as_str() {
@@ -247,6 +250,29 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                 };
             }
+            "--fixture" => {
+                if suite != Suite::Throughput {
+                    return Err("bench: --fixture is only valid for throughput".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --fixture requires a value".to_string())?
+                    .clone();
+                if fixture.is_some() {
+                    return Err("bench: --fixture may be specified only once".to_string());
+                }
+                fixture = Some(match v.as_str() {
+                    "startpos" => "startpos",
+                    "open-tactical" => "open-tactical",
+                    "queen-win" => "queen-win",
+                    other => {
+                        return Err(format!(
+                            "bench: invalid --fixture '{}' (expected startpos|open-tactical|queen-win)",
+                            other
+                        ));
+                    }
+                });
+            }
             other => {
                 return Err(format!("bench: unknown argument '{}'", other));
             }
@@ -259,6 +285,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         repeat,
         nodes,
         profile,
+        fixture,
     })
 }
 
@@ -839,6 +866,17 @@ fn check_determinism(results: &[BenchResult]) {
     }
 }
 
+fn fixtures_for(cfg: &BenchArgs) -> Vec<Fixture> {
+    match cfg.suite {
+        Suite::Smoke => smoke_fixtures(),
+        Suite::Standard => standard_fixtures(),
+        Suite::Throughput => throughput_fixtures()
+            .into_iter()
+            .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
+            .collect(),
+    }
+}
+
 fn print_summary(
     suite: Suite,
     modes: &[BenchMode],
@@ -882,11 +920,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
     let cfg = parse_args(args)?;
-    let fixtures: Vec<Fixture> = match cfg.suite {
-        Suite::Smoke => smoke_fixtures(),
-        Suite::Standard => standard_fixtures(),
-        Suite::Throughput => throughput_fixtures(),
-    };
+    let fixtures = fixtures_for(&cfg);
     let modes: Vec<BenchMode> = match cfg.mode {
         BenchMode::All => vec![BenchMode::Disabled, BenchMode::Cold, BenchMode::Warm],
         m => vec![m],
@@ -928,6 +962,7 @@ fn print_help() {
     println!("  --mode <disabled|cold|warm|all>  default: smoke=disabled, standard=all, throughput=disabled");
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
     println!("  --nodes <N>                       throughput node budget (default 100000)");
+    println!("  --fixture <startpos|open-tactical|queen-win>  throughput only");
     println!(
         "  --profile <reference|m4.1|current>  search profile (default reference == M4.0 baseline)"
     );
@@ -1056,6 +1091,31 @@ mod tests {
     }
 
     #[test]
+    fn parse_valid_throughput_fixture_filters() {
+        for id in ["startpos", "open-tactical", "queen-win"] {
+            let args = vec![
+                "throughput".to_string(),
+                "--fixture".to_string(),
+                id.to_string(),
+            ];
+            let cfg = parse_args(&args).unwrap();
+            assert_eq!(cfg.suite, Suite::Throughput);
+            assert_eq!(cfg.fixture, Some(id));
+            let fixtures = fixtures_for(&cfg);
+            assert_eq!(fixtures.len(), 1);
+            assert_eq!(fixtures[0].id, id);
+        }
+
+        let cfg = parse_args(&["throughput".to_string()]).unwrap();
+        assert_eq!(cfg.fixture, None);
+        let fixtures = fixtures_for(&cfg);
+        assert_eq!(fixtures.len(), 3);
+        assert_eq!(fixtures[0].id, "startpos");
+        assert_eq!(fixtures[1].id, "open-tactical");
+        assert_eq!(fixtures[2].id, "queen-win");
+    }
+
+    #[test]
     fn parse_valid_profile() {
         let r = parse_args(&[
             "standard".to_string(),
@@ -1115,6 +1175,29 @@ mod tests {
                 "smoke".to_string(),
                 "--profile".to_string(),
                 "foo".to_string(),
+            ],
+            vec![
+                "throughput".to_string(),
+                "--fixture".to_string(),
+                "unknown".to_string(),
+            ],
+            vec!["throughput".to_string(), "--fixture".to_string()],
+            vec![
+                "throughput".to_string(),
+                "--fixture".to_string(),
+                "startpos".to_string(),
+                "--fixture".to_string(),
+                "queen-win".to_string(),
+            ],
+            vec![
+                "smoke".to_string(),
+                "--fixture".to_string(),
+                "startpos".to_string(),
+            ],
+            vec![
+                "standard".to_string(),
+                "--fixture".to_string(),
+                "startpos".to_string(),
             ],
         ];
         for c in cases {
@@ -1195,6 +1278,7 @@ mod tests {
             repeat: 1,
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
+            fixture: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1223,6 +1307,7 @@ mod tests {
             repeat: 1,
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
+            fixture: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1269,6 +1354,7 @@ mod tests {
             repeat: 1,
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
+            fixture: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1314,6 +1400,7 @@ mod tests {
                 repeat: 1,
                 nodes: 100_000,
                 profile: SearchProfile::M4Reference,
+                fixture: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
             let locked = fx.locked.expect("smoke fixture must be locked");
@@ -1343,6 +1430,7 @@ mod tests {
                 repeat: 1,
                 nodes: 100_000,
                 profile: SearchProfile::Current,
+                fixture: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
                 .unwrap_or_else(|e| panic!("current smoke {} must complete: {}", fx.id, e));
@@ -1466,6 +1554,7 @@ mod tests {
             repeat: 1,
             nodes: n,
             profile: SearchProfile::M4Reference,
+            fixture: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert!(r.nodes <= n, "node budget must not be exceeded");
