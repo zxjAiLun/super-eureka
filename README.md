@@ -50,6 +50,34 @@ cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 
 
 完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
 
+## E1 自动对局、PGN 与 SPRT
+
+E1 的对局工具位于 `tools/tournament.py`，使用 Python 的 `python-chess`
+校验每步合法性、终局和和棋声明，并生成可回放 PGN、逐局 JSONL、运行
+manifest 和汇总报告。先安装开发依赖：
+
+```bash
+python -m pip install -r tools/requirements.txt
+```
+
+构建两个要比较的 UCI 引擎后运行 64 局 smoke：
+
+```bash
+cargo build --release
+python tools/tournament.py \
+  --engine-a target/release/chess-engine-demo \
+  --engine-b target/release/chess-engine-demo \
+  --games 64 --movetime-ms 100 --hash-mb 16 --seed 0 \
+  --output-dir tournament-results/selfplay-smoke
+```
+
+默认规模为 2048 局；固定开局集包含 32 条合法 UCI 开局线，每条开局
+自动执行白黑换色。报告记录双方路径、SHA、Hash、时间控制、种子、颜色、
+结果、耗时和 PGN。SPRT 默认使用 `H0 = 0 Elo`、`H1 = +5 Elo`、
+`alpha = beta = 0.05`，最终状态只允许为 `PASS`、`REJECTED` 或
+`INCONCLUSIVE`；该工具不会把固定局面 benchmark 或短 self-play 直接
+解释成 2500+ Elo。
+
 ## 手工 UCI 示例
 
 通过 stdin 逐行输入：
