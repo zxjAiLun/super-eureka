@@ -50,7 +50,7 @@ cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 
 
 完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
 
-## E1 自动对局、PGN 与 SPRT
+## E1 固定盘数自动对局、PGN 与统计采集
 
 E1 的对局工具位于 `tools/tournament.py`，使用 Python 的 `python-chess`
 校验每步合法性、终局和和棋声明，并生成可回放 PGN、逐局 JSONL、运行
@@ -74,12 +74,15 @@ python tools/tournament.py \
 默认规模为 2048 局；固定开局集包含 32 条合法 UCI 开局线，每条开局
 自动执行白黑换色。报告记录 baseline/candidate 的路径、文件 SHA-256、显式
 git SHA、UCI 身份、Hash、movetime、host-side grace、种子、颜色、stderr、
-结果、耗时和 PGN。每个开局严格跑完整白黑换色 pair；正式统计使用
-pair-aware pentanomial SPRT，默认 `H0 = 0 Elo`、`H1 = +5 Elo`、
-`alpha = beta = 0.05`，且只在完整 pair 后判决。最终状态只允许为
-`PASS`、`REJECTED` 或 `INCONCLUSIVE`；该工具不会把固定局面 benchmark 或
-短 self-play 直接解释成 2500+ Elo。`--sha-a`/`--sha-b` 未提供时记录为
-`unknown`。
+结果、耗时和 PGN。每个开局严格跑完整白黑换色 pair；五分类 pair 计数、
+候选方得分、Elo 点估计和区间都明确标记为 diagnostic。当前固定 draw-rate
+模型只用于诊断，不是经过验证的 GSPRT，不提供 `alpha/beta` 错误率保证，
+也不会提前停止比赛。正式 feature acceptance 交给 fastchess/OpenBench/
+Fishtest。最终状态只允许为 `COMPLETED`、`INCONCLUSIVE` 或
+`INTEGRITY_FAIL`；该工具不会把固定局面 benchmark 或短 self-play 直接解释
+成 2500+ Elo。统计背景参见
+[Stockfish Fishtest Mathematics](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-Mathematics.html)。
+`--sha-a`/`--sha-b` 未提供时记录为 `unknown`。
 
 ## 手工 UCI 示例
 

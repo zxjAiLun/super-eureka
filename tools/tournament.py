@@ -2,8 +2,10 @@
 """Deterministic UCI tournament runner for E1 engine comparisons.
 
 Engine A is always the approved baseline and engine B is always the
-candidate.  Results are paired by opening and colour, and the formal
-statistical decision is made only from complete two-game pairs.
+candidate. Results are paired by opening and colour. This tool is a
+fixed-game data collector; its pair counters and Elo interval are diagnostic
+only. Formal feature acceptance is delegated to a validated
+fastchess/OpenBench/Fishtest workflow.
 
 Example:
 
@@ -42,16 +44,25 @@ DEFAULT_HASH_MB = 16
 DEFAULT_MAX_PLIES = 512
 DEFAULT_SEED = 0
 DEFAULT_DRAW_RATE = 0.5
+STARTUP_TIMEOUT_SECONDS = 5.0
 DEFAULT_OPENINGS = Path(__file__).with_name("openings.txt")
 PAIR_CATEGORIES = ("0.0", "0.5", "1.0", "1.5", "2.0")
-SPRT_PERSPECTIVE = "engine_b_candidate_minus_engine_a_baseline"
+STATISTICAL_PERSPECTIVE = "engine_b_candidate_minus_engine_a_baseline"
 
 
 class TournamentError(RuntimeError):
     """A protocol, legality, or configuration failure."""
 
 
-class EngineTimeout(TournamentError):
+class EngineStartupTimeout(TournamentError):
+    """The engine did not complete the UCI startup handshake in time."""
+
+    def __init__(self, message: str, elapsed_ms: float):
+        super().__init__(message)
+        self.elapsed_ms = elapsed_ms
+
+
+class EngineMoveTimeout(TournamentError):
     """The side to move did not produce bestmove before the host deadline."""
 
     def __init__(self, message: str, elapsed_ms: float):
@@ -61,6 +72,14 @@ class EngineTimeout(TournamentError):
 
 class EngineProtocolError(TournamentError):
     """The UCI child exited or emitted an unusable response."""
+
+
+class UCIResponseTimeout(TournamentError):
+    """Internal timeout while waiting for one UCI response line."""
+
+    def __init__(self, message: str, elapsed_ms: float):
+        super().__init__(message)
+        self.elapsed_ms = elapsed_ms
 
 
 @dataclasses.dataclass(frozen=True)
@@ -148,44 +167,31 @@ def pair_score_from_results(first: str, second: str) -> float:
 
 
 @dataclasses.dataclass
-class PentanomialState:
-    """Pentanomial SPRT over complete two-game colour-swapped pairs.
+class DiagnosticPentanomialState:
+    """Diagnostic pentanomial counters for complete colour-swapped pairs.
 
-    A fixed draw-rate model turns an Elo hypothesis into independent
-    win/draw/loss probabilities for one game, then convolves two games into
-    the five pair categories.  The pair is the statistical unit, so the
-    declared alpha/beta boundaries are never crossed mid-pair.
+    The fixed draw-rate likelihood is retained only as a diagnostic number.
+    It is not a GSPRT, has no error-boundary decision, and never stops a
+    tournament.  Formal feature acceptance belongs to a validated external
+    fastchess/OpenBench/Fishtest workflow.
     """
 
     elo0: float = 0.0
     elo1: float = 5.0
-    alpha: float = 0.05
-    beta: float = 0.05
     draw_rate: float = DEFAULT_DRAW_RATE
     counts: dict[str, int] = dataclasses.field(
         default_factory=lambda: {category: 0 for category in PAIR_CATEGORIES}
     )
     llr: float = 0.0
-    decision: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not 0.0 < self.draw_rate < 1.0:
             raise ValueError("draw-rate must be strictly between 0 and 1")
-        if not 0.0 < self.alpha < 1.0 or not 0.0 < self.beta < 1.0:
-            raise ValueError("alpha and beta must be strictly between 0 and 1")
         if self.elo1 <= self.elo0:
             raise ValueError("elo1 must be greater than elo0")
         missing = set(PAIR_CATEGORIES) - set(self.counts)
         if missing:
             raise ValueError(f"missing pair categories: {sorted(missing)}")
-
-    @property
-    def upper_bound(self) -> float:
-        return math.log((1.0 - self.beta) / self.alpha)
-
-    @property
-    def lower_bound(self) -> float:
-        return math.log(self.beta / (1.0 - self.alpha))
 
     @property
     def pairs_completed(self) -> int:
@@ -209,7 +215,7 @@ class PentanomialState:
             "2.0": p["win"] ** 2,
         }
 
-    def update_pair(self, pair_score: float) -> Optional[str]:
+    def update_pair(self, pair_score: float) -> None:
         category = pair_category(pair_score)
         p0 = self.pair_probabilities(self.elo0)[category]
         p1 = self.pair_probabilities(self.elo1)[category]
@@ -217,32 +223,29 @@ class PentanomialState:
             raise ValueError(f"pair category has zero model probability: {category}")
         self.counts[category] += 1
         self.llr += math.log(p1 / p0)
-        if self.llr >= self.upper_bound:
-            self.decision = "PASS"
-        elif self.llr <= self.lower_bound:
-            self.decision = "REJECTED"
-        return self.decision
 
     def as_json(self) -> dict[str, Any]:
         return {
-            "model": "pentanomial-SPRT",
-            "perspective": SPRT_PERSPECTIVE,
+            "model": "diagnostic_pentanomial_fixed_draw_rate",
+            "diagnostic_only": True,
+            "perspective": STATISTICAL_PERSPECTIVE,
             "draw_rate": self.draw_rate,
             "elo0": self.elo0,
             "elo1": self.elo1,
-            "alpha": self.alpha,
-            "beta": self.beta,
             "counts": dict(self.counts),
             "pairs_completed": self.pairs_completed,
             "llr": self.llr,
-            "lower_bound": self.lower_bound,
-            "upper_bound": self.upper_bound,
-            "decision": self.decision,
+            "assumptions": [
+                "fixed_draw_rate",
+                "independent_game_likelihood_convolution",
+            ],
         }
 
 
 class EngineSession:
     """One short-lived UCI process with host-side deadlines and stderr capture."""
+
+    startup_timeout_seconds = STARTUP_TIMEOUT_SECONDS
 
     def __init__(
         self,
@@ -269,7 +272,11 @@ class EngineSession:
         self.uci_author: Optional[str] = None
 
     def __enter__(self) -> "EngineSession":
-        self.start()
+        try:
+            self.start()
+        except Exception:
+            self.close()
+            raise
         return self
 
     def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
@@ -315,10 +322,10 @@ class EngineSession:
         self._read_uci_handshake()
         self.send(f"setoption name Hash value {self.hash_mb}")
         self.send("isready")
-        self.wait_for_prefix("readyok", timeout=5.0)
+        self.wait_for_prefix("readyok", timeout=self.startup_timeout_seconds, startup=True)
         self.send("ucinewgame")
         self.send("isready")
-        self.wait_for_prefix("readyok", timeout=5.0)
+        self.wait_for_prefix("readyok", timeout=self.startup_timeout_seconds, startup=True)
 
     def _pump_stdout(self, stdout: Any) -> None:
         try:
@@ -345,12 +352,20 @@ class EngineSession:
                 sink.close()
 
     def _read_uci_handshake(self) -> None:
-        deadline = time.monotonic() + 5.0
+        deadline = time.monotonic() + self.startup_timeout_seconds
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0.0:
-                raise EngineTimeout(f"{self.label}: waiting for uciok", 5000.0)
-            line = self._next_line(remaining)
+                raise EngineStartupTimeout(
+                    f"{self.label}: waiting for uciok",
+                    self.startup_timeout_seconds * 1000.0,
+                )
+            try:
+                line = self._next_line(remaining)
+            except UCIResponseTimeout as exc:
+                raise EngineStartupTimeout(
+                    f"{self.label}: waiting for uciok", exc.elapsed_ms
+                ) from exc
             if line.startswith("id name "):
                 self.uci_name = line[8:].strip()
             elif line.startswith("id author "):
@@ -375,7 +390,7 @@ class EngineSession:
         try:
             line = self._lines.get(timeout=timeout)
         except queue.Empty as exc:
-            raise EngineTimeout(
+            raise UCIResponseTimeout(
                 f"{self.label}: no UCI response in {timeout:.3f}s",
                 timeout * 1000.0,
             ) from exc
@@ -384,13 +399,26 @@ class EngineSession:
             raise EngineProtocolError(f"{self.label}: stdout closed (exit={code})")
         return line
 
-    def wait_for_prefix(self, prefix: str, timeout: float) -> str:
+    def wait_for_prefix(self, prefix: str, timeout: float, startup: bool = False) -> str:
         deadline = time.monotonic() + timeout
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0.0:
-                raise EngineTimeout(f"{self.label}: waiting for {prefix}", timeout * 1000.0)
-            line = self._next_line(remaining)
+                if startup:
+                    raise EngineStartupTimeout(
+                        f"{self.label}: waiting for {prefix}", timeout * 1000.0
+                    )
+                raise UCIResponseTimeout(
+                    f"{self.label}: waiting for {prefix}", timeout * 1000.0
+                )
+            try:
+                line = self._next_line(remaining)
+            except UCIResponseTimeout as exc:
+                if startup:
+                    raise EngineStartupTimeout(
+                        f"{self.label}: waiting for {prefix}", exc.elapsed_ms
+                    ) from exc
+                raise
             if line.startswith(prefix):
                 return line
 
@@ -410,15 +438,20 @@ class EngineSession:
             remaining = deadline - time.monotonic()
             if remaining <= 0.0:
                 elapsed_ms = (time.monotonic() - sent_at) * 1000.0
-                raise EngineTimeout(f"{self.label}: host movetime deadline", elapsed_ms)
-            line = self._next_line(remaining)
+                raise EngineMoveTimeout(f"{self.label}: host movetime deadline", elapsed_ms)
+            try:
+                line = self._next_line(remaining)
+            except UCIResponseTimeout as exc:
+                raise EngineMoveTimeout(
+                    f"{self.label}: host movetime deadline", exc.elapsed_ms
+                ) from exc
             received_at = time.monotonic()
             if line.startswith("info "):
                 self.last_info = line
             elif line.startswith("bestmove"):
                 elapsed_ms = (received_at - sent_at) * 1000.0
                 if received_at > deadline:
-                    raise EngineTimeout(
+                    raise EngineMoveTimeout(
                         f"{self.label}: bestmove arrived after host deadline", elapsed_ms
                     )
                 return parse_bestmove_line(line), elapsed_ms
@@ -465,7 +498,11 @@ def parse_bestmove_line(line: str) -> str:
 
 
 def score_statistics(pair_totals: Iterable[float]) -> dict[str, Any]:
-    """Pair-aware Wilson CI with finite Elo endpoints at 0% and 100%."""
+    """Diagnostic pair-score interval with finite Elo endpoints.
+
+    Wilson's Bernoulli assumptions do not exactly match five-valued pair
+    scores, so this interval is deliberately reported as diagnostic only.
+    """
     totals = list(pair_totals)
     pairs = len(totals)
     if pairs == 0:
@@ -474,7 +511,8 @@ def score_statistics(pair_totals: Iterable[float]) -> dict[str, Any]:
             "candidate_score": None,
             "candidate_elo": None,
             "candidate_elo_ci95": None,
-            "ci_method": "Wilson score interval over opening pairs",
+            "ci_method": "approximate_pair_wilson",
+            "ci_status": "diagnostic_only",
         }
     score = sum(totals) / (2.0 * pairs)
     z = 1.959963984540054
@@ -495,7 +533,8 @@ def score_statistics(pair_totals: Iterable[float]) -> dict[str, Any]:
             score_to_elo(low_score),
             score_to_elo(high_score),
         ],
-        "ci_method": "Wilson score interval over opening pairs",
+        "ci_method": "approximate_pair_wilson",
+        "ci_status": "diagnostic_only",
     }
 
 
@@ -640,8 +679,10 @@ def play_game(
     elapsed_ms = {"white": 0.0, "black": 0.0}
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
     stderr_paths = {
-        "a": diagnostics_dir / f"game-{scheduled.number:04d}-{_safe_label(baseline_label)}.stderr.log",
-        "b": diagnostics_dir / f"game-{scheduled.number:04d}-{_safe_label(candidate_label)}.stderr.log",
+        "a": diagnostics_dir
+        / f"game-{scheduled.number:04d}-a-{_safe_label(baseline_label)}.stderr.log",
+        "b": diagnostics_dir
+        / f"game-{scheduled.number:04d}-b-{_safe_label(candidate_label)}.stderr.log",
     }
     sessions = {
         "a": EngineSession(
@@ -659,6 +700,7 @@ def play_game(
     timeout_engine: Optional[str] = None
     timeout_color: Optional[str] = None
     timeout_elapsed_ms: Optional[float] = None
+    timeout_side: Optional[str] = None
     error: Optional[str] = None
     error_engine: Optional[str] = None
     error_color: Optional[str] = None
@@ -677,10 +719,11 @@ def play_game(
                 session.position(moves)
                 move_uci, elapsed = session.go_movetime(movetime_ms, move_grace_ms)
                 elapsed_ms[active_color] += elapsed
-            except EngineTimeout as exc:
+            except EngineMoveTimeout as exc:
                 timeout_engine = session.label
                 timeout_color = active_color
                 timeout_elapsed_ms = exc.elapsed_ms
+                timeout_side = active_side
                 result = "0-1" if board.turn == chess.WHITE else "1-0"
                 reason = "timeout"
                 break
@@ -712,30 +755,41 @@ def play_game(
         if result is None and len(moves) >= max_plies:
             result = "1/2-1/2"
             reason = "max-plies"
-    except EngineTimeout as exc:
+    except EngineMoveTimeout as exc:
         failed_side = error_side or active_side or "a"
         failed_session = sessions[failed_side]
         timeout_engine = failed_session.label
         timeout_color = active_color or _engine_color(failed_side, scheduled)
         timeout_elapsed_ms = exc.elapsed_ms
+        timeout_side = failed_side
         result = "0-1" if timeout_color == "white" else "1-0"
         reason = "timeout"
+    except EngineStartupTimeout as exc:
+        error = str(exc)
+        failed_side = error_side or active_side or "a"
+        failed_session = sessions[failed_side]
+        error_engine = failed_session.label
+        error_color = active_color or _engine_color(failed_side, scheduled)
+        reason = "startup-timeout"
+        result = "*"
     except TournamentError as exc:
         error = str(exc)
         failed_side = error_side or active_side or "a"
         failed_session = sessions[failed_side]
         error_engine = failed_session.label
-        error_color = active_color
+        error_color = active_color or _engine_color(failed_side, scheduled)
         reason = "protocol-error"
         result = "*"
     finally:
         for session in sessions.values():
             session.close()
 
-    failed_session = sessions.get(error_side or active_side or "a")
-    stderr_tail = failed_session.stderr_tail if error and failed_session else None
-    stderr_log = str(failed_session.stderr_path) if error and failed_session else None
-    exit_code = failed_session.returncode if error and failed_session else None
+    diagnostic_side = error_side if error else timeout_side
+    diagnostic_session = sessions.get(diagnostic_side) if diagnostic_side else None
+    has_diagnostic = bool(error or timeout_engine)
+    stderr_tail = diagnostic_session.stderr_tail if has_diagnostic and diagnostic_session else None
+    stderr_log = str(diagnostic_session.stderr_path) if has_diagnostic and diagnostic_session else None
+    exit_code = diagnostic_session.returncode if has_diagnostic and diagnostic_session else None
     return GameRecord(
         number=scheduled.number,
         pair=scheduled.pair,
@@ -766,8 +820,9 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def file_metadata(path_text: str) -> dict[str, Any]:
-    path = Path(path_text).resolve()
+def file_metadata(path_or_command: str | list[str]) -> dict[str, Any]:
+    executable = path_or_command[0] if isinstance(path_or_command, list) else path_or_command
+    path = Path(executable).resolve()
     try:
         return {
             "resolved_path": str(path),
@@ -820,10 +875,12 @@ def build_manifest(
     started_utc: str,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
+    command_a = _engine_command(args.engine_a)
+    command_b = _engine_command(args.engine_b)
     return {
         "engine_a_baseline": {
             **file_metadata(args.engine_a),
-            "command": [args.engine_a],
+            "command": command_a,
             "label": args.label_a,
             "uci_options": {"Hash": args.hash_mb},
             "user_git_sha": args.sha_a or "unknown",
@@ -831,7 +888,7 @@ def build_manifest(
         },
         "engine_b_candidate": {
             **file_metadata(args.engine_b),
-            "command": [args.engine_b],
+            "command": command_b,
             "label": args.label_b,
             "uci_options": {"Hash": args.hash_mb},
             "user_git_sha": args.sha_b or "unknown",
@@ -856,14 +913,18 @@ def build_manifest(
         "hash_mb": args.hash_mb,
         "max_plies": args.max_plies,
         "seed": args.seed,
-        "sprt": {
-            "model": "pentanomial-SPRT",
-            "perspective": SPRT_PERSPECTIVE,
-            "elo0": args.elo0,
-            "elo1": args.elo1,
-            "alpha": args.alpha,
-            "beta": args.beta,
+        "statistical_acceptance": "external_fastchess_openbench_fishtest",
+        "diagnostic_model": {
+            "model": "diagnostic_pentanomial_fixed_draw_rate",
+            "diagnostic_only": True,
+            "perspective": STATISTICAL_PERSPECTIVE,
+            "elo0": DiagnosticPentanomialState().elo0,
+            "elo1": DiagnosticPentanomialState().elo1,
             "draw_rate": args.draw_rate,
+            "assumptions": [
+                "fixed_draw_rate",
+                "independent_game_likelihood_convolution",
+            ],
         },
         "output_dir": str(output_dir.resolve()),
     }
@@ -874,7 +935,7 @@ def write_summary(
     manifest: dict[str, Any],
     records: list[GameRecord],
     pair_totals: list[float],
-    sprt: PentanomialState,
+    diagnostic: DiagnosticPentanomialState,
     integrity_failed: bool,
 ) -> dict[str, Any]:
     wins = draws = losses = 0
@@ -887,9 +948,17 @@ def write_summary(
         elif perspective == "loss":
             losses += 1
     statistics = score_statistics(pair_totals)
+    if integrity_failed:
+        status = "INTEGRITY_FAIL"
+    elif len(records) == manifest["games_requested"]:
+        status = "COMPLETED"
+    else:
+        status = "INCONCLUSIVE"
     summary = {
-        "status": sprt.decision or "INCONCLUSIVE",
+        "status": status,
         "integrity_status": "FAIL" if integrity_failed else "PASS",
+        "statistical_status": "diagnostic_only",
+        "elo_status": "diagnostic_only",
         "wins_for_candidate": wins,
         "draws": draws,
         "losses_for_candidate": losses,
@@ -902,6 +971,10 @@ def write_summary(
                 "engine": record.timeout_engine,
                 "color": record.timeout_color,
                 "elapsed_ms": record.timeout_elapsed_ms,
+                "exit_code": record.exit_code,
+                "stderr_log": record.stderr_log,
+                "stderr_tail": record.stderr_tail,
+                "reason": record.reason,
             }
             for record in records
             if record.timeout_engine
@@ -914,12 +987,13 @@ def write_summary(
                 "exit_code": record.exit_code,
                 "stderr_log": record.stderr_log,
                 "stderr_tail": record.stderr_tail,
+                "reason": record.reason,
                 "error": record.error,
             }
             for record in records
             if record.error
         ],
-        "sprt": sprt.as_json(),
+        "diagnostic_model": diagnostic.as_json(),
         "manifest": manifest,
     }
     (output_dir / "summary.json").write_text(
@@ -944,11 +1018,13 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     diagnostics_dir = output_dir / "diagnostics"
     started_utc = datetime.now(timezone.utc).isoformat()
 
+    engine_a_command = _engine_command(args.engine_a)
+    engine_b_command = _engine_command(args.engine_b)
     probe_a = probe_engine(
-        [args.engine_a], args.label_a, args.hash_mb, diagnostics_dir / "probe-baseline.stderr.log"
+        engine_a_command, args.label_a, args.hash_mb, diagnostics_dir / "probe-baseline.stderr.log"
     )
     probe_b = probe_engine(
-        [args.engine_b], args.label_b, args.hash_mb, diagnostics_dir / "probe-candidate.stderr.log"
+        engine_b_command, args.label_b, args.hash_mb, diagnostics_dir / "probe-candidate.stderr.log"
     )
     if probe_a["probe_error"] or probe_b["probe_error"]:
         raise TournamentError(
@@ -960,13 +1036,7 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    sprt = PentanomialState(
-        args.elo0,
-        args.elo1,
-        args.alpha,
-        args.beta,
-        args.draw_rate,
-    )
+    diagnostic = DiagnosticPentanomialState(draw_rate=args.draw_rate)
     records: list[GameRecord] = []
     pair_totals: list[float] = []
     integrity_failed = False
@@ -986,8 +1056,8 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 record = play_game(
                     scheduled,
-                    args.engine_a,
-                    args.engine_b,
+                    engine_a_command,
+                    engine_b_command,
                     args.label_a,
                     args.label_b,
                     args.hash_mb,
@@ -1027,10 +1097,7 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
                 break
             pair_total = pair_score_from_results(first, second)
             pair_totals.append(pair_total)
-            sprt.update_pair(pair_total)
-            if sprt.decision:
-                print(f"SPRT {sprt.decision} after {sprt.pairs_completed} pairs", flush=True)
-                break
+            diagnostic.update_pair(pair_total)
 
     manifest["ended_utc"] = datetime.now(timezone.utc).isoformat()
     manifest["games_completed"] = len(records)
@@ -1038,12 +1105,14 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     manifest["stop_reason"] = (
         "integrity-failure"
         if integrity_failed
-        else sprt.decision or ("completed" if len(records) == args.games else "inconclusive")
+        else "completed" if len(records) == args.games else "inconclusive"
     )
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    summary = write_summary(output_dir, manifest, records, pair_totals, sprt, integrity_failed)
+    summary = write_summary(
+        output_dir, manifest, records, pair_totals, diagnostic, integrity_failed
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return summary
 
@@ -1063,12 +1132,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--hash-mb", type=int, default=DEFAULT_HASH_MB)
     result.add_argument("--max-plies", type=int, default=DEFAULT_MAX_PLIES)
     result.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    result.add_argument("--draw-rate", type=float, default=DEFAULT_DRAW_RATE)
+    result.add_argument(
+        "--draw-rate",
+        type=float,
+        default=DEFAULT_DRAW_RATE,
+        help="diagnostic-only fixed draw rate; never controls tournament status",
+    )
     result.add_argument("--output-dir", type=Path, default=Path("tournament-results"))
-    result.add_argument("--elo0", type=float, default=0.0)
-    result.add_argument("--elo1", type=float, default=5.0)
-    result.add_argument("--alpha", type=float, default=0.05)
-    result.add_argument("--beta", type=float, default=0.05)
     return result
 
 

@@ -3,16 +3,20 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import chess
 
 from tournament import (
     DEFAULT_OPENINGS,
+    DiagnosticPentanomialState,
+    EngineMoveTimeout,
     EngineProtocolError,
     EngineSession,
-    EngineTimeout,
+    EngineStartupTimeout,
+    Opening,
     PAIR_CATEGORIES,
-    PentanomialState,
+    ScheduledGame,
     TournamentError,
     _terminal_result,
     build_schedule,
@@ -21,9 +25,9 @@ from tournament import (
     pair_category,
     pair_score_from_results,
     parse_bestmove_line,
+    parser,
     play_game,
-    Opening,
-    ScheduledGame,
+    run_tournament,
     score_statistics,
     sha256_file,
     validate_bestmove,
@@ -43,9 +47,11 @@ for raw in sys.stdin:
     if line == 'uci':
         print('id name E1Fake', flush=True)
         print('id author E1Tests', flush=True)
-        print('uciok', flush=True)
+        if mode != 'no-uciok':
+            print('uciok', flush=True)
     elif line == 'isready':
-        print('readyok', flush=True)
+        if mode != 'no-readyok':
+            print('readyok', flush=True)
     elif line.startswith('go'):
         if mode == 'slow':
             time.sleep(delay)
@@ -56,12 +62,13 @@ for raw in sys.stdin:
         return [sys.executable, "-u", "-c", script]
 
     @staticmethod
-    def legal_move_engine(delay: float = 0.0) -> list[str]:
+    def legal_move_engine(delay: float = 0.0, illegal: bool = False) -> list[str]:
         script = f"""
 import chess
 import sys
 import time
 delay = {delay!r}
+illegal = {illegal!r}
 board = chess.Board()
 for raw in sys.stdin:
     line = raw.strip()
@@ -79,11 +86,66 @@ for raw in sys.stdin:
                 board.push_uci(move_uci)
     elif line.startswith('go'):
         time.sleep(delay)
+        move = 'a1a8' if illegal else next(iter(board.legal_moves)).uci()
+        print('bestmove ' + move, flush=True)
+    elif line == 'quit':
+        break
+"""
+        return [sys.executable, "-u", "-c", script]
+
+    @staticmethod
+    def startup_failure_engine(mode: str, marker: Path) -> list[str]:
+        script = f"""
+import chess
+from pathlib import Path
+import sys
+marker = Path({str(marker)!r})
+try:
+    count = int(marker.read_text()) + 1
+except FileNotFoundError:
+    count = 1
+marker.write_text(str(count))
+fail = count >= 2
+board = chess.Board()
+for raw in sys.stdin:
+    line = raw.strip()
+    if line == 'uci':
+        print('id name E1StartupFake', flush=True)
+        print('id author E1Tests', flush=True)
+        if not (fail and {mode!r} == 'uciok'):
+            print('uciok', flush=True)
+    elif line == 'isready':
+        if not (fail and {mode!r} == 'readyok'):
+            print('readyok', flush=True)
+    elif line.startswith('position'):
+        board = chess.Board()
+        fields = line.split()
+        if 'moves' in fields:
+            for move_uci in fields[fields.index('moves') + 1:]:
+                board.push_uci(move_uci)
+    elif line.startswith('go'):
         print('bestmove ' + next(iter(board.legal_moves)).uci(), flush=True)
     elif line == 'quit':
         break
 """
         return [sys.executable, "-u", "-c", script]
+
+    @staticmethod
+    def tournament_args(
+        engine_a: list[str], engine_b: list[str], output_dir: Path, games: int = 4
+    ):
+        args = parser().parse_args(
+            ["--engine-a", "baseline-test", "--engine-b", "candidate-test"]
+        )
+        args.engine_a = engine_a
+        args.engine_b = engine_b
+        args.output_dir = output_dir
+        args.games = games
+        args.movetime_ms = 5
+        args.move_grace_ms = 5
+        args.max_plies = 40
+        args.cli_args = ["unit-test"]
+        return args
 
     def test_uci_handshake_and_id_and_bestmove(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -104,7 +166,7 @@ for raw in sys.stdin:
             engine.position([])
             self.assertEqual(engine.go_movetime(20, 40)[0], "a2a3")
 
-        with self.assertRaises(EngineTimeout) as context:
+        with self.assertRaises(EngineMoveTimeout) as context:
             with EngineSession(self.fake_engine("slow", 0.08), "slow", 16) as engine:
                 engine.position([])
                 engine.go_movetime(20, 20)
@@ -135,6 +197,96 @@ for raw in sys.stdin:
                 self.assertEqual(record.timeout_engine, "baseline")
                 self.assertEqual(record.timeout_color, expected_color)
                 self.assertIsNone(record.error)
+                self.assertTrue(record.stderr_log.endswith("-a-baseline.stderr.log"))
+                self.assertIsNotNone(record.stderr_tail)
+
+    def test_startup_uciok_timeout_is_integrity_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = self.tournament_args(
+                self.startup_failure_engine("uciok", root / "baseline-count"),
+                self.legal_move_engine(),
+                root / "uciok",
+                games=4,
+            )
+            with patch.object(EngineSession, "startup_timeout_seconds", 0.5):
+                summary = run_tournament(args)
+            self.assertEqual(summary["status"], "INTEGRITY_FAIL")
+            self.assertEqual(summary["games_completed"], 1)
+            self.assertEqual(summary["pairs_completed"], 0)
+            self.assertIn("uciok", summary["protocol_errors"][0]["error"])
+
+    def test_startup_readyok_timeout_is_integrity_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = self.tournament_args(
+                self.startup_failure_engine("readyok", root / "baseline-count"),
+                self.legal_move_engine(),
+                root / "readyok",
+                games=4,
+            )
+            with patch.object(EngineSession, "startup_timeout_seconds", 0.5):
+                summary = run_tournament(args)
+            self.assertEqual(summary["status"], "INTEGRITY_FAIL")
+            self.assertEqual(summary["games_completed"], 1)
+            self.assertEqual(summary["pairs_completed"], 0)
+            self.assertIn("readyok", summary["protocol_errors"][0]["error"])
+
+    def test_fixed_games_complete_after_move_timeouts_and_keep_diagnostics(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = self.tournament_args(
+                self.legal_move_engine(0.08),
+                self.legal_move_engine(),
+                root / "timeouts",
+                games=4,
+            )
+            summary = run_tournament(args)
+            self.assertEqual(summary["status"], "COMPLETED")
+            self.assertEqual(summary["integrity_status"], "PASS")
+            self.assertEqual(summary["games_completed"], 4)
+            self.assertEqual(summary["pairs_completed"], 2)
+            self.assertEqual(len(summary["timeouts"]), 4)
+            self.assertTrue(
+                all(item["stderr_log"].endswith("-a-baseline.stderr.log") for item in summary["timeouts"])
+            )
+
+    def test_same_labels_do_not_collide_in_stderr_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            record = play_game(
+                ScheduledGame(1, 1, Opening("test", ()), True),
+                self.legal_move_engine(),
+                self.legal_move_engine(),
+                "same",
+                "same",
+                16,
+                5,
+                5,
+                1,
+                Path(temp),
+            )
+            paths = sorted(Path(temp).glob("*.stderr.log"))
+            self.assertEqual(len(paths), 2)
+            self.assertTrue(any("-a-same" in path.name for path in paths))
+            self.assertTrue(any("-b-same" in path.name for path in paths))
+            self.assertIsNone(record.error)
+
+    def test_protocol_error_does_not_count_incomplete_pair(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            summary = run_tournament(
+                self.tournament_args(
+                    self.legal_move_engine(),
+                    self.legal_move_engine(illegal=True),
+                    root / "illegal",
+                    games=4,
+                )
+            )
+            self.assertEqual(summary["status"], "INTEGRITY_FAIL")
+            self.assertEqual(summary["games_completed"], 1)
+            self.assertEqual(summary["pairs_completed"], 0)
+            self.assertEqual(summary["diagnostic_model"]["pairs_completed"], 0)
+            self.assertTrue(Path(summary["protocol_errors"][0]["stderr_log"]).exists())
 
     def test_bestmove_parser_and_legality_errors(self):
         self.assertEqual(parse_bestmove_line("bestmove a2a3 ponder a7a6"), "a2a3")
@@ -152,8 +304,6 @@ for raw in sys.stdin:
             validate_bestmove(chess.Board(), "0000")
 
     def test_candidate_perspective_maps_both_colours(self):
-        # A is baseline. When A is white, candidate B wins 0-1; when A is
-        # black, candidate B wins 1-0.
         self.assertEqual(candidate_result_for_game("0-1", True), "win")
         self.assertEqual(candidate_result_for_game("1-0", True), "loss")
         self.assertEqual(candidate_result_for_game("1-0", False), "win")
@@ -177,7 +327,6 @@ for raw in sys.stdin:
             build_schedule(openings, 63, seed=7)
         schedule = build_schedule(openings, 64, seed=7)
         self.assertEqual(sum(game.engine_a_white for game in schedule), 32)
-        self.assertEqual(len({game.opening.identifier for game in schedule}), 32)
         for index in range(0, 64, 2):
             first, second = schedule[index : index + 2]
             self.assertEqual(first.pair, second.pair)
@@ -185,54 +334,52 @@ for raw in sys.stdin:
             self.assertTrue(first.engine_a_white)
             self.assertFalse(second.engine_a_white)
 
-    def test_pentanomial_counts_all_categories_and_is_order_invariant(self):
-        state = PentanomialState(elo1=100.0)
+    def test_diagnostic_pentanomial_counts_all_categories_without_decision(self):
+        state = DiagnosticPentanomialState(elo1=100.0)
         for total in (0.0, 0.5, 1.0, 1.5, 2.0):
             state.update_pair(total)
         self.assertEqual(state.pairs_completed, 5)
         self.assertEqual(state.counts, {category: 1 for category in PAIR_CATEGORIES})
         self.assertEqual(pair_category(pair_score_from_results("win", "loss")), "1.0")
         self.assertEqual(pair_category(pair_score_from_results("loss", "win")), "1.0")
+        self.assertTrue(state.as_json()["diagnostic_only"])
+        self.assertNotIn("decision", state.as_json())
 
-    def test_pentanomial_golden_sequence_llr(self):
-        state = PentanomialState(elo1=5.0, draw_rate=0.5)
+    def test_diagnostic_counts_are_order_invariant(self):
+        first = DiagnosticPentanomialState()
+        second = DiagnosticPentanomialState()
         for total in (0.0, 0.5, 1.0, 1.5, 2.0):
-            state.update_pair(total)
-        self.assertAlmostEqual(state.llr, -0.00069032272312676, places=14)
-        self.assertIsNone(state.decision)
+            first.update_pair(total)
+        for total in (2.0, 1.5, 1.0, 0.5, 0.0):
+            second.update_pair(total)
+        self.assertEqual(first.counts, second.counts)
 
-    def test_sprt_pass_and_reject_are_candidate_direction(self):
-        passing = PentanomialState(elo1=400.0)
-        while passing.decision is None:
-            passing.update_pair(2.0)
-        self.assertEqual(passing.decision, "PASS")
-        self.assertGreaterEqual(passing.llr, passing.upper_bound)
-
-        rejecting = PentanomialState(elo1=400.0)
-        while rejecting.decision is None:
-            rejecting.update_pair(0.0)
-        self.assertEqual(rejecting.decision, "REJECTED")
-        self.assertLessEqual(rejecting.llr, rejecting.lower_bound)
-
-    def test_pair_aware_ci_is_finite_ordered_and_narrows(self):
+    def test_pair_level_ci_is_finite_and_explicitly_diagnostic(self):
         for totals in ([0.0], [2.0], [1.0] * 4, [0.0] * 20, [2.0] * 20):
             stats = score_statistics(totals)
             low, high = stats["candidate_elo_ci95"]
             self.assertTrue(math.isfinite(low))
             self.assertTrue(math.isfinite(high))
             self.assertLessEqual(low, high)
+            self.assertEqual(stats["ci_method"], "approximate_pair_wilson")
+            self.assertEqual(stats["ci_status"], "diagnostic_only")
         draws = score_statistics([1.0] * 4)
         more_draws = score_statistics([1.0] * 40)
         self.assertLess(
             more_draws["candidate_elo_ci95"][1] - more_draws["candidate_elo_ci95"][0],
             draws["candidate_elo_ci95"][1] - draws["candidate_elo_ci95"][0],
         )
-        self.assertLessEqual(
-            score_statistics([1.0] * 20)["candidate_elo_ci95"][0], 0.0
-        )
-        self.assertGreaterEqual(
-            score_statistics([1.0] * 20)["candidate_elo_ci95"][1], 0.0
-        )
+        self.assertLessEqual(score_statistics([1.0] * 20)["candidate_elo_ci95"][0], 0.0)
+        self.assertGreaterEqual(score_statistics([1.0] * 20)["candidate_elo_ci95"][1], 0.0)
+
+    def test_startup_timeout_types_are_distinct_from_move_timeout(self):
+        with self.assertRaises(EngineStartupTimeout):
+            with patch.object(EngineSession, "startup_timeout_seconds", 0.05):
+                with EngineSession(
+                    self.fake_engine("no-uciok"), "startup", 16
+                ):
+                    pass
+        self.assertTrue(issubclass(EngineMoveTimeout, TournamentError))
 
     def test_sha256_file_is_reproducible(self):
         with tempfile.TemporaryDirectory() as temp:
