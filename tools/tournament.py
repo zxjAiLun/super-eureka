@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Deterministic UCI tournament runner for E1 engine comparisons.
 
-The runner deliberately lives outside the Rust production crate.  It uses
-python-chess for legality and game adjudication, drives two UCI processes,
-and writes enough metadata to reproduce a result without turning a fixed
-fixture benchmark into an Elo claim.
+Engine A is always the approved baseline and engine B is always the
+candidate.  Results are paired by opening and colour, and the formal
+statistical decision is made only from complete two-game pairs.
 
 Example:
 
@@ -18,9 +17,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+from datetime import datetime, timezone
+import hashlib
 import json
 import math
 from pathlib import Path
+import platform
 import queue
 import random
 import subprocess
@@ -35,10 +37,14 @@ import chess.pgn
 
 DEFAULT_GAMES = 2048
 DEFAULT_MOVETIME_MS = 100
+DEFAULT_MOVE_GRACE_MS = 25
 DEFAULT_HASH_MB = 16
 DEFAULT_MAX_PLIES = 512
 DEFAULT_SEED = 0
+DEFAULT_DRAW_RATE = 0.5
 DEFAULT_OPENINGS = Path(__file__).with_name("openings.txt")
+PAIR_CATEGORIES = ("0.0", "0.5", "1.0", "1.5", "2.0")
+SPRT_PERSPECTIVE = "engine_b_candidate_minus_engine_a_baseline"
 
 
 class TournamentError(RuntimeError):
@@ -46,7 +52,11 @@ class TournamentError(RuntimeError):
 
 
 class EngineTimeout(TournamentError):
-    """The side to move did not produce bestmove before the deadline."""
+    """The side to move did not produce bestmove before the host deadline."""
+
+    def __init__(self, message: str, elapsed_ms: float):
+        super().__init__(message)
+        self.elapsed_ms = elapsed_ms
 
 
 class EngineProtocolError(TournamentError):
@@ -62,6 +72,7 @@ class Opening:
 @dataclasses.dataclass(frozen=True)
 class ScheduledGame:
     number: int
+    pair: int
     opening: Opening
     engine_a_white: bool
 
@@ -69,6 +80,7 @@ class ScheduledGame:
 @dataclasses.dataclass
 class GameRecord:
     number: int
+    pair: int
     opening: str
     engine_a_white: bool
     result: str
@@ -76,32 +88,96 @@ class GameRecord:
     plies: int
     moves: list[str]
     elapsed_ms: dict[str, float]
-    timeout_side: Optional[str] = None
+    timeout_engine: Optional[str] = None
+    timeout_color: Optional[str] = None
+    timeout_elapsed_ms: Optional[float] = None
     error: Optional[str] = None
+    error_engine: Optional[str] = None
+    error_color: Optional[str] = None
+    exit_code: Optional[int] = None
+    stderr_log: Optional[str] = None
+    stderr_tail: Optional[list[str]] = None
 
     def as_json(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
 
-@dataclasses.dataclass
-class SprtState:
-    """Score-based SPRT state for engine A versus engine B.
+def elo_to_score(elo: float) -> float:
+    return 1.0 / (1.0 + 10.0 ** (-elo / 400.0))
 
-    A draw contributes half a win and half a loss to the log likelihood.
-    This is the standard score-SPRT approximation and is intentionally
-    recorded in the output so the result is not mistaken for a full
-    three-outcome model.
+
+def score_to_elo(score: float) -> float:
+    """Return a finite Elo value; boundary scores are Jeffreys-smoothed by callers."""
+    if not 0.0 < score < 1.0:
+        raise ValueError("score_to_elo requires a score strictly between 0 and 1")
+    return 400.0 * math.log10(score / (1.0 - score))
+
+
+def pair_category(pair_score: float) -> str:
+    """Map a candidate two-game score in [0, 2] to a pentanomial category."""
+    rounded = round(pair_score * 2.0) / 2.0
+    key = f"{rounded:.1f}"
+    if key not in PAIR_CATEGORIES:
+        raise ValueError(f"invalid pair score {pair_score!r}")
+    return key
+
+
+def candidate_result_for_game(result: str, engine_a_white: bool) -> Optional[str]:
+    """Return win/draw/loss strictly from candidate engine B's perspective."""
+    if result == "1/2-1/2":
+        return "draw"
+    if result not in {"1-0", "0-1"}:
+        return None
+    candidate_is_white = not engine_a_white
+    candidate_won = (result == "1-0") == candidate_is_white
+    return "win" if candidate_won else "loss"
+
+
+def game_score(result: str) -> float:
+    if result == "win":
+        return 1.0
+    if result == "draw":
+        return 0.5
+    if result == "loss":
+        return 0.0
+    raise ValueError(f"invalid game result {result!r}")
+
+
+def pair_score_from_results(first: str, second: str) -> float:
+    return game_score(first) + game_score(second)
+
+
+@dataclasses.dataclass
+class PentanomialState:
+    """Pentanomial SPRT over complete two-game colour-swapped pairs.
+
+    A fixed draw-rate model turns an Elo hypothesis into independent
+    win/draw/loss probabilities for one game, then convolves two games into
+    the five pair categories.  The pair is the statistical unit, so the
+    declared alpha/beta boundaries are never crossed mid-pair.
     """
 
     elo0: float = 0.0
     elo1: float = 5.0
     alpha: float = 0.05
     beta: float = 0.05
-    wins: int = 0
-    draws: int = 0
-    losses: int = 0
+    draw_rate: float = DEFAULT_DRAW_RATE
+    counts: dict[str, int] = dataclasses.field(
+        default_factory=lambda: {category: 0 for category in PAIR_CATEGORIES}
+    )
     llr: float = 0.0
     decision: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.draw_rate < 1.0:
+            raise ValueError("draw-rate must be strictly between 0 and 1")
+        if not 0.0 < self.alpha < 1.0 or not 0.0 < self.beta < 1.0:
+            raise ValueError("alpha and beta must be strictly between 0 and 1")
+        if self.elo1 <= self.elo0:
+            raise ValueError("elo1 must be greater than elo0")
+        missing = set(PAIR_CATEGORIES) - set(self.counts)
+        if missing:
+            raise ValueError(f"missing pair categories: {sorted(missing)}")
 
     @property
     def upper_bound(self) -> float:
@@ -111,25 +187,36 @@ class SprtState:
     def lower_bound(self) -> float:
         return math.log(self.beta / (1.0 - self.alpha))
 
-    def update(self, result_for_a: str) -> Optional[str]:
-        if result_for_a not in {"win", "draw", "loss"}:
-            raise ValueError(f"invalid SPRT result: {result_for_a}")
-        if result_for_a == "win":
-            self.wins += 1
-            fraction = 1.0
-        elif result_for_a == "draw":
-            self.draws += 1
-            fraction = 0.5
-        else:
-            self.losses += 1
-            fraction = 0.0
+    @property
+    def pairs_completed(self) -> int:
+        return sum(self.counts.values())
 
-        p0 = elo_to_score(self.elo0)
-        p1 = elo_to_score(self.elo1)
-        win_term = math.log(p1 / p0)
-        loss_term = math.log((1.0 - p1) / (1.0 - p0))
-        self.llr += fraction * win_term + (1.0 - fraction) * loss_term
+    def game_probabilities(self, elo: float) -> dict[str, float]:
+        score = elo_to_score(elo)
+        return {
+            "win": (1.0 - self.draw_rate) * score,
+            "draw": self.draw_rate,
+            "loss": (1.0 - self.draw_rate) * (1.0 - score),
+        }
 
+    def pair_probabilities(self, elo: float) -> dict[str, float]:
+        p = self.game_probabilities(elo)
+        return {
+            "0.0": p["loss"] ** 2,
+            "0.5": 2.0 * p["loss"] * p["draw"],
+            "1.0": p["draw"] ** 2 + 2.0 * p["win"] * p["loss"],
+            "1.5": 2.0 * p["win"] * p["draw"],
+            "2.0": p["win"] ** 2,
+        }
+
+    def update_pair(self, pair_score: float) -> Optional[str]:
+        category = pair_category(pair_score)
+        p0 = self.pair_probabilities(self.elo0)[category]
+        p1 = self.pair_probabilities(self.elo1)[category]
+        if p0 <= 0.0 or p1 <= 0.0:
+            raise ValueError(f"pair category has zero model probability: {category}")
+        self.counts[category] += 1
+        self.llr += math.log(p1 / p0)
         if self.llr >= self.upper_bound:
             self.decision = "PASS"
         elif self.llr <= self.lower_bound:
@@ -138,13 +225,15 @@ class SprtState:
 
     def as_json(self) -> dict[str, Any]:
         return {
+            "model": "pentanomial-SPRT",
+            "perspective": SPRT_PERSPECTIVE,
+            "draw_rate": self.draw_rate,
             "elo0": self.elo0,
             "elo1": self.elo1,
             "alpha": self.alpha,
             "beta": self.beta,
-            "wins": self.wins,
-            "draws": self.draws,
-            "losses": self.losses,
+            "counts": dict(self.counts),
+            "pairs_completed": self.pairs_completed,
             "llr": self.llr,
             "lower_bound": self.lower_bound,
             "upper_bound": self.upper_bound,
@@ -153,14 +242,14 @@ class SprtState:
 
 
 class EngineSession:
-    """One short-lived UCI process with line-oriented response handling."""
+    """One short-lived UCI process with host-side deadlines and stderr capture."""
 
     def __init__(
         self,
         command: list[str],
         label: str,
         hash_mb: int,
-        response_timeout: Optional[float] = None,
+        stderr_path: Optional[Path] = None,
     ):
         if not command:
             raise ValueError("engine command must not be empty")
@@ -168,11 +257,16 @@ class EngineSession:
         self.executable = self.command[0]
         self.label = label
         self.hash_mb = hash_mb
-        self.response_timeout = response_timeout
+        self.stderr_path = stderr_path
         self.process: Optional[subprocess.Popen[str]] = None
+        self.returncode: Optional[int] = None
         self._lines: queue.Queue[Optional[str]] = queue.Queue()
         self._reader: Optional[threading.Thread] = None
+        self._stderr_reader: Optional[threading.Thread] = None
+        self.stderr_tail: list[str] = []
         self.last_info: Optional[str] = None
+        self.uci_name: Optional[str] = None
+        self.uci_author: Optional[str] = None
 
     def __enter__(self) -> "EngineSession":
         self.start()
@@ -189,7 +283,7 @@ class EngineSession:
                 self.command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
@@ -201,6 +295,7 @@ class EngineSession:
             ) from exc
 
         assert self.process.stdout is not None
+        assert self.process.stderr is not None
         self._reader = threading.Thread(
             target=self._pump_stdout,
             args=(self.process.stdout,),
@@ -208,8 +303,16 @@ class EngineSession:
             daemon=True,
         )
         self._reader.start()
+        self._stderr_reader = threading.Thread(
+            target=self._pump_stderr,
+            args=(self.process.stderr,),
+            name=f"uci-stderr-{self.label}",
+            daemon=True,
+        )
+        self._stderr_reader.start()
+
         self.send("uci")
-        self.wait_for_prefix("uciok", timeout=5.0)
+        self._read_uci_handshake()
         self.send(f"setoption name Hash value {self.hash_mb}")
         self.send("isready")
         self.wait_for_prefix("readyok", timeout=5.0)
@@ -223,6 +326,37 @@ class EngineSession:
                 self._lines.put(raw.rstrip("\r\n"))
         finally:
             self._lines.put(None)
+
+    def _pump_stderr(self, stderr: Any) -> None:
+        sink = None
+        try:
+            if self.stderr_path is not None:
+                self.stderr_path.parent.mkdir(parents=True, exist_ok=True)
+                sink = self.stderr_path.open("w", encoding="utf-8")
+            for raw in stderr:
+                line = raw.rstrip("\r\n")
+                self.stderr_tail.append(line)
+                del self.stderr_tail[:-80]
+                if sink is not None:
+                    sink.write(line + "\n")
+                    sink.flush()
+        finally:
+            if sink is not None:
+                sink.close()
+
+    def _read_uci_handshake(self) -> None:
+        deadline = time.monotonic() + 5.0
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                raise EngineTimeout(f"{self.label}: waiting for uciok", 5000.0)
+            line = self._next_line(remaining)
+            if line.startswith("id name "):
+                self.uci_name = line[8:].strip()
+            elif line.startswith("id author "):
+                self.uci_author = line[10:].strip()
+            elif line.startswith("uciok"):
+                return
 
     def send(self, command: str) -> None:
         if self.process is None or self.process.stdin is None:
@@ -241,9 +375,12 @@ class EngineSession:
         try:
             line = self._lines.get(timeout=timeout)
         except queue.Empty as exc:
-            raise EngineTimeout(f"{self.label}: no UCI response in {timeout:.3f}s") from exc
+            raise EngineTimeout(
+                f"{self.label}: no UCI response in {timeout:.3f}s",
+                timeout * 1000.0,
+            ) from exc
         if line is None:
-            code = self.process.returncode if self.process else None
+            code = self.process.returncode if self.process else self.returncode
             raise EngineProtocolError(f"{self.label}: stdout closed (exit={code})")
         return line
 
@@ -251,8 +388,8 @@ class EngineSession:
         deadline = time.monotonic() + timeout
         while True:
             remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise EngineTimeout(f"{self.label}: waiting for {prefix}")
+            if remaining <= 0.0:
+                raise EngineTimeout(f"{self.label}: waiting for {prefix}", timeout * 1000.0)
             line = self._next_line(remaining)
             if line.startswith(prefix):
                 return line
@@ -264,25 +401,27 @@ class EngineSession:
             command += " moves " + " ".join(move_list)
         self.send(command)
 
-    def go_movetime(
-        self, movetime_ms: int, response_timeout: Optional[float] = None
-    ) -> tuple[str, float]:
+    def go_movetime(self, movetime_ms: int, move_grace_ms: int) -> tuple[str, float]:
         self.last_info = None
-        started = time.monotonic()
         self.send(f"go movetime {movetime_ms}")
-        timeout = response_timeout or self.response_timeout
-        if timeout is None:
-            timeout = max(2.0, movetime_ms / 1000.0 + 2.0)
-        deadline = time.monotonic() + timeout
+        sent_at = time.monotonic()
+        deadline = sent_at + (movetime_ms + move_grace_ms) / 1000.0
         while True:
             remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise EngineTimeout(f"{self.label}: bestmove timeout")
+            if remaining <= 0.0:
+                elapsed_ms = (time.monotonic() - sent_at) * 1000.0
+                raise EngineTimeout(f"{self.label}: host movetime deadline", elapsed_ms)
             line = self._next_line(remaining)
+            received_at = time.monotonic()
             if line.startswith("info "):
                 self.last_info = line
             elif line.startswith("bestmove"):
-                return parse_bestmove_line(line), (time.monotonic() - started) * 1000.0
+                elapsed_ms = (received_at - sent_at) * 1000.0
+                if received_at > deadline:
+                    raise EngineTimeout(
+                        f"{self.label}: bestmove arrived after host deadline", elapsed_ms
+                    )
+                return parse_bestmove_line(line), elapsed_ms
 
     def close(self) -> None:
         process = self.process
@@ -304,9 +443,12 @@ class EngineSession:
             except (OSError, subprocess.TimeoutExpired):
                 pass
         finally:
+            self.returncode = process.returncode
             if self._reader is not None:
                 self._reader.join(timeout=1.0)
-            for stream in (process.stdin, process.stdout):
+            if self._stderr_reader is not None:
+                self._stderr_reader.join(timeout=1.0)
+            for stream in (process.stdin, process.stdout, process.stderr):
                 if stream is not None:
                     try:
                         stream.close()
@@ -315,46 +457,45 @@ class EngineSession:
             self.process = None
 
 
-def elo_to_score(elo: float) -> float:
-    return 1.0 / (1.0 + 10.0 ** (-elo / 400.0))
-
-
-def score_to_elo(score: float) -> Optional[float]:
-    if not 0.0 < score < 1.0:
-        return None
-    return 400.0 * math.log10(score / (1.0 - score))
-
-
 def parse_bestmove_line(line: str) -> str:
-    """Parse the UCI bestmove token without deciding board legality."""
     fields = line.split()
     if len(fields) < 2 or fields[0] != "bestmove" or not fields[1]:
         raise EngineProtocolError(f"malformed bestmove line: {line!r}")
     return fields[1]
 
 
-def score_statistics(wins: int, draws: int, losses: int) -> dict[str, Any]:
-    games = wins + draws + losses
-    if games == 0:
-        return {"games": 0, "score": None, "elo": None, "elo_ci95": None}
-    score = (wins + 0.5 * draws) / games
-    elo = score_to_elo(score)
-    values = [1.0] * wins + [0.5] * draws + [0.0] * losses
-    observed_variance = sum((value - score) ** 2 for value in values) / games
-    # A pure draw match has zero observed score variance, but it does not
-    # prove Elo with zero uncertainty. Use the Bernoulli score variance as a
-    # conservative floor for the score-SPRT approximation.
-    variance = max(observed_variance, score * (1.0 - score))
-    se = math.sqrt(variance / games)
-    low_score = max(1e-9, score - 1.96 * se)
-    high_score = min(1.0 - 1e-9, score + 1.96 * se)
-    low_elo = score_to_elo(low_score)
-    high_elo = score_to_elo(high_score)
+def score_statistics(pair_totals: Iterable[float]) -> dict[str, Any]:
+    """Pair-aware Wilson CI with finite Elo endpoints at 0% and 100%."""
+    totals = list(pair_totals)
+    pairs = len(totals)
+    if pairs == 0:
+        return {
+            "pairs": 0,
+            "candidate_score": None,
+            "candidate_elo": None,
+            "candidate_elo_ci95": None,
+            "ci_method": "Wilson score interval over opening pairs",
+        }
+    score = sum(totals) / (2.0 * pairs)
+    z = 1.959963984540054
+    z2 = z * z
+    center = (score + z2 / (2.0 * pairs)) / (1.0 + z2 / pairs)
+    half = z * math.sqrt(
+        score * (1.0 - score) / pairs + z2 / (4.0 * pairs * pairs)
+    ) / (1.0 + z2 / pairs)
+    epsilon = 0.5 / (2.0 * pairs + 1.0)
+    low_score = max(epsilon, min(1.0 - epsilon, center - half))
+    high_score = max(epsilon, min(1.0 - epsilon, center + half))
+    point_score = max(epsilon, min(1.0 - epsilon, score))
     return {
-        "games": games,
-        "score": score,
-        "elo": elo,
-        "elo_ci95": [low_elo, high_elo],
+        "pairs": pairs,
+        "candidate_score": score,
+        "candidate_elo": score_to_elo(point_score),
+        "candidate_elo_ci95": [
+            score_to_elo(low_score),
+            score_to_elo(high_score),
+        ],
+        "ci_method": "Wilson score interval over opening pairs",
     }
 
 
@@ -391,10 +532,11 @@ def load_openings(path: Path) -> list[Opening]:
 
 
 def build_schedule(openings: list[Opening], games: int, seed: int) -> list[ScheduledGame]:
-    if games < 1:
-        raise TournamentError("games must be at least 1")
+    if games < 2 or games % 2 != 0:
+        raise TournamentError("games must be an even number of at least 2")
     rng = random.Random(seed)
     schedule: list[ScheduledGame] = []
+    pair_number = 1
     while len(schedule) < games:
         order = list(range(len(openings)))
         rng.shuffle(order)
@@ -403,42 +545,26 @@ def build_schedule(openings: list[Opening], games: int, seed: int) -> list[Sched
                 break
             opening = openings[opening_index]
             schedule.append(
-                ScheduledGame(
-                    number=len(schedule) + 1,
-                    opening=opening,
-                    engine_a_white=True,
-                )
+                ScheduledGame(len(schedule) + 1, pair_number, opening, True)
             )
-            if len(schedule) >= games:
-                break
             schedule.append(
-                ScheduledGame(
-                    number=len(schedule) + 1,
-                    opening=opening,
-                    engine_a_white=False,
-                )
+                ScheduledGame(len(schedule) + 1, pair_number, opening, False)
             )
+            pair_number += 1
     return schedule
 
 
-def result_for_a(result: str, engine_a_white: bool) -> Optional[str]:
-    if result == "1/2-1/2":
-        return "draw"
-    if result not in {"1-0", "0-1"}:
-        return None
-    a_won = (result == "1-0") == engine_a_white
-    return "win" if a_won else "loss"
-
-
-def pgn_for_record(record: GameRecord, engine_a_label: str, engine_b_label: str) -> str:
+def pgn_for_record(record: GameRecord, baseline_label: str, candidate_label: str) -> str:
     game = chess.pgn.Game()
     game.headers["Event"] = "ChessEngineDemo E1 tournament"
-    game.headers["Round"] = str(record.number)
+    game.headers["Round"] = str(record.pair)
     game.headers["Opening"] = record.opening
-    game.headers["White"] = engine_a_label if record.engine_a_white else engine_b_label
-    game.headers["Black"] = engine_b_label if record.engine_a_white else engine_a_label
+    game.headers["White"] = baseline_label if record.engine_a_white else candidate_label
+    game.headers["Black"] = candidate_label if record.engine_a_white else baseline_label
     game.headers["Result"] = record.result
-    game.headers["EngineAWhite"] = "yes" if record.engine_a_white else "no"
+    game.headers["Pair"] = str(record.pair)
+    game.headers["Game"] = str(record.number)
+    game.headers["BaselineWhite"] = "yes" if record.engine_a_white else "no"
     game.headers["Reason"] = record.reason
     game.headers["Plies"] = str(record.plies)
     if record.error:
@@ -452,8 +578,8 @@ def pgn_for_record(record: GameRecord, engine_a_label: str, engine_b_label: str)
             break
         node = node.add_variation(move)
         board.push(move)
-    if record.timeout_side:
-        node.comment = f"timeout: {record.timeout_side}"
+    if record.timeout_engine:
+        node.comment = f"timeout: {record.timeout_engine} ({record.timeout_color})"
     return str(game.accept(chess.pgn.StringExporter(headers=True, variations=False)))
 
 
@@ -467,7 +593,6 @@ def _terminal_result(board: chess.Board) -> tuple[Optional[str], str]:
 
 
 def validate_bestmove(board: chess.Board, move_uci: str) -> Optional[chess.Move]:
-    """Return a legal move, or None for terminal ``bestmove 0000``."""
     if move_uci == "0000":
         result, _reason = _terminal_result(board)
         if result is None:
@@ -482,61 +607,101 @@ def validate_bestmove(board: chess.Board, move_uci: str) -> Optional[chess.Move]
     return move
 
 
+def _safe_label(label: str) -> str:
+    return "".join(char if char.isalnum() or char in "-_" else "_" for char in label)
+
+
+def _engine_color(engine_side: str, scheduled: ScheduledGame) -> str:
+    engine_a = engine_side == "a"
+    is_white = scheduled.engine_a_white if engine_a else not scheduled.engine_a_white
+    return "white" if is_white else "black"
+
+
+def _engine_command(path_or_command: str | list[str]) -> list[str]:
+    return list(path_or_command) if isinstance(path_or_command, list) else [path_or_command]
+
+
 def play_game(
     scheduled: ScheduledGame,
-    engine_a_path: str,
-    engine_b_path: str,
-    engine_a_label: str,
-    engine_b_label: str,
+    engine_a_path: str | list[str],
+    engine_b_path: str | list[str],
+    baseline_label: str,
+    candidate_label: str,
     hash_mb: int,
     movetime_ms: int,
+    move_grace_ms: int,
     max_plies: int,
+    diagnostics_dir: Path,
 ) -> GameRecord:
     board = chess.Board()
     for move_uci in scheduled.opening.moves:
         board.push_uci(move_uci)
     moves = list(scheduled.opening.moves)
     elapsed_ms = {"white": 0.0, "black": 0.0}
-    timeout_side: Optional[str] = None
-    error: Optional[str] = None
+    diagnostics_dir.mkdir(parents=True, exist_ok=True)
+    stderr_paths = {
+        "a": diagnostics_dir / f"game-{scheduled.number:04d}-{_safe_label(baseline_label)}.stderr.log",
+        "b": diagnostics_dir / f"game-{scheduled.number:04d}-{_safe_label(candidate_label)}.stderr.log",
+    }
+    sessions = {
+        "a": EngineSession(
+            _engine_command(engine_a_path), baseline_label, hash_mb, stderr_paths["a"]
+        ),
+        "b": EngineSession(
+            _engine_command(engine_b_path), candidate_label, hash_mb, stderr_paths["b"]
+        ),
+    }
+    result: Optional[str] = None
     reason = ""
+    active_side: Optional[str] = None
+    active_color: Optional[str] = None
+    error_side: Optional[str] = None
+    timeout_engine: Optional[str] = None
+    timeout_color: Optional[str] = None
+    timeout_elapsed_ms: Optional[float] = None
+    error: Optional[str] = None
+    error_engine: Optional[str] = None
+    error_color: Optional[str] = None
 
-    sessions: dict[str, EngineSession] = {}
     try:
-        sessions["a"] = EngineSession([engine_a_path], engine_a_label, hash_mb)
-        sessions["b"] = EngineSession([engine_b_path], engine_b_label, hash_mb)
+        error_side = "a"
         sessions["a"].start()
+        error_side = "b"
         sessions["b"].start()
-
         result, reason = _terminal_result(board)
         while result is None and len(moves) < max_plies:
-            a_to_move = board.turn == (chess.WHITE if scheduled.engine_a_white else chess.BLACK)
-            side = "a" if a_to_move else "b"
-            color_name = "white" if board.turn == chess.WHITE else "black"
-            session = sessions[side]
+            active_side = "a" if board.turn == (chess.WHITE if scheduled.engine_a_white else chess.BLACK) else "b"
+            active_color = "white" if board.turn == chess.WHITE else "black"
+            session = sessions[active_side]
             try:
                 session.position(moves)
-                move_uci, elapsed = session.go_movetime(movetime_ms)
-                elapsed_ms[color_name] += elapsed
-            except EngineTimeout:
-                timeout_side = color_name
+                move_uci, elapsed = session.go_movetime(movetime_ms, move_grace_ms)
+                elapsed_ms[active_color] += elapsed
+            except EngineTimeout as exc:
+                timeout_engine = session.label
+                timeout_color = active_color
+                timeout_elapsed_ms = exc.elapsed_ms
                 result = "0-1" if board.turn == chess.WHITE else "1-0"
                 reason = "timeout"
                 break
             except TournamentError as exc:
                 error = str(exc)
+                error_engine = session.label
+                error_color = active_color
+                error_side = active_side
                 reason = "protocol-error"
+                result = "*"
                 break
 
             try:
                 move = validate_bestmove(board, move_uci)
             except TournamentError as exc:
-                error = f"{side}: {exc}"
-                reason = (
-                    "protocol-error"
-                    if isinstance(exc, EngineProtocolError)
-                    else "illegal-move"
-                )
+                error = f"{session.label}: {exc}"
+                error_engine = session.label
+                error_color = active_color
+                error_side = active_side
+                reason = "illegal-move"
+                result = "*"
                 break
             if move is None:
                 result, reason = _terminal_result(board)
@@ -544,31 +709,73 @@ def play_game(
             board.push(move)
             moves.append(move_uci)
             result, reason = _terminal_result(board)
-
-        if result is None and error is None and len(moves) >= max_plies:
+        if result is None and len(moves) >= max_plies:
             result = "1/2-1/2"
             reason = "max-plies"
-        if result is None and error is not None:
-            result = "*"
-        if result is None:
-            result = "1/2-1/2"
-            reason = reason or "draw"
+    except EngineTimeout as exc:
+        failed_side = error_side or active_side or "a"
+        failed_session = sessions[failed_side]
+        timeout_engine = failed_session.label
+        timeout_color = active_color or _engine_color(failed_side, scheduled)
+        timeout_elapsed_ms = exc.elapsed_ms
+        result = "0-1" if timeout_color == "white" else "1-0"
+        reason = "timeout"
+    except TournamentError as exc:
+        error = str(exc)
+        failed_side = error_side or active_side or "a"
+        failed_session = sessions[failed_side]
+        error_engine = failed_session.label
+        error_color = active_color
+        reason = "protocol-error"
+        result = "*"
     finally:
         for session in sessions.values():
             session.close()
 
+    failed_session = sessions.get(error_side or active_side or "a")
+    stderr_tail = failed_session.stderr_tail if error and failed_session else None
+    stderr_log = str(failed_session.stderr_path) if error and failed_session else None
+    exit_code = failed_session.returncode if error and failed_session else None
     return GameRecord(
         number=scheduled.number,
+        pair=scheduled.pair,
         opening=scheduled.opening.identifier,
         engine_a_white=scheduled.engine_a_white,
-        result=result,
+        result=result or "*",
         reason=reason or "unknown",
         plies=len(moves),
         moves=moves,
         elapsed_ms=elapsed_ms,
-        timeout_side=timeout_side,
+        timeout_engine=timeout_engine,
+        timeout_color=timeout_color,
+        timeout_elapsed_ms=timeout_elapsed_ms,
         error=error,
+        error_engine=error_engine,
+        error_color=error_color,
+        exit_code=exit_code,
+        stderr_log=stderr_log,
+        stderr_tail=stderr_tail,
     )
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def file_metadata(path_text: str) -> dict[str, Any]:
+    path = Path(path_text).resolve()
+    try:
+        return {
+            "resolved_path": str(path),
+            "sha256": sha256_file(path),
+            "file_size": path.stat().st_size,
+        }
+    except OSError:
+        return {"resolved_path": str(path), "sha256": "unknown", "file_size": None}
 
 
 def detect_git_sha(repo_root: Path) -> str:
@@ -585,43 +792,135 @@ def detect_git_sha(repo_root: Path) -> str:
         return "unknown"
 
 
+def probe_engine(command: list[str], label: str, hash_mb: int, stderr_path: Path) -> dict[str, Any]:
+    session = EngineSession(command, label, hash_mb, stderr_path)
+    error = None
+    try:
+        session.start()
+    except TournamentError as exc:
+        error = str(exc)
+    finally:
+        session.close()
+    return {
+        "uci_id_name": session.uci_name,
+        "uci_id_author": session.uci_author,
+        "return_code": session.returncode,
+        "stderr_log": str(stderr_path),
+        "stderr_tail": list(session.stderr_tail),
+        "probe_error": error,
+    }
+
+
+def build_manifest(
+    args: argparse.Namespace,
+    openings: list[Opening],
+    output_dir: Path,
+    engine_a_probe: dict[str, Any],
+    engine_b_probe: dict[str, Any],
+    started_utc: str,
+) -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parents[1]
+    return {
+        "engine_a_baseline": {
+            **file_metadata(args.engine_a),
+            "command": [args.engine_a],
+            "label": args.label_a,
+            "uci_options": {"Hash": args.hash_mb},
+            "user_git_sha": args.sha_a or "unknown",
+            **engine_a_probe,
+        },
+        "engine_b_candidate": {
+            **file_metadata(args.engine_b),
+            "command": [args.engine_b],
+            "label": args.label_b,
+            "uci_options": {"Hash": args.hash_mb},
+            "user_git_sha": args.sha_b or "unknown",
+            **engine_b_probe,
+        },
+        "runner_git_sha": detect_git_sha(repo_root),
+        "runner_script_sha256": sha256_file(Path(__file__)),
+        "openings_path": str(args.openings.resolve()),
+        "openings_sha256": sha256_file(args.openings.resolve()),
+        "opening_count": len(openings),
+        "python_version": sys.version,
+        "python_chess_version": chess.__version__,
+        "platform": platform.platform(),
+        "cli_args": list(args.cli_args),
+        "started_utc": started_utc,
+        "ended_utc": None,
+        "games_requested": args.games,
+        "games_completed": 0,
+        "pairs_completed": 0,
+        "movetime_ms": args.movetime_ms,
+        "move_grace_ms": args.move_grace_ms,
+        "hash_mb": args.hash_mb,
+        "max_plies": args.max_plies,
+        "seed": args.seed,
+        "sprt": {
+            "model": "pentanomial-SPRT",
+            "perspective": SPRT_PERSPECTIVE,
+            "elo0": args.elo0,
+            "elo1": args.elo1,
+            "alpha": args.alpha,
+            "beta": args.beta,
+            "draw_rate": args.draw_rate,
+        },
+        "output_dir": str(output_dir.resolve()),
+    }
+
+
 def write_summary(
     output_dir: Path,
     manifest: dict[str, Any],
     records: list[GameRecord],
-    sprt: SprtState,
+    pair_totals: list[float],
+    sprt: PentanomialState,
     integrity_failed: bool,
 ) -> dict[str, Any]:
     wins = draws = losses = 0
     for record in records:
-        perspective = result_for_a(record.result, record.engine_a_white)
+        perspective = candidate_result_for_game(record.result, record.engine_a_white)
         if perspective == "win":
             wins += 1
         elif perspective == "draw":
             draws += 1
         elif perspective == "loss":
             losses += 1
-    statistics = score_statistics(wins, draws, losses)
-    decision = sprt.decision or "INCONCLUSIVE"
+    statistics = score_statistics(pair_totals)
     summary = {
-        "status": decision,
+        "status": sprt.decision or "INCONCLUSIVE",
         "integrity_status": "FAIL" if integrity_failed else "PASS",
-        "manifest": manifest,
-        "wins_for_a": wins,
+        "wins_for_candidate": wins,
         "draws": draws,
-        "losses_for_a": losses,
+        "losses_for_candidate": losses,
+        "games_completed": len(records),
+        "pairs_completed": len(pair_totals),
         **statistics,
         "timeouts": [
-            {"game": record.number, "side": record.timeout_side}
+            {
+                "game": record.number,
+                "engine": record.timeout_engine,
+                "color": record.timeout_color,
+                "elapsed_ms": record.timeout_elapsed_ms,
+            }
             for record in records
-            if record.timeout_side
+            if record.timeout_engine
         ],
         "protocol_errors": [
-            {"game": record.number, "error": record.error}
+            {
+                "game": record.number,
+                "engine": record.error_engine,
+                "color": record.error_color,
+                "exit_code": record.exit_code,
+                "stderr_log": record.stderr_log,
+                "stderr_tail": record.stderr_tail,
+                "error": record.error,
+            }
             for record in records
             if record.error
         ],
         "sprt": sprt.as_json(),
+        "manifest": manifest,
     }
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -634,107 +933,137 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
         raise TournamentError("hash-mb must be at least 1")
     if args.movetime_ms < 1:
         raise TournamentError("movetime-ms must be at least 1")
+    if args.move_grace_ms < 0:
+        raise TournamentError("move-grace-ms must be non-negative")
     if args.max_plies < 1:
         raise TournamentError("max-plies must be at least 1")
     openings = load_openings(args.openings)
     schedule = build_schedule(openings, args.games, args.seed)
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    manifest = {
-        "engine_a": {
-            "label": args.label_a,
-            "command": [args.engine_a],
-            "path": str(Path(args.engine_a).resolve()),
-            "sha": args.sha_a,
-        },
-        "engine_b": {
-            "label": args.label_b,
-            "command": [args.engine_b],
-            "path": str(Path(args.engine_b).resolve()),
-            "sha": args.sha_b,
-        },
-        "openings": str(args.openings.resolve()),
-        "opening_count": len(openings),
-        "games_requested": args.games,
-        "movetime_ms": args.movetime_ms,
-        "hash_mb": args.hash_mb,
-        "max_plies": args.max_plies,
-        "seed": args.seed,
-        "sprt": {
-            "elo0": args.elo0,
-            "elo1": args.elo1,
-            "alpha": args.alpha,
-            "beta": args.beta,
-            "model": "score-SPRT; draws contribute half a win and half a loss",
-        },
-    }
+    diagnostics_dir = output_dir / "diagnostics"
+    started_utc = datetime.now(timezone.utc).isoformat()
+
+    probe_a = probe_engine(
+        [args.engine_a], args.label_a, args.hash_mb, diagnostics_dir / "probe-baseline.stderr.log"
+    )
+    probe_b = probe_engine(
+        [args.engine_b], args.label_b, args.hash_mb, diagnostics_dir / "probe-candidate.stderr.log"
+    )
+    if probe_a["probe_error"] or probe_b["probe_error"]:
+        raise TournamentError(
+            f"engine probe failed: baseline={probe_a['probe_error']!r}, "
+            f"candidate={probe_b['probe_error']!r}"
+        )
+
+    manifest = build_manifest(args, openings, output_dir, probe_a, probe_b, started_utc)
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-
-    sprt = SprtState(args.elo0, args.elo1, args.alpha, args.beta)
+    sprt = PentanomialState(
+        args.elo0,
+        args.elo1,
+        args.alpha,
+        args.beta,
+        args.draw_rate,
+    )
     records: list[GameRecord] = []
+    pair_totals: list[float] = []
     integrity_failed = False
+
     with (output_dir / "games.jsonl").open("w", encoding="utf-8") as jsonl, (
         output_dir / "games.pgn"
     ).open("w", encoding="utf-8") as pgn_file:
-        for scheduled in schedule:
-            print(
-                f"game {scheduled.number}/{len(schedule)} "
-                f"opening={scheduled.opening.identifier} "
-                f"A={'white' if scheduled.engine_a_white else 'black'}",
-                flush=True,
-            )
-            record = play_game(
-                scheduled,
-                args.engine_a,
-                args.engine_b,
-                args.label_a,
-                args.label_b,
-                args.hash_mb,
-                args.movetime_ms,
-                args.max_plies,
-            )
-            records.append(record)
-            jsonl.write(json.dumps(record.as_json(), sort_keys=True) + "\n")
-            jsonl.flush()
-            pgn_file.write(
-                pgn_for_record(record, args.label_a, args.label_b) + "\n\n"
-            )
-            pgn_file.flush()
+        for pair_start in range(0, len(schedule), 2):
+            pair_records: list[GameRecord] = []
+            pair_schedule = schedule[pair_start : pair_start + 2]
+            for scheduled in pair_schedule:
+                print(
+                    f"game {scheduled.number}/{len(schedule)} pair={scheduled.pair} "
+                    f"opening={scheduled.opening.identifier} "
+                    f"A={'white' if scheduled.engine_a_white else 'black'}",
+                    flush=True,
+                )
+                record = play_game(
+                    scheduled,
+                    args.engine_a,
+                    args.engine_b,
+                    args.label_a,
+                    args.label_b,
+                    args.hash_mb,
+                    args.movetime_ms,
+                    args.move_grace_ms,
+                    args.max_plies,
+                    diagnostics_dir,
+                )
+                records.append(record)
+                pair_records.append(record)
+                jsonl.write(json.dumps(record.as_json(), sort_keys=True) + "\n")
+                jsonl.flush()
+                pgn_file.write(pgn_for_record(record, args.label_a, args.label_b) + "\n\n")
+                pgn_file.flush()
+                if record.error:
+                    integrity_failed = True
+                    print(f"protocol-error: {record.error}", file=sys.stderr)
+                    break
 
-            perspective = result_for_a(record.result, record.engine_a_white)
-            if perspective is not None:
-                sprt.update(perspective)
-            if record.error:
+            if integrity_failed or len(pair_records) != 2:
+                break
+            if (
+                pair_records[0].pair != pair_records[1].pair
+                or pair_records[0].opening != pair_records[1].opening
+                or pair_records[0].engine_a_white == pair_records[1].engine_a_white
+            ):
                 integrity_failed = True
-                print(f"protocol-error: {record.error}", file=sys.stderr)
                 break
+            first = candidate_result_for_game(
+                pair_records[0].result, pair_records[0].engine_a_white
+            )
+            second = candidate_result_for_game(
+                pair_records[1].result, pair_records[1].engine_a_white
+            )
+            if first is None or second is None:
+                integrity_failed = True
+                break
+            pair_total = pair_score_from_results(first, second)
+            pair_totals.append(pair_total)
+            sprt.update_pair(pair_total)
             if sprt.decision:
-                print(f"SPRT {sprt.decision} after {len(records)} games", flush=True)
+                print(f"SPRT {sprt.decision} after {sprt.pairs_completed} pairs", flush=True)
                 break
 
-    summary = write_summary(output_dir, manifest, records, sprt, integrity_failed)
+    manifest["ended_utc"] = datetime.now(timezone.utc).isoformat()
+    manifest["games_completed"] = len(records)
+    manifest["pairs_completed"] = len(pair_totals)
+    manifest["stop_reason"] = (
+        "integrity-failure"
+        if integrity_failed
+        else sprt.decision or ("completed" if len(records) == args.games else "inconclusive")
+    )
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary = write_summary(output_dir, manifest, records, pair_totals, sprt, integrity_failed)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return summary
 
 
 def parser() -> argparse.ArgumentParser:
-    repo_root = Path(__file__).resolve().parents[1]
-    default_sha = detect_git_sha(repo_root)
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--engine-a", required=True, help="path to engine A executable")
-    result.add_argument("--engine-b", required=True, help="path to engine B executable")
+    result.add_argument("--engine-a", required=True, help="approved baseline executable")
+    result.add_argument("--engine-b", required=True, help="candidate executable")
     result.add_argument("--label-a", default="baseline")
     result.add_argument("--label-b", default="candidate")
-    result.add_argument("--sha-a", default=default_sha)
-    result.add_argument("--sha-b", default=default_sha)
+    result.add_argument("--sha-a", default=None, help="optional baseline git SHA")
+    result.add_argument("--sha-b", default=None, help="optional candidate git SHA")
     result.add_argument("--openings", type=Path, default=DEFAULT_OPENINGS)
     result.add_argument("--games", type=int, default=DEFAULT_GAMES)
     result.add_argument("--movetime-ms", type=int, default=DEFAULT_MOVETIME_MS)
+    result.add_argument("--move-grace-ms", type=int, default=DEFAULT_MOVE_GRACE_MS)
     result.add_argument("--hash-mb", type=int, default=DEFAULT_HASH_MB)
     result.add_argument("--max-plies", type=int, default=DEFAULT_MAX_PLIES)
     result.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    result.add_argument("--draw-rate", type=float, default=DEFAULT_DRAW_RATE)
     result.add_argument("--output-dir", type=Path, default=Path("tournament-results"))
     result.add_argument("--elo0", type=float, default=0.0)
     result.add_argument("--elo1", type=float, default=5.0)
@@ -745,6 +1074,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = parser().parse_args(argv)
+    args.cli_args = list(sys.argv[1:] if argv is None else argv)
     try:
         summary = run_tournament(args)
     except (TournamentError, OSError, ValueError) as exc:

@@ -1,6 +1,9 @@
 # Rust build artifacts
 /target
 
+# E1 tournament outputs
+/tournament-results/
+
 # WorkBuddy private memory / project data
 .workbuddy/
 

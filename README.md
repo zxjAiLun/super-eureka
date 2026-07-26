@@ -67,16 +67,19 @@ cargo build --release
 python tools/tournament.py \
   --engine-a target/release/chess-engine-demo \
   --engine-b target/release/chess-engine-demo \
-  --games 64 --movetime-ms 100 --hash-mb 16 --seed 0 \
+  --games 64 --movetime-ms 100 --move-grace-ms 25 --hash-mb 16 --seed 0 \
   --output-dir tournament-results/selfplay-smoke
 ```
 
 默认规模为 2048 局；固定开局集包含 32 条合法 UCI 开局线，每条开局
-自动执行白黑换色。报告记录双方路径、SHA、Hash、时间控制、种子、颜色、
-结果、耗时和 PGN。SPRT 默认使用 `H0 = 0 Elo`、`H1 = +5 Elo`、
-`alpha = beta = 0.05`，最终状态只允许为 `PASS`、`REJECTED` 或
-`INCONCLUSIVE`；该工具不会把固定局面 benchmark 或短 self-play 直接
-解释成 2500+ Elo。
+自动执行白黑换色。报告记录 baseline/candidate 的路径、文件 SHA-256、显式
+git SHA、UCI 身份、Hash、movetime、host-side grace、种子、颜色、stderr、
+结果、耗时和 PGN。每个开局严格跑完整白黑换色 pair；正式统计使用
+pair-aware pentanomial SPRT，默认 `H0 = 0 Elo`、`H1 = +5 Elo`、
+`alpha = beta = 0.05`，且只在完整 pair 后判决。最终状态只允许为
+`PASS`、`REJECTED` 或 `INCONCLUSIVE`；该工具不会把固定局面 benchmark 或
+短 self-play 直接解释成 2500+ Elo。`--sha-a`/`--sha-b` 未提供时记录为
+`unknown`。
 
 ## 手工 UCI 示例
 
