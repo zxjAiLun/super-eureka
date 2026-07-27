@@ -5484,7 +5484,7 @@ mod tests {
             "disabled queen-win d3 node count unchanged"
         );
         assert_eq!(move_to_uci(out.best_move), "e4a4");
-        assert_eq!(out.score, Some(886));
+        assert_eq!(out.score, Some(990));
         assert_eq!(
             out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
             vec![
@@ -7107,7 +7107,7 @@ mod tests {
         let mut tt = TranspositionTable::new_mb(16).unwrap();
         let (out, _) = run_tt(fen, 3, &mut tt);
         let out = out.expect("outcome");
-        assert_eq!(out.score, Some(886));
+        assert_eq!(out.score, Some(990));
         assert_eq!(move_to_uci(out.best_move), "e4a4");
         assert!(pv_is_legal(fen, &out.pv));
         assert_eq!(out.pv.first().copied(), Some(out.best_move));
@@ -7467,7 +7467,7 @@ mod tests {
             "e4a4",
             "best move stays the first full-window winner"
         );
-        assert_eq!(iter.score, 886, "root score is the winning value");
+        assert_eq!(iter.score, 990, "root score is the winning value");
         assert_eq!(
             iter.pv.first().copied(),
             Some(iter.best_move),
@@ -7535,7 +7535,7 @@ mod tests {
             "e4a4",
             "the fully re-searched winner is the root best move"
         );
-        assert_eq!(iter.score, 886, "root score is the winning value");
+        assert_eq!(iter.score, 990, "root score is the winning value");
         assert_eq!(iter.pv.first().copied(), Some(iter.best_move));
         assert!(pv_is_legal(ROOT_QWIN_FEN, &iter.pv));
     }
@@ -7742,7 +7742,7 @@ mod tests {
             "e4a4",
             "the re-searched winner beats the claim floor"
         );
-        assert_eq!(iter.score, 886, "root reports the real winning score");
+        assert_eq!(iter.score, 990, "root reports the real winning score");
         assert!(
             !iter.pv.is_empty(),
             "a real winning line has a non-empty PV"

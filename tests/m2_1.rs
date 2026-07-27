@@ -363,8 +363,8 @@ fn quiescence_qply_cap_preserves_check_evasions() {
 /// children are in check with legal moves, so they are approximated
 /// statically. White's best is `Kxb3`, capturing the bishop. A stand-pat-on-
 /// check bug (or a non-searching cap) would instead return the static balance
-/// (+187 with EVAL 1A terms), but the searched evasion scores the won bishop
-/// (+533 including the resulting king-PST terms).
+/// (+187 with EVAL 1A terms), but the searched evasion wins the bishop and
+/// reaches a KRK descendant scored at +723 with EVAL 1B.
 #[test]
 fn quiescence_qply_cap_counter_check_uses_static_approx() {
     let mut pos = parse_fen("k7/8/8/8/8/1b6/K7/R7 w - - 0 1").expect("valid FEN");
@@ -384,14 +384,15 @@ fn quiescence_qply_cap_counter_check_uses_static_approx() {
     let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
 
     // Stand-pat-on-check (or skipping the evasion search) would yield 187.
-    // Correct behaviour searches the evasions; `Kxb3` wins the bishop -> 533.
+    // Correct behaviour searches the evasions; `Kxb3` wins the bishop and the
+    // resulting KRK descendant evaluates to +723 with EVAL 1B.
     assert_ne!(
         out, static_eval,
         "cap + in check must search evasions, not stand pat (out={} vs static={})",
         out, static_eval
     );
     assert_eq!(
-        out, 533,
+        out, 723,
         "Kxb3 wins the bishop; counter-check branches are the approx, got {}",
         out
     );

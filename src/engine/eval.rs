@@ -9,7 +9,7 @@
 //! king-safety features, or search pruning.
 //!
 use crate::chess::position::Position;
-use crate::chess::types::{Color, PieceType};
+use crate::chess::types::{file_of, make_square, rank_of, Color, Piece, PieceType, KING_OFFSETS};
 
 /// Piece-square tables, a1-first (index 0 = a1 ... 63 = h8), one row per
 /// rank (rank 1 first). Values are from Tomasz Michniewski's "Simplified
@@ -165,6 +165,7 @@ const KING_EG_PST: [i32; 64] = [
 ];
 
 const MAX_PHASE: i32 = 24;
+const STALEMATE_BONUS: i32 = -900;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Score {
@@ -230,6 +231,145 @@ fn interpolate(mg: i32, eg: i32, phase: i32) -> i32 {
     ((mg as i64 * phase as i64 + eg as i64 * (MAX_PHASE - phase) as i64) / MAX_PHASE as i64) as i32
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ExactMopUp {
+    strong: Color,
+    piece: PieceType,
+    strong_king: u8,
+    weak_king: u8,
+    strong_piece: u8,
+}
+
+/// Recognise only the exact KQK and KRK material configurations. The exact
+/// match is intentional: a mop-up term must never replace the normal
+/// evaluation in a position with pawns or another attacker still on the
+/// board.
+fn exact_mop_up(pos: &Position) -> Option<ExactMopUp> {
+    let mut kings = [None; 2];
+    let mut extra = None;
+
+    for (sq, piece) in pos.board.iter().enumerate() {
+        let Some(piece) = piece else { continue };
+        match piece.piece_type {
+            PieceType::King if kings[piece.color as usize].is_none() => {
+                kings[piece.color as usize] = Some(sq as u8);
+            }
+            PieceType::Queen | PieceType::Rook => {
+                if extra.is_some() {
+                    // The dedicated term is only for the exact KQK/KRK
+                    // signature. A second heavy piece must fall back to the
+                    // ordinary tapered evaluation rather than being ignored.
+                    return None;
+                }
+                extra = Some((piece.color, piece.piece_type, sq as u8));
+            }
+            _ => return None,
+        }
+    }
+
+    let (strong, piece, strong_piece) = extra?;
+    let strong_king = kings[strong as usize]?;
+    let weak = strong.opposite();
+    let weak_king = kings[weak as usize]?;
+
+    Some(ExactMopUp {
+        strong,
+        piece,
+        strong_king,
+        weak_king,
+        strong_piece,
+    })
+}
+
+#[inline]
+fn chebyshev_distance(a: u8, b: u8) -> i32 {
+    let file_delta = (file_of(a) as i32 - file_of(b) as i32).abs();
+    let rank_delta = (rank_of(a) as i32 - rank_of(b) as i32).abs();
+    file_delta.max(rank_delta)
+}
+
+#[inline]
+fn distance_to_edge(sq: u8) -> i32 {
+    let file = file_of(sq) as i32;
+    let rank = rank_of(sq) as i32;
+    file.min(7 - file).min(rank).min(7 - rank)
+}
+
+/// Count legal king escapes for the weak side without changing the caller's
+/// position. The temporary board is necessary when the king moves off a
+/// rook/queen ray or captures the sole strong piece: attack status must be
+/// tested in the resulting board, not the current one.
+fn weak_king_mobility(pos: &Position, weak: Color, weak_king: u8) -> i32 {
+    let mut mobility = 0;
+    let from_file = file_of(weak_king) as i32;
+    let from_rank = rank_of(weak_king) as i32;
+
+    for (df, dr) in KING_OFFSETS {
+        let file = from_file + df;
+        let rank = from_rank + dr;
+        if !(0..8).contains(&file) || !(0..8).contains(&rank) {
+            continue;
+        }
+        let to = make_square(file as u8, rank as u8);
+        if to == pos.king_sq[weak.opposite() as usize] {
+            // A king may not capture the opposing king. In the temporary
+            // board below the destination would otherwise overwrite the
+            // strong king and make the attack test lose that constraint.
+            continue;
+        }
+        if pos.board[to as usize].is_some_and(|piece| piece.color == weak) {
+            continue;
+        }
+
+        let mut next = *pos;
+        next.board[weak_king as usize] = None;
+        next.board[to as usize] = Some(Piece::new(weak, PieceType::King));
+        next.king_sq[weak as usize] = to;
+        if !next.is_square_attacked(to, weak.opposite()) {
+            mobility += 1;
+        }
+    }
+
+    mobility
+}
+
+/// Return a bounded, side-independent mop-up bonus for exact KQK/KRK. The
+/// material score remains the primary signal. The bonus rewards the standard
+/// winning plan in order: bring the attacking king closer, drive the enemy
+/// king toward the edge, and reduce its legal activity. An undefended rook or
+/// queen next to the enemy king is discounted so the evaluator does not
+/// encourage sacrificing the only winning material.
+fn exact_mop_up_bonus(pos: &Position, mop_up: ExactMopUp) -> i32 {
+    let weak = mop_up.strong.opposite();
+    let mobility = weak_king_mobility(pos, weak, mop_up.weak_king);
+
+    // A side with no legal move and no check is already stalemated. Static
+    // evaluation must not turn that terminal draw into a large winning score.
+    if mobility == 0 && !pos.is_in_check(weak) && pos.side == weak {
+        return STALEMATE_BONUS;
+    }
+
+    let proximity = (7 - chebyshev_distance(mop_up.strong_king, mop_up.weak_king)).max(0);
+    let edge = (3 - distance_to_edge(mop_up.weak_king)).max(0);
+    let confinement = (8 - mobility).max(0);
+    let mut bonus = proximity * 20 + edge * 18 + confinement * 16;
+
+    // The only possible attacker of the strong piece in these exact material
+    // positions is the weak king. Preserve the winning material if that king
+    // can capture it immediately and the strong king does not defend it.
+    let piece_attacked = chebyshev_distance(mop_up.weak_king, mop_up.strong_piece) <= 1;
+    let piece_defended = chebyshev_distance(mop_up.strong_king, mop_up.strong_piece) <= 1;
+    if piece_attacked && !piece_defended {
+        bonus -= match mop_up.piece {
+            PieceType::Queen => 300,
+            PieceType::Rook => 260,
+            _ => unreachable!("exact mop-up only accepts queen or rook"),
+        };
+    }
+
+    bonus.clamp(-300, 400)
+}
+
 /// Square index into a piece-square table. White uses the square directly.
 /// Black mirrors it vertically: `sq ^ 56` flips the rank bits (0b111000)
 /// while leaving the file unchanged, so the same table serves both colors.
@@ -256,12 +396,24 @@ pub fn evaluate(pos: &Position) -> i32 {
             eg += sign * (material.eg + positional.eg);
         }
     }
-    interpolate(mg, eg, game_phase(pos))
+    let base = interpolate(mg, eg, game_phase(pos));
+    let Some(mop_up) = exact_mop_up(pos) else {
+        return base;
+    };
+    let bonus = exact_mop_up_bonus(pos, mop_up);
+
+    if pos.side == mop_up.strong {
+        base + bonus
+    } else if bonus == STALEMATE_BONUS {
+        0
+    } else {
+        base - bonus
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{game_phase, interpolate, KING_EG_PST, KING_MG_PST, MAX_PHASE};
+    use super::{exact_mop_up, game_phase, interpolate, KING_EG_PST, KING_MG_PST, MAX_PHASE};
     use crate::chess::fen::parse_fen;
 
     #[test]
@@ -286,5 +438,14 @@ mod tests {
     fn king_tables_are_distinct() {
         assert_ne!(KING_MG_PST[4], KING_EG_PST[4]);
         assert_ne!(KING_MG_PST[28], KING_EG_PST[28]);
+    }
+
+    #[test]
+    fn exact_mopup_requires_one_and_only_one_heavy_piece() {
+        let exact = parse_fen("7k/8/5K2/8/3Q4/8/8/8 w - - 0 1").unwrap();
+        let two_queens = parse_fen("7k/8/5K2/8/3Q4/8/1Q6/8 w - - 0 1").unwrap();
+
+        assert!(exact_mop_up(&exact).is_some());
+        assert!(exact_mop_up(&two_queens).is_none());
     }
 }

@@ -315,7 +315,7 @@ fn smoke_fixtures() -> Vec<Fixture> {
             history: None,
             locked: Some(Locked {
                 nodes: 969,
-                score: 886,
+                score: 990,
                 best_move: "e4a4",
                 pv: &["e4a4", "h4h3", "a4h4", "h8g7", "h4h3"],
             }),

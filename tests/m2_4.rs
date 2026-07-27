@@ -82,8 +82,8 @@ fn pst_material_still_dominates() {
     let no_queen = parse_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
     assert_eq!(
         evaluate(&queen_up),
-        880,
-        "900 + QUEEN_PST[a1](-20) + tapered King PST"
+        982,
+        "900 + QUEEN_PST[a1](-20) + King PST + exact KQK mop-up"
     );
     assert_eq!(evaluate(&no_queen), 0);
     assert!(evaluate(&queen_up) > evaluate(&no_queen));
@@ -184,7 +184,7 @@ fn pst_fixed_depth_search_baselines() {
     let queenwin = depth3_baseline("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
     assert_eq!(
         queenwin,
-        (969, "e4a4".to_string(), 886),
-        "queen-win depth-3 baseline (nodes, best move, score) — EVAL 1A era"
+        (969, "e4a4".to_string(), 990),
+        "queen-win depth-3 baseline (nodes, best move, score) — EVAL 1B era"
     );
 }

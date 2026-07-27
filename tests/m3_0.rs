@@ -527,10 +527,10 @@ fn behavior_zero_change_queenwin_depth3() {
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
         969,
-        "queen-win depth-3 node baseline (EVAL 1A era)"
+        "queen-win depth-3 node baseline (EVAL 1B era)"
     );
     assert_eq!(move_to_uci(out.best_move), "e4a4");
-    assert_eq!(out.score, Some(886));
+    assert_eq!(out.score, Some(990));
 
     let pv: Vec<String> = out.pv.iter().map(|&m| move_to_uci(m)).collect();
     assert_eq!(pv, vec!["e4a4", "h4h3", "a4h4", "h8g7", "h4h3"]);
