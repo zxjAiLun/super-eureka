@@ -1,0 +1,36 @@
+//! PERF profiling counters are observational and internally consistent.
+
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+use chess_engine_demo::chess::{parse_fen, to_fen, START_FEN};
+use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+
+#[test]
+fn search_stats_cover_the_search_without_changing_the_root() {
+    let mut pos = parse_fen(START_FEN).unwrap();
+    let before = to_fen(&pos);
+    let ctx = Arc::new(SearchContext::new(Arc::new(AtomicBool::new(false))));
+    let limits = SearchLimits {
+        depth: Some(3),
+        ..Default::default()
+    };
+
+    let outcome = search_best_move(&mut pos, &limits, &ctx).expect("startpos is non-terminal");
+    let stats = ctx.stats();
+
+    assert_eq!(
+        stats.nodes,
+        ctx.nodes.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    assert_eq!(to_fen(&pos), before);
+    assert_eq!(outcome.completed_depth, 3);
+    assert!(stats.nodes > 0);
+    assert!(stats.qsearch_nodes > 0);
+    assert!(stats.eval_calls > 0);
+    assert!(stats.legal_move_generations > 0);
+    assert!(stats.pseudo_moves >= stats.legal_moves);
+    assert_eq!(stats.make_moves, stats.unmake_moves);
+    assert!(stats.tt_probes > 0);
+    assert_eq!(stats.tt_hits, 0, "public baseline search has TT disabled");
+}

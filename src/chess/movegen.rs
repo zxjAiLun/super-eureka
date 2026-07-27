@@ -32,8 +32,25 @@ pub fn generate_pseudo_moves(pos: &Position, moves: &mut Vec<Move>) {
 
 /// Generate only strictly legal moves.
 pub fn generate_legal_moves(pos: &mut Position) -> Vec<Move> {
+    generate_legal_moves_with_stats(pos).0
+}
+
+/// Search profiling counters for one legal-move generation. The movegen
+/// implementation is shared with the public helper above; this variant only
+/// exposes counts that are already known while doing the same work, so
+/// profiling never generates the move list twice.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct MovegenStats {
+    pub(crate) pseudo_moves: u64,
+    pub(crate) legal_moves: u64,
+    pub(crate) make_moves: u64,
+    pub(crate) unmake_moves: u64,
+}
+
+pub(crate) fn generate_legal_moves_with_stats(pos: &mut Position) -> (Vec<Move>, MovegenStats) {
     let mut pseudo = Vec::new();
     generate_pseudo_moves(pos, &mut pseudo);
+    let pseudo_count = pseudo.len() as u64;
     let us = pos.side;
     let mut legal = Vec::new();
     for m in pseudo {
@@ -43,7 +60,16 @@ pub fn generate_legal_moves(pos: &mut Position) -> Vec<Move> {
         }
         pos.unmake_move(undo);
     }
-    legal
+    let legal_count = legal.len() as u64;
+    (
+        legal,
+        MovegenStats {
+            pseudo_moves: pseudo_count,
+            legal_moves: legal_count,
+            make_moves: pseudo_count,
+            unmake_moves: pseudo_count,
+        },
+    )
 }
 
 fn push_move(

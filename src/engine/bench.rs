@@ -33,7 +33,7 @@ use crate::chess::types::START_FEN;
 use crate::chess::ZobristKey;
 use crate::engine::search::{
     search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
-    SearchContext, SearchLimits, SearchOutcome, SearchProfile, MATE,
+    SearchContext, SearchLimits, SearchOutcome, SearchProfile, SearchStats, MATE,
 };
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
 
@@ -63,6 +63,7 @@ enum Suite {
     Smoke,
     Standard,
     Throughput,
+    Profile,
 }
 
 impl Suite {
@@ -71,6 +72,7 @@ impl Suite {
             Suite::Smoke => "smoke",
             Suite::Standard => "standard",
             Suite::Throughput => "throughput",
+            Suite::Profile => "profile",
         }
     }
 }
@@ -113,11 +115,11 @@ struct BenchArgs {
     suite: Suite,
     mode: BenchMode,
     repeat: u32,
-    /// Throughput node budget (default 100_000).
+    /// Throughput/profile node budget (default 100_000).
     nodes: u64,
     /// Search profile (default reference == M4.0 baseline behavior).
     profile: SearchProfile,
-    /// Optional throughput-only fixture filter.
+    /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
 }
 
@@ -146,6 +148,7 @@ struct BenchResult {
     elapsed_us: u128,
     nps: u64,
     pv: String,
+    stats: SearchStats,
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +160,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let suite_kw = it
         .next()
         .ok_or_else(|| {
-            "bench: missing suite (expected smoke|standard|throughput|help)".to_string()
+            "bench: missing suite (expected smoke|standard|throughput|profile|help)".to_string()
         })?
         .clone();
 
@@ -165,9 +168,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         "smoke" => Suite::Smoke,
         "standard" => Suite::Standard,
         "throughput" => Suite::Throughput,
+        "profile" => Suite::Profile,
         other => {
             return Err(format!(
-                "bench: unknown suite '{}' (expected smoke|standard|throughput|help)",
+                "bench: unknown suite '{}' (expected smoke|standard|throughput|profile|help)",
                 other
             ));
         }
@@ -177,11 +181,13 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         Suite::Smoke => BenchMode::Disabled,
         Suite::Standard => BenchMode::All,
         Suite::Throughput => BenchMode::Disabled,
+        Suite::Profile => BenchMode::Disabled,
     };
     let mut repeat = match suite {
         Suite::Smoke => 1,
         Suite::Standard => 1,
         Suite::Throughput => 3,
+        Suite::Profile => 1,
     };
     let mut nodes = 100_000u64;
     let mut profile = SearchProfile::M4Reference;
@@ -251,8 +257,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 };
             }
             "--fixture" => {
-                if suite != Suite::Throughput {
-                    return Err("bench: --fixture is only valid for throughput".to_string());
+                if suite != Suite::Throughput && suite != Suite::Profile {
+                    return Err(
+                        "bench: --fixture is only valid for throughput or profile".to_string()
+                    );
                 }
                 let v = it
                     .next()
@@ -265,9 +273,16 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "startpos" => "startpos",
                     "open-tactical" => "open-tactical",
                     "queen-win" => "queen-win",
+                    "closed-quiet" => "closed-quiet",
+                    "exposed-king" => "exposed-king",
+                    "high-branch" => "high-branch",
+                    "rook-pawn" => "rook-pawn",
+                    "kqk" => "kqk",
+                    "krk" => "krk",
+                    "halfmove-ctx" => "halfmove-ctx",
                     other => {
                         return Err(format!(
-                            "bench: invalid --fixture '{}' (expected startpos|open-tactical|queen-win)",
+                            "bench: invalid --fixture '{}' (expected standard/profile fixture id)",
                             other
                         ));
                     }
@@ -528,7 +543,7 @@ fn median_u64(v: &[u64]) -> u64 {
 
 /// Format one result line. Stable key order, integers, quoted PV.
 fn format_result_line(r: &BenchResult) -> String {
-    format!(
+    let line = format!(
         "bench_result suite={} fixture={} mode={} profile={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\"",
         r.suite,
         r.fixture,
@@ -544,7 +559,37 @@ fn format_result_line(r: &BenchResult) -> String {
         r.elapsed_us,
         r.nps,
         r.pv
-    )
+    );
+    if r.suite == "profile" {
+        format!(
+            "{} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_stores={} see_calls={} see_pruned={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_cutoffs={} null_move_researches={} futility_pruned={}",
+            line,
+            r.stats.qsearch_nodes,
+            r.stats.eval_calls,
+            r.stats.legal_move_generations,
+            r.stats.pseudo_moves,
+            r.stats.legal_moves,
+            r.stats.make_moves,
+            r.stats.unmake_moves,
+            r.stats.tt_probes,
+            r.stats.tt_hits,
+            r.stats.tt_cutoffs,
+            r.stats.tt_stores,
+            r.stats.see_calls,
+            r.stats.see_pruned,
+            r.stats.aspiration_retries,
+            r.stats.aspiration_fail_low,
+            r.stats.aspiration_fail_high,
+            r.stats.lmr_reductions,
+            r.stats.lmr_researches,
+            r.stats.null_move_attempts,
+            r.stats.null_move_cutoffs,
+            r.stats.null_move_researches,
+            r.stats.futility_pruned,
+        )
+    } else {
+        line
+    }
 }
 
 /// Check the fixed-depth complete-search invariants for a *completed* search.
@@ -758,10 +803,10 @@ fn run_one(
     mode: BenchMode,
     repeat: u32,
 ) -> Result<BenchResult, String> {
-    // The limit applied: throughput always uses a node budget; otherwise the
+    // The limit applied: throughput/profile always uses a node budget; otherwise the
     // fixture's depth.
     let actual_limit = match cfg.suite {
-        Suite::Throughput => LimitKind::Nodes(cfg.nodes),
+        Suite::Throughput | Suite::Profile => LimitKind::Nodes(cfg.nodes),
         _ => fx.limit,
     };
 
@@ -797,6 +842,7 @@ fn run_one(
         .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
     let elapsed = start.elapsed();
     let nodes = ctx.nodes.load(Ordering::Relaxed);
+    let stats = ctx.stats();
 
     validate(
         fx,
@@ -837,6 +883,7 @@ fn run_one(
         elapsed_us,
         nps,
         pv: pv_uci.join(" "),
+        stats,
     })
 }
 
@@ -871,6 +918,10 @@ fn fixtures_for(cfg: &BenchArgs) -> Vec<Fixture> {
         Suite::Smoke => smoke_fixtures(),
         Suite::Standard => standard_fixtures(),
         Suite::Throughput => throughput_fixtures()
+            .into_iter()
+            .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
+            .collect(),
+        Suite::Profile => standard_fixtures()
             .into_iter()
             .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
             .collect(),
@@ -956,13 +1007,14 @@ fn print_help() {
     println!("  smoke       fixed-depth disabled baseline on locked fixtures (depth 3)");
     println!("  standard    10 single-position fixtures, modes per --mode (default all)");
     println!("  throughput  fixed-node NPS measurement (default nodes 100000, repeat 3)");
+    println!("  profile     fixed-node search-cost counters across standard fixtures");
     println!("  help        this message");
     println!();
     println!("OPTIONS:");
     println!("  --mode <disabled|cold|warm|all>  default: smoke=disabled, standard=all, throughput=disabled");
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
-    println!("  --nodes <N>                       throughput node budget (default 100000)");
-    println!("  --fixture <startpos|open-tactical|queen-win>  throughput only");
+    println!("  --nodes <N>                       throughput/profile node budget (default 100000)");
+    println!("  --fixture <fixture-id>             throughput/profile filter");
     println!(
         "  --profile <reference|m4.1|current>  search profile (default reference == M4.0 baseline)"
     );
@@ -1241,6 +1293,7 @@ mod tests {
             elapsed_us: 413_000,
             nps: 20467,
             pv: "b1c3 b8c6 g1f3".to_string(),
+            stats: SearchStats::default(),
         };
         let line = format_result_line(&r);
         assert!(line.starts_with("bench_result "));

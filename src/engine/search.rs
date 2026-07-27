@@ -29,8 +29,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::chess::movegen::generate_legal_moves;
-use crate::chess::position::Position;
+use crate::chess::movegen::generate_legal_moves_with_stats;
+use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
 use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
@@ -118,6 +118,55 @@ pub struct SearchContext {
     pub soft_deadline: Option<Instant>,
     pub hard_deadline: Option<Instant>,
     pub nodes: AtomicU64,
+    pub qsearch_nodes: AtomicU64,
+    pub eval_calls: AtomicU64,
+    pub legal_move_generations: AtomicU64,
+    pub pseudo_moves: AtomicU64,
+    pub legal_moves: AtomicU64,
+    pub make_moves: AtomicU64,
+    pub unmake_moves: AtomicU64,
+    pub tt_probes: AtomicU64,
+    pub tt_hits: AtomicU64,
+    pub tt_cutoffs: AtomicU64,
+    pub tt_stores: AtomicU64,
+    pub see_calls: AtomicU64,
+    pub see_pruned: AtomicU64,
+    pub aspiration_retries: AtomicU64,
+    pub aspiration_fail_low: AtomicU64,
+    pub aspiration_fail_high: AtomicU64,
+    pub lmr_reductions: AtomicU64,
+    pub lmr_researches: AtomicU64,
+    pub null_move_attempts: AtomicU64,
+    pub null_move_cutoffs: AtomicU64,
+    pub null_move_researches: AtomicU64,
+    pub futility_pruned: AtomicU64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SearchStats {
+    pub nodes: u64,
+    pub qsearch_nodes: u64,
+    pub eval_calls: u64,
+    pub legal_move_generations: u64,
+    pub pseudo_moves: u64,
+    pub legal_moves: u64,
+    pub make_moves: u64,
+    pub unmake_moves: u64,
+    pub tt_probes: u64,
+    pub tt_hits: u64,
+    pub tt_cutoffs: u64,
+    pub tt_stores: u64,
+    pub see_calls: u64,
+    pub see_pruned: u64,
+    pub aspiration_retries: u64,
+    pub aspiration_fail_low: u64,
+    pub aspiration_fail_high: u64,
+    pub lmr_reductions: u64,
+    pub lmr_researches: u64,
+    pub null_move_attempts: u64,
+    pub null_move_cutoffs: u64,
+    pub null_move_researches: u64,
+    pub futility_pruned: u64,
 }
 
 impl SearchContext {
@@ -130,6 +179,28 @@ impl SearchContext {
             soft_deadline: None,
             hard_deadline: None,
             nodes: AtomicU64::new(0),
+            qsearch_nodes: AtomicU64::new(0),
+            eval_calls: AtomicU64::new(0),
+            legal_move_generations: AtomicU64::new(0),
+            pseudo_moves: AtomicU64::new(0),
+            legal_moves: AtomicU64::new(0),
+            make_moves: AtomicU64::new(0),
+            unmake_moves: AtomicU64::new(0),
+            tt_probes: AtomicU64::new(0),
+            tt_hits: AtomicU64::new(0),
+            tt_cutoffs: AtomicU64::new(0),
+            tt_stores: AtomicU64::new(0),
+            see_calls: AtomicU64::new(0),
+            see_pruned: AtomicU64::new(0),
+            aspiration_retries: AtomicU64::new(0),
+            aspiration_fail_low: AtomicU64::new(0),
+            aspiration_fail_high: AtomicU64::new(0),
+            lmr_reductions: AtomicU64::new(0),
+            lmr_researches: AtomicU64::new(0),
+            null_move_attempts: AtomicU64::new(0),
+            null_move_cutoffs: AtomicU64::new(0),
+            null_move_researches: AtomicU64::new(0),
+            futility_pruned: AtomicU64::new(0),
         }
     }
 
@@ -141,8 +212,91 @@ impl SearchContext {
             soft_deadline: budget.soft_deadline,
             hard_deadline: budget.hard_deadline,
             nodes: AtomicU64::new(0),
+            qsearch_nodes: AtomicU64::new(0),
+            eval_calls: AtomicU64::new(0),
+            legal_move_generations: AtomicU64::new(0),
+            pseudo_moves: AtomicU64::new(0),
+            legal_moves: AtomicU64::new(0),
+            make_moves: AtomicU64::new(0),
+            unmake_moves: AtomicU64::new(0),
+            tt_probes: AtomicU64::new(0),
+            tt_hits: AtomicU64::new(0),
+            tt_cutoffs: AtomicU64::new(0),
+            tt_stores: AtomicU64::new(0),
+            see_calls: AtomicU64::new(0),
+            see_pruned: AtomicU64::new(0),
+            aspiration_retries: AtomicU64::new(0),
+            aspiration_fail_low: AtomicU64::new(0),
+            aspiration_fail_high: AtomicU64::new(0),
+            lmr_reductions: AtomicU64::new(0),
+            lmr_researches: AtomicU64::new(0),
+            null_move_attempts: AtomicU64::new(0),
+            null_move_cutoffs: AtomicU64::new(0),
+            null_move_researches: AtomicU64::new(0),
+            futility_pruned: AtomicU64::new(0),
         }
     }
+
+    pub fn stats(&self) -> SearchStats {
+        SearchStats {
+            nodes: self.nodes.load(Ordering::Relaxed),
+            qsearch_nodes: self.qsearch_nodes.load(Ordering::Relaxed),
+            eval_calls: self.eval_calls.load(Ordering::Relaxed),
+            legal_move_generations: self.legal_move_generations.load(Ordering::Relaxed),
+            pseudo_moves: self.pseudo_moves.load(Ordering::Relaxed),
+            legal_moves: self.legal_moves.load(Ordering::Relaxed),
+            make_moves: self.make_moves.load(Ordering::Relaxed),
+            unmake_moves: self.unmake_moves.load(Ordering::Relaxed),
+            tt_probes: self.tt_probes.load(Ordering::Relaxed),
+            tt_hits: self.tt_hits.load(Ordering::Relaxed),
+            tt_cutoffs: self.tt_cutoffs.load(Ordering::Relaxed),
+            tt_stores: self.tt_stores.load(Ordering::Relaxed),
+            see_calls: self.see_calls.load(Ordering::Relaxed),
+            see_pruned: self.see_pruned.load(Ordering::Relaxed),
+            aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
+            aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
+            aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
+            lmr_reductions: self.lmr_reductions.load(Ordering::Relaxed),
+            lmr_researches: self.lmr_researches.load(Ordering::Relaxed),
+            null_move_attempts: self.null_move_attempts.load(Ordering::Relaxed),
+            null_move_cutoffs: self.null_move_cutoffs.load(Ordering::Relaxed),
+            null_move_researches: self.null_move_researches.load(Ordering::Relaxed),
+            futility_pruned: self.futility_pruned.load(Ordering::Relaxed),
+        }
+    }
+}
+
+#[inline]
+fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let (moves, stats) = generate_legal_moves_with_stats(pos);
+    ctx.legal_move_generations.fetch_add(1, Ordering::Relaxed);
+    ctx.pseudo_moves
+        .fetch_add(stats.pseudo_moves, Ordering::Relaxed);
+    ctx.legal_moves
+        .fetch_add(stats.legal_moves, Ordering::Relaxed);
+    ctx.make_moves
+        .fetch_add(stats.make_moves, Ordering::Relaxed);
+    ctx.unmake_moves
+        .fetch_add(stats.unmake_moves, Ordering::Relaxed);
+    moves
+}
+
+#[inline]
+fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
+    ctx.eval_calls.fetch_add(1, Ordering::Relaxed);
+    evaluate(pos)
+}
+
+#[inline]
+fn make_move_profiled(pos: &mut Position, mv: Move, ctx: &SearchContext) -> Undo {
+    ctx.make_moves.fetch_add(1, Ordering::Relaxed);
+    pos.make_move(mv)
+}
+
+#[inline]
+fn unmake_move_profiled(pos: &mut Position, undo: Undo, ctx: &SearchContext) {
+    ctx.unmake_moves.fetch_add(1, Ordering::Relaxed);
+    pos.unmake_move(undo);
 }
 
 /// Return value of a search attempt. `Stopped` means the caller should
@@ -350,7 +504,7 @@ fn probe_child_draw(
     // The probe is the sole owner of the child PV row's initial clear.
     pv.clear_at(child_ply);
 
-    let child_legal = generate_legal_moves(pos);
+    let child_legal = generate_legal_moves_profiled(pos, ctx);
     if child_legal.is_empty() {
         return Some(ChildProbe::Terminal(terminal_child_score_for_parent(
             pos.is_in_check(pos.side),
@@ -708,6 +862,7 @@ fn repetition_token(key: ZobristKey, count: usize) -> u64 {
 /// Result of probing the TT for one search node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SearchTtProbe {
+    hit: bool,
     /// A real score the node can return immediately (the TT entry's bound
     /// is satisfied by the current window). `None` means no cut-off.
     cutoff: Option<i32>,
@@ -744,6 +899,7 @@ fn probe_tt_for_search(
 ) -> SearchTtProbe {
     let Some(entry) = tt.probe(key) else {
         return SearchTtProbe {
+            hit: false,
             cutoff: None,
             hash_move: None,
         };
@@ -754,6 +910,7 @@ fn probe_tt_for_search(
     // score: treat the ENTIRE entry as a miss — no cut-off AND no hash move.
     let Some(decoded) = score_from_tt(entry.score, ply) else {
         return SearchTtProbe {
+            hit: true,
             cutoff: None,
             hash_move: None,
         };
@@ -763,6 +920,7 @@ fn probe_tt_for_search(
     // (if any) is still useful for ordering.
     if entry.depth < requested_depth {
         return SearchTtProbe {
+            hit: true,
             cutoff: None,
             hash_move: entry.best_move,
         };
@@ -787,6 +945,7 @@ fn probe_tt_for_search(
     };
 
     SearchTtProbe {
+        hit: true,
         cutoff,
         hash_move: entry.best_move,
     }
@@ -827,6 +986,22 @@ fn store_tt_score(
             best_move,
         });
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[inline]
+fn store_tt_score_profiled(
+    tt: &mut TranspositionTable,
+    key: TtKey,
+    depth: u32,
+    score: i32,
+    ply: u32,
+    bound: Bound,
+    best_move: Option<Move>,
+    ctx: &SearchContext,
+) {
+    ctx.tt_stores.fetch_add(1, Ordering::Relaxed);
+    store_tt_score(tt, key, depth, score, ply, bound, best_move);
 }
 
 /// M4.1 quiet-move-ordering heuristic state, local to a single
@@ -1341,7 +1516,7 @@ fn negamax_entered_impl(
     pv.clear_at(ply);
 
     // Terminal-node check MUST run before the depth==0 evaluation.
-    let mut moves = generate_legal_moves(pos);
+    let mut moves = generate_legal_moves_profiled(pos, ctx);
     if moves.is_empty() {
         if pos.is_in_check(pos.side) {
             return Some(-(MATE - ply as i32));
@@ -1379,7 +1554,14 @@ fn negamax_entered_impl(
     // one real node. On a cut-off we return the decoded score and leave
     // the (already-cleared) PV row empty.
     let key = current_tt_key(pos, path);
+    ctx.tt_probes.fetch_add(1, Ordering::Relaxed);
     let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
+    if tt_probe.hit {
+        ctx.tt_hits.fetch_add(1, Ordering::Relaxed);
+    }
+    if tt_probe.cutoff.is_some() {
+        ctx.tt_cutoffs.fetch_add(1, Ordering::Relaxed);
+    }
     if let Some(cutoff) = tt_probe.cutoff {
         return Some(cutoff);
     }
@@ -1394,7 +1576,7 @@ fn negamax_entered_impl(
                 // The qsearch PV row start (if any) is the real best-capture
                 // move; stand-pat / claim floor / empty PV -> None.
                 let best_move = pv.lines[ply as usize].first().copied();
-                store_tt_score(tt, key, 0, s, ply, bound, best_move);
+                store_tt_score_profiled(tt, key, 0, s, ply, bound, best_move, ctx);
                 Some(s)
             }
             None => None,
@@ -1436,7 +1618,7 @@ fn negamax_entered_impl(
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
         let alpha_before_move = alpha;
-        let undo = pos.make_move(m);
+        let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
@@ -1444,7 +1626,7 @@ fn negamax_entered_impl(
             Some(p) => p,
             None => {
                 path.pop();
-                pos.unmake_move(undo);
+                unmake_move_profiled(pos, undo, ctx);
                 return None;
             }
         };
@@ -1491,7 +1673,7 @@ fn negamax_entered_impl(
                             Some(s) => MoveOutcome::Candidate(-s),
                             None => {
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None;
                             }
                         }
@@ -1522,7 +1704,7 @@ fn negamax_entered_impl(
                                 #[cfg(test)]
                                 pvs_counters::mark_abort_in_scout();
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None;
                             }
                         };
@@ -1547,7 +1729,7 @@ fn negamax_entered_impl(
                                 #[cfg(test)]
                                 pvs_counters::mark_abort_research_acquire();
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None;
                             }
                             #[cfg(test)]
@@ -1587,7 +1769,7 @@ fn negamax_entered_impl(
                                     #[cfg(test)]
                                     pvs_counters::mark_abort_in_research();
                                     path.pop();
-                                    pos.unmake_move(undo);
+                                    unmake_move_profiled(pos, undo, ctx);
                                     return None;
                                 }
                             }
@@ -1632,7 +1814,7 @@ fn negamax_entered_impl(
         };
 
         path.pop();
-        pos.unmake_move(undo);
+        unmake_move_profiled(pos, undo, ctx);
 
         // Commit parent state by MATCHING on the explicit outcome (P1.1). A
         // `ScoutFailLow` never updates best / node_best_move / PV / alpha,
@@ -1720,7 +1902,16 @@ fn negamax_entered_impl(
     // Store one entry under the caller window; a deeper abort never reaches
     // here, so no partial node is ever cached.
     let bound = classify_tt_bound(returned_score, caller_alpha, caller_beta);
-    store_tt_score(tt, key, depth, returned_score, ply, bound, node_best_move);
+    store_tt_score_profiled(
+        tt,
+        key,
+        depth,
+        returned_score,
+        ply,
+        bound,
+        node_best_move,
+        ctx,
+    );
     Some(returned_score)
 }
 
@@ -1891,6 +2082,7 @@ fn quiescence_entered_impl(
     pv: &mut PvTable,
     path: &mut SearchPath,
 ) -> Option<i32> {
+    ctx.qsearch_nodes.fetch_add(1, Ordering::Relaxed);
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
 
@@ -1898,7 +2090,7 @@ fn quiescence_entered_impl(
 
     // Generate all legal moves once. Correctness-first: this is what lets us
     // score checkmate / stalemate exactly.
-    let mut legal = generate_legal_moves(pos);
+    let mut legal = generate_legal_moves_profiled(pos, ctx);
     if legal.is_empty() {
         return Some(if in_check { -(MATE - ply as i32) } else { 0 });
     }
@@ -1927,7 +2119,7 @@ fn quiescence_entered_impl(
     // Termination cap.
     if qply >= MAX_QPLY {
         if !in_check {
-            let stand_pat = evaluate(pos);
+            let stand_pat = evaluate_profiled(pos, ctx);
             if stand_pat >= beta {
                 return Some(beta);
             }
@@ -1943,7 +2135,7 @@ fn quiescence_entered_impl(
     } else {
         // Rule 2 (stalemate) already handled. Stand-pat is the lower bound:
         // the side to move is never forced to make a capture.
-        let stand_pat = evaluate(pos);
+        let stand_pat = evaluate_profiled(pos, ctx);
         if stand_pat >= beta {
             return Some(beta);
         }
@@ -1954,7 +2146,7 @@ fn quiescence_entered_impl(
     };
 
     for m in tactical {
-        let undo = pos.make_move(m);
+        let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
@@ -1962,7 +2154,7 @@ fn quiescence_entered_impl(
             Some(p) => p,
             None => {
                 path.pop();
-                pos.unmake_move(undo);
+                unmake_move_profiled(pos, undo, ctx);
                 return None;
             }
         };
@@ -1988,7 +2180,7 @@ fn quiescence_entered_impl(
                     Some(s) => -s,
                     None => {
                         path.pop();
-                        pos.unmake_move(undo);
+                        unmake_move_profiled(pos, undo, ctx);
                         return None;
                     }
                 }
@@ -1996,7 +2188,7 @@ fn quiescence_entered_impl(
         };
 
         path.pop();
-        pos.unmake_move(undo);
+        unmake_move_profiled(pos, undo, ctx);
 
         // IMPORTANT: record the cut-off move BEFORE returning the fail-hard
         // beta, so the tactical PV captures it.
@@ -2077,7 +2269,7 @@ fn search_final_evasion_ply(
             return None;
         }
 
-        let undo = pos.make_move(m);
+        let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
         // `legal` came from `generate_legal_moves`, so this evasion is legal:
@@ -2088,7 +2280,7 @@ fn search_final_evasion_ply(
         //     fifty-move or threefold intended claim -> 0 (mover secures draw);
         //   - otherwise approximate with the static eval (safe cap estimate).
         let child_in_check = pos.is_in_check(pos.side);
-        let child_legal = generate_legal_moves(pos);
+        let child_legal = generate_legal_moves_profiled(pos, ctx);
         let score = if child_legal.is_empty() {
             terminal_child_score_for_parent(child_in_check, ply)
         } else if is_insufficient_material(pos)
@@ -2098,11 +2290,11 @@ fn search_final_evasion_ply(
             // or threefold claim on this evasion — both secure 0 (no real win).
             0
         } else {
-            -evaluate(pos)
+            -evaluate_profiled(pos, ctx)
         };
 
         path.pop();
-        pos.unmake_move(undo);
+        unmake_move_profiled(pos, undo, ctx);
 
         // Record the cut-off move BEFORE returning the fail-hard beta.
         if score >= beta {
@@ -2214,7 +2406,14 @@ fn root_search(
     // change both. So this is a pure hash-move lift, identical to
     // `order_moves_with_hash` minus its `order_moves` pre-pass.
     let root_key = current_tt_key(pos, path);
+    ctx.tt_probes.fetch_add(1, Ordering::Relaxed);
     let root_probe = probe_tt_for_search(tt, root_key, depth, 0, alpha, beta);
+    if root_probe.hit {
+        ctx.tt_hits.fetch_add(1, Ordering::Relaxed);
+    }
+    if root_probe.cutoff.is_some() {
+        ctx.tt_cutoffs.fetch_add(1, Ordering::Relaxed);
+    }
     if let Some(hm) = root_probe.hash_move {
         if let Some(idx) = root_moves.iter().position(|&m| m == hm) {
             if idx != 0 {
@@ -2229,7 +2428,7 @@ fn root_search(
         // profiles (and the first move) this equals the running `alpha`, so
         // the full-window search below is byte-identical to the pre-PVS root.
         let alpha_before_move = alpha;
-        let undo = pos.make_move(m);
+        let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
@@ -2237,7 +2436,7 @@ fn root_search(
             Some(p) => p,
             None => {
                 path.pop();
-                pos.unmake_move(undo);
+                unmake_move_profiled(pos, undo, ctx);
                 return None;
             }
         };
@@ -2288,7 +2487,7 @@ fn root_search(
                             Some(s) => RootMoveOutcome::Candidate(-s),
                             None => {
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None; // aborted (deeper recursion)
                             }
                         }
@@ -2319,7 +2518,7 @@ fn root_search(
                                 #[cfg(test)]
                                 pvs_counters::mark_root_abort_in_scout();
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None;
                             }
                         };
@@ -2346,7 +2545,7 @@ fn root_search(
                                 #[cfg(test)]
                                 pvs_counters::mark_root_abort_research_acquire();
                                 path.pop();
-                                pos.unmake_move(undo);
+                                unmake_move_profiled(pos, undo, ctx);
                                 return None;
                             }
                             #[cfg(test)]
@@ -2382,7 +2581,7 @@ fn root_search(
                                     #[cfg(test)]
                                     pvs_counters::mark_root_abort_in_research();
                                     path.pop();
-                                    pos.unmake_move(undo);
+                                    unmake_move_profiled(pos, undo, ctx);
                                     return None;
                                 }
                             }
@@ -2403,7 +2602,7 @@ fn root_search(
         };
 
         path.pop();
-        pos.unmake_move(undo);
+        unmake_move_profiled(pos, undo, ctx);
         #[cfg(test)]
         pvs_counters::mark_root_move_visited();
 
@@ -2451,7 +2650,7 @@ fn root_search(
     if root_claimable && best_move.is_none() {
         // M3.2: cache the claim placeholder (Exact, no best move).
         let root_key = current_tt_key(pos, path);
-        store_tt_score(tt, root_key, depth, 0, 0, Bound::Exact, None);
+        store_tt_score_profiled(tt, root_key, depth, 0, 0, Bound::Exact, None, ctx);
         return Some(RootIteration {
             score: 0,
             best_move: claim_fallback,
@@ -2470,7 +2669,16 @@ fn root_search(
         } else {
             Some(bm)
         };
-        store_tt_score(tt, root_key, depth, best_score, 0, Bound::Exact, store_move);
+        store_tt_score_profiled(
+            tt,
+            root_key,
+            depth,
+            best_score,
+            0,
+            Bound::Exact,
+            store_move,
+            ctx,
+        );
         RootIteration {
             score: best_score,
             best_move: bm,
@@ -2637,7 +2845,7 @@ fn search_best_move_impl(
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
 ) -> Option<SearchOutcome> {
-    let mut root_moves = generate_legal_moves(pos);
+    let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
     }
