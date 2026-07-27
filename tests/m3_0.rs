@@ -526,12 +526,12 @@ fn behavior_zero_change_queenwin_depth3() {
     assert_eq!(to_fen(&pos), before, "root position restored");
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
-        963,
-        "queen-win depth-3 node baseline (PST era)"
+        969,
+        "queen-win depth-3 node baseline (EVAL 1A era)"
     );
     assert_eq!(move_to_uci(out.best_move), "e4a4");
-    assert_eq!(out.score, Some(890));
+    assert_eq!(out.score, Some(886));
 
     let pv: Vec<String> = out.pv.iter().map(|&m| move_to_uci(m)).collect();
-    assert_eq!(pv, vec!["e4a4", "h4h3", "a4h4", "h8g8", "h4h3"]);
+    assert_eq!(pv, vec!["e4a4", "h4h3", "a4h4", "h8g7", "h4h3"]);
 }

@@ -22,7 +22,8 @@ fn fresh_ctx() -> Arc<SearchContext> {
 }
 
 /// Test 1 (main proof of `sq ^ 56`): an asymmetric Pawn mirror pair.
-/// White pawn d7 and Black pawn d2 must both score 150 and be equal.
+/// White pawn d7 and Black pawn d2 must both score 180 and be equal after
+/// EVAL 1A's endgame King PST is applied.
 /// A correct implementation mirrors Black via `d2 ^ 56 == d7`.
 /// (Knight c3/c6 happen to share value 10, so that pair alone does
 /// NOT prove the mirror — it is kept only as a sanity check.)
@@ -33,14 +34,14 @@ fn pst_color_mirror_pawn_pair_is_main_proof() {
 
     assert_eq!(
         evaluate(&white_d7),
-        150,
-        "white d7 = 100 + PAWN_PST[d7](50)"
+        180,
+        "white d7 = 100 + PAWN_PST[d7](50) + King EG differential"
     );
     assert_eq!(
         evaluate(&black_d2),
-        150,
-        "black d2 mirrors to d7 -> 100 + PAWN_PST[d7](50); omitting the \
-         mirror reads PAWN_PST[d2](-20) -> 80, which FAILS this test"
+        180,
+        "black d2 mirrors to d7; omitting the mirror still changes the \
+         pawn contribution and fails this test"
     );
     assert_eq!(evaluate(&white_d7), evaluate(&black_d2));
 
@@ -79,7 +80,11 @@ fn pst_center_beats_edge() {
 fn pst_material_still_dominates() {
     let queen_up = parse_fen("4k3/8/8/8/8/8/8/Q3K3 w - - 0 1").unwrap(); // Q a1 + K e1 vs K a8
     let no_queen = parse_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
-    assert_eq!(evaluate(&queen_up), 880, "900 + QUEEN_PST[a1](-20)");
+    assert_eq!(
+        evaluate(&queen_up),
+        880,
+        "900 + QUEEN_PST[a1](-20) + tapered King PST"
+    );
     assert_eq!(evaluate(&no_queen), 0);
     assert!(evaluate(&queen_up) > evaluate(&no_queen));
 }
@@ -92,8 +97,8 @@ fn pst_pawn_fixed_value_and_flip_detection() {
     let pos = parse_fen("k7/3P4/8/8/8/8/8/4K3 w - - 0 1").unwrap();
     assert_eq!(
         evaluate(&pos),
-        150,
-        "white pawn d7 = 100 + PAWN_PST[d7](50)"
+        180,
+        "white pawn d7 plus the EVAL 1A King EG differential"
     );
     // If the whole table were flipped vertically, d7 would read d2's -20,
     // giving 80, and this assertion would fail.
@@ -173,13 +178,13 @@ fn pst_fixed_depth_search_baselines() {
     assert_eq!(
         startpos,
         (1149, "b1c3".to_string(), 50),
-        "startpos depth-3 baseline (nodes, best move, score) — PST era"
+        "startpos depth-3 baseline (nodes, best move, score) — EVAL 1A era"
     );
 
     let queenwin = depth3_baseline("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
     assert_eq!(
         queenwin,
-        (963, "e4a4".to_string(), 890),
-        "queen-win depth-3 baseline (nodes, best move, score) — PST era"
+        (969, "e4a4".to_string(), 886),
+        "queen-win depth-3 baseline (nodes, best move, score) — EVAL 1A era"
     );
 }
