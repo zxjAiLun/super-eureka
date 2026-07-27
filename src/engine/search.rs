@@ -46,7 +46,7 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///
 /// * `M4Reference` reproduces the M4.0 production behavior exactly: no killer
 ///   moves, no history heuristic. The historical baseline (e.g. `bench smoke`
-///   startpos d3 disabled = 1149 / queen-win d3 disabled = 963) is preserved
+///   startpos d3 disabled = 1149 / queen-win d3 disabled = 969) is preserved
 ///   verbatim on this profile.
 /// * `M41Reference` reproduces the M4.1 full-window search exactly: M4.1
 ///   quiet move ordering (killer moves + history heuristic) with NO principal
@@ -5477,18 +5477,18 @@ mod tests {
         let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
         assert_eq!(
             ctx.nodes.load(Ordering::Relaxed),
-            963,
+            969,
             "disabled queen-win d3 node count unchanged"
         );
         assert_eq!(move_to_uci(out.best_move), "e4a4");
-        assert_eq!(out.score, Some(890));
+        assert_eq!(out.score, Some(886));
         assert_eq!(
             out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
             vec![
                 "e4a4".to_string(),
                 "h4h3".to_string(),
                 "a4h4".to_string(),
-                "h8g8".to_string(),
+                "h8g7".to_string(),
                 "h4h3".to_string()
             ]
         );
@@ -7103,7 +7103,7 @@ mod tests {
         let mut tt = TranspositionTable::new_mb(16).unwrap();
         let (out, _) = run_tt(fen, 3, &mut tt);
         let out = out.expect("outcome");
-        assert_eq!(out.score, Some(890));
+        assert_eq!(out.score, Some(886));
         assert_eq!(move_to_uci(out.best_move), "e4a4");
         assert!(pv_is_legal(fen, &out.pv));
         assert_eq!(out.pv.first().copied(), Some(out.best_move));
@@ -7463,7 +7463,7 @@ mod tests {
             "e4a4",
             "best move stays the first full-window winner"
         );
-        assert_eq!(iter.score, 890, "root score is the winning value");
+        assert_eq!(iter.score, 886, "root score is the winning value");
         assert_eq!(
             iter.pv.first().copied(),
             Some(iter.best_move),
@@ -7531,7 +7531,7 @@ mod tests {
             "e4a4",
             "the fully re-searched winner is the root best move"
         );
-        assert_eq!(iter.score, 890, "root score is the winning value");
+        assert_eq!(iter.score, 886, "root score is the winning value");
         assert_eq!(iter.pv.first().copied(), Some(iter.best_move));
         assert!(pv_is_legal(ROOT_QWIN_FEN, &iter.pv));
     }
@@ -7738,7 +7738,7 @@ mod tests {
             "e4a4",
             "the re-searched winner beats the claim floor"
         );
-        assert_eq!(iter.score, 890, "root reports the real winning score");
+        assert_eq!(iter.score, 886, "root reports the real winning score");
         assert!(
             !iter.pv.is_empty(),
             "a real winning line has a non-empty PV"

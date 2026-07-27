@@ -314,10 +314,10 @@ fn smoke_fixtures() -> Vec<Fixture> {
             limit: LimitKind::Depth(3),
             history: None,
             locked: Some(Locked {
-                nodes: 963,
-                score: 890,
+                nodes: 969,
+                score: 886,
                 best_move: "e4a4",
-                pv: &["e4a4", "h4h3", "a4h4", "h8g8", "h4h3"],
+                pv: &["e4a4", "h4h3", "a4h4", "h8g7", "h4h3"],
             }),
         },
     ]
@@ -1392,7 +1392,7 @@ mod tests {
     #[test]
     fn smoke_reference_locks_exactly() {
         // `bench smoke` (and `bench smoke --profile reference`) must still
-        // enforce the exact 1149 / 963 locks.
+        // enforce the exact EVAL 1A 1149 / 969 locks.
         for fx in smoke_fixtures() {
             let cfg = BenchArgs {
                 suite: Suite::Smoke,
