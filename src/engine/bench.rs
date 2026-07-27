@@ -23,7 +23,7 @@
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::chess::fen::{parse_fen, to_fen};
 use crate::chess::move_to_uci;
@@ -35,6 +35,7 @@ use crate::engine::search::{
     search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
     SearchContext, SearchLimits, SearchOutcome, SearchProfile, SearchStats, MATE,
 };
+use crate::engine::time::{compute_budget, TimeInput};
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
 
 /// A benchmark mode. Selecting `All` expands to the three concrete modes.
@@ -64,6 +65,7 @@ enum Suite {
     Standard,
     Throughput,
     Profile,
+    Ablation,
 }
 
 impl Suite {
@@ -73,15 +75,17 @@ impl Suite {
             Suite::Standard => "standard",
             Suite::Throughput => "throughput",
             Suite::Profile => "profile",
+            Suite::Ablation => "ablation",
         }
     }
 }
 
 /// The search limit actually applied to a run.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum LimitKind {
     Depth(u32),
     Nodes(u64),
+    Movetime(u64),
 }
 
 /// A single-position benchmark fixture.
@@ -111,6 +115,7 @@ struct Locked {
 }
 
 /// Parsed CLI configuration.
+#[derive(Clone, Copy)]
 struct BenchArgs {
     suite: Suite,
     mode: BenchMode,
@@ -121,6 +126,8 @@ struct BenchArgs {
     profile: SearchProfile,
     /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
+    /// Limit selector used only by the ablation suite.
+    ablation_limit: Option<LimitKind>,
 }
 
 /// Render a `SearchProfile` as its CLI string (also used in bench output).
@@ -169,7 +176,8 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let suite_kw = it
         .next()
         .ok_or_else(|| {
-            "bench: missing suite (expected smoke|standard|throughput|profile|help)".to_string()
+            "bench: missing suite (expected smoke|standard|throughput|profile|ablation|help)"
+                .to_string()
         })?
         .clone();
 
@@ -178,9 +186,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         "standard" => Suite::Standard,
         "throughput" => Suite::Throughput,
         "profile" => Suite::Profile,
+        "ablation" => Suite::Ablation,
         other => {
             return Err(format!(
-                "bench: unknown suite '{}' (expected smoke|standard|throughput|profile|help)",
+                "bench: unknown suite '{}' (expected smoke|standard|throughput|profile|ablation|help)",
                 other
             ));
         }
@@ -191,16 +200,19 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         Suite::Standard => BenchMode::All,
         Suite::Throughput => BenchMode::Disabled,
         Suite::Profile => BenchMode::Disabled,
+        Suite::Ablation => BenchMode::Disabled,
     };
     let mut repeat = match suite {
         Suite::Smoke => 1,
         Suite::Standard => 1,
         Suite::Throughput => 3,
         Suite::Profile => 1,
+        Suite::Ablation => 1,
     };
     let mut nodes = 100_000u64;
     let mut profile = SearchProfile::M4Reference;
     let mut fixture: Option<&'static str> = None;
+    let mut ablation_limit: Option<LimitKind> = None;
 
     while let Some(tok) = it.next() {
         match tok.as_str() {
@@ -247,8 +259,63 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     return Err("bench: --nodes must be >= 1".to_string());
                 }
                 nodes = n;
+                if suite == Suite::Ablation && ablation_limit.replace(LimitKind::Nodes(n)).is_some()
+                {
+                    return Err(
+                        "bench: ablation accepts exactly one of --nodes|--depth|--movetime"
+                            .to_string(),
+                    );
+                }
+            }
+            "--depth" => {
+                if suite != Suite::Ablation {
+                    return Err("bench: --depth is only valid for ablation".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --depth requires a value".to_string())?
+                    .clone();
+                let n: u32 = v
+                    .parse()
+                    .map_err(|_| format!("bench: --depth '{}' is not a positive integer", v))?;
+                if n == 0 {
+                    return Err("bench: --depth must be >= 1".to_string());
+                }
+                if ablation_limit.replace(LimitKind::Depth(n)).is_some() {
+                    return Err(
+                        "bench: ablation accepts exactly one of --nodes|--depth|--movetime"
+                            .to_string(),
+                    );
+                }
+            }
+            "--movetime" => {
+                if suite != Suite::Ablation {
+                    return Err("bench: --movetime is only valid for ablation".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --movetime requires a value".to_string())?
+                    .clone();
+                let n: u64 = v
+                    .parse()
+                    .map_err(|_| format!("bench: --movetime '{}' is not a positive integer", v))?;
+                if n == 0 {
+                    return Err("bench: --movetime must be >= 1".to_string());
+                }
+                if ablation_limit.replace(LimitKind::Movetime(n)).is_some() {
+                    return Err(
+                        "bench: ablation accepts exactly one of --nodes|--depth|--movetime"
+                            .to_string(),
+                    );
+                }
             }
             "--profile" => {
+                if suite == Suite::Ablation {
+                    return Err(
+                        "bench: --profile is not valid for ablation; it runs all cumulative profiles"
+                            .to_string(),
+                    );
+                }
                 let v = it
                     .next()
                     .ok_or_else(|| "bench: --profile requires a value".to_string())?
@@ -279,9 +346,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 };
             }
             "--fixture" => {
-                if suite != Suite::Throughput && suite != Suite::Profile {
+                if suite != Suite::Throughput && suite != Suite::Profile && suite != Suite::Ablation
+                {
                     return Err(
-                        "bench: --fixture is only valid for throughput or profile".to_string()
+                        "bench: --fixture is only valid for throughput, profile, or ablation"
+                            .to_string(),
                     );
                 }
                 let v = it
@@ -316,6 +385,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         }
     }
 
+    if suite == Suite::Ablation && mode != BenchMode::Disabled {
+        return Err("bench: ablation uses fixed disabled TT mode".to_string());
+    }
+
     Ok(BenchArgs {
         suite,
         mode,
@@ -323,6 +396,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         nodes,
         profile,
         fixture,
+        ablation_limit: if suite == Suite::Ablation {
+            Some(ablation_limit.unwrap_or(LimitKind::Nodes(nodes)))
+        } else {
+            None
+        },
     })
 }
 
@@ -520,6 +598,10 @@ fn limits_for(lk: LimitKind) -> SearchLimits {
             depth: None,
             nodes: Some(n),
         },
+        LimitKind::Movetime(_) => SearchLimits {
+            depth: None,
+            nodes: None,
+        },
     }
 }
 
@@ -582,7 +664,12 @@ fn format_result_line(r: &BenchResult) -> String {
         r.nps,
         r.pv
     );
-    if r.suite == "profile" {
+    let line = if r.suite == "ablation" {
+        format!("{} elapsed_ms={}", line, r.elapsed_us / 1_000)
+    } else {
+        line
+    };
+    if r.suite == "profile" || r.suite == "ablation" {
         format!(
             "{} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_stores={} see_calls={} see_pruned={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
             line,
@@ -829,6 +916,9 @@ fn run_one(
     // fixture's depth.
     let actual_limit = match cfg.suite {
         Suite::Throughput | Suite::Profile => LimitKind::Nodes(cfg.nodes),
+        Suite::Ablation => cfg
+            .ablation_limit
+            .expect("ablation limit is populated by parse_args"),
         _ => fx.limit,
     };
 
@@ -856,10 +946,21 @@ fn run_one(
         fen: to_fen(&pos),
         zobrist: pos.zobrist_key(),
     };
-    let ctx = SearchContext::new_with_profiling(
-        Arc::new(AtomicBool::new(false)),
-        cfg.suite == Suite::Profile,
-    );
+    let profiling = matches!(cfg.suite, Suite::Profile | Suite::Ablation);
+    let stop = Arc::new(AtomicBool::new(false));
+    let ctx = match actual_limit {
+        LimitKind::Movetime(ms) => {
+            let budget = compute_budget(
+                &TimeInput {
+                    movetime: Some(Duration::from_millis(ms)),
+                    ..TimeInput::default()
+                },
+                Instant::now(),
+            );
+            SearchContext::with_budget_and_profiling(stop, budget, profiling)
+        }
+        _ => SearchContext::new_with_profiling(stop, profiling),
+    };
     let limits = limits_for(actual_limit);
 
     let start = Instant::now();
@@ -891,6 +992,7 @@ fn run_one(
     let limit_str = match actual_limit {
         LimitKind::Depth(d) => format!("depth:{}", d),
         LimitKind::Nodes(n) => format!("nodes:{}", n),
+        LimitKind::Movetime(ms) => format!("movetime_ms:{}", ms),
     };
 
     Ok(BenchResult {
@@ -916,9 +1018,12 @@ fn run_one(
 /// (fixture, mode). On mismatch, emit a clear bench_error (warning).
 fn check_determinism(results: &[BenchResult]) {
     use std::collections::HashMap;
-    let mut groups: HashMap<(&str, &str), Vec<&BenchResult>> = HashMap::new();
+    let mut groups: HashMap<(&str, &str, &str), Vec<&BenchResult>> = HashMap::new();
     for r in results {
-        groups.entry((r.fixture, r.mode)).or_default().push(r);
+        groups
+            .entry((r.profile, r.fixture, r.mode))
+            .or_default()
+            .push(r);
     }
     for (key, group) in &groups {
         if group.len() <= 1 {
@@ -930,9 +1035,9 @@ fn check_determinism(results: &[BenchResult]) {
         let cd_set: BTreeSet<u32> = group.iter().map(|r| r.completed_depth).collect();
         if nodes_set.len() > 1 || score_set.len() > 1 || bm_set.len() > 1 || cd_set.len() > 1 {
             eprintln!(
-                "bench_error determinism: fixture={} mode={} differs across repeats \
+                "bench_error determinism: profile={} fixture={} mode={} differs across repeats \
                  (nodes={:?} score={:?} bestmove={:?} depth={:?})",
-                key.0, key.1, nodes_set, score_set, bm_set, cd_set
+                key.0, key.1, key.2, nodes_set, score_set, bm_set, cd_set
             );
         }
     }
@@ -950,7 +1055,21 @@ fn fixtures_for(cfg: &BenchArgs) -> Vec<Fixture> {
             .into_iter()
             .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
             .collect(),
+        Suite::Ablation => standard_fixtures()
+            .into_iter()
+            .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
+            .collect(),
     }
+}
+
+fn ablation_profiles() -> [SearchProfile; 5] {
+    [
+        SearchProfile::Current,
+        SearchProfile::CurrentAspiration,
+        SearchProfile::CurrentAspirationLmr,
+        SearchProfile::CurrentAspirationLmrFutility,
+        SearchProfile::CurrentAspirationLmrFutilitySee,
+    ]
 }
 
 fn print_summary(
@@ -1002,23 +1121,32 @@ pub fn run(args: &[String]) -> Result<(), String> {
         m => vec![m],
     };
 
+    let profiles: Vec<SearchProfile> = if cfg.suite == Suite::Ablation {
+        ablation_profiles().to_vec()
+    } else {
+        vec![cfg.profile]
+    };
+
     let mut results: Vec<BenchResult> = Vec::new();
-    for fx in &fixtures {
-        for &mode in &modes {
-            for r in 0..cfg.repeat {
-                let res = run_one(&cfg, fx, mode, r + 1)?;
-                println!("{}", format_result_line(&res));
-                results.push(res);
+    for profile in profiles {
+        let mut profile_cfg = cfg;
+        profile_cfg.profile = profile;
+        for fx in &fixtures {
+            for &mode in &modes {
+                for r in 0..profile_cfg.repeat {
+                    let res = run_one(&profile_cfg, fx, mode, r + 1)?;
+                    println!("{}", format_result_line(&res));
+                    results.push(res);
+                }
             }
         }
     }
-    print_summary(
-        cfg.suite,
-        &modes,
-        &fixtures,
-        &results,
-        profile_str(cfg.profile),
-    );
+    let summary_profile = if cfg.suite == Suite::Ablation {
+        "all"
+    } else {
+        profile_str(cfg.profile)
+    };
+    print_summary(cfg.suite, &modes, &fixtures, &results, summary_profile);
     Ok(())
 }
 
@@ -1033,13 +1161,16 @@ fn print_help() {
     println!("  standard    10 single-position fixtures, modes per --mode (default all)");
     println!("  throughput  fixed-node NPS measurement (default nodes 100000, repeat 3)");
     println!("  profile     fixed-node search-cost counters across standard fixtures");
+    println!("  ablation    all cumulative candidate profiles on standard fixtures");
     println!("  help        this message");
     println!();
     println!("OPTIONS:");
     println!("  --mode <disabled|cold|warm|all>  default: smoke=disabled, standard=all, throughput=disabled");
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
-    println!("  --nodes <N>                       throughput/profile node budget (default 100000)");
-    println!("  --fixture <fixture-id>             throughput/profile filter");
+    println!("  --nodes <N>                       throughput/profile node budget (default 100000); ablation limit");
+    println!("  --depth <N>                       ablation fixed-depth limit");
+    println!("  --movetime <MS>                   ablation fixed-time limit");
+    println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
         "  --profile <reference|m4.1|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
@@ -1146,6 +1277,55 @@ mod tests {
         assert_eq!(c.nodes, 100_000);
         // --profile defaults to reference (M4.0 baseline).
         assert_eq!(c.profile, SearchProfile::M4Reference);
+
+        let d = parse_args(&["ablation".to_string()]).unwrap();
+        assert_eq!(d.suite, Suite::Ablation);
+        assert_eq!(d.mode, BenchMode::Disabled);
+        assert_eq!(d.repeat, 1);
+        assert_eq!(d.ablation_limit, Some(LimitKind::Nodes(100_000)));
+    }
+
+    #[test]
+    fn ablation_accepts_one_fixed_limit_kind() {
+        let depth = parse_args(&[
+            "ablation".to_string(),
+            "--depth".to_string(),
+            "6".to_string(),
+            "--fixture".to_string(),
+            "startpos".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(depth.ablation_limit, Some(LimitKind::Depth(6)));
+        assert_eq!(depth.fixture, Some("startpos"));
+
+        let movetime = parse_args(&[
+            "ablation".to_string(),
+            "--movetime".to_string(),
+            "1000".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(movetime.ablation_limit, Some(LimitKind::Movetime(1000)));
+
+        assert!(parse_args(&[
+            "standard".to_string(),
+            "--depth".to_string(),
+            "6".to_string(),
+        ])
+        .is_err());
+        assert!(parse_args(&[
+            "ablation".to_string(),
+            "--profile".to_string(),
+            "current".to_string(),
+        ])
+        .is_err());
+        assert!(parse_args(&[
+            "ablation".to_string(),
+            "--nodes".to_string(),
+            "1000".to_string(),
+            "--depth".to_string(),
+            "6".to_string(),
+        ])
+        .is_err());
     }
 
     #[test]
@@ -1398,6 +1578,42 @@ mod tests {
     }
 
     #[test]
+    fn ablation_result_includes_elapsed_ms_and_search_counters() {
+        let r = BenchResult {
+            suite: "ablation",
+            fixture: "startpos",
+            mode: "disabled",
+            profile: "current-aspiration-lmr-futility-see",
+            repeat: 1,
+            limit: "nodes:1000".to_string(),
+            score: Some(0),
+            best_move: "b1c3".to_string(),
+            completed_depth: 3,
+            stopped: true,
+            nodes: 1000,
+            elapsed_us: 12_345,
+            nps: 81_004,
+            pv: "b1c3 b8c6".to_string(),
+            stats: SearchStats {
+                qsearch_nodes: 12,
+                aspiration_retries: 3,
+                lmr_reductions: 4,
+                lmr_researches: 1,
+                futility_pruned: 5,
+                see_calls: 6,
+                ..SearchStats::default()
+            },
+        };
+        let line = format_result_line(&r);
+        assert!(line.contains("elapsed_ms=12"));
+        assert!(line.contains("qsearch_nodes=12"));
+        assert!(line.contains("aspiration_retries=3"));
+        assert!(line.contains("lmr_reductions=4"));
+        assert!(line.contains("futility_pruned=5"));
+        assert!(line.contains("see_calls=6"));
+    }
+
+    #[test]
     fn tiny_search_validates_restore() {
         let fx = Fixture {
             id: "t",
@@ -1413,6 +1629,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            ablation_limit: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1442,6 +1659,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            ablation_limit: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1489,6 +1707,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            ablation_limit: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1535,6 +1754,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::M4Reference,
                 fixture: None,
+                ablation_limit: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
             let locked = fx.locked.expect("smoke fixture must be locked");
@@ -1565,6 +1785,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::Current,
                 fixture: None,
+                ablation_limit: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
                 .unwrap_or_else(|e| panic!("current smoke {} must complete: {}", fx.id, e));
@@ -1689,6 +1910,7 @@ mod tests {
             nodes: n,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            ablation_limit: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert!(r.nodes <= n, "node budget must not be exceeded");
