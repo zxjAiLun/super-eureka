@@ -4085,6 +4085,87 @@ mod tests {
         assert!(is_pawn_promotion_threat(&near_promotion, advance));
     }
 
+    fn run_profile_candidate(fen: &str, profile: SearchProfile) -> (SearchOutcome, SearchStats) {
+        let mut pos = parse_fen(fen).unwrap();
+        let before = to_fen(&pos);
+        let key = pos.zobrist_key();
+        let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        let limits = SearchLimits {
+            nodes: Some(60_000),
+            ..Default::default()
+        };
+        let mut tt = TranspositionTable::disabled();
+        let out = search_best_move_with_history_tt_and_profile(
+            &mut pos,
+            &[key],
+            &limits,
+            &ctx,
+            &mut tt,
+            profile,
+        )
+        .expect("fixture is non-terminal");
+        assert_eq!(
+            to_fen(&pos),
+            before,
+            "candidate must restore the root board"
+        );
+        assert_eq!(
+            pos.zobrist_key(),
+            key,
+            "candidate must restore the root hash"
+        );
+        (out, ctx.stats())
+    }
+
+    #[test]
+    fn lmr_real_search_reduces_and_researches() {
+        const OPEN_TACTICAL: &str =
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
+
+        let (first, first_stats) =
+            run_profile_candidate(OPEN_TACTICAL, SearchProfile::LmrCandidate);
+        assert!(first.score.is_some());
+        assert!(!first.pv.is_empty());
+        assert!(
+            first_stats.lmr_reductions > 0,
+            "LMR path never reduced a move"
+        );
+        assert!(
+            first_stats.lmr_researches > 0,
+            "LMR path never exercised full-depth re-search"
+        );
+
+        // A second run from the restored root must produce the same observable
+        // result and counters, proving that the reduced/researched PV did not
+        // leak board, PV, TT, or heuristic state across calls.
+        let (second, second_stats) =
+            run_profile_candidate(OPEN_TACTICAL, SearchProfile::LmrCandidate);
+        assert_eq!(second.score, first.score);
+        assert_eq!(second.best_move, first.best_move);
+        assert_eq!(second.pv, first.pv);
+        assert_eq!(second_stats, first_stats);
+    }
+
+    #[test]
+    fn futility_real_search_prunes_quiet_moves_and_restores_state() {
+        const OPEN_TACTICAL: &str =
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
+
+        let (out, stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::FutilityCandidate);
+        assert!(out.score.is_some());
+        assert!(!out.pv.is_empty());
+        assert!(
+            stats.futility_pruned > 0,
+            "futility candidate never exercised its real prune path"
+        );
+
+        let pos = parse_fen(OPEN_TACTICAL).unwrap();
+        assert!(
+            generate_legal_moves(&mut pos.clone()).contains(&out.best_move),
+            "futility candidate returned an illegal root move"
+        );
+    }
+
     #[test]
     fn order_moves_preserves_set_and_partitions_captures() {
         let pos = parse_fen(MVV_POS).unwrap();
