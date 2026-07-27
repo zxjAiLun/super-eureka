@@ -60,6 +60,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `LmrCandidate` enables only late-move reductions on eligible quiet
 ///   non-PV moves; reduced searches are re-searched at full depth when they
 ///   improve alpha.
+/// * `NullMoveCandidate` enables only verified null-move pruning at eligible
+///   non-check, non-zugzwang-shaped nodes.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
@@ -83,6 +85,7 @@ pub(crate) enum SearchProfile {
     SeeCandidate,
     AspirationCandidate,
     LmrCandidate,
+    NullMoveCandidate,
     Current,
 }
 
@@ -105,6 +108,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_lmr(self) -> bool {
         matches!(self, Self::LmrCandidate)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_null_move(self) -> bool {
+        matches!(self, Self::NullMoveCandidate)
     }
 }
 
@@ -1534,6 +1542,29 @@ fn negamax_entered_impl(
     pos: &mut Position,
     depth: u32,
     ply: u32,
+    alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    profile: SearchProfile,
+    pv: &mut PvTable,
+    path: &mut SearchPath,
+    tt: &mut TranspositionTable,
+    heur: &mut Option<SearchHeuristics>,
+) -> Option<i32> {
+    negamax_entered_impl_with_null(
+        pos, depth, ply, alpha, beta, ctx, limits, profile, pv, path, tt, heur, true,
+    )
+}
+
+/// Body variant used by the verified null-move re-search. It suppresses a
+/// second null attempt at the same node while descendant nodes retain the
+/// normal candidate behavior through [`negamax_entered_impl`].
+#[allow(clippy::too_many_arguments)]
+fn negamax_entered_impl_with_null(
+    pos: &mut Position,
+    depth: u32,
+    ply: u32,
     mut alpha: i32,
     beta: i32,
     ctx: &SearchContext,
@@ -1546,6 +1577,7 @@ fn negamax_entered_impl(
     // at this non-root ordinary negamax node (only `Current` also applies
     // PVS on top). `M4Reference` passes `None` and is never read/written.
     heur: &mut Option<SearchHeuristics>,
+    allow_null: bool,
 ) -> Option<i32> {
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
@@ -1600,6 +1632,46 @@ fn negamax_entered_impl(
     }
     if let Some(cutoff) = tt_probe.cutoff {
         return Some(cutoff);
+    }
+
+    if allow_null && null_move_eligible(pos, _profile, depth, alpha, beta, node_in_check) {
+        ctx.null_move_attempts.fetch_add(1, Ordering::Relaxed);
+        let mut null_pos = make_null_position(pos);
+        path.push_child(&null_pos);
+        if !try_enter_node(ctx, limits) {
+            path.pop();
+            return None;
+        }
+        let null_alpha = -beta;
+        let null_beta = null_alpha.saturating_add(1);
+        let null_result = negamax_entered_impl(
+            &mut null_pos,
+            depth.saturating_sub(1 + null_move_reduction(depth)),
+            ply + 1,
+            null_alpha,
+            null_beta,
+            ctx,
+            limits,
+            _profile,
+            pv,
+            path,
+            tt,
+            heur,
+        );
+        path.pop();
+        let null_score = match null_result {
+            Some(score) => -score,
+            None => return None,
+        };
+        if null_score >= beta {
+            // Null is only a candidate. Verify the real position at full
+            // depth before allowing the cutoff to escape this node.
+            ctx.null_move_cutoffs.fetch_add(1, Ordering::Relaxed);
+            ctx.null_move_researches.fetch_add(1, Ordering::Relaxed);
+            return negamax_entered_impl_with_null(
+                pos, depth, ply, alpha, beta, ctx, limits, _profile, pv, path, tt, heur, false,
+            );
+        }
     }
 
     if depth == 0 {
@@ -2023,6 +2095,42 @@ fn late_move_reduction(
     } else {
         1
     }
+}
+
+fn null_move_reduction(depth: u32) -> u32 {
+    if depth >= 7 {
+        3
+    } else {
+        2
+    }
+}
+
+fn null_move_eligible(
+    pos: &Position,
+    profile: SearchProfile,
+    depth: u32,
+    alpha: i32,
+    beta: i32,
+    node_in_check: bool,
+) -> bool {
+    profile.uses_null_move()
+        && !node_in_check
+        && depth >= 5
+        && beta == alpha.saturating_add(1)
+        && non_pawn_material_count(pos) >= 4
+        && alpha > -(MATE - 1000)
+}
+
+fn make_null_position(pos: &Position) -> Position {
+    let mut null_pos = *pos;
+    null_pos.side = pos.side.opposite();
+    null_pos.ep_target = None;
+    null_pos.halfmove = pos.halfmove.saturating_add(1);
+    if pos.side == Color::Black {
+        null_pos.fullmove = null_pos.fullmove.saturating_add(1);
+    }
+    null_pos.zobrist_key = recompute_zobrist(&null_pos);
+    null_pos
 }
 
 fn see_piece_after_move(pos: &Position, m: Move) -> i32 {
@@ -3783,6 +3891,52 @@ mod tests {
             0,
             "low-material endgames must not be reduced"
         );
+    }
+
+    #[test]
+    fn null_move_guards_and_state_are_exact() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let null_pos = make_null_position(&pos);
+        assert_eq!(null_pos.board, pos.board);
+        assert_eq!(null_pos.side, Color::Black);
+        assert_eq!(null_pos.ep_target, None);
+        assert_eq!(null_pos.halfmove, pos.halfmove + 1);
+        assert_eq!(null_pos.zobrist_key, recompute_zobrist(&null_pos));
+        assert_ne!(null_pos.zobrist_key, pos.zobrist_key);
+
+        assert!(null_move_eligible(
+            &pos,
+            SearchProfile::NullMoveCandidate,
+            5,
+            0,
+            1,
+            false
+        ));
+        assert!(!null_move_eligible(
+            &pos,
+            SearchProfile::NullMoveCandidate,
+            5,
+            0,
+            100,
+            false
+        ));
+        assert!(!null_move_eligible(
+            &pos,
+            SearchProfile::NullMoveCandidate,
+            5,
+            0,
+            1,
+            true
+        ));
+        let kqk = parse_fen("7k/8/8/8/8/8/3QK3/8 w - - 0 1").unwrap();
+        assert!(!null_move_eligible(
+            &kqk,
+            SearchProfile::NullMoveCandidate,
+            5,
+            0,
+            1,
+            false
+        ));
     }
 
     #[test]
