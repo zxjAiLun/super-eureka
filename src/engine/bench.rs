@@ -129,6 +129,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::M4Reference => "reference",
         SearchProfile::M41Reference => "m4.1",
         SearchProfile::SeeCandidate => "see",
+        SearchProfile::AspirationCandidate => "aspiration",
         SearchProfile::Current => "current",
     }
 }
@@ -249,10 +250,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "reference" => SearchProfile::M4Reference,
                     "m4.1" => SearchProfile::M41Reference,
                     "see" => SearchProfile::SeeCandidate,
+                    "aspiration" => SearchProfile::AspirationCandidate,
                     "current" => SearchProfile::Current,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|see|current)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|current)",
                             other
                         ));
                     }
@@ -1018,7 +1020,7 @@ fn print_help() {
     println!("  --nodes <N>                       throughput/profile node budget (default 100000)");
     println!("  --fixture <fixture-id>             throughput/profile filter");
     println!(
-        "  --profile <reference|m4.1|current>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|see|aspiration|current>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1196,6 +1198,14 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(m.profile, SearchProfile::M41Reference);
+
+        let a = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "aspiration".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(a.profile, SearchProfile::AspirationCandidate);
     }
 
     #[test]
@@ -1205,6 +1215,11 @@ mod tests {
         // `parse_valid_profile`); it round-trips through `profile_str`.
         assert_eq!(profile_str(SearchProfile::M4Reference), "reference");
         assert_eq!(profile_str(SearchProfile::M41Reference), "m4.1");
+        assert_eq!(profile_str(SearchProfile::SeeCandidate), "see");
+        assert_eq!(
+            profile_str(SearchProfile::AspirationCandidate),
+            "aspiration"
+        );
         assert_eq!(profile_str(SearchProfile::Current), "current");
     }
 

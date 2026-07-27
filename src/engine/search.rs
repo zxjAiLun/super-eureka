@@ -55,6 +55,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   keeps M4.2 replayable once `Current` enables PVS.
 /// * `SeeCandidate` enables only the independent SEE qsearch filter on the
 ///   existing PVS path.
+/// * `AspirationCandidate` enables only iterative-deepening aspiration
+///   windows on the existing PVS path.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
@@ -76,6 +78,7 @@ pub(crate) enum SearchProfile {
     #[allow(dead_code)]
     M41Reference,
     SeeCandidate,
+    AspirationCandidate,
     Current,
 }
 
@@ -88,6 +91,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_see(self) -> bool {
         matches!(self, Self::SeeCandidate)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_aspiration(self) -> bool {
+        matches!(self, Self::AspirationCandidate)
     }
 }
 
@@ -2551,6 +2559,37 @@ fn root_search(
     claim_fallback: Move,
     ctx: &SearchContext,
     limits: &SearchLimits,
+    profile: SearchProfile,
+    path: &mut SearchPath,
+    tt: &mut TranspositionTable,
+    heur: &mut Option<SearchHeuristics>,
+) -> Option<RootIteration> {
+    root_search_with_window(
+        pos,
+        depth,
+        root_moves,
+        root_claimable,
+        claim_fallback,
+        ctx,
+        limits,
+        profile,
+        path,
+        tt,
+        heur,
+        None,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn root_search_with_window(
+    pos: &mut Position,
+    depth: u32,
+    root_moves: &mut [Move],
+    root_claimable: bool,
+    claim_fallback: Move,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
     // M4.1: forwarded to the non-root negamax node for killer/history
     // ordering. M4.2 Commit 4: ALSO consumed at the root itself to gate root
     // PVS (`Current` scouts later root moves; the reference profiles keep the
@@ -2561,16 +2600,22 @@ fn root_search(
     // M4.1: killer/history state forwarded to the non-root negamax
     // node.
     heur: &mut Option<SearchHeuristics>,
+    window: Option<(i32, i32)>,
+    store_result: bool,
 ) -> Option<RootIteration> {
     // A claimable root (the side to move may claim right now) has a 0 floor:
     // the root value can never drop below 0, because the mover need not move.
     // We start from 0 so a losing/equal move cannot drag the root below the
     // claim; a move that scores > 0 truly beats the claim and is reported.
     // When not claimable, the root starts from the normal fail-soft floor.
+    let (window_alpha, beta) = window.unwrap_or((i32::MIN + 1000, i32::MAX - 1000));
     let mut best_score = if root_claimable { 0 } else { i32::MIN + 1000 };
     let mut best_move: Option<Move> = None;
-    let mut alpha = if root_claimable { 0 } else { i32::MIN + 1000 };
-    let beta = i32::MAX - 1000;
+    let mut alpha = if root_claimable {
+        window_alpha.max(0)
+    } else {
+        window_alpha
+    };
 
     let mut pv = PvTable::default();
     // Capacity for this iteration: ply indices 0..=depth+MAX_QPLY. `+2`
@@ -2834,43 +2879,131 @@ fn root_search(
     // placeholder, NOT a found 0-score line), empty PV. best_move stays None
     // so this branch fires instead of the `best_move.map` below.
     if root_claimable && best_move.is_none() {
-        // M3.2: cache the claim placeholder (Exact, no best move).
-        let root_key = current_tt_key(pos, path);
-        store_tt_score_profiled(tt, root_key, depth, 0, 0, Bound::Exact, None, ctx);
-        return Some(RootIteration {
+        let iteration = RootIteration {
             score: 0,
             best_move: claim_fallback,
             pv: Vec::new(),
-        });
+        };
+        if store_result {
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
+        }
+        return Some(iteration);
     }
 
     best_move.map(|bm| {
-        // M3.2: cache the completed iteration. Bound is always Exact for
-        // a fully searched root; best_move follows PV reality (a non-empty
-        // PV carries the real move, an empty PV — the claim placeholder —
-        // carries None).
-        let root_key = current_tt_key(pos, path);
-        let store_move = if pv.lines[0].is_empty() {
-            None
-        } else {
-            Some(bm)
-        };
-        store_tt_score_profiled(
-            tt,
-            root_key,
-            depth,
-            best_score,
-            0,
-            Bound::Exact,
-            store_move,
-            ctx,
-        );
-        RootIteration {
+        let iteration = RootIteration {
             score: best_score,
             best_move: bm,
             pv: std::mem::take(&mut pv.lines[0]),
+        };
+        if store_result {
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
         }
+        iteration
     })
+}
+
+fn store_root_iteration(
+    tt: &mut TranspositionTable,
+    pos: &Position,
+    path: &SearchPath,
+    depth: u32,
+    iteration: &RootIteration,
+    ctx: &SearchContext,
+) {
+    let root_key = current_tt_key(pos, path);
+    let store_move = if iteration.pv.is_empty() {
+        None
+    } else {
+        Some(iteration.best_move)
+    };
+    store_tt_score_profiled(
+        tt,
+        root_key,
+        depth,
+        iteration.score,
+        0,
+        Bound::Exact,
+        store_move,
+        ctx,
+    );
+}
+
+/// Current-profile root search with aspiration retries. Failed windows are
+/// discarded and never stored as exact root entries; the radius doubles until
+/// the score is strictly inside the window or a full window is used.
+#[allow(clippy::too_many_arguments)]
+fn root_search_with_aspiration(
+    pos: &mut Position,
+    depth: u32,
+    root_moves: &mut [Move],
+    root_claimable: bool,
+    claim_fallback: Move,
+    previous_score: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    profile: SearchProfile,
+    path: &mut SearchPath,
+    tt: &mut TranspositionTable,
+    heur: &mut Option<SearchHeuristics>,
+) -> Option<RootIteration> {
+    // A mate-range score is deliberately searched with the full window: a
+    // narrow centipawn window around a forced mate is not meaningful.
+    if previous_score.abs() >= MATE - 1000 {
+        return root_search(
+            pos,
+            depth,
+            root_moves,
+            root_claimable,
+            claim_fallback,
+            ctx,
+            limits,
+            profile,
+            path,
+            tt,
+            heur,
+        );
+    }
+
+    let mut delta = 50i32;
+    loop {
+        let full_window = delta >= MATE;
+        let (alpha, beta) = if full_window {
+            (i32::MIN + 1000, i32::MAX - 1000)
+        } else {
+            (
+                previous_score.saturating_sub(delta).max(i32::MIN + 1000),
+                previous_score.saturating_add(delta).min(i32::MAX - 1000),
+            )
+        };
+        let iteration = root_search_with_window(
+            pos,
+            depth,
+            root_moves,
+            root_claimable,
+            claim_fallback,
+            ctx,
+            limits,
+            profile,
+            path,
+            tt,
+            heur,
+            Some((alpha, beta)),
+            false,
+        )?;
+        if full_window || (iteration.score > alpha && iteration.score < beta) {
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
+            return Some(iteration);
+        }
+
+        ctx.aspiration_retries.fetch_add(1, Ordering::Relaxed);
+        if iteration.score <= alpha {
+            ctx.aspiration_fail_low.fetch_add(1, Ordering::Relaxed);
+        } else {
+            ctx.aspiration_fail_high.fetch_add(1, Ordering::Relaxed);
+        }
+        delta = delta.saturating_mul(2);
+    }
 }
 
 /// Iterative deepening.
@@ -3097,19 +3230,56 @@ fn search_best_move_impl(
             }
         }
 
-        match root_search(
-            pos,
-            depth,
-            &mut root_moves,
-            root_claimable,
-            fallback,
-            ctx,
-            limits,
-            _profile,
-            path,
-            tt,
-            &mut heuristics,
-        ) {
+        let iteration = if _profile.uses_aspiration() {
+            if let Some(previous_score) = completed.as_ref().map(|it| it.score) {
+                root_search_with_aspiration(
+                    pos,
+                    depth,
+                    &mut root_moves,
+                    root_claimable,
+                    fallback,
+                    previous_score,
+                    ctx,
+                    limits,
+                    _profile,
+                    path,
+                    tt,
+                    &mut heuristics,
+                )
+            } else {
+                // The first completed iteration establishes the score center;
+                // it always uses a full window.
+                root_search(
+                    pos,
+                    depth,
+                    &mut root_moves,
+                    root_claimable,
+                    fallback,
+                    ctx,
+                    limits,
+                    _profile,
+                    path,
+                    tt,
+                    &mut heuristics,
+                )
+            }
+        } else {
+            root_search(
+                pos,
+                depth,
+                &mut root_moves,
+                root_claimable,
+                fallback,
+                ctx,
+                limits,
+                _profile,
+                path,
+                tt,
+                &mut heuristics,
+            )
+        };
+
+        match iteration {
             Some(iter) => {
                 let RootIteration {
                     score,
@@ -3429,6 +3599,51 @@ mod tests {
         assert_eq!(see_calls_for(SearchProfile::M41Reference), 0);
         assert_eq!(see_calls_for(SearchProfile::Current), 0);
         assert!(see_calls_for(SearchProfile::SeeCandidate) > 0);
+    }
+
+    #[test]
+    fn aspiration_is_isolated_and_preserves_search_state() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let key = pos.zobrist_key();
+        let before_fen = to_fen(&pos);
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+
+        let mut reference_pos = pos;
+        let reference_ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let reference = search_best_move_with_history_tt_and_profile(
+            &mut reference_pos,
+            &[key],
+            &limits,
+            &reference_ctx,
+            &mut TranspositionTable::disabled(),
+            SearchProfile::M41Reference,
+        )
+        .expect("reference search must complete");
+
+        let mut aspiration_pos = pos;
+        let aspiration_ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let aspiration = search_best_move_with_history_tt_and_profile(
+            &mut aspiration_pos,
+            &[key],
+            &limits,
+            &aspiration_ctx,
+            &mut TranspositionTable::disabled(),
+            SearchProfile::AspirationCandidate,
+        )
+        .expect("aspiration search must complete");
+
+        assert_eq!(reference.score, aspiration.score);
+        assert_eq!(to_fen(&reference_pos), before_fen);
+        assert_eq!(to_fen(&aspiration_pos), before_fen);
+        assert_eq!(aspiration.completed_depth, 3);
+        assert_eq!(
+            aspiration_ctx.aspiration_retries.load(Ordering::Relaxed),
+            aspiration_ctx.aspiration_fail_low.load(Ordering::Relaxed)
+                + aspiration_ctx.aspiration_fail_high.load(Ordering::Relaxed)
+        );
     }
 
     #[test]
