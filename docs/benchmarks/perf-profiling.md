@@ -14,6 +14,12 @@ search profile, and the ten standard positions. It records per-search counters
 from the same `SearchContext`, not wall-time-only guesses. The counters are
 observational and do not change search ordering or limits.
 
+Diagnostic collection is explicitly enabled only by `bench profile`. Ordinary
+UCI searches, smoke/standard benches, throughput benches, and the public search
+API leave these counters at zero; the always-on node counter remains part of
+the search stop contract. This keeps atomic diagnostic updates out of the
+production hot path while preserving the same result and node behavior.
+
 ## Counter contract
 
 Each `bench_result suite=profile` line reports:

@@ -29,7 +29,7 @@ const ALPHA: i32 = i32::MIN + 1000;
 const BETA: i32 = i32::MAX - 1000;
 
 fn fresh_ctx() -> SearchContext {
-    SearchContext::new(Arc::new(AtomicBool::new(false)))
+    SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true)
 }
 
 fn stopped_ctx() -> SearchContext {

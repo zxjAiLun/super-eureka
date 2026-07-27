@@ -10,7 +10,10 @@ use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchL
 fn search_stats_cover_the_search_without_changing_the_root() {
     let mut pos = parse_fen(START_FEN).unwrap();
     let before = to_fen(&pos);
-    let ctx = Arc::new(SearchContext::new(Arc::new(AtomicBool::new(false))));
+    let ctx = Arc::new(SearchContext::new_with_profiling(
+        Arc::new(AtomicBool::new(false)),
+        true,
+    ));
     let limits = SearchLimits {
         depth: Some(3),
         ..Default::default()
@@ -33,4 +36,41 @@ fn search_stats_cover_the_search_without_changing_the_root() {
     assert_eq!(stats.make_moves, stats.unmake_moves);
     assert!(stats.tt_probes > 0);
     assert_eq!(stats.tt_hits, 0, "public baseline search has TT disabled");
+}
+
+#[test]
+fn default_search_does_not_collect_diagnostic_counters() {
+    let mut pos = parse_fen(START_FEN).unwrap();
+    let ctx = Arc::new(SearchContext::new(Arc::new(AtomicBool::new(false))));
+    let limits = SearchLimits {
+        depth: Some(3),
+        ..Default::default()
+    };
+
+    search_best_move(&mut pos, &limits, &ctx).expect("startpos is non-terminal");
+    let stats = ctx.stats();
+
+    assert!(stats.nodes > 0);
+    assert_eq!(stats.qsearch_nodes, 0);
+    assert_eq!(stats.eval_calls, 0);
+    assert_eq!(stats.legal_move_generations, 0);
+    assert_eq!(stats.pseudo_moves, 0);
+    assert_eq!(stats.legal_moves, 0);
+    assert_eq!(stats.make_moves, 0);
+    assert_eq!(stats.unmake_moves, 0);
+    assert_eq!(stats.tt_probes, 0);
+    assert_eq!(stats.tt_hits, 0);
+    assert_eq!(stats.tt_cutoffs, 0);
+    assert_eq!(stats.tt_stores, 0);
+    assert_eq!(stats.see_calls, 0);
+    assert_eq!(stats.see_pruned, 0);
+    assert_eq!(stats.aspiration_retries, 0);
+    assert_eq!(stats.aspiration_fail_low, 0);
+    assert_eq!(stats.aspiration_fail_high, 0);
+    assert_eq!(stats.lmr_reductions, 0);
+    assert_eq!(stats.lmr_researches, 0);
+    assert_eq!(stats.null_move_attempts, 0);
+    assert_eq!(stats.null_move_cutoffs, 0);
+    assert_eq!(stats.null_move_researches, 0);
+    assert_eq!(stats.futility_pruned, 0);
 }

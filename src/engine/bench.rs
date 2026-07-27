@@ -844,7 +844,10 @@ fn run_one(
         fen: to_fen(&pos),
         zobrist: pos.zobrist_key(),
     };
-    let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+    let ctx = SearchContext::new_with_profiling(
+        Arc::new(AtomicBool::new(false)),
+        cfg.suite == Suite::Profile,
+    );
     let limits = limits_for(actual_limit);
 
     let start = Instant::now();

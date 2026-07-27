@@ -180,6 +180,9 @@ pub struct SearchContext {
     pub see_calls: AtomicU64,
     pub see_pruned: AtomicU64,
     see_enabled: AtomicBool,
+    /// Diagnostic counters are opt-in so ordinary searches do not pay for
+    /// an atomic increment on every hot-path event.
+    profiling_enabled: bool,
     pub aspiration_retries: AtomicU64,
     pub aspiration_fail_low: AtomicU64,
     pub aspiration_fail_high: AtomicU64,
@@ -242,6 +245,7 @@ impl SearchContext {
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
             see_enabled: AtomicBool::new(true),
+            profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
             aspiration_fail_high: AtomicU64::new(0),
@@ -256,6 +260,15 @@ impl SearchContext {
 
     /// With a precomputed time budget (soft + hard deadlines).
     pub fn with_budget(stop: Arc<AtomicBool>, budget: TimeBudget) -> Self {
+        Self::with_budget_and_profiling(stop, budget, false)
+    }
+
+    /// With a precomputed time budget and explicitly enabled diagnostics.
+    pub fn with_budget_and_profiling(
+        stop: Arc<AtomicBool>,
+        budget: TimeBudget,
+        profiling_enabled: bool,
+    ) -> Self {
         SearchContext {
             stop,
             start: Instant::now(),
@@ -276,6 +289,7 @@ impl SearchContext {
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
             see_enabled: AtomicBool::new(true),
+            profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
             aspiration_fail_high: AtomicU64::new(0),
@@ -315,38 +329,48 @@ impl SearchContext {
             futility_pruned: self.futility_pruned.load(Ordering::Relaxed),
         }
     }
+
+    /// Construct an unlimited context with diagnostic counters enabled.
+    pub fn new_with_profiling(stop: Arc<AtomicBool>, profiling_enabled: bool) -> Self {
+        let mut ctx = Self::new(stop);
+        ctx.profiling_enabled = profiling_enabled;
+        ctx
+    }
+
+    #[inline]
+    fn add_profile_counter(&self, counter: &AtomicU64, amount: u64) {
+        if self.profiling_enabled {
+            counter.fetch_add(amount, Ordering::Relaxed);
+        }
+    }
 }
 
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
     let (moves, stats) = generate_legal_moves_with_stats(pos);
-    ctx.legal_move_generations.fetch_add(1, Ordering::Relaxed);
-    ctx.pseudo_moves
-        .fetch_add(stats.pseudo_moves, Ordering::Relaxed);
-    ctx.legal_moves
-        .fetch_add(stats.legal_moves, Ordering::Relaxed);
-    ctx.make_moves
-        .fetch_add(stats.make_moves, Ordering::Relaxed);
-    ctx.unmake_moves
-        .fetch_add(stats.unmake_moves, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.legal_move_generations, 1);
+    ctx.add_profile_counter(&ctx.pseudo_moves, stats.pseudo_moves);
+    ctx.add_profile_counter(&ctx.legal_moves, stats.legal_moves);
+    ctx.add_profile_counter(&ctx.make_moves, stats.make_moves);
+    ctx.add_profile_counter(&ctx.unmake_moves, stats.unmake_moves);
     moves
 }
 
 #[inline]
 fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
-    ctx.eval_calls.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.eval_calls, 1);
     evaluate(pos)
 }
 
 #[inline]
 fn make_move_profiled(pos: &mut Position, mv: Move, ctx: &SearchContext) -> Undo {
-    ctx.make_moves.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.make_moves, 1);
     pos.make_move(mv)
 }
 
 #[inline]
 fn unmake_move_profiled(pos: &mut Position, undo: Undo, ctx: &SearchContext) {
-    ctx.unmake_moves.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.unmake_moves, 1);
     pos.unmake_move(undo);
 }
 
@@ -1051,7 +1075,7 @@ fn store_tt_score_profiled(
     best_move: Option<Move>,
     ctx: &SearchContext,
 ) {
-    ctx.tt_stores.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.tt_stores, 1);
     store_tt_score(tt, key, depth, score, ply, bound, best_move);
 }
 
@@ -1630,20 +1654,20 @@ fn negamax_entered_impl_with_null(
     // one real node. On a cut-off we return the decoded score and leave
     // the (already-cleared) PV row empty.
     let key = current_tt_key(pos, path);
-    ctx.tt_probes.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.tt_probes, 1);
     let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
     if tt_probe.hit {
-        ctx.tt_hits.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
     if tt_probe.cutoff.is_some() {
-        ctx.tt_cutoffs.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.tt_cutoffs, 1);
     }
     if let Some(cutoff) = tt_probe.cutoff {
         return Some(cutoff);
     }
 
     if allow_null && null_move_eligible(pos, _profile, depth, alpha, beta, node_in_check) {
-        ctx.null_move_attempts.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.null_move_attempts, 1);
         let mut null_pos = make_null_position(pos);
         path.push_child(&null_pos);
         if !try_enter_node(ctx, limits) {
@@ -1674,8 +1698,8 @@ fn negamax_entered_impl_with_null(
         if null_score >= beta {
             // Null is only a candidate. Verify the real position at full
             // depth before allowing the cutoff to escape this node.
-            ctx.null_move_cutoffs.fetch_add(1, Ordering::Relaxed);
-            ctx.null_move_researches.fetch_add(1, Ordering::Relaxed);
+            ctx.add_profile_counter(&ctx.null_move_cutoffs, 1);
+            ctx.add_profile_counter(&ctx.null_move_researches, 1);
             return negamax_entered_impl_with_null(
                 pos, depth, ply, alpha, beta, ctx, limits, _profile, pv, path, tt, heur, false,
             );
@@ -1756,7 +1780,7 @@ fn negamax_entered_impl_with_null(
                 && !is_pawn_promotion_threat(pos, m)
                 && static_eval.saturating_add(margin) <= alpha
             {
-                ctx.futility_pruned.fetch_add(1, Ordering::Relaxed);
+                ctx.add_profile_counter(&ctx.futility_pruned, 1);
                 continue;
             }
         }
@@ -1826,7 +1850,7 @@ fn negamax_entered_impl_with_null(
                     }
                     ChildWindow::Scout { scout_beta } => {
                         if reduction > 0 {
-                            ctx.lmr_reductions.fetch_add(1, Ordering::Relaxed);
+                            ctx.add_profile_counter(&ctx.lmr_reductions, 1);
                         }
                         // Null-window scout. Child window is
                         // `[-scout_beta, -alpha_before_move]`; the manual
@@ -1866,7 +1890,7 @@ fn negamax_entered_impl_with_null(
                             pvs_needs_research(scout_score, alpha_before_move, beta)
                         };
                         if reduction > 0 && needs_research {
-                            ctx.lmr_researches.fetch_add(1, Ordering::Relaxed);
+                            ctx.add_profile_counter(&ctx.lmr_researches, 1);
                         }
                         if needs_research {
                             // Improve alpha but not a cutoff: re-search with the
@@ -2488,7 +2512,7 @@ fn quiescence_entered_impl(
     pv: &mut PvTable,
     path: &mut SearchPath,
 ) -> Option<i32> {
-    ctx.qsearch_nodes.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
 
@@ -2559,10 +2583,10 @@ fn quiescence_entered_impl(
                 {
                     return true;
                 }
-                ctx.see_calls.fetch_add(1, Ordering::Relaxed);
+                ctx.add_profile_counter(&ctx.see_calls, 1);
                 let see = static_exchange_eval(pos, *m);
                 if see < 0 && !move_gives_check(pos, *m) {
-                    ctx.see_pruned.fetch_add(1, Ordering::Relaxed);
+                    ctx.add_profile_counter(&ctx.see_pruned, 1);
                     false
                 } else {
                     true
@@ -2869,13 +2893,13 @@ fn root_search_with_window(
     // change both. So this is a pure hash-move lift, identical to
     // `order_moves_with_hash` minus its `order_moves` pre-pass.
     let root_key = current_tt_key(pos, path);
-    ctx.tt_probes.fetch_add(1, Ordering::Relaxed);
+    ctx.add_profile_counter(&ctx.tt_probes, 1);
     let root_probe = probe_tt_for_search(tt, root_key, depth, 0, alpha, beta);
     if root_probe.hit {
-        ctx.tt_hits.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
     if root_probe.cutoff.is_some() {
-        ctx.tt_cutoffs.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.tt_cutoffs, 1);
     }
     if let Some(hm) = root_probe.hash_move {
         if let Some(idx) = root_moves.iter().position(|&m| m == hm) {
@@ -3228,11 +3252,11 @@ fn root_search_with_aspiration(
             return Some(iteration);
         }
 
-        ctx.aspiration_retries.fetch_add(1, Ordering::Relaxed);
+        ctx.add_profile_counter(&ctx.aspiration_retries, 1);
         if iteration.score <= alpha {
-            ctx.aspiration_fail_low.fetch_add(1, Ordering::Relaxed);
+            ctx.add_profile_counter(&ctx.aspiration_fail_low, 1);
         } else {
-            ctx.aspiration_fail_high.fetch_add(1, Ordering::Relaxed);
+            ctx.add_profile_counter(&ctx.aspiration_fail_high, 1);
         }
         delta = delta.saturating_mul(2);
     }
@@ -3810,7 +3834,7 @@ mod tests {
         fn see_calls_for(profile: SearchProfile) -> u64 {
             let mut pos = parse_fen(MVV_POS).unwrap();
             let key = pos.zobrist_key();
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
             let limits = SearchLimits {
                 depth: Some(2),
                 ..Default::default()
