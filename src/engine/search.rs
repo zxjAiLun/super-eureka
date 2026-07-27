@@ -44,10 +44,11 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// move-ordering strategy used by the search core and is NEVER exposed through
 /// the public API or the UCI surface.
 ///
-/// * `M4Reference` reproduces the M4.0 production behavior exactly: no killer
-///   moves, no history heuristic. The historical baseline (e.g. `bench smoke`
-///   startpos d3 disabled = 1149 / queen-win d3 disabled = 969) is preserved
-///   verbatim on this profile.
+/// * `M4Reference` preserves the M4.0 search behavior: no killer moves, no
+///   history heuristic, and no PVS. It runs under the current evaluation
+///   function, so evaluation milestones may legitimately change scores, PVs,
+///   and node counts. Historical pre-EVAL benchmark values remain recorded in
+///   their original benchmark documents.
 /// * `M41Reference` reproduces the M4.1 full-window search exactly: M4.1
 ///   quiet move ordering (killer moves + history heuristic) with NO principal
 ///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
@@ -58,10 +59,10 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
 /// non-root nodes, NO PVS at either the root or a non-root node), while
 /// `Current` enables the null-window scout + re-search at every non-root node
-/// AND at the root. `M4Reference` keeps every search behavior byte-identical to
-/// M4.0. Move ordering at the root itself is the pure hash-move lift in all
-/// profiles (no MVV-LVA / killer / history reorder); PVS changes only the
-/// WINDOW a later root move is searched with, never the root move order.
+/// AND at the root. `M4Reference` preserves the M4.0 search policy. Move
+/// ordering at the root itself is the pure hash-move lift in all profiles (no
+/// MVV-LVA / killer / history reorder); PVS changes only the WINDOW a later
+/// root move is searched with, never the root move order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchProfile {
     M4Reference,
@@ -2568,10 +2569,11 @@ pub(crate) fn search_best_move_with_history(
 /// M4.0 behavior by delegating to
 /// [`search_best_move_with_history_tt_and_profile`] with
 /// `SearchProfile::M4Reference`. Its signature is unchanged and its output is
-/// byte-identical to the pre-M4.1 M4.0 baseline — killer (Commit 3)
-/// and history (Commit 4) ordering are applied under
-/// `SearchProfile::M41Reference` and `SearchProfile::Current`, never under
-/// `M4Reference`. The persistent UCI `Hash` table is threaded through
+/// preserves the M4.0 search behavior: killer (Commit 3) and history (Commit
+/// 4) ordering are applied under `SearchProfile::M41Reference` and
+/// `SearchProfile::Current`, never under `M4Reference`. It runs under the
+/// current evaluation function, so evaluation milestones may change scores,
+/// PVs, and node counts. The persistent UCI `Hash` table is threaded through
 /// every recursion exactly as before.
 pub(crate) fn search_best_move_with_history_and_tt(
     pos: &mut Position,
@@ -2628,8 +2630,9 @@ fn search_best_move_impl(
     ctx: &SearchContext,
     // M4.1: threaded through to non-root negamax. Non-M4Reference profiles
     // (`M41Reference` and `Current`) apply killer (Commit 3) + history
-    // (Commit 4) ordering; `M4Reference` leaves every search behavior
-    // byte-identical to M4.0.
+    // (Commit 4) ordering; `M4Reference` preserves the M4.0 search policy
+    // without those heuristics. The current evaluation may still change
+    // scores, PVs, and node counts relative to historical pre-EVAL output.
     _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
@@ -2645,7 +2648,7 @@ fn search_best_move_impl(
     // M4.1 Commit 3: build the per-search heuristic state ONLY for
     // non-M4Reference profiles (`M41Reference` and `Current`).
     // `M4Reference` skips it entirely (no killer/history ordering),
-    // preserving the exact M4.0 baseline. The table
+    // preserving the M4Reference search policy. The table
     // lives for the whole iterative-deepening loop and is dropped on
     // return (re-zeroed for the next independent `go`).
     let mut heuristics: Option<SearchHeuristics> = if _profile != SearchProfile::M4Reference {
@@ -5498,10 +5501,11 @@ mod tests {
     #[test]
     fn m4_profile_reference_reproduces_baseline() {
         // The new profile-aware entry, driven with `M4Reference`, must
-        // reproduce the locked M4.0 smoke numbers EXACTLY. This is the
-        // contract that keeps the historical baseline valid after the M4.1
+        // lock the current M4Reference smoke values. This is the contract
+        // that keeps the M4Reference search policy valid after the M4.1
         // refactor (the old `search_best_move_with_history_and_tt` now
-        // delegates here with `M4Reference`).
+        // delegates here with `M4Reference`); historical pre-EVAL values are
+        // recorded separately in the benchmark documents.
         let mut pos = parse_fen(START_FEN).unwrap();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits {

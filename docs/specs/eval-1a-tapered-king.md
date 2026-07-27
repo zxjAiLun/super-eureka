@@ -1,6 +1,6 @@
 # EVAL 1A — Tapered evaluation and King PST
 
-Status: **IMPLEMENTED — local gates passing; independent review pending**
+Status: **IMPLEMENTED — independent final review pending**
 Scope: evaluation only. This record does not authorize search pruning,
 mobility, pawn-structure, or king-safety work.
 
@@ -82,13 +82,50 @@ The EVAL 1A proof is in `tests/eval1a.rs` and the existing PST regressions:
 
 The approved pre-EVAL M4.0 record remains
 `startpos = 1149 / b1c3 / cp 50` and
-`queen-win = 963 / e4a4 / cp 890` in the historical benchmark documents. On
-the current EVAL 1A tree with the M4.0 reference search profile, the
-corresponding regression is `1149 / b1c3 / cp 50` and
-`969 / e4a4 / cp 990`. The queen-win fixture contains extra material, so it is
-not an exact KQK/KRK position and is not changed by EVAL 1B. Later Current-
-profile SEE/pruning measurements are recorded separately and do not rewrite
-the historical M4.2 documents.
+`queen-win = 963 / e4a4 / cp 890` in the historical benchmark documents. Under
+the current EVAL 1A with the `M4Reference` search profile, the locked
+regressions are:
+
+```text
+startpos:
+  nodes = 1149
+  bestmove = b1c3
+  score = cp 50
+
+queen-win:
+  nodes = 969
+  bestmove = e4a4
+  score = cp 886
+  PV = e4a4 h4h3 a4h4 h8g7 h4h3
+```
+
+The queen-win fixture contains extra material, so it is not an exact KQK/KRK
+position and is not changed by EVAL 1B. This milestone proves implementation
+correctness and regression-baseline closure; it does not establish an Elo
+estimate or a playing-strength gain. Later Current-profile SEE/pruning
+measurements are recorded separately and do not rewrite historical documents.
+
+## Commit lineage
+
+```text
+21a96e1  approved E1 baseline
+
+df20e38  feat(eval): add tapered king evaluation
+          implementation commit; follow-up regression updates required
+
+3605a35  fix(eval): update tapered evaluation baselines
+          search and benchmark regression fix-forward
+
+3cea4b3  fix(eval): align quiescence regressions
+          qsearch regression fix-forward
+
+002a95c  fix(eval): update king PST quiescence baseline
+          final qsearch regression fix-forward
+
+this commit
+          docs(eval): finalize EVAL 1A baselines
+          awaiting independent final review
+```
 
 ## Non-goals
 
