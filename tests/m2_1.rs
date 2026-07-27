@@ -115,9 +115,9 @@ fn quiescence_no_standpat_when_in_check() {
         static_eval
     );
     assert!(
-        q <= static_eval - 300,
+        q <= static_eval - 280,
         "the forced loss is a whole minor piece, so q ({}) should be at least \
-         ~300 below the static balance ({})",
+         ~280 below the static balance ({})",
         q,
         static_eval
     );
@@ -372,14 +372,17 @@ fn quiescence_qply_cap_counter_check_uses_static_approx() {
         pos.is_in_check(pos.side_to_move()),
         "test premise: White is in check at the cap"
     );
-    let static_eval = evaluate(&pos); // White R(500) vs Black B(330) -> +170
-    assert_eq!(static_eval, 170, "static balance must be R vs B");
+    let static_eval = evaluate(&pos); // EVAL 1A terms make the static score +187.
+    assert_eq!(
+        static_eval, 187,
+        "static balance must include the EVAL 1A terms"
+    );
 
     let ctx = fresh_ctx();
     let limits = SearchLimits::default();
     let out = quiescence(&mut pos, 0, MAX_QPLY, ALPHA, BETA, &ctx, &limits).expect("not stopped");
 
-    // Stand-pat-on-check (or skipping the evasion search) would yield 170.
+    // Stand-pat-on-check (or skipping the evasion search) would yield 187.
     // Correct behaviour searches the evasions; `Kxb3` wins the bishop -> 500.
     assert_ne!(
         out, static_eval,
