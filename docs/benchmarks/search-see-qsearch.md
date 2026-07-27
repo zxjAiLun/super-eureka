@@ -4,12 +4,12 @@ Status: **INCONCLUSIVE — correctness gate passed; performance/Elo gate not acc
 Date: 2026-07-26
 Build: release, current local EVAL 1B tree
 
-This is an independent diagnostic candidate following the qsearch profile in [`perf-profiling.md`](perf-profiling.md). It adds a correctness-first static exchange evaluation (SEE) over the existing array-board representation and uses it only to discard ordinary non-check captures with a negative exchange score. Promotions are retained. When the side to move is in check, qsearch still searches every legal evasion.
+This is an independent diagnostic candidate following the qsearch profile in [`perf-profiling.md`](perf-profiling.md). It adds a correctness-first static exchange evaluation (SEE) over the existing array-board representation and uses it only to order qsearch captures. Every legal capture remains in the qsearch, including exchanges with a negative static score; promotions are retained. When the side to move is in check, qsearch still searches every legal evasion.
 
-The filter is enabled only by `SearchProfile::SeeCandidate` and the combined
-`SearchProfile::Current`; the M4.0, M4.1, and PVS reference profiles explicitly
-keep the pre-SEE qsearch path so their counters remain valid independent
-baselines.
+SEE ordering is enabled only by `SearchProfile::SeeCandidate`; the M4.0,
+M4.1, PVS, and public qsearch reference paths explicitly keep the pre-SEE
+move order so their counters remain valid independent baselines. `Current` is
+not a SEE profile.
 
 No aspiration window, null move, LMR, futility pruning, or other search change is included. SEE is not a claim of Elo gain, and this record does not promote the candidate to an accepted engine baseline.
 
@@ -19,7 +19,8 @@ The candidate passed the following local checks:
 
 - SEE distinguishes a winning queen capture from a defended losing capture.
 - SEE does not mutate the input position.
-- Existing qsearch horizon and interruption tests pass with the new filter.
+- Existing qsearch horizon and interruption tests pass with ordering-only SEE;
+  the defended capture is still searched rather than hard-pruned.
 - Full debug and release Rust test suites pass.
 - `perft(5) = 4,865,609` is unchanged.
 - The independent SEE profile remains legal and deterministic on the smoke
@@ -47,6 +48,9 @@ cargo run --release -- bench profile --profile see --nodes 100000
 
 The profile is compared with the pre-SEE record in [`perf-profiling.md`](perf-profiling.md). Both use the same fixed node budget and fixture family. The counters are diagnostic and the elapsed time is machine-dependent.
 
+Historical pre-fix fixed-budget rows (retained as superseded diagnostic
+evidence):
+
 | Fixture | qsearch nodes | eval calls | SEE calls | SEE pruned | completed depth |
 |---|---:|---:|---:|---:|---:|
 | startpos | 88,143 | 86,311 | 14,057 | 4,982 | 5 |
@@ -59,13 +63,12 @@ The profile is compared with the pre-SEE record in [`perf-profiling.md`](perf-pr
 | kqk | 72,334 | 60,453 | 0 | 0 | 6 |
 | krk | 82,953 | 75,569 | 9 | 0 | 6 |
 
-For example, on the same local machine and fixed open-tactical budget, the
-PVS reference profile recorded `93,752` qsearch nodes and `83,022` eval calls;
-the independent SEE profile recorded `91,638` and `81,296`, with `38,363`
-SEE calls and `13,906` captures pruned. The SEE path completed depth 5 versus
-depth 4 for the reference in this run, but its wall-time remains
-machine-dependent and the extra plain-board exchange accounting is not yet a
-proven strength or throughput improvement.
+The table above is retained as historical pre-fix diagnostic evidence only;
+its nonzero `SEE pruned` values must not be read as an accepted result. The
+fix-forward candidate now records SEE calls for ordering and leaves
+`SEE pruned` at zero. Its wall-time remains machine-dependent and the extra
+plain-board exchange accounting is not yet a proven strength or throughput
+improvement.
 
 ## Decision
 

@@ -53,8 +53,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   quiet move ordering (killer moves + history heuristic) with NO principal
 ///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
 ///   keeps M4.2 replayable once `Current` enables PVS.
-/// * `SeeCandidate` enables only the independent SEE qsearch filter on the
-///   existing PVS path.
+/// * `SeeCandidate` enables only SEE ordering in qsearch on the existing PVS
+///   path; it never deletes a legal capture.
 /// * `AspirationCandidate` enables only iterative-deepening aspiration
 ///   windows on the existing PVS path.
 /// * `LmrCandidate` enables only late-move reductions on eligible quiet
@@ -244,7 +244,7 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
-            see_enabled: AtomicBool::new(true),
+            see_enabled: AtomicBool::new(false),
             profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -288,7 +288,7 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
-            see_enabled: AtomicBool::new(true),
+            see_enabled: AtomicBool::new(false),
             profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -2447,6 +2447,10 @@ pub fn quiescence(
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
+    // The public qsearch API is the historical correctness path. It must not
+    // inherit SEE state left behind by a private candidate-profile search on
+    // a reused context.
+    ctx.see_enabled.store(false, Ordering::Relaxed);
     // Public entry: throwaway PV table, discarded on return.
     let mut pv = PvTable::default();
     // Thin history view: a single-element root key. This caller has
@@ -2572,27 +2576,25 @@ fn quiescence_entered_impl(
         if stand_pat > alpha {
             alpha = stand_pat;
         }
-        legal
-            .into_iter()
-            .filter(|m| {
-                if !is_tactical(pos, *m) {
-                    return false;
-                }
-                if matches!(m.flag, MoveFlag::Promotion(_))
-                    || !ctx.see_enabled.load(Ordering::Relaxed)
-                {
-                    return true;
-                }
-                ctx.add_profile_counter(&ctx.see_calls, 1);
-                let see = static_exchange_eval(pos, *m);
-                if see < 0 && !move_gives_check(pos, *m) {
-                    ctx.add_profile_counter(&ctx.see_pruned, 1);
-                    false
+        let mut tactical: Vec<Move> = legal.into_iter().filter(|m| is_tactical(pos, *m)).collect();
+        if ctx.see_enabled.load(Ordering::Relaxed) {
+            // SEE is ordering-only. Even a losing exchange remains in the
+            // qsearch so tactical compensation cannot be removed by an
+            // incomplete static exchange proof.
+            let mut scored = Vec::with_capacity(tactical.len());
+            for (index, m) in tactical.into_iter().enumerate() {
+                let see = if matches!(m.flag, MoveFlag::Promotion(_)) {
+                    i32::MAX
                 } else {
-                    true
-                }
-            })
-            .collect()
+                    ctx.add_profile_counter(&ctx.see_calls, 1);
+                    static_exchange_eval(pos, m)
+                };
+                scored.push((see, index, m));
+            }
+            scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+            tactical = scored.into_iter().map(|(_, _, m)| m).collect();
+        }
+        tactical
     };
 
     for m in tactical {
@@ -3831,7 +3833,7 @@ mod tests {
 
     #[test]
     fn see_filter_is_enabled_only_for_see_profile() {
-        fn see_calls_for(profile: SearchProfile) -> u64 {
+        fn see_stats_for(profile: SearchProfile) -> (u64, u64) {
             let mut pos = parse_fen(MVV_POS).unwrap();
             let key = pos.zobrist_key();
             let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
@@ -3848,13 +3850,18 @@ mod tests {
                 &mut tt,
                 profile,
             );
-            ctx.see_calls.load(Ordering::Relaxed)
+            (
+                ctx.see_calls.load(Ordering::Relaxed),
+                ctx.see_pruned.load(Ordering::Relaxed),
+            )
         }
 
-        assert_eq!(see_calls_for(SearchProfile::M4Reference), 0);
-        assert_eq!(see_calls_for(SearchProfile::M41Reference), 0);
-        assert_eq!(see_calls_for(SearchProfile::Current), 0);
-        assert!(see_calls_for(SearchProfile::SeeCandidate) > 0);
+        assert_eq!(see_stats_for(SearchProfile::M4Reference), (0, 0));
+        assert_eq!(see_stats_for(SearchProfile::M41Reference), (0, 0));
+        assert_eq!(see_stats_for(SearchProfile::Current), (0, 0));
+        let (see_calls, see_pruned) = see_stats_for(SearchProfile::SeeCandidate);
+        assert!(see_calls > 0);
+        assert_eq!(see_pruned, 0, "SEE is ordering-only");
     }
 
     #[test]

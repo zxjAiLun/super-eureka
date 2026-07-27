@@ -71,12 +71,16 @@ fn quiescence_resolves_horizon_recapture() {
         "must not report winning the (defended) pawn, got {}",
         q
     );
-    // SEE is now allowed to prove this exchange losing before entering the
-    // child. That is the intended qsearch shrink path; the proof is the
-    // explicit prune counter rather than a forced recursive visit.
+    // The public qsearch API keeps the historical no-SEE path. The private
+    // SEE candidate is ordering-only and never hard-prunes this capture.
+    assert_eq!(
+        ctx.see_calls.load(Ordering::Relaxed),
+        0,
+        "public qsearch must not inherit SEE"
+    );
     assert!(
-        ctx.see_pruned.load(Ordering::Relaxed) > 0,
-        "SEE must prune the defended-pawn capture"
+        ctx.see_pruned.load(Ordering::Relaxed) == 0,
+        "SEE ordering must not prune the defended-pawn capture"
     );
     assert_eq!(to_fen(&pos), before, "position must be untouched");
 }
