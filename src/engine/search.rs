@@ -62,6 +62,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   improve alpha.
 /// * `NullMoveCandidate` enables only verified null-move pruning at eligible
 ///   non-check, non-zugzwang-shaped nodes.
+/// * `FutilityCandidate` enables only shallow, non-PV quiet-move futility
+///   pruning with tactical, checking, mate-range, and promotion-threat guards.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
@@ -86,6 +88,7 @@ pub(crate) enum SearchProfile {
     AspirationCandidate,
     LmrCandidate,
     NullMoveCandidate,
+    FutilityCandidate,
     Current,
 }
 
@@ -113,6 +116,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_null_move(self) -> bool {
         matches!(self, Self::NullMoveCandidate)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_futility(self) -> bool {
+        matches!(self, Self::FutilityCandidate)
     }
 }
 
@@ -1691,6 +1699,23 @@ fn negamax_entered_impl_with_null(
         };
     }
 
+    // Shallow futility is limited to non-PV (null-window), non-check nodes
+    // with substantial non-pawn material. Tactical, checking, mate-range,
+    // and advanced-pawn moves remain in the search even when their static
+    // estimate is below the shallow margin.
+    let futility_base = if _profile.uses_futility()
+        && !node_in_check
+        && depth <= 3
+        && beta == alpha.saturating_add(1)
+        && alpha < MATE - 1000
+        && alpha > -(MATE - 1000)
+        && non_pawn_material_count(pos) >= 4
+    {
+        Some(evaluate_profiled(pos, ctx))
+    } else {
+        None
+    };
+
     // M4.1: for non-M4Reference profiles (`M41Reference` and `Current`),
     // apply the seven-level ordering (§5) at this non-root ordinary negamax
     // node — TT hash lift, promotions, MVV-LVA captures/ep, killer slot 0,
@@ -1723,6 +1748,18 @@ fn negamax_entered_impl_with_null(
     // into best / alpha / PV / cutoff / heuristics below).
     let mut fail_low_upper: Option<i32> = None;
     for (move_idx, m) in moves.into_iter().enumerate() {
+        if let Some(static_eval) = futility_base {
+            let margin = 100 + depth as i32 * 100;
+            if move_idx > 0
+                && !is_tactical(pos, m)
+                && !move_gives_check(pos, m)
+                && !is_pawn_promotion_threat(pos, m)
+                && static_eval.saturating_add(margin) <= alpha
+            {
+                ctx.futility_pruned.fetch_add(1, Ordering::Relaxed);
+                continue;
+            }
+        }
         let reduction = late_move_reduction(pos, m, _profile, depth, move_idx, node_in_check);
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
@@ -2061,6 +2098,21 @@ fn non_pawn_material_count(pos: &Position) -> usize {
             )
         })
         .count()
+}
+
+/// Conservatively protect advanced pawn pushes from shallow futility. A full
+/// passed-pawn classifier is unnecessary here: treating every pawn on the
+/// final three ranks as a promotion threat is safer and keeps the prune out
+/// of promotion races.
+fn is_pawn_promotion_threat(pos: &Position, m: Move) -> bool {
+    let Some(piece) = pos.board[m.from as usize] else {
+        return false;
+    };
+    if piece.piece_type != PieceType::Pawn {
+        return false;
+    }
+    let rank = rank_of(m.to);
+    (piece.color == Color::White && rank >= 5) || (piece.color == Color::Black && rank <= 2)
 }
 
 /// Return a conservative late-move reduction for a quiet, non-checking move.
@@ -3937,6 +3989,23 @@ mod tests {
             1,
             false
         ));
+    }
+
+    #[test]
+    fn futility_guards_keep_advanced_pawns_and_reference_clean() {
+        let start = parse_fen(START_FEN).unwrap();
+        let quiet = find_move(&start, "e2e3");
+        assert!(!is_pawn_promotion_threat(&start, quiet));
+        assert!(!SearchProfile::M4Reference.uses_futility());
+        assert!(SearchProfile::FutilityCandidate.uses_futility());
+
+        let advanced = parse_fen("6k1/4P3/8/8/8/8/8/6K1 w - - 0 1").unwrap();
+        let push = find_move(&advanced, "e7e8q");
+        assert!(is_pawn_promotion_threat(&advanced, push));
+
+        let near_promotion = parse_fen("6k1/8/4P3/8/8/8/8/6K1 w - - 0 1").unwrap();
+        let advance = find_move(&near_promotion, "e6e7");
+        assert!(is_pawn_promotion_threat(&near_promotion, advance));
     }
 
     #[test]

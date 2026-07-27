@@ -132,6 +132,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::AspirationCandidate => "aspiration",
         SearchProfile::LmrCandidate => "lmr",
         SearchProfile::NullMoveCandidate => "null",
+        SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
     }
 }
@@ -255,10 +256,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "aspiration" => SearchProfile::AspirationCandidate,
                     "lmr" => SearchProfile::LmrCandidate,
                     "null" => SearchProfile::NullMoveCandidate,
+                    "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|lmr|null|current)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|lmr|null|futility|current)",
                             other
                         ));
                     }
@@ -1024,7 +1026,7 @@ fn print_help() {
     println!("  --nodes <N>                       throughput/profile node budget (default 100000)");
     println!("  --fixture <fixture-id>             throughput/profile filter");
     println!(
-        "  --profile <reference|m4.1|see|aspiration|lmr|null|current>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|see|aspiration|lmr|null|futility|current>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1226,6 +1228,7 @@ mod tests {
         );
         assert_eq!(profile_str(SearchProfile::LmrCandidate), "lmr");
         assert_eq!(profile_str(SearchProfile::NullMoveCandidate), "null");
+        assert_eq!(profile_str(SearchProfile::FutilityCandidate), "futility");
         assert_eq!(profile_str(SearchProfile::Current), "current");
     }
 
