@@ -128,6 +128,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
     match p {
         SearchProfile::M4Reference => "reference",
         SearchProfile::M41Reference => "m4.1",
+        SearchProfile::SeeCandidate => "see",
         SearchProfile::Current => "current",
     }
 }
@@ -247,10 +248,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 profile = match v.as_str() {
                     "reference" => SearchProfile::M4Reference,
                     "m4.1" => SearchProfile::M41Reference,
+                    "see" => SearchProfile::SeeCandidate,
                     "current" => SearchProfile::Current,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|current)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|see|current)",
                             other
                         ));
                     }

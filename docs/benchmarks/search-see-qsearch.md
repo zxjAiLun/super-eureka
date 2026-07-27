@@ -1,0 +1,83 @@
+# SEARCH — SEE qsearch shrink candidate
+
+Status: **INCONCLUSIVE — correctness gate passed; performance/Elo gate not accepted**
+Date: 2026-07-26
+Build: release, current local EVAL 1B tree
+
+This is an independent diagnostic candidate following the qsearch profile in [`perf-profiling.md`](perf-profiling.md). It adds a correctness-first static exchange evaluation (SEE) over the existing array-board representation and uses it only to discard ordinary non-check captures with a negative exchange score. Promotions are retained. When the side to move is in check, qsearch still searches every legal evasion.
+
+The filter is enabled only by `SearchProfile::SeeCandidate` and the combined
+`SearchProfile::Current`; the M4.0, M4.1, and PVS reference profiles explicitly
+keep the pre-SEE qsearch path so their counters remain valid independent
+baselines.
+
+No aspiration window, null move, LMR, futility pruning, or other search change is included. SEE is not a claim of Elo gain, and this record does not promote the candidate to an accepted engine baseline.
+
+## Correctness gate
+
+The candidate passed the following local checks:
+
+- SEE distinguishes a winning queen capture from a defended losing capture.
+- SEE does not mutate the input position.
+- Existing qsearch horizon and interruption tests pass with the new filter.
+- Full debug and release Rust test suites pass.
+- `perft(5) = 4,865,609` is unchanged.
+- The independent SEE profile remains legal and deterministic on the smoke
+  positions:
+
+```text
+startpos depth 3: 632 nodes, bestmove b1c3, score cp 50
+queen-win depth 3: 557 nodes, bestmove e4a4, score cp 990
+```
+
+The historical pre-EVAL/M4.0 smoke locks (`1149` / `963` nodes) and the
+current EVAL 1A reference-search locks (`1149` / `969` nodes) are recorded in
+the corresponding baseline documents; they are not rewritten by this
+candidate profile.
+
+These are correctness and regression observations only; they are not Elo measurements.
+
+## Fixed-budget profile
+
+Command:
+
+```text
+cargo run --release -- bench profile --profile see --nodes 100000
+```
+
+The profile is compared with the pre-SEE record in [`perf-profiling.md`](perf-profiling.md). Both use the same fixed node budget and fixture family. The counters are diagnostic and the elapsed time is machine-dependent.
+
+| Fixture | qsearch nodes | eval calls | SEE calls | SEE pruned | completed depth |
+|---|---:|---:|---:|---:|---:|
+| startpos | 88,143 | 86,311 | 14,057 | 4,982 | 5 |
+| queen-win | 86,487 | 70,178 | 6,512 | 259 | 6 |
+| open-tactical | 93,987 | 76,562 | 81,060 | 26,773 | 3 |
+| closed-quiet | 88,638 | 87,037 | 32,734 | 11,772 | 4 |
+| exposed-king | 93,753 | 75,225 | 71,304 | 24,141 | 4 |
+| high-branch | 89,950 | 83,598 | 119,234 | 61,716 | 4 |
+| rook-pawn | 79,216 | 75,125 | 107 | 0 | 6 |
+| kqk | 72,334 | 60,453 | 0 | 0 | 6 |
+| krk | 82,953 | 75,569 | 9 | 0 | 6 |
+
+For example, on the same local machine and fixed open-tactical budget, the
+PVS reference profile recorded `93,752` qsearch nodes and `83,022` eval calls;
+the independent SEE profile recorded `91,638` and `81,296`, with `38,363`
+SEE calls and `13,906` captures pruned. The SEE path completed depth 5 versus
+depth 4 for the reference in this run, but its wall-time remains
+machine-dependent and the extra plain-board exchange accounting is not yet a
+proven strength or throughput improvement.
+
+## Decision
+
+`INCONCLUSIVE` is the only justified status at this stage:
+
+- correctness and perft gates: **PASS**;
+- fixed-budget profiling: **diagnostic only**, with an unfavorable current wall-time trade-off;
+- Elo/SPRT: **not run / not interpretable**, because the project’s E1 statistical runner is not yet a trusted acceptance gate.
+
+The plain-board SEE was subsequently optimized to scan only attackers of the
+exchange square, removing the temporary full pseudo-move list at every
+exchange layer. Aspiration, guarded LMR, verified null probing, and shallow
+futility are recorded separately as the next candidate stack in
+[`search-pruning-candidates.md`](search-pruning-candidates.md). None of those
+features is an accepted Elo result yet.

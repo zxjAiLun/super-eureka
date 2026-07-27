@@ -53,6 +53,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   quiet move ordering (killer moves + history heuristic) with NO principal
 ///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
 ///   keeps M4.2 replayable once `Current` enables PVS.
+/// * `SeeCandidate` enables only the independent SEE qsearch filter on the
+///   existing PVS path.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
@@ -73,7 +75,20 @@ pub(crate) enum SearchProfile {
     // must NOT accept `--profile m4.1` yet, so no production path builds it).
     #[allow(dead_code)]
     M41Reference,
+    SeeCandidate,
     Current,
+}
+
+impl SearchProfile {
+    #[inline]
+    pub(crate) const fn uses_pvs(self) -> bool {
+        !matches!(self, Self::M4Reference | Self::M41Reference)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_see(self) -> bool {
+        matches!(self, Self::SeeCandidate)
+    }
 }
 
 pub const MATE: i32 = 1_000_000;
@@ -131,6 +146,7 @@ pub struct SearchContext {
     pub tt_stores: AtomicU64,
     pub see_calls: AtomicU64,
     pub see_pruned: AtomicU64,
+    see_enabled: AtomicBool,
     pub aspiration_retries: AtomicU64,
     pub aspiration_fail_low: AtomicU64,
     pub aspiration_fail_high: AtomicU64,
@@ -192,6 +208,7 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
+            see_enabled: AtomicBool::new(true),
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
             aspiration_fail_high: AtomicU64::new(0),
@@ -225,6 +242,7 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
+            see_enabled: AtomicBool::new(true),
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
             aspiration_fail_high: AtomicU64::new(0),
@@ -551,7 +569,7 @@ fn pvs_child_window(
     alpha_before_move: i32,
     beta: i32,
 ) -> ChildWindow {
-    if profile != SearchProfile::Current || is_first || depth == 0 {
+    if !profile.uses_pvs() || is_first || depth == 0 {
         return ChildWindow::Full;
     }
     let scout_beta = match alpha_before_move.checked_add(1) {
@@ -1927,6 +1945,154 @@ fn is_tactical(pos: &Position, m: Move) -> bool {
         || pos.board[m.to as usize].is_some()
 }
 
+fn see_piece_after_move(pos: &Position, m: Move) -> i32 {
+    m.promotion
+        .unwrap_or(
+            pos.board[m.from as usize]
+                .expect("SEE source is occupied")
+                .piece_type,
+        )
+        .value()
+}
+
+fn slider_attacks_target(pos: &Position, from: u8, target: u8) -> bool {
+    let from_file = file_of(from) as i32;
+    let from_rank = rank_of(from) as i32;
+    let target_file = file_of(target) as i32;
+    let target_rank = rank_of(target) as i32;
+    let df = target_file - from_file;
+    let dr = target_rank - from_rank;
+    let (step_file, step_rank) = if df == 0 && dr != 0 {
+        (0, dr.signum())
+    } else if dr == 0 && df != 0 {
+        (df.signum(), 0)
+    } else if df.abs() == dr.abs() {
+        (df.signum(), dr.signum())
+    } else {
+        return false;
+    };
+
+    let mut file = from_file + step_file;
+    let mut rank = from_rank + step_rank;
+    while file != target_file || rank != target_rank {
+        if pos.board[make_square(file as u8, rank as u8) as usize].is_some() {
+            return false;
+        }
+        file += step_file;
+        rank += step_rank;
+    }
+    true
+}
+
+fn piece_attacks_target(pos: &Position, from: u8, target: u8, piece_type: PieceType) -> bool {
+    let df = (file_of(target) as i32 - file_of(from) as i32).abs();
+    let dr = (rank_of(target) as i32 - rank_of(from) as i32).abs();
+    match piece_type {
+        PieceType::Pawn => {
+            let direction = if pos.side == Color::White { 1 } else { -1 };
+            rank_of(target) as i32 - rank_of(from) as i32 == direction && df == 1
+        }
+        PieceType::Knight => (df == 1 && dr == 2) || (df == 2 && dr == 1),
+        PieceType::King => df <= 1 && dr <= 1 && (df != 0 || dr != 0),
+        PieceType::Bishop => df == dr && df != 0 && slider_attacks_target(pos, from, target),
+        PieceType::Rook => {
+            (df == 0 || dr == 0) && (df != 0 || dr != 0) && slider_attacks_target(pos, from, target)
+        }
+        PieceType::Queen => {
+            (dr == 0 || df == 0 || df == dr)
+                && (dr != 0 || df != 0)
+                && slider_attacks_target(pos, from, target)
+        }
+    }
+}
+
+fn least_valuable_attacker(pos: &mut Position, target: u8) -> Option<Move> {
+    let side = pos.side;
+    for piece_type in [
+        PieceType::Pawn,
+        PieceType::Knight,
+        PieceType::Bishop,
+        PieceType::Rook,
+        PieceType::Queen,
+        PieceType::King,
+    ] {
+        for from in 0u8..64 {
+            if pos.board[from as usize] != Some(Piece::new(side, piece_type))
+                || !piece_attacks_target(pos, from, target, piece_type)
+            {
+                continue;
+            }
+            let promotion = match piece_type {
+                PieceType::Pawn
+                    if (side == Color::White && rank_of(target) == 7)
+                        || (side == Color::Black && rank_of(target) == 0) =>
+                {
+                    Some(PieceType::Knight)
+                }
+                _ => None,
+            };
+            let m = Move {
+                from,
+                to: target,
+                promotion,
+                flag: promotion.map_or(MoveFlag::Normal, MoveFlag::Promotion),
+            };
+            let undo = pos.make_move(m);
+            let legal = !pos.is_square_attacked(pos.king_square(side), side.opposite());
+            pos.unmake_move(undo);
+            if legal {
+                return Some(m);
+            }
+        }
+    }
+    None
+}
+
+fn static_exchange_eval(pos: &Position, m: Move) -> i32 {
+    let victim_value = match m.flag {
+        MoveFlag::EnPassant => PieceType::Pawn.value(),
+        MoveFlag::Promotion(_)
+        | MoveFlag::Normal
+        | MoveFlag::DoublePawnPush
+        | MoveFlag::KingCastle
+        | MoveFlag::QueenCastle => pos.board[m.to as usize]
+            .map(|piece| piece.piece_type.value())
+            .unwrap_or(0),
+    };
+    let promotion_gain = m
+        .promotion
+        .map(|piece| piece.value() - PieceType::Pawn.value())
+        .unwrap_or(0);
+    let mut gains = [0i32; 32];
+    gains[0] = victim_value + promotion_gain;
+
+    let mut child = *pos;
+    let mut captured_value = see_piece_after_move(pos, m);
+    child.make_move(m);
+    let mut depth = 0usize;
+    while depth + 1 < gains.len() {
+        let Some(attacker) = least_valuable_attacker(&mut child, m.to) else {
+            break;
+        };
+        depth += 1;
+        gains[depth] = captured_value - gains[depth - 1];
+        captured_value = see_piece_after_move(&child, attacker);
+        child.make_move(attacker);
+    }
+    while depth > 0 {
+        depth -= 1;
+        gains[depth] = -(-gains[depth]).max(gains[depth + 1]);
+    }
+    gains[0]
+}
+
+fn move_gives_check(pos: &mut Position, m: Move) -> bool {
+    let undo = pos.make_move(m);
+    let gives_check = pos.is_in_check(pos.side);
+    pos.unmake_move(undo);
+    gives_check
+}
+
 /// Lexicographic move-ordering key for alpha-beta: higher key = searched
 /// first. The tuple components are compared in order, so the key *is* a
 /// strict MVV-LVA ranking.
@@ -2142,7 +2308,27 @@ fn quiescence_entered_impl(
         if stand_pat > alpha {
             alpha = stand_pat;
         }
-        legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
+        legal
+            .into_iter()
+            .filter(|m| {
+                if !is_tactical(pos, *m) {
+                    return false;
+                }
+                if matches!(m.flag, MoveFlag::Promotion(_))
+                    || !ctx.see_enabled.load(Ordering::Relaxed)
+                {
+                    return true;
+                }
+                ctx.see_calls.fetch_add(1, Ordering::Relaxed);
+                let see = static_exchange_eval(pos, *m);
+                if see < 0 && !move_gives_check(pos, *m) {
+                    ctx.see_pruned.fetch_add(1, Ordering::Relaxed);
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect()
     };
 
     for m in tactical {
@@ -2821,6 +3007,7 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
+    ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
     let r = search_best_move_impl(pos, limits, ctx, profile, &mut path, tt);
@@ -2845,6 +3032,8 @@ fn search_best_move_impl(
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
 ) -> Option<SearchOutcome> {
+    ctx.see_enabled
+        .store(_profile.uses_see(), Ordering::Relaxed);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -3192,6 +3381,54 @@ mod tests {
             "king capture is a capture"
         );
         assert_eq!(move_order_key(&pos, _push).0, 0, "quiet push is category 0");
+    }
+
+    #[test]
+    fn see_distinguishes_winning_and_defended_captures() {
+        let winning = parse_fen(MVV_POS).unwrap();
+        let take_queen = find_move(&winning, "e4a4");
+        assert!(static_exchange_eval(&winning, take_queen) > 0);
+
+        let defended = parse_fen("6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1").unwrap();
+        let nxe5 = find_move(&defended, "f3e5");
+        assert!(static_exchange_eval(&defended, nxe5) < 0);
+    }
+
+    #[test]
+    fn see_does_not_mutate_the_position() {
+        let pos = parse_fen(MVV_POS).unwrap();
+        let before = to_fen(&pos);
+        let move_to_test = find_move(&pos, "e4a4");
+        let _ = static_exchange_eval(&pos, move_to_test);
+        assert_eq!(to_fen(&pos), before);
+    }
+
+    #[test]
+    fn see_filter_is_enabled_only_for_see_profile() {
+        fn see_calls_for(profile: SearchProfile) -> u64 {
+            let mut pos = parse_fen(MVV_POS).unwrap();
+            let key = pos.zobrist_key();
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits {
+                depth: Some(2),
+                ..Default::default()
+            };
+            let mut tt = TranspositionTable::disabled();
+            let _ = search_best_move_with_history_tt_and_profile(
+                &mut pos,
+                &[key],
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            );
+            ctx.see_calls.load(Ordering::Relaxed)
+        }
+
+        assert_eq!(see_calls_for(SearchProfile::M4Reference), 0);
+        assert_eq!(see_calls_for(SearchProfile::M41Reference), 0);
+        assert_eq!(see_calls_for(SearchProfile::Current), 0);
+        assert!(see_calls_for(SearchProfile::SeeCandidate) > 0);
     }
 
     #[test]
