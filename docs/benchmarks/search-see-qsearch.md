@@ -4,7 +4,7 @@ Status: **INCONCLUSIVE — correctness gate passed; performance/Elo gate not acc
 Date: 2026-07-26
 Build: release, current local EVAL 1B tree
 
-This is an independent diagnostic candidate following the qsearch profile in [`perf-profiling.md`](perf-profiling.md). It adds a correctness-first static exchange evaluation (SEE) over the existing array-board representation and uses it only to order qsearch captures. Every legal capture remains in the qsearch, including exchanges with a negative static score; promotions are retained. When the side to move is in check, qsearch still searches every legal evasion.
+The candidate implementation is commit `52b891edfda0ece45af3f883e16530edf984146b`, whose parent profiling candidate `16b6b63` was rejected because profiling was not gated off the production path. Fix-forward commit `3d52517` makes SEE conservative. Neither the original candidate nor its fix-forward is an approved strength baseline. This is an independent diagnostic candidate following the qsearch profile in [`perf-profiling.md`](perf-profiling.md). It adds a correctness-first static exchange evaluation (SEE) over the existing array-board representation and uses it only to order qsearch captures. Every legal capture remains in the qsearch, including exchanges with a negative static score; promotions are retained. When the side to move is in check, qsearch still searches every legal evasion.
 
 SEE ordering is enabled only by `SearchProfile::SeeCandidate`; the M4.0,
 M4.1, PVS, and public qsearch reference paths explicitly keep the pre-SEE
@@ -81,6 +81,7 @@ improvement.
 The plain-board SEE was subsequently optimized to scan only attackers of the
 exchange square, removing the temporary full pseudo-move list at every
 exchange layer. Aspiration, guarded LMR, verified null probing, and shallow
-futility are recorded separately as the next candidate stack in
-[`search-pruning-candidates.md`](search-pruning-candidates.md). None of those
-features is an accepted Elo result yet.
+futility are recorded separately in [`search-aspiration.md`](search-aspiration.md),
+[`search-lmr.md`](search-lmr.md), [`search-null-move.md`](search-null-move.md),
+and [`search-futility.md`](search-futility.md). None of those features is an
+accepted Elo result or enabled in `Current`.

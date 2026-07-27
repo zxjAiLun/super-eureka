@@ -1,8 +1,12 @@
 # Late-Move Reductions — independent candidate record
 
-Status: `IMPLEMENTED — PENDING independent review`
+Status: `PENDING independent review — fix-forward evidence in ea6f5f9`
 
-This milestone starts from the aspiration-approved tip `2dcf5f054a34fe0241c37e378c7a9ff87fa51d35` and adds only the LMR candidate. It does not enable null-move pruning, futility pruning, or any evaluation change.
+This candidate is a direct child of implementation commit
+`2dcf5f054a34fe0241c37e378c7a9ff87fa51d35`. The parent aspiration candidate
+was approved only as an isolated candidate, not as an approved `Current`
+baseline. This milestone adds only the LMR candidate. It does not enable
+null-move pruning, futility pruning, or any evaluation change.
 
 ## Scope and safety guards
 
@@ -54,4 +58,4 @@ cargo run --release -- bench smoke
 git diff --check
 ```
 
-Unit coverage includes profile isolation, PV/first-move protection, in-check protection, low-material protection, and full-depth re-search accounting. Independent Elo/SPRT comparison remains required before this feature can be marked `APPROVED`.
+Unit coverage includes profile isolation, PV/first-move protection, in-check protection, low-material protection, and full-depth re-search accounting. Fix-forward commit `ea6f5f9` additionally exercises reductions and full-depth re-searches in a real search while checking root state restoration. Independent review and Elo/SPRT comparison remain required before enabling this candidate in `Current`.

@@ -99,8 +99,11 @@ queen-win:
   PV = e4a4 h4h3 a4h4 h8g7 h4h3
 ```
 
-The queen-win fixture contains extra material, so it is not an exact KQK/KRK
-position and is not changed by EVAL 1B. This milestone proves implementation
+The queen-win fixture contains extra material, so its root material signature
+does not trigger EVAL 1B. Its winning PV can nevertheless reach an exact KQK
+descendant, where the EVAL 1B mop-up term applies; therefore the final
+EVAL 1B search score is allowed to differ from this EVAL 1A lock (the current
+depth-3 EVAL 1B lock is `cp 990`). This milestone proves implementation
 correctness and regression-baseline closure; it does not establish an Elo
 estimate or a playing-strength gain. Later Current-profile SEE/pruning
 measurements are recorded separately and do not rewrite historical documents.

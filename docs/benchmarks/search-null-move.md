@@ -1,8 +1,12 @@
 # Null-Move Probe — independent candidate record
 
-Status: `IMPLEMENTED — PENDING independent review`
+Status: `PENDING independent review — semantics fix-forward in 234755c`
 
-This milestone starts from the LMR-approved tip `a8865f12f3fd81b8e06a9de69a0658af24cddd28` and adds only the null-move candidate. It does not enable futility pruning or any evaluation change.
+This candidate is a direct child of implementation commit
+`a8865f12f3fd81b8e06a9de69a0658af24cddd28`. The parent LMR candidate was
+not approved; its evidence was incomplete. Fix-forward commit `234755c`
+corrects the probe-child semantics. This milestone adds only the null-move
+candidate. It does not enable futility pruning or any evaluation change.
 
 ## Scope and safety guards
 
@@ -59,4 +63,4 @@ cargo run --release -- bench smoke
 git diff --check
 ```
 
-Unit coverage includes null-position hash/state reconstruction, no-check and low-material guards, depth/window guards, explicit non-reentrant probe-child semantics, and verification-search accounting. Dedicated zugzwang fixtures and independent Elo/SPRT comparison remain required before this feature can be marked `APPROVED`.
+Unit coverage includes null-position hash/state reconstruction, no-check and low-material guards, depth/window guards, explicit non-reentrant probe-child semantics, and verification-search accounting. Dedicated zugzwang fixtures, independent review, and Elo/SPRT comparison remain required before enabling this candidate in `Current`.

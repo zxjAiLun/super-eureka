@@ -1,8 +1,12 @@
 # Futility Pruning — independent candidate record
 
-Status: `IMPLEMENTED — PENDING independent review`
+Status: `PENDING independent review — path-evidence fix-forward in ea6f5f9`
 
-This milestone starts from the null-move-approved tip `34e8d7655a01a6ec660eda136187b8e37c2bbc85` and adds only the futility candidate. It does not change evaluation or enable any later feature beyond the already approved parent profile infrastructure.
+This candidate is a direct child of implementation commit
+`34e8d7655a01a6ec660eda136187b8e37c2bbc85`. The parent null-move candidate
+was not approved; it remains a rejected candidate pending further review.
+This milestone adds only the futility candidate. It does not change
+evaluation or enable any later feature.
 
 ## Scope and safety guards
 
@@ -53,4 +57,4 @@ cargo run --release -- bench smoke
 git diff --check
 ```
 
-Unit coverage includes profile isolation, non-PV and reference guards, tactical/checking protection, mate-range protection, and advanced-pawn promotion-threat protection. Independent Elo/SPRT comparison remains required before this feature can be marked `APPROVED`.
+Unit coverage includes profile isolation, non-PV and reference guards, tactical/checking protection, mate-range protection, and advanced-pawn promotion-threat protection. Fix-forward commit `ea6f5f9` additionally exercises a real futility-pruning search and root state restoration. Independent review and Elo/SPRT comparison remain required before enabling this candidate in `Current`.

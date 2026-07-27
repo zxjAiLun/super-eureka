@@ -1,8 +1,13 @@
 # Aspiration Windows — independent candidate record
 
-Status: `IMPLEMENTED — PENDING independent review`
+Status: `APPROVED — isolated candidate only; not enabled in Current`
 
-This milestone starts from the approved SEE baseline `52b891edfda0ece45af3f883e16530edf984146b` and adds only the aspiration-window candidate. It does not enable LMR, null-move pruning, futility pruning, or any evaluation change.
+This candidate is a direct child of implementation commit
+`52b891edfda0ece45af3f883e16530edf984146b`. That parent is the SEE candidate
+record, not an approved strength baseline; its review status is
+`REJECTED` pending the conservative fix-forward recorded separately. This
+milestone adds only the aspiration-window candidate. It does not enable LMR,
+null-move pruning, futility pruning, or any evaluation change.
 
 ## Scope
 
@@ -55,4 +60,4 @@ cargo run --release -- bench smoke
 git diff --check
 ```
 
-The unit coverage includes CLI profile isolation, full-window first iteration, retry partitioning, score parity against the M4.1 full-window profile, and position restoration. Independent Elo/SPRT comparison remains required before this feature can be marked `APPROVED`.
+The unit coverage includes CLI profile isolation, full-window first iteration, retry partitioning, score parity against the M4.1 full-window profile, and position restoration. Independent Elo/SPRT comparison remains required before making any strength claim or enabling this candidate in `Current`.
