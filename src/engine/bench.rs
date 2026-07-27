@@ -134,6 +134,10 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::NullMoveCandidate => "null",
         SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
+        SearchProfile::CurrentAspiration => "current-aspiration",
+        SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
+        SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
+        SearchProfile::CurrentAspirationLmrFutilitySee => "current-aspiration-lmr-futility-see",
     }
 }
 
@@ -258,9 +262,17 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "null" => SearchProfile::NullMoveCandidate,
                     "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
+                    "current-aspiration" => SearchProfile::CurrentAspiration,
+                    "current-aspiration-lmr" => SearchProfile::CurrentAspirationLmr,
+                    "current-aspiration-lmr-futility" => {
+                        SearchProfile::CurrentAspirationLmrFutility
+                    }
+                    "current-aspiration-lmr-futility-see" => {
+                        SearchProfile::CurrentAspirationLmrFutilitySee
+                    }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|lmr|null|futility|current)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1029,7 +1041,7 @@ fn print_help() {
     println!("  --nodes <N>                       throughput/profile node budget (default 100000)");
     println!("  --fixture <fixture-id>             throughput/profile filter");
     println!(
-        "  --profile <reference|m4.1|see|aspiration|lmr|null|futility|current>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1215,6 +1227,30 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(a.profile, SearchProfile::AspirationCandidate);
+
+        for (name, expected) in [
+            ("current-aspiration", SearchProfile::CurrentAspiration),
+            (
+                "current-aspiration-lmr",
+                SearchProfile::CurrentAspirationLmr,
+            ),
+            (
+                "current-aspiration-lmr-futility",
+                SearchProfile::CurrentAspirationLmrFutility,
+            ),
+            (
+                "current-aspiration-lmr-futility-see",
+                SearchProfile::CurrentAspirationLmrFutilitySee,
+            ),
+        ] {
+            let parsed = parse_args(&[
+                "profile".to_string(),
+                "--profile".to_string(),
+                name.to_string(),
+            ])
+            .unwrap();
+            assert_eq!(parsed.profile, expected);
+        }
     }
 
     #[test]
@@ -1233,6 +1269,22 @@ mod tests {
         assert_eq!(profile_str(SearchProfile::NullMoveCandidate), "null");
         assert_eq!(profile_str(SearchProfile::FutilityCandidate), "futility");
         assert_eq!(profile_str(SearchProfile::Current), "current");
+        assert_eq!(
+            profile_str(SearchProfile::CurrentAspiration),
+            "current-aspiration"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentAspirationLmr),
+            "current-aspiration-lmr"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentAspirationLmrFutility),
+            "current-aspiration-lmr-futility"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentAspirationLmrFutilitySee),
+            "current-aspiration-lmr-futility-see"
+        );
     }
 
     #[test]

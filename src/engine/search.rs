@@ -67,6 +67,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   pruning with tactical, checking, mate-range, and promotion-threat guards.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
+/// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
+///   They preserve the `Current` PVS/ordering path and add only the features
+///   named by their suffix. None of them is used by the UCI production path.
 ///
 /// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
 /// non-root nodes, NO PVS at either the root or a non-root node), while
@@ -78,12 +81,6 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchProfile {
     M4Reference,
-    // Dormant until Commit 5 exposes `--profile m4.1` through the bench
-    // CLI; it is constructed there (and in tests now). Allowed as dead in
-    // production for Commit 2 per the M4.2 spec's compile-safety scope
-    // (the variant must exist so `profile_str` stays exhaustive, but the CLI
-    // must NOT accept `--profile m4.1` yet, so no production path builds it).
-    #[allow(dead_code)]
     M41Reference,
     SeeCandidate,
     AspirationCandidate,
@@ -91,6 +88,10 @@ pub(crate) enum SearchProfile {
     NullMoveCandidate,
     FutilityCandidate,
     Current,
+    CurrentAspiration,
+    CurrentAspirationLmr,
+    CurrentAspirationLmrFutility,
+    CurrentAspirationLmrFutilitySee,
 }
 
 impl SearchProfile {
@@ -101,17 +102,33 @@ impl SearchProfile {
 
     #[inline]
     pub(crate) const fn uses_see(self) -> bool {
-        matches!(self, Self::SeeCandidate)
+        matches!(
+            self,
+            Self::SeeCandidate | Self::CurrentAspirationLmrFutilitySee
+        )
     }
 
     #[inline]
     pub(crate) const fn uses_aspiration(self) -> bool {
-        matches!(self, Self::AspirationCandidate)
+        matches!(
+            self,
+            Self::AspirationCandidate
+                | Self::CurrentAspiration
+                | Self::CurrentAspirationLmr
+                | Self::CurrentAspirationLmrFutility
+                | Self::CurrentAspirationLmrFutilitySee
+        )
     }
 
     #[inline]
     pub(crate) const fn uses_lmr(self) -> bool {
-        matches!(self, Self::LmrCandidate)
+        matches!(
+            self,
+            Self::LmrCandidate
+                | Self::CurrentAspirationLmr
+                | Self::CurrentAspirationLmrFutility
+                | Self::CurrentAspirationLmrFutilitySee
+        )
     }
 
     #[inline]
@@ -121,7 +138,12 @@ impl SearchProfile {
 
     #[inline]
     pub(crate) const fn uses_futility(self) -> bool {
-        matches!(self, Self::FutilityCandidate)
+        matches!(
+            self,
+            Self::FutilityCandidate
+                | Self::CurrentAspirationLmrFutility
+                | Self::CurrentAspirationLmrFutilitySee
+        )
     }
 }
 
@@ -3867,6 +3889,64 @@ mod tests {
         let (see_calls, see_pruned) = see_stats_for(SearchProfile::SeeCandidate);
         assert!(see_calls > 0);
         assert_eq!(see_pruned, 0, "SEE is ordering-only");
+    }
+
+    #[test]
+    fn cumulative_profiles_enable_exactly_the_declared_features() {
+        let cases = [
+            (SearchProfile::Current, false, false, false, false),
+            (SearchProfile::CurrentAspiration, false, true, false, false),
+            (
+                SearchProfile::CurrentAspirationLmr,
+                false,
+                true,
+                true,
+                false,
+            ),
+            (
+                SearchProfile::CurrentAspirationLmrFutility,
+                false,
+                true,
+                true,
+                true,
+            ),
+            (
+                SearchProfile::CurrentAspirationLmrFutilitySee,
+                true,
+                true,
+                true,
+                true,
+            ),
+        ];
+
+        for (profile, see, aspiration, lmr, futility) in cases {
+            assert!(
+                profile.uses_pvs(),
+                "cumulative profile lost PVS: {profile:?}"
+            );
+            assert_eq!(profile.uses_see(), see, "SEE contract: {profile:?}");
+            assert_eq!(
+                profile.uses_aspiration(),
+                aspiration,
+                "aspiration contract: {profile:?}"
+            );
+            assert_eq!(profile.uses_lmr(), lmr, "LMR contract: {profile:?}");
+            assert_eq!(
+                profile.uses_futility(),
+                futility,
+                "futility contract: {profile:?}"
+            );
+            assert!(
+                !profile.uses_null_move(),
+                "null probe must stay outside cumulative stack: {profile:?}"
+            );
+        }
+
+        assert!(SearchProfile::Current.uses_pvs());
+        assert!(!SearchProfile::Current.uses_see());
+        assert!(!SearchProfile::Current.uses_aspiration());
+        assert!(!SearchProfile::Current.uses_lmr());
+        assert!(!SearchProfile::Current.uses_futility());
     }
 
     #[test]
