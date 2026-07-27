@@ -57,6 +57,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   existing PVS path.
 /// * `AspirationCandidate` enables only iterative-deepening aspiration
 ///   windows on the existing PVS path.
+/// * `LmrCandidate` enables only late-move reductions on eligible quiet
+///   non-PV moves; reduced searches are re-searched at full depth when they
+///   improve alpha.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 ///
@@ -79,6 +82,7 @@ pub(crate) enum SearchProfile {
     M41Reference,
     SeeCandidate,
     AspirationCandidate,
+    LmrCandidate,
     Current,
 }
 
@@ -96,6 +100,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_aspiration(self) -> bool {
         matches!(self, Self::AspirationCandidate)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_lmr(self) -> bool {
+        matches!(self, Self::LmrCandidate)
     }
 }
 
@@ -1542,9 +1551,10 @@ fn negamax_entered_impl(
     pv.clear_at(ply);
 
     // Terminal-node check MUST run before the depth==0 evaluation.
+    let node_in_check = pos.is_in_check(pos.side);
     let mut moves = generate_legal_moves_profiled(pos, ctx);
     if moves.is_empty() {
-        if pos.is_in_check(pos.side) {
+        if node_in_check {
             return Some(-(MATE - ply as i32));
         }
         return Some(0); // stalemate -> empty PV (row already cleared)
@@ -1641,6 +1651,7 @@ fn negamax_entered_impl(
     // into best / alpha / PV / cutoff / heuristics below).
     let mut fail_low_upper: Option<i32> = None;
     for (move_idx, m) in moves.into_iter().enumerate() {
+        let reduction = late_move_reduction(pos, m, _profile, depth, move_idx, node_in_check);
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
         let alpha_before_move = alpha;
@@ -1705,6 +1716,9 @@ fn negamax_entered_impl(
                         }
                     }
                     ChildWindow::Scout { scout_beta } => {
+                        if reduction > 0 {
+                            ctx.lmr_reductions.fetch_add(1, Ordering::Relaxed);
+                        }
                         // Null-window scout. Child window is
                         // `[-scout_beta, -alpha_before_move]`; the manual
                         // probe already spent the single node for this child.
@@ -1712,7 +1726,7 @@ fn negamax_entered_impl(
                         pvs_counters::mark_scout();
                         let scout_score = match negamax_entered_impl(
                             pos,
-                            depth - 1,
+                            depth.saturating_sub(1 + reduction),
                             ply + 1,
                             -scout_beta,
                             -alpha_before_move,
@@ -1734,7 +1748,18 @@ fn negamax_entered_impl(
                                 return None;
                             }
                         };
-                        if pvs_needs_research(scout_score, alpha_before_move, beta) {
+                        let needs_research = if reduction > 0 {
+                            // A reduced search is only a scout. Any score that
+                            // improves alpha must be verified at full depth,
+                            // including fail-high scores.
+                            scout_score > alpha_before_move
+                        } else {
+                            pvs_needs_research(scout_score, alpha_before_move, beta)
+                        };
+                        if reduction > 0 && needs_research {
+                            ctx.lmr_researches.fetch_add(1, Ordering::Relaxed);
+                        }
+                        if needs_research {
                             // Improve alpha but not a cutoff: re-search with the
                             // full window. The child position stays made and the
                             // SearchPath stays pushed (NO pop/unmake yet); we do
@@ -1951,6 +1976,53 @@ fn negamax_entered_impl(
 fn is_tactical(pos: &Position, m: Move) -> bool {
     matches!(m.flag, MoveFlag::EnPassant | MoveFlag::Promotion(_))
         || pos.board[m.to as usize].is_some()
+}
+
+fn non_pawn_material_count(pos: &Position) -> usize {
+    pos.board
+        .iter()
+        .flatten()
+        .filter(|piece| {
+            matches!(
+                piece.piece_type,
+                PieceType::Knight | PieceType::Bishop | PieceType::Rook | PieceType::Queen
+            )
+        })
+        .count()
+}
+
+/// Return a conservative late-move reduction for a quiet, non-checking move.
+/// Reductions are limited to LMR-enabled profiles, non-PV moves, non-check
+/// nodes, sufficient depth, and positions with enough non-pawn material that
+/// a shallow quiet move is unlikely to be an endgame zugzwang. A reduced
+/// result that improves alpha is always re-searched at full depth.
+fn late_move_reduction(
+    pos: &mut Position,
+    m: Move,
+    profile: SearchProfile,
+    depth: u32,
+    move_idx: usize,
+    node_in_check: bool,
+) -> u32 {
+    if !profile.uses_lmr()
+        || node_in_check
+        || depth < 4
+        || move_idx < 3
+        || is_tactical(pos, m)
+        || move_gives_check(pos, m)
+    {
+        return 0;
+    }
+
+    if non_pawn_material_count(pos) < 4 {
+        return 0;
+    }
+
+    if depth >= 7 && move_idx >= 8 {
+        2
+    } else {
+        1
+    }
 }
 
 fn see_piece_after_move(pos: &Position, m: Move) -> i32 {
@@ -3643,6 +3715,73 @@ mod tests {
             aspiration_ctx.aspiration_retries.load(Ordering::Relaxed),
             aspiration_ctx.aspiration_fail_low.load(Ordering::Relaxed)
                 + aspiration_ctx.aspiration_fail_high.load(Ordering::Relaxed)
+        );
+    }
+
+    #[test]
+    fn lmr_reduces_only_eligible_quiet_moves() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let quiet = find_move(&pos, "e2e3");
+        assert!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::LmrCandidate,
+                5,
+                3,
+                false
+            ) > 0
+        );
+        assert_eq!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::LmrCandidate,
+                5,
+                0,
+                false
+            ),
+            0,
+            "PV move must never be reduced"
+        );
+        assert_eq!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::LmrCandidate,
+                5,
+                3,
+                true
+            ),
+            0,
+            "in-check node must never be reduced"
+        );
+        assert_eq!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::M41Reference,
+                5,
+                3,
+                false
+            ),
+            0,
+            "reference profile must not reduce"
+        );
+
+        let kqk = parse_fen("7k/8/8/8/8/8/3QK3/8 w - - 0 1").unwrap();
+        let quiet_endgame = find_move(&kqk, "d2d3");
+        assert_eq!(
+            late_move_reduction(
+                &mut kqk.clone(),
+                quiet_endgame,
+                SearchProfile::LmrCandidate,
+                5,
+                3,
+                false
+            ),
+            0,
+            "low-material endgames must not be reduced"
         );
     }
 
