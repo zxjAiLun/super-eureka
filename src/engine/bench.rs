@@ -572,7 +572,7 @@ fn format_result_line(r: &BenchResult) -> String {
     );
     if r.suite == "profile" {
         format!(
-            "{} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_stores={} see_calls={} see_pruned={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_cutoffs={} null_move_researches={} futility_pruned={}",
+            "{} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_stores={} see_calls={} see_pruned={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
             line,
             r.stats.qsearch_nodes,
             r.stats.eval_calls,
@@ -593,7 +593,7 @@ fn format_result_line(r: &BenchResult) -> String {
             r.stats.lmr_reductions,
             r.stats.lmr_researches,
             r.stats.null_move_attempts,
-            r.stats.null_move_cutoffs,
+            r.stats.null_move_fail_highs,
             r.stats.null_move_researches,
             r.stats.futility_pruned,
         )

@@ -1,4 +1,4 @@
-# Null-Move Pruning — independent candidate record
+# Null-Move Probe — independent candidate record
 
 Status: `IMPLEMENTED — PENDING independent review`
 
@@ -6,7 +6,9 @@ This milestone starts from the LMR-approved tip `a8865f12f3fd81b8e06a9de69a0658a
 
 ## Scope and safety guards
 
-The candidate is selected with `bench ... --profile null`. A null search is attempted only when:
+The candidate is selected with `bench ... --profile null`. It is a verified
+null-move probe, not an unconditional pruning cutoff. A null search is
+attempted only when:
 
 - the profile is null-move-enabled;
 - the node is not in check;
@@ -15,9 +17,9 @@ The candidate is selected with `bench ... --profile null`. A null search is atte
 - the position has at least four non-pawn pieces;
 - the score is outside the near-mate lower boundary.
 
-The null position flips the side to move, clears en passant, advances the halfmove/fullmove clocks, and recomputes the Zobrist key. A null fail-high is never accepted directly: the real position is searched again at full depth with null disabled at that node, while descendants retain their normal eligibility. This prevents consecutive null attempts and keeps the board/path state recoverable.
+The null position flips the side to move, clears en passant, advances the halfmove/fullmove clocks, and recomputes the Zobrist key. A null fail-high is never accepted directly: the real position is searched again at full depth with null disabled at that node. The immediate null-probe child is also entered with null disabled, while ordinary descendants retain their normal eligibility. This prevents consecutive null attempts and keeps the board/path state recoverable.
 
-The default `reference` profile does not use null-move pruning.
+The default `reference` profile does not use null-move probes.
 
 ## Fixed smoke evidence
 
@@ -37,7 +39,7 @@ nodes = 100,000
 score = cp 0
 bestmove = b1c3
 null_move_attempts = 20
-null_move_cutoffs = 12
+null_move_fail_highs = 12
 null_move_researches = 12
 ```
 
@@ -57,4 +59,4 @@ cargo run --release -- bench smoke
 git diff --check
 ```
 
-Unit coverage includes null-position hash/state reconstruction, no-check and low-material guards, depth/window guards, and verification-search accounting. Dedicated zugzwang fixtures and independent Elo/SPRT comparison remain required before this feature can be marked `APPROVED`.
+Unit coverage includes null-position hash/state reconstruction, no-check and low-material guards, depth/window guards, explicit non-reentrant probe-child semantics, and verification-search accounting. Dedicated zugzwang fixtures and independent Elo/SPRT comparison remain required before this feature can be marked `APPROVED`.

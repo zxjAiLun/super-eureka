@@ -60,8 +60,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `LmrCandidate` enables only late-move reductions on eligible quiet
 ///   non-PV moves; reduced searches are re-searched at full depth when they
 ///   improve alpha.
-/// * `NullMoveCandidate` enables only verified null-move pruning at eligible
-///   non-check, non-zugzwang-shaped nodes.
+/// * `NullMoveCandidate` enables only a verified null-move probe at eligible
+///   non-check, non-zugzwang-shaped nodes. A probe fail-high is never a direct
+///   cutoff.
 /// * `FutilityCandidate` enables only shallow, non-PV quiet-move futility
 ///   pruning with tactical, checking, mate-range, and promotion-threat guards.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
@@ -189,7 +190,7 @@ pub struct SearchContext {
     pub lmr_reductions: AtomicU64,
     pub lmr_researches: AtomicU64,
     pub null_move_attempts: AtomicU64,
-    pub null_move_cutoffs: AtomicU64,
+    pub null_move_fail_highs: AtomicU64,
     pub null_move_researches: AtomicU64,
     pub futility_pruned: AtomicU64,
 }
@@ -216,7 +217,7 @@ pub struct SearchStats {
     pub lmr_reductions: u64,
     pub lmr_researches: u64,
     pub null_move_attempts: u64,
-    pub null_move_cutoffs: u64,
+    pub null_move_fail_highs: u64,
     pub null_move_researches: u64,
     pub futility_pruned: u64,
 }
@@ -252,7 +253,7 @@ impl SearchContext {
             lmr_reductions: AtomicU64::new(0),
             lmr_researches: AtomicU64::new(0),
             null_move_attempts: AtomicU64::new(0),
-            null_move_cutoffs: AtomicU64::new(0),
+            null_move_fail_highs: AtomicU64::new(0),
             null_move_researches: AtomicU64::new(0),
             futility_pruned: AtomicU64::new(0),
         }
@@ -296,7 +297,7 @@ impl SearchContext {
             lmr_reductions: AtomicU64::new(0),
             lmr_researches: AtomicU64::new(0),
             null_move_attempts: AtomicU64::new(0),
-            null_move_cutoffs: AtomicU64::new(0),
+            null_move_fail_highs: AtomicU64::new(0),
             null_move_researches: AtomicU64::new(0),
             futility_pruned: AtomicU64::new(0),
         }
@@ -324,7 +325,7 @@ impl SearchContext {
             lmr_reductions: self.lmr_reductions.load(Ordering::Relaxed),
             lmr_researches: self.lmr_researches.load(Ordering::Relaxed),
             null_move_attempts: self.null_move_attempts.load(Ordering::Relaxed),
-            null_move_cutoffs: self.null_move_cutoffs.load(Ordering::Relaxed),
+            null_move_fail_highs: self.null_move_fail_highs.load(Ordering::Relaxed),
             null_move_researches: self.null_move_researches.load(Ordering::Relaxed),
             futility_pruned: self.futility_pruned.load(Ordering::Relaxed),
         }
@@ -1589,9 +1590,10 @@ fn negamax_entered_impl(
     )
 }
 
-/// Body variant used by the verified null-move re-search. It suppresses a
-/// second null attempt at the same node while descendant nodes retain the
-/// normal candidate behavior through [`negamax_entered_impl`].
+/// Body variant used by the verified null-move probe and re-search. Its
+/// `allow_null` parameter is explicit so the probe child cannot immediately
+/// launch a consecutive null move; ordinary descendants retain their normal
+/// candidate behavior through [`negamax_entered_impl`].
 #[allow(clippy::too_many_arguments)]
 fn negamax_entered_impl_with_null(
     pos: &mut Position,
@@ -1676,7 +1678,9 @@ fn negamax_entered_impl_with_null(
         }
         let null_alpha = -beta;
         let null_beta = null_alpha.saturating_add(1);
-        let null_result = negamax_entered_impl(
+        // The null-probe child must not launch another null probe. This is an
+        // immediate-child guard; ordinary descendants are eligible again.
+        let null_result = negamax_entered_impl_with_null(
             &mut null_pos,
             depth.saturating_sub(1 + null_move_reduction(depth)),
             ply + 1,
@@ -1689,6 +1693,7 @@ fn negamax_entered_impl_with_null(
             path,
             tt,
             heur,
+            false,
         );
         path.pop();
         let null_score = match null_result {
@@ -1697,8 +1702,8 @@ fn negamax_entered_impl_with_null(
         };
         if null_score >= beta {
             // Null is only a candidate. Verify the real position at full
-            // depth before allowing the cutoff to escape this node.
-            ctx.add_profile_counter(&ctx.null_move_cutoffs, 1);
+            // depth before returning its score.
+            ctx.add_profile_counter(&ctx.null_move_fail_highs, 1);
             ctx.add_profile_counter(&ctx.null_move_researches, 1);
             return negamax_entered_impl_with_null(
                 pos, depth, ply, alpha, beta, ctx, limits, _profile, pv, path, tt, heur, false,
@@ -4020,6 +4025,47 @@ mod tests {
             1,
             false
         ));
+    }
+
+    #[test]
+    fn null_probe_child_is_non_reentrant_at_depth_nine() {
+        let pos = parse_fen(START_FEN).unwrap();
+        assert!(null_move_eligible(
+            &pos,
+            SearchProfile::NullMoveCandidate,
+            9,
+            0,
+            1,
+            false
+        ));
+
+        let stop = Arc::new(AtomicBool::new(true));
+        let ctx = SearchContext::new_with_profiling(stop, true);
+        let limits = SearchLimits::default();
+        let mut pv = PvTable::default();
+        let mut tt = TranspositionTable::disabled();
+        let mut heuristics = None;
+        let mut child = make_null_position(&pos);
+        let mut path = SearchPath::new(vec![child.zobrist_key()]);
+
+        // This is the exact child mode used by the null probe. The node is
+        // otherwise eligible, but it must not launch a second null move.
+        let _ = negamax_entered_impl_with_null(
+            &mut child,
+            5,
+            1,
+            0,
+            1,
+            &ctx,
+            &limits,
+            SearchProfile::NullMoveCandidate,
+            &mut pv,
+            &mut path,
+            &mut tt,
+            &mut heuristics,
+            false,
+        );
+        assert_eq!(ctx.null_move_attempts.load(Ordering::Relaxed), 0);
     }
 
     #[test]

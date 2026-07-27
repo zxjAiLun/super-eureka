@@ -70,7 +70,7 @@ fn default_search_does_not_collect_diagnostic_counters() {
     assert_eq!(stats.lmr_reductions, 0);
     assert_eq!(stats.lmr_researches, 0);
     assert_eq!(stats.null_move_attempts, 0);
-    assert_eq!(stats.null_move_cutoffs, 0);
+    assert_eq!(stats.null_move_fail_highs, 0);
     assert_eq!(stats.null_move_researches, 0);
     assert_eq!(stats.futility_pruned, 0);
 }
