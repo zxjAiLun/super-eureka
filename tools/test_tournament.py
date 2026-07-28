@@ -167,10 +167,18 @@ for raw in sys.stdin:
             self.assertEqual(engine.go_movetime(20, 40)[0], "a2a3")
 
         with self.assertRaises(EngineMoveTimeout) as context:
-            with EngineSession(self.fake_engine("slow", 0.08), "slow", 16) as engine:
+            with EngineSession(self.fake_engine("normal"), "slow", 16) as engine:
                 engine.position([])
-                engine.go_movetime(20, 20)
-        self.assertGreater(context.exception.elapsed_ms, 40.0)
+                # The child returns a legal bestmove immediately. Advance a
+                # deterministic monotonic clock only for the host-side
+                # deadline check so this test proves a late response without
+                # relying on thread scheduling or wall-clock sleep.
+                with patch(
+                    "tournament.time.monotonic",
+                    side_effect=(100.000, 100.000, 100.041),
+                ):
+                    engine.go_movetime(20, 20)
+        self.assertAlmostEqual(context.exception.elapsed_ms, 41.0, places=6)
 
     def test_play_game_records_timeout_loss_for_both_baseline_colours(self):
         opening = Opening("test", ())
