@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "default": "stockfish-8moves-v3",
+  "books": {
+    "stockfish-8moves-v3": {
+      "format": "pgn",
+      "archive_filename": "8moves_v3.pgn.zip",
+      "content_filename": "8moves_v3.pgn",
+      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee252ba8f67fb740e92f/8moves_v3.pgn.zip",
+      "source_repository": "https://github.com/official-stockfish/books",
+      "source_ref": "65815ccdbc7727cd4f6aee252ba8f67fb740e92f",
+      "license": "CC0-1.0",
+      "content_sha384_base64": "hnlrIvi1xbnTt8z3AM2LW87YUCNsrcTTjqlAUBRf80SUCx9Zaq2hlntlimtoEBIn",
+      "expected_positions": 34700,
+      "expected_plies": 16,
+      "description": "Official Stockfish development PGN suite, eight full moves deep."
+    }
+  }
+}

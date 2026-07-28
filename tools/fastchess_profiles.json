@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "s2-current-vs-aspiration": {
+      "baseline": {
+        "label": "Current",
+        "search_profile": "current"
+      },
+      "candidate": {
+        "label": "Aspiration",
+        "search_profile": "current-aspiration"
+      },
+      "book": "stockfish-8moves-v3",
+      "opening_order": "random",
+      "opening_plies": 16,
+      "seed": 20260728,
+      "time_control": "10+0.1",
+      "hash_mb": 64,
+      "threads": 1,
+      "rounds": 200,
+      "concurrency": 1,
+      "sprt": {
+        "elo0": 0,
+        "elo1": 5,
+        "alpha": 0.05,
+        "beta": 0.05,
+        "model": "logistic"
+      }
+    }
+  }
+}

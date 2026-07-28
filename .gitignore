@@ -4,6 +4,11 @@
 # E1 tournament outputs
 /tournament-results/
 
+# Fastchess book cache and generated reports
+/books/cache/
+/results/*
+!/results/.gitkeep
+
 # WorkBuddy private memory / project data
 .workbuddy/
 
