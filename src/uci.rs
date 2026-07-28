@@ -94,6 +94,7 @@ fn spawn_search(
     stop: Arc<AtomicBool>,
     budget: TimeBudget,
     tt: Arc<Mutex<TranspositionTable>>,
+    profile: search::SearchProfile,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let ctx = search::SearchContext::with_budget(stop.clone(), budget);
@@ -106,7 +107,7 @@ fn spawn_search(
             &limits,
             &ctx,
             &mut guard,
-            search::SearchProfile::Current,
+            profile,
         ) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
             None => println!("bestmove 0000"),
@@ -340,7 +341,98 @@ fn handle_setoption(
     }
 }
 
+/// Parse the optional command-line profile used when launching a tournament
+/// candidate. Only the cumulative S1 profiles are exposed through the UCI
+/// executable; the default remains `Current`, and the dormant null probe is
+/// intentionally not selectable here.
+fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
+    let mut profile = search::SearchProfile::Current;
+    let mut profile_seen = false;
+    let mut it = args.iter();
+
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--help" | "-h" => {
+                if args.len() != 1 {
+                    return Err("--help cannot be combined with other startup arguments".into());
+                }
+                return Ok(StartupCommand::Help);
+            }
+            "--profile" => {
+                if profile_seen {
+                    return Err("--profile may be specified only once".into());
+                }
+                let name = it
+                    .next()
+                    .ok_or_else(|| "--profile requires a value".to_string())?;
+                profile = match name.as_str() {
+                    "current" => search::SearchProfile::Current,
+                    "current-aspiration" => search::SearchProfile::CurrentAspiration,
+                    "current-aspiration-lmr" => search::SearchProfile::CurrentAspirationLmr,
+                    "current-aspiration-lmr-futility" => {
+                        search::SearchProfile::CurrentAspirationLmrFutility
+                    }
+                    "current-aspiration-lmr-futility-see" => {
+                        search::SearchProfile::CurrentAspirationLmrFutilitySee
+                    }
+                    other => {
+                        return Err(format!(
+                            "invalid --profile '{}' (expected current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            other
+                        ));
+                    }
+                };
+                profile_seen = true;
+            }
+            other => {
+                return Err(format!(
+                    "unknown startup argument '{}' (expected --profile <cumulative-profile>)",
+                    other
+                ));
+            }
+        }
+    }
+
+    Ok(StartupCommand::Run(profile))
+}
+
+#[derive(Debug)]
+enum StartupCommand {
+    Run(search::SearchProfile),
+    Help,
+}
+
+fn print_startup_help() {
+    println!("ChessEngineDemo UCI engine");
+    println!("Usage: chess-engine-demo [--profile <cumulative-profile>]");
+    println!("Profiles:");
+    println!("  current");
+    println!("  current-aspiration");
+    println!("  current-aspiration-lmr");
+    println!("  current-aspiration-lmr-futility");
+    println!("  current-aspiration-lmr-futility-see");
+    println!("Default: current");
+}
+
+/// Run the UCI loop using the default production profile.
 pub fn run() {
+    run_with_profile(search::SearchProfile::Current);
+}
+
+/// Parse startup arguments and run the UCI loop with the selected profile.
+///
+/// The profile is fixed for the process lifetime, which makes the executable
+/// directly usable by fastchess/OpenBench as either the approved `Current`
+/// binary or a cumulative candidate binary launched with `--profile`.
+pub fn run_with_args(args: &[String]) -> Result<(), String> {
+    match parse_startup_profile(args)? {
+        StartupCommand::Run(profile) => run_with_profile(profile),
+        StartupCommand::Help => print_startup_help(),
+    }
+    Ok(())
+}
+
+fn run_with_profile(profile: search::SearchProfile) {
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -440,7 +532,14 @@ pub fn run() {
                 // TT; the search splits `gs` via `into_search_parts` and
                 // never touches the live `gs`. It holds the TT guard for the
                 // whole run.
-                let handle = spawn_search(gs.clone(), limits, stop.clone(), budget, tt.clone());
+                let handle = spawn_search(
+                    gs.clone(),
+                    limits,
+                    stop.clone(),
+                    budget,
+                    tt.clone(),
+                    profile,
+                );
                 active = Some(ActiveSearch { stop, handle });
             }
             "stop" => {
@@ -706,6 +805,74 @@ mod tests {
     // reachable via `super::*` (the parent module's own `use` imports). Only
     // the entry/key types live in `tt` and were not imported by the parent.
     use crate::engine::tt::{Bound, TTEntry, TtKey};
+
+    fn startup_profile(args: &[&str]) -> search::SearchProfile {
+        let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
+        match parse_startup_profile(&owned).expect("startup arguments must parse") {
+            StartupCommand::Run(profile) => profile,
+            StartupCommand::Help => panic!("expected a profile command"),
+        }
+    }
+
+    #[test]
+    fn startup_profile_defaults_to_current_and_accepts_cumulative_candidates() {
+        assert_eq!(
+            startup_profile(&[]),
+            search::SearchProfile::Current,
+            "no startup arguments must preserve Current"
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current"]),
+            search::SearchProfile::Current
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-aspiration"]),
+            search::SearchProfile::CurrentAspiration
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-aspiration-lmr"]),
+            search::SearchProfile::CurrentAspirationLmr
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-aspiration-lmr-futility"]),
+            search::SearchProfile::CurrentAspirationLmrFutility
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-aspiration-lmr-futility-see"]),
+            search::SearchProfile::CurrentAspirationLmrFutilitySee
+        );
+    }
+
+    #[test]
+    fn startup_profile_rejects_unsupported_or_ambiguous_arguments() {
+        let missing = parse_startup_profile(&["--profile".to_string()]).unwrap_err();
+        assert!(missing.contains("requires a value"));
+
+        let unsupported =
+            parse_startup_profile(&["--profile".to_string(), "null".to_string()]).unwrap_err();
+        assert!(unsupported.contains("invalid --profile"));
+
+        let duplicate = parse_startup_profile(&[
+            "--profile".to_string(),
+            "current".to_string(),
+            "--profile".to_string(),
+            "current-aspiration".to_string(),
+        ])
+        .unwrap_err();
+        assert!(duplicate.contains("only once"));
+
+        let unknown = parse_startup_profile(&["--nodes".to_string()]).unwrap_err();
+        assert!(unknown.contains("unknown startup argument"));
+    }
+
+    #[test]
+    fn startup_help_is_a_non_search_command() {
+        let args = vec!["--help".to_string()];
+        assert!(matches!(
+            parse_startup_profile(&args),
+            Ok(StartupCommand::Help)
+        ));
+    }
 
     #[test]
     fn huge_millis_is_clamped_not_panicked() {
@@ -1459,7 +1626,14 @@ mod tests {
             soft_deadline: None,
             hard_deadline: None,
         };
-        let handle = spawn_search(game, limits, stop, budget, tt.clone());
+        let handle = spawn_search(
+            game,
+            limits,
+            stop,
+            budget,
+            tt.clone(),
+            search::SearchProfile::Current,
+        );
         let _ = handle.join();
 
         // Table still lockable; config preserved.

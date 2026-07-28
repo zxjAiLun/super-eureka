@@ -45,6 +45,11 @@ fn main() {
         return;
     }
 
-    // Otherwise, run the UCI protocol loop.
-    chess_engine_demo::uci::run();
+    // Otherwise, run the UCI protocol loop. The optional startup profile is
+    // deliberately separate from the UCI command stream so tournament tools
+    // can launch a candidate without changing the default Current path.
+    if let Err(e) = chess_engine_demo::uci::run_with_args(&args[1..]) {
+        eprintln!("startup_error {}", e);
+        std::process::exit(2);
+    }
 }
