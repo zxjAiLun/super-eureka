@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import chess
 
-from tournament import (
+from run_protocol_smoke import (
     DEFAULT_OPENINGS,
     DiagnosticPentanomialState,
     EngineMoveTimeout,
@@ -193,7 +193,7 @@ for raw in sys.stdin:
                 # deadline check so this test proves a late response without
                 # relying on thread scheduling or wall-clock sleep.
                 with patch(
-                    "tournament.time.monotonic",
+                    "run_protocol_smoke.time.monotonic",
                     side_effect=(100.000, 100.000, 100.041),
                 ):
                     engine.go_movetime(20, 20)

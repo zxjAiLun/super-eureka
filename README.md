@@ -50,35 +50,38 @@ cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 
 
 完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
 
-## E1 固定盘数自动对局、PGN 与统计采集
+## E1 UCI protocol smoke
 
-E1 的对局工具位于 `tools/tournament.py`，使用 Python 的 `python-chess`
-校验每步合法性、终局和和棋声明，并生成可回放 PGN、逐局 JSONL、运行
-manifest 和汇总报告。先安装开发依赖：
+仓库内的 Python 工具现在明确只承担小规模协议与夹具 smoke，入口是
+`tools/run_protocol_smoke.py`，使用 `python-chess` 校验每步合法性、终局和
+和棋声明，并生成可回放 PGN、逐局 JSONL、运行 manifest 和汇总报告。它不
+承担正式棋力评测，也不把短对局结果解释成 Elo。先安装开发依赖：
 
 ```bash
 python -m pip install -r tools/requirements.txt
 ```
 
-构建两个要比较的 UCI 引擎后运行 64 局 smoke：
+构建两个 UCI 引擎后运行 16 局 protocol smoke：
 
 ```bash
 cargo build --release
-python tools/tournament.py \
+python tools/run_protocol_smoke.py \
   --engine-a target/release/chess-engine-demo \
   --engine-b target/release/chess-engine-demo \
-  --games 64 --movetime-ms 100 --move-grace-ms 25 --hash-mb 16 --seed 0 \
+  --games 16 --movetime-ms 100 --move-grace-ms 25 --hash-mb 16 --seed 0 \
   --output-dir tournament-results/selfplay-smoke
 ```
 
-默认规模为 2048 局；固定开局集包含 32 条合法 UCI 开局线，每条开局
+默认规模为 16 局；smoke 夹具包含 32 条合法 UCI 开局线，每条开局
 自动执行白黑换色。报告记录 baseline/candidate 的路径、文件 SHA-256、显式
 git SHA、UCI 身份、Hash、movetime、host-side grace、种子、颜色、stderr、
 结果、耗时和 PGN。每个开局严格跑完整白黑换色 pair；五分类 pair 计数、
 候选方得分、Elo 点估计和区间都明确标记为 diagnostic。当前固定 draw-rate
 模型只用于诊断，不是经过验证的 GSPRT，不提供 `alpha/beta` 错误率保证，
-也不会提前停止比赛。正式 feature acceptance 交给 fastchess/OpenBench/
-Fishtest。最终状态只允许为 `COMPLETED`、`INCONCLUSIVE` 或
+也不会提前停止比赛。正式 feature acceptance 交给 Fastchess/OpenBench/
+Fishtest；Fastchess 的入口、PGN 书库 manifest 和固定参数见
+`tools/run_fastchess.py`、`tools/fastchess_profiles.json` 与 `books/`。
+最终状态只允许为 `COMPLETED`、`INCONCLUSIVE` 或
 `INTEGRITY_FAIL`；该工具不会把固定局面 benchmark 或短 self-play 直接解释
 成 2500+ Elo。统计背景参见
 [Stockfish Fishtest Mathematics](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-Mathematics.html)。

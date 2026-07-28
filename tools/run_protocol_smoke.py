@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Deterministic UCI tournament runner for E1 engine comparisons.
+"""Small deterministic UCI protocol smoke runner.
 
-Engine A is always the approved baseline and engine B is always the
-candidate. Results are paired by opening and colour. This tool is a
-fixed-game data collector; its pair counters and Elo interval are diagnostic
-only. Formal feature acceptance is delegated to a validated
-fastchess/OpenBench/Fishtest workflow.
+This tool validates UCI lifecycle, legality, termination, timeout handling,
+PGN/JSONL output, and paired colour scheduling on a small fixture set. It is
+not a formal chess-strength evaluator. Formal feature acceptance is delegated
+to Fastchess/OpenBench/Fishtest.
 
 Example:
 
-    python tools/tournament.py \
+    python tools/run_protocol_smoke.py \
         --engine-a target/release/chess-engine-demo.exe \
         --engine-b target/release/chess-engine-demo.exe \
         --profile-b current-aspiration \
-        --games 64 --output-dir tournament-results/smoke
+        --games 16 --output-dir tournament-results/protocol-smoke
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ import chess
 import chess.pgn
 
 
-DEFAULT_GAMES = 2048
+DEFAULT_GAMES = 16
 DEFAULT_MOVETIME_MS = 100
 DEFAULT_MOVE_GRACE_MS = 25
 DEFAULT_HASH_MB = 16
@@ -46,7 +45,7 @@ DEFAULT_MAX_PLIES = 512
 DEFAULT_SEED = 0
 DEFAULT_DRAW_RATE = 0.5
 STARTUP_TIMEOUT_SECONDS = 5.0
-DEFAULT_OPENINGS = Path(__file__).with_name("openings.txt")
+DEFAULT_OPENINGS = Path(__file__).with_name("openings-smoke.txt")
 PAIR_CATEGORIES = ("0.0", "0.5", "1.0", "1.5", "2.0")
 STATISTICAL_PERSPECTIVE = "engine_b_candidate_minus_engine_a_baseline"
 STARTUP_PROFILES = (
