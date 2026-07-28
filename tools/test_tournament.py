@@ -1,3 +1,4 @@
+import json
 import math
 from pathlib import Path
 import sys
@@ -36,17 +37,23 @@ from tournament import (
 
 class TournamentUnitTests(unittest.TestCase):
     @staticmethod
-    def fake_engine(mode: str, delay: float = 0.0) -> list[str]:
+    def fake_engine(
+        mode: str, delay: float = 0.0, reported_profile: str | None = None
+    ) -> list[str]:
         script = f"""
 import sys
 import time
 mode = {mode!r}
 delay = {delay!r}
+reported_profile = {reported_profile!r}
+if reported_profile is None:
+    reported_profile = sys.argv[sys.argv.index('--profile') + 1] if '--profile' in sys.argv else 'current'
 for raw in sys.stdin:
     line = raw.strip()
     if line == 'uci':
         print('id name E1Fake', flush=True)
         print('id author E1Tests', flush=True)
+        print('info string search profile ' + reported_profile, flush=True)
         if mode != 'no-uciok':
             print('uciok', flush=True)
     elif line == 'isready':
@@ -69,12 +76,14 @@ import sys
 import time
 delay = {delay!r}
 illegal = {illegal!r}
+reported_profile = sys.argv[sys.argv.index('--profile') + 1] if '--profile' in sys.argv else 'current'
 board = chess.Board()
 for raw in sys.stdin:
     line = raw.strip()
     if line == 'uci':
         print('id name E1LegalFake', flush=True)
         print('id author E1Tests', flush=True)
+        print('info string search profile ' + reported_profile, flush=True)
         print('uciok', flush=True)
     elif line == 'isready':
         print('readyok', flush=True)
@@ -106,12 +115,14 @@ except FileNotFoundError:
     count = 1
 marker.write_text(str(count))
 fail = count >= 2
+reported_profile = sys.argv[sys.argv.index('--profile') + 1] if '--profile' in sys.argv else 'current'
 board = chess.Board()
 for raw in sys.stdin:
     line = raw.strip()
     if line == 'uci':
         print('id name E1StartupFake', flush=True)
         print('id author E1Tests', flush=True)
+        print('info string search profile ' + reported_profile, flush=True)
         if not (fail and {mode!r} == 'uciok'):
             print('uciok', flush=True)
     elif line == 'isready':
@@ -135,7 +146,14 @@ for raw in sys.stdin:
         engine_a: list[str], engine_b: list[str], output_dir: Path, games: int = 4
     ):
         args = parser().parse_args(
-            ["--engine-a", "baseline-test", "--engine-b", "candidate-test"]
+            [
+                "--engine-a",
+                "baseline-test",
+                "--engine-b",
+                "candidate-test",
+                "--profile-b",
+                "current-aspiration",
+            ]
         )
         args.engine_a = engine_a
         args.engine_b = engine_b
@@ -159,6 +177,7 @@ for raw in sys.stdin:
             self.assertGreaterEqual(elapsed_ms, 0.0)
             self.assertEqual(engine.uci_name, "E1Fake")
             self.assertEqual(engine.uci_author, "E1Tests")
+            self.assertEqual(engine.uci_search_profile, "current")
             self.assertTrue(stderr_path.exists())
 
     def test_host_deadline_accepts_on_time_and_rejects_late_legal_move(self):
@@ -258,6 +277,63 @@ for raw in sys.stdin:
             self.assertTrue(
                 all(item["stderr_log"].endswith("-a-baseline.stderr.log") for item in summary["timeouts"])
             )
+
+    def test_manifest_locks_full_commands_binary_identity_and_profiles(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = self.tournament_args(
+                self.legal_move_engine(),
+                self.legal_move_engine(),
+                root / "identity",
+                games=2,
+            )
+            args.sha_a = "baseline-git-sha"
+            args.sha_b = "candidate-git-sha"
+            summary = run_tournament(args)
+
+            self.assertEqual(summary["status"], "COMPLETED")
+            manifest = json.loads((root / "identity" / "manifest.json").read_text())
+            expected_executable = str(Path(sys.executable).resolve())
+            expected_hash = sha256_file(Path(sys.executable).resolve())
+            baseline = manifest["engine_a_baseline"]
+            candidate = manifest["engine_b_candidate"]
+            self.assertEqual(
+                baseline["command"][-2:], ["--profile", "current"]
+            )
+            self.assertEqual(
+                candidate["command"][-2:], ["--profile", "current-aspiration"]
+            )
+            for entry in (baseline, candidate):
+                self.assertEqual(entry["resolved_path"], expected_executable)
+                self.assertEqual(entry["sha256"], expected_hash)
+                self.assertEqual(entry["file_size"], Path(sys.executable).stat().st_size)
+                self.assertEqual(entry["uci_options"], {"Hash": 16})
+            self.assertEqual(baseline["git_sha"], "baseline-git-sha")
+            self.assertEqual(candidate["git_sha"], "candidate-git-sha")
+            self.assertEqual(baseline["expected_search_profile"], "current")
+            self.assertEqual(candidate["expected_search_profile"], "current-aspiration")
+            self.assertEqual(baseline["uci_search_profile"], "current")
+            self.assertEqual(candidate["uci_search_profile"], "current-aspiration")
+            self.assertEqual(manifest["profile_integrity"]["status"], "PASS")
+
+    def test_profile_mismatch_fails_before_any_game(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = self.tournament_args(
+                self.legal_move_engine(),
+                self.fake_engine("normal", reported_profile="current"),
+                root / "mismatch",
+                games=2,
+            )
+            summary = run_tournament(args)
+
+            self.assertEqual(summary["status"], "INTEGRITY_FAIL")
+            self.assertEqual(summary["integrity_status"], "FAIL")
+            self.assertEqual(summary["games_completed"], 0)
+            self.assertEqual(summary["pairs_completed"], 0)
+            self.assertEqual(summary["manifest"]["stop_reason"], "profile-integrity-failure")
+            self.assertEqual(summary["manifest"]["profile_integrity"]["status"], "FAIL")
+            self.assertTrue(summary["manifest"]["profile_integrity"]["errors"])
 
     def test_same_labels_do_not_collide_in_stderr_paths(self):
         with tempfile.TemporaryDirectory() as temp:

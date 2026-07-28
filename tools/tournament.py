@@ -12,6 +12,7 @@ Example:
     python tools/tournament.py \
         --engine-a target/release/chess-engine-demo.exe \
         --engine-b target/release/chess-engine-demo.exe \
+        --profile-b current-aspiration \
         --games 64 --output-dir tournament-results/smoke
 """
 
@@ -48,6 +49,13 @@ STARTUP_TIMEOUT_SECONDS = 5.0
 DEFAULT_OPENINGS = Path(__file__).with_name("openings.txt")
 PAIR_CATEGORIES = ("0.0", "0.5", "1.0", "1.5", "2.0")
 STATISTICAL_PERSPECTIVE = "engine_b_candidate_minus_engine_a_baseline"
+STARTUP_PROFILES = (
+    "current",
+    "current-aspiration",
+    "current-aspiration-lmr",
+    "current-aspiration-lmr-futility",
+    "current-aspiration-lmr-futility-see",
+)
 
 
 class TournamentError(RuntimeError):
@@ -270,6 +278,7 @@ class EngineSession:
         self.last_info: Optional[str] = None
         self.uci_name: Optional[str] = None
         self.uci_author: Optional[str] = None
+        self.uci_search_profile: Optional[str] = None
 
     def __enter__(self) -> "EngineSession":
         try:
@@ -370,6 +379,8 @@ class EngineSession:
                 self.uci_name = line[8:].strip()
             elif line.startswith("id author "):
                 self.uci_author = line[10:].strip()
+            elif line.startswith("info string search profile "):
+                self.uci_search_profile = line[len("info string search profile ") :].strip()
             elif line.startswith("uciok"):
                 return
 
@@ -656,8 +667,30 @@ def _engine_color(engine_side: str, scheduled: ScheduledGame) -> str:
     return "white" if is_white else "black"
 
 
-def _engine_command(path_or_command: str | list[str]) -> list[str]:
-    return list(path_or_command) if isinstance(path_or_command, list) else [path_or_command]
+def _engine_command(
+    path_or_command: str | list[str], requested_profile: Optional[str] = None
+) -> list[str]:
+    command = (
+        [str(item) for item in path_or_command]
+        if isinstance(path_or_command, list)
+        else [str(path_or_command)]
+    )
+    if requested_profile is None:
+        return command
+
+    profile_indices = [index for index, item in enumerate(command) if item == "--profile"]
+    if profile_indices:
+        if len(profile_indices) != 1 or profile_indices[0] + 1 >= len(command):
+            raise TournamentError(f"{command[0]} has malformed --profile arguments")
+        existing = command[profile_indices[0] + 1]
+        if existing != requested_profile:
+            raise TournamentError(
+                f"{command[0]} profile argument {existing!r} does not match "
+                f"requested {requested_profile!r}"
+            )
+        return command
+
+    return [*command, "--profile", requested_profile]
 
 
 def play_game(
@@ -859,6 +892,7 @@ def probe_engine(command: list[str], label: str, hash_mb: int, stderr_path: Path
     return {
         "uci_id_name": session.uci_name,
         "uci_id_author": session.uci_author,
+        "uci_search_profile": session.uci_search_profile,
         "return_code": session.returncode,
         "stderr_log": str(stderr_path),
         "stderr_tail": list(session.stderr_tail),
@@ -875,14 +909,16 @@ def build_manifest(
     started_utc: str,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
-    command_a = _engine_command(args.engine_a)
-    command_b = _engine_command(args.engine_b)
+    command_a = _engine_command(args.engine_a, "current")
+    command_b = _engine_command(args.engine_b, args.profile_b)
     return {
         "engine_a_baseline": {
             **file_metadata(args.engine_a),
             "command": command_a,
             "label": args.label_a,
+            "expected_search_profile": "current",
             "uci_options": {"Hash": args.hash_mb},
+            "git_sha": args.sha_a or "unknown",
             "user_git_sha": args.sha_a or "unknown",
             **engine_a_probe,
         },
@@ -890,7 +926,9 @@ def build_manifest(
             **file_metadata(args.engine_b),
             "command": command_b,
             "label": args.label_b,
+            "expected_search_profile": args.profile_b,
             "uci_options": {"Hash": args.hash_mb},
+            "git_sha": args.sha_b or "unknown",
             "user_git_sha": args.sha_b or "unknown",
             **engine_b_probe,
         },
@@ -1002,6 +1040,26 @@ def write_summary(
     return summary
 
 
+def _profile_integrity_errors(
+    engine_a_probe: dict[str, Any],
+    engine_b_probe: dict[str, Any],
+    requested_candidate_profile: str,
+) -> list[str]:
+    errors = []
+    baseline_profile = engine_a_probe.get("uci_search_profile")
+    candidate_profile = engine_b_probe.get("uci_search_profile")
+    if baseline_profile != "current":
+        errors.append(
+            f"baseline reported profile {baseline_profile!r}, expected 'current'"
+        )
+    if candidate_profile != requested_candidate_profile:
+        errors.append(
+            f"candidate reported profile {candidate_profile!r}, expected "
+            f"{requested_candidate_profile!r}"
+        )
+    return errors
+
+
 def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     if args.hash_mb < 1:
         raise TournamentError("hash-mb must be at least 1")
@@ -1018,8 +1076,10 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     diagnostics_dir = output_dir / "diagnostics"
     started_utc = datetime.now(timezone.utc).isoformat()
 
-    engine_a_command = _engine_command(args.engine_a)
-    engine_b_command = _engine_command(args.engine_b)
+    if not args.profile_b:
+        raise TournamentError("profile-b is required for tournament identity validation")
+    engine_a_command = _engine_command(args.engine_a, "current")
+    engine_b_command = _engine_command(args.engine_b, args.profile_b)
     probe_a = probe_engine(
         engine_a_command, args.label_a, args.hash_mb, diagnostics_dir / "probe-baseline.stderr.log"
     )
@@ -1033,6 +1093,11 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     manifest = build_manifest(args, openings, output_dir, probe_a, probe_b, started_utc)
+    profile_errors = _profile_integrity_errors(probe_a, probe_b, args.profile_b)
+    manifest["profile_integrity"] = {
+        "status": "FAIL" if profile_errors else "PASS",
+        "errors": profile_errors,
+    }
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -1040,6 +1105,21 @@ def run_tournament(args: argparse.Namespace) -> dict[str, Any]:
     records: list[GameRecord] = []
     pair_totals: list[float] = []
     integrity_failed = False
+
+    if profile_errors:
+        integrity_failed = True
+        manifest["ended_utc"] = datetime.now(timezone.utc).isoformat()
+        manifest["games_completed"] = 0
+        manifest["pairs_completed"] = 0
+        manifest["stop_reason"] = "profile-integrity-failure"
+        (output_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        summary = write_summary(
+            output_dir, manifest, records, pair_totals, diagnostic, integrity_failed
+        )
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return summary
 
     with (output_dir / "games.jsonl").open("w", encoding="utf-8") as jsonl, (
         output_dir / "games.pgn"
@@ -1123,6 +1203,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--engine-b", required=True, help="candidate executable")
     result.add_argument("--label-a", default="baseline")
     result.add_argument("--label-b", default="candidate")
+    result.add_argument(
+        "--profile-b",
+        required=True,
+        choices=STARTUP_PROFILES,
+        help="candidate startup profile; baseline is always current",
+    )
     result.add_argument("--sha-a", default=None, help="optional baseline git SHA")
     result.add_argument("--sha-b", default=None, help="optional candidate git SHA")
     result.add_argument("--openings", type=Path, default=DEFAULT_OPENINGS)
