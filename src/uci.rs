@@ -138,14 +138,30 @@ fn lock_tt_recover(tt: &Mutex<TranspositionTable>) -> MutexGuard<'_, Transpositi
     }
 }
 
-/// Write the `uci` handshake to `out`. The `startup_tt_failed` flag
-/// appends a diagnostic (after the `Hash` option line, before `uciok`)
-/// telling the GUI that the default table could not be allocated and TT is
-/// disabled. This helper is pure with respect to any global state, so it can
-/// be exercised against an in-memory buffer in tests. Callers that need the
-/// "report the failure at most once" semantics should use
-/// `write_pending_uci_handshake` instead.
-fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
+fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
+    match profile {
+        search::SearchProfile::Current => "current",
+        search::SearchProfile::CurrentAspiration => "current-aspiration",
+        search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
+        search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
+        search::SearchProfile::CurrentAspirationLmrFutilitySee => {
+            "current-aspiration-lmr-futility-see"
+        }
+        _ => "unsupported",
+    }
+}
+
+/// Write the `uci` handshake to `out` with a read-only search-profile
+/// identity. The `startup_tt_failed` flag appends a diagnostic (after the
+/// `Hash` option line, before `uciok`) telling the GUI that the default table
+/// could not be allocated and TT is disabled. This helper is pure with
+/// respect to any global state, so it can be exercised against an in-memory
+/// buffer in tests.
+fn write_uci_handshake_with_profile<W: Write>(
+    out: &mut W,
+    startup_tt_failed: bool,
+    profile: search::SearchProfile,
+) -> io::Result<()> {
     writeln!(out, "id name ChessEngineDemo")?;
     writeln!(out, "id author Rust-learner")?;
     writeln!(
@@ -159,8 +175,19 @@ fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Re
             "info string unable to allocate default Hash table; TT disabled"
         )?;
     }
+    writeln!(
+        out,
+        "info string search profile {}",
+        startup_profile_name(profile)
+    )?;
     writeln!(out, "uciok")?;
     Ok(())
+}
+
+/// Compatibility wrapper for tests and callers that use the default profile.
+#[cfg(test)]
+fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
+    write_uci_handshake_with_profile(out, startup_tt_failed, search::SearchProfile::Current)
 }
 
 /// Consumable variant used by `run()`. It takes a mutable `startup_tt_notice_pending`
@@ -168,12 +195,22 @@ fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Re
 /// failed allocation), and clears the flag so later `uci` handshakes stay silent
 /// even if the table never recovers. A successful `setoption Hash` also clears
 /// the flag (see `run()`), so the notice never survives a recovered table.
+#[cfg(test)]
 fn write_pending_uci_handshake<W: Write>(
     out: &mut W,
     startup_tt_notice_pending: &mut bool,
 ) -> io::Result<()> {
     let report_failure = std::mem::take(startup_tt_notice_pending);
     write_uci_handshake(out, report_failure)
+}
+
+fn write_pending_uci_handshake_with_profile<W: Write>(
+    out: &mut W,
+    startup_tt_notice_pending: &mut bool,
+    profile: search::SearchProfile,
+) -> io::Result<()> {
+    let report_failure = std::mem::take(startup_tt_notice_pending);
+    write_uci_handshake_with_profile(out, report_failure, profile)
 }
 
 /// Write the `isready` reply. Deliberately takes **no** TT parameter: it
@@ -478,8 +515,11 @@ fn run_with_profile(profile: search::SearchProfile) {
                 // allocation failed and the notice is still pending) a one-shot
                 // diagnostic before `uciok`. The consumable helper clears the
                 // pending flag, so repeated `uci` lines never repeat it.
-                let _ =
-                    write_pending_uci_handshake(&mut io::stdout(), &mut startup_tt_notice_pending);
+                let _ = write_pending_uci_handshake_with_profile(
+                    &mut io::stdout(),
+                    &mut startup_tt_notice_pending,
+                    profile,
+                );
             }
             "isready" => {
                 // Answer immediately, even while a search runs on its own
