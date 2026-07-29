@@ -60,6 +60,14 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("-sprt", command)
             self.assertNotIn("-games", command)
             self.assertNotIn("-concurrency 1", command)
+            first_engine = command.index("-engine")
+            second_engine = command.index("-engine", first_engine + 1)
+            first_block = command[first_engine:second_engine]
+            second_block = command[second_engine:]
+            self.assertIn("name=Aspiration", first_block)
+            self.assertIn("args=--profile current-aspiration", first_block)
+            self.assertIn("name=Current", second_block)
+            self.assertIn("args=--profile current", second_block)
 
     def test_uci_identity_probe_records_reported_profile(self):
         identity = probe_engine_identity([
@@ -180,6 +188,9 @@ class FastchessWrapperTests(unittest.TestCase):
 
             self.assertEqual(manifest["execution_status"], "PREPARED")
             self.assertEqual(manifest["decision"], "NOT_APPLICABLE")
+            self.assertEqual(manifest["sprt_subject"], "engine_b_candidate")
+            self.assertEqual(manifest["fastchess_player_1"], "engine_b_candidate")
+            self.assertEqual(manifest["fastchess_player_2"], "engine_a_baseline")
             self.assertEqual(manifest["games_max"], 400)
             self.assertIsNone(manifest["games_completed"])
             self.assertIsNone(manifest["stopped_early"])

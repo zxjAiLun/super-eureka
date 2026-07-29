@@ -47,12 +47,17 @@ The manifest records `engine_thread_model = single-threaded`; no unsupported
 `stopped_early = null`. After a completed process, the wrapper records the
 actual PGN game count and whether the run stopped before `games_max`.
 
+For SPRT direction, Fastchess player 1 is always
+`engine_b_candidate` and player 2 is always `engine_a_baseline`. Therefore
+Fastchess `H1 accepted` maps to candidate `PASS`, while `H0 accepted` maps to
+candidate `REJECTED`.
+
 ## Acceptance boundary
 
 The next authorized action is a four-game fixed canary:
 
 ```text
-Current  vs  Current + Aspiration
+Current + Aspiration (P1)  vs  Current (P2)
 ```
 
 It must complete with `execution_status = COMPLETED`, four parseable PGN
@@ -60,7 +65,8 @@ games, strict paired colors, matching expected/reported startup profiles, and
 no Fastchess integrity warning, crash, illegal move, or timeout. This canary
 is protocol and artifact validation only; it is not an Elo claim.
 
-The 2026-07-29 canary completed with:
+The historical 2026-07-29 canary completed before this SPRT-direction
+fix-forward with:
 
 ```text
 Fastchess: v1.8.2-alpha
@@ -70,11 +76,12 @@ games_max / games_completed: 4 / 4
 execution_status: COMPLETED
 decision: NOT_APPLICABLE
 stopped_early: false
-profiles: current / current-aspiration (both UCI-reported)
+legacy Fastchess P1/P2 profiles: current / current-aspiration (both UCI-reported)
 PGN parse: 4 games
 stderr: empty
 ```
 
-The canary is accepted as a protocol and artifact check only. Its result is
-not a relative Elo estimate and does not authorize enabling aspiration in
-`Current`.
+That artifact remains accepted as a protocol and artifact check only. Its
+SPRT orientation is historical and must not be reused for a formal candidate
+decision. It is not a relative Elo estimate and does not authorize enabling
+aspiration in `Current`.
