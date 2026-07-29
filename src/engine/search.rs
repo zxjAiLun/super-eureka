@@ -53,6 +53,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   quiet move ordering (killer moves + history heuristic) with NO principal
 ///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
 ///   keeps M4.2 replayable once `Current` enables PVS.
+/// * `PvsReference` is the immediately preceding M4.2 PVS baseline without
+///   any SEARCH 1 candidate feature.
 /// * `SeeCandidate` enables only SEE ordering in qsearch on the existing PVS
 ///   path; it never deletes a legal capture.
 /// * `AspirationCandidate` enables only iterative-deepening aspiration
@@ -82,6 +84,7 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 pub(crate) enum SearchProfile {
     M4Reference,
     M41Reference,
+    PvsReference,
     SeeCandidate,
     AspirationCandidate,
     LmrCandidate,

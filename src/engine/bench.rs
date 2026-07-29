@@ -135,6 +135,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
     match p {
         SearchProfile::M4Reference => "reference",
         SearchProfile::M41Reference => "m4.1",
+        SearchProfile::PvsReference => "pvs",
         SearchProfile::SeeCandidate => "see",
         SearchProfile::AspirationCandidate => "aspiration",
         SearchProfile::LmrCandidate => "lmr",
@@ -323,6 +324,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 profile = match v.as_str() {
                     "reference" => SearchProfile::M4Reference,
                     "m4.1" => SearchProfile::M41Reference,
+                    "pvs" => SearchProfile::PvsReference,
                     "see" => SearchProfile::SeeCandidate,
                     "aspiration" => SearchProfile::AspirationCandidate,
                     "lmr" => SearchProfile::LmrCandidate,
@@ -339,7 +341,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1172,7 +1174,7 @@ fn print_help() {
     println!("  --movetime <MS>                   ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
-        "  --profile <reference|m4.1|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1440,6 +1442,7 @@ mod tests {
         // `parse_valid_profile`); it round-trips through `profile_str`.
         assert_eq!(profile_str(SearchProfile::M4Reference), "reference");
         assert_eq!(profile_str(SearchProfile::M41Reference), "m4.1");
+        assert_eq!(profile_str(SearchProfile::PvsReference), "pvs");
         assert_eq!(profile_str(SearchProfile::SeeCandidate), "see");
         assert_eq!(
             profile_str(SearchProfile::AspirationCandidate),

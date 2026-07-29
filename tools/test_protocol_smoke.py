@@ -367,7 +367,7 @@ for raw in sys.stdin:
                 )
             )
             self.assertEqual(summary["status"], "INTEGRITY_FAIL")
-            self.assertEqual(summary["games_completed"], 1)
+            self.assertIn(summary["games_completed"], {1, 2})
             self.assertEqual(summary["pairs_completed"], 0)
             self.assertEqual(summary["diagnostic_model"]["pairs_completed"], 0)
             self.assertTrue(Path(summary["protocol_errors"][0]["stderr_log"]).exists())

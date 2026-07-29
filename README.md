@@ -40,15 +40,27 @@ cargo run --release -- bench help                              # 帮助
 cargo run --release -- bench smoke                           # 锁定基线的快速校验
 cargo run --release -- bench standard --mode all --repeat 1
 cargo run --release -- bench throughput --mode disabled --nodes 100000 --repeat 3
+cargo run --release -- bench profile --nodes 100000
 ```
 
 - `smoke`：两个锁定 fixture（startpos / queen-win，disabled 深度 3），精确校验 nodes/score/bestmove/PV。
 - `standard`：10 个单局面 fixture（开局、战术中局、封闭中局、王暴露、高分支、车兵残局、KQK、KRK、halfmove 上下文），三种 TT 模式 `disabled`/`cold`/`warm`，默认 `repeat 1`。
 - `throughput`：固定 nodes 预算测 NPS（默认 100000，默认 `repeat 3`）。
+- `profile`：固定 nodes 预算记录 qsearch、evaluation、movegen、make/unmake、
+  TT 以及 Current 的 aspiration/SEE/LMR/null/futility 计数；结果只用于定位
+  Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--profile reference|m4.1|current`。
-- `--profile` 选择搜索配置：**默认 `reference`**，逐字节复现 M4.0 基线（不启用 killer / history）；`m4.1` 启用 M4.1 的 killer + history 安静着法排序但保持完整窗口（无 PVS）；`current` 在 `m4.1` 之上叠加 root / 非 root PVS。M4.1 的 Reference / Current A/B 节点与 NPS 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的三代 profile 对照见 `docs/benchmarks/m4.2-principal-variation-search.md`。
+- `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
+  M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
+  `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选；`current` 才是全栈诊断配置。
+  M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
+  lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
 
-完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`。**M4.0 只建立测量基线，未做任何搜索优化。**
+完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`；profiling
+样本见 `docs/benchmarks/perf-profiling.md`；SEE/qsearch 收缩候选的独立记录见
+`docs/benchmarks/search-see-qsearch.md`；aspiration/LMR/null/futility 候选的
+记录见 `docs/benchmarks/search-pruning-candidates.md`。**M4.0 只建立测量基线；
+所有这些搜索增强目前仍未通过性能/Elo 门禁，不是已接受的搜索基线。**
 
 ## E1 UCI protocol smoke
 
@@ -99,7 +111,7 @@ go depth 4
 quit
 ```
 
-典型输出（TT-disabled / 公开禁用路径 baseline 实测；启用持久 TT 后 `nodes` 可能变化，但 `score` / `bestmove` / `PV` 语义保持一致；PST 已让 depth 3 的分值从纯子力的 cp 0 变成 cp 50）：
+典型输出（TT-disabled / 公开禁用路径 baseline 实测；启用持久 TT 后 `nodes` 可能变化，但 `score` / `bestmove` / `PV` 语义保持一致；EVAL 1A 保持 startpos depth 3 为 cp 50）：
 
 ```
 id name ChessEngineDemo
@@ -153,16 +165,18 @@ bestmove b1c3
 - ✅ **FEN 解析加固**：每个 rank 恰好 8 格、数字仅 `1..=8`、双方王唯一、`fullmove >= 1`、
   吃过路兵目标在合法 rank、多余字段报错，且**对任何字符串都不会 panic**。
 - ✅ **UCI 历史着法仅接受严格合法走法**（原来用伪合法生成，会让被钉死的子或送将的棋混进来）。
-- ✅ **评估已含子力差 + 基础 Piece-Square Table（M2.4）**：位置因素（PST）已叠加在子力之上；
-   killer / history / tapered eval 等仍待加。quiescence 搜索（M2.1）已就位，**显著缓解**吃子 / 升变层面的 horizon effect
+- ✅ **评估已含材质、基础 PST、EVAL 1A tapered King PST 与 EVAL 1B KQK/KRK 收官项**：
+   EVAL 1B 只识别恰好双王加单后/单车的局面，并保留逼和边界；
+   killer / history 等搜索增强不因本项自动启用。quiescence 搜索（M2.1）已就位，**显著缓解**吃子 / 升变层面的 horizon effect
    （处理常规吃子、升变的战术延伸）；但仍有 `MAX_QPLY` 上限，且 counter-check
    子局面会在安全上限处使用静态估值，是**有界近似**而非完全正确解决。此外引擎对
    发展、中心、兵形等位置因素仍无概念。
 - ✅ **置换表（TT，M3.2）context-safe 身份隔离**：TT 命中键不只使用 board Zobrist，
   halfmove clock 与 repetition signature 也被纳入，因此不同 halfmove / 重复上下文不会
   产生错误命中；启用 TT 与禁用 TT 保持**完全相同**的 minimax / 和棋 / 将死语义。
-  公开禁用路径的回归基线仍锁定 `startpos depth3 = 1149 节点 / bestmove b1c3 / score 50`
-  与 `queen-win depth3 = 963 节点 / bestmove e4a4 / score 890`。
+  M4.0 reference 回归基线继续锁定 `startpos depth3 = 1149 节点 / bestmove b1c3 / score 50`
+  与 `queen-win depth3 = 963 节点 / bestmove e4a4 / score 890`；Current 的 SEE/EVAL 候选
+  结果单独记录，不改写该历史基线。
 
 ## 开发路线
 
@@ -174,7 +188,7 @@ bestmove b1c3
   - ✅ quiescence search（吃子 + 升变；被将军时解将全部走法都搜）—— M2.1 完成；
   - ✅ 着法排序（MVV-LVA / 升变；killer、history 暂未加）—— M2.2 完成；
   - ✅ 完整主变 `info pv` + PV tracking —— M2.3 完成；
-  - ✅ Piece-Square Table 评估（material + 基础 PST；King PST 留到 tapered eval）—— M2.4 完成；
+  - ✅ Piece-Square Table 评估（material + 基础 PST）—— M2.4 完成；
 - **Milestone 3（已完成）**：和棋状态与置换表（顺序已锁定，TT 在 draw context 稳定之后）——
   - **M3.0 状态与 Zobrist 基础 ✅**：`GameState` / UCI `position ... moves` 历史 / incremental
     Zobrist key / 搜索路径 hash stack / halfmove clock 正确传入搜索；已保存 UCI 对局真实历史，已维护搜索路径 hash stack。
@@ -184,6 +198,16 @@ bestmove b1c3
     repetition signature）；Exact / Lower / Upper；depth-preferred direct-mapped 替换；
     mate score 的 ply 编解码；legal hash move 排序；持久 `Arc<Mutex<TT>>` UCI 生命周期
     （`ucinewgame` 清空但保留容量，`position` 不清空）。
+- **EVAL 1（本地实现，等待独立复核）**：
+  - ✅ [EVAL 1A：tapered evaluation + King PST](docs/specs/eval-1a-tapered-king.md)；
+  - ✅ [EVAL 1B：exact KQK/KRK mop-up](docs/specs/eval-1b-kqk-krk.md)；
+  - 当前不宣称 Elo，Depth 7–8 的瓶颈仍须 profiling、qsearch 收缩和后续独立搜索里程碑处理。
+- **SEE/qsearch 收缩（本地候选，未接受）**：已加入普通非将军负 SEE 吃子的过滤，
+  但朴素数组盘面 SEE 的固定预算耗时尚不理想；见
+  [`search-see-qsearch.md`](docs/benchmarks/search-see-qsearch.md)。
+- **SEARCH 1（本地候选，未接受）**：Current profile 已加入 aspiration、受限
+  LMR、验证式 null probe 和浅层 futility；见
+  [`search-pruning-candidates.md`](docs/benchmarks/search-pruning-candidates.md)。
 - **Milestone 4**：高级增强（确认瓶颈后再加，且一次只加一个并做对照测试）——
   aspiration window、PVS、null-move pruning、LMR、SEE、futility pruning。Bitboard 不急。
 
