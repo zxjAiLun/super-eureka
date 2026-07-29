@@ -56,6 +56,8 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("option.Hash=64", command)
             self.assertIn("format=epd", command)
             self.assertIn("append=false", command)
+            self.assertIn("timeleft=true", command)
+            self.assertIn("latency=true", command)
             self.assertIn("-repeat", command)
             self.assertIn("-sprt", command)
             self.assertNotIn("-games", command)

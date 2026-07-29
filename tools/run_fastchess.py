@@ -325,6 +325,8 @@ def build_fastchess_command(
         "nps=true",
         "hashfull=true",
         "pv=true",
+        "timeleft=true",
+        "latency=true",
         "-report",
         "penta=true",
     ]

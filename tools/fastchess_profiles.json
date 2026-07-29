@@ -18,7 +18,8 @@
       "hash_mb": 64,
       "threads": 1,
       "rounds": 200,
-      "concurrency": 1,
+      "concurrency": 13,
+      "concurrency_policy": "physical-cores-minus-one",
       "sprt": {
         "elo0": 0,
         "elo1": 5,
