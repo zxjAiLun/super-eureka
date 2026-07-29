@@ -223,12 +223,55 @@ def _engine_arg(path: Path, profile: str) -> list[str]:
     return [str(path.expanduser().resolve()), "--profile", profile]
 
 
+def probe_engine_identity(argv: list[str]) -> dict[str, Any]:
+    try:
+        probe = subprocess.run(
+            argv,
+            input="uci\nquit\n",
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise FastchessError(f"engine UCI identity probe failed: {exc}") from exc
+    if probe.returncode != 0:
+        raise FastchessError(
+            f"engine UCI identity probe exited with code {probe.returncode}"
+        )
+    lines = probe.stdout.splitlines()
+    id_name = next((line[8:].strip() for line in lines if line.startswith("id name ")), None)
+    id_author = next(
+        (line[10:].strip() for line in lines if line.startswith("id author ")), None
+    )
+    reported_profile = next(
+        (
+            line[len("info string search profile ") :].strip()
+            for line in lines
+            if line.startswith("info string search profile ")
+        ),
+        None,
+    )
+    if "uciok" not in lines or not id_name or not id_author or not reported_profile:
+        raise FastchessError("engine UCI identity probe returned incomplete handshake")
+    return {
+        "argv": argv,
+        "id_name": id_name,
+        "id_author": id_author,
+        "reported_search_profile": reported_profile,
+        "return_code": probe.returncode,
+        "stdout_tail": probe.stdout[-4096:],
+        "stderr_tail": probe.stderr[-4096:],
+    }
+
+
 def build_fastchess_command(
     fastchess_path: Path,
     engine_a: Path,
     engine_b: Path,
     profile: dict[str, Any],
     book_path: Path,
+    book_format: str,
     output_dir: Path,
     decision_mode: str,
     rounds: Optional[int] = None,
@@ -258,7 +301,7 @@ def build_fastchess_command(
         f"args=--profile {candidate['search_profile']}",
         "-openings",
         f"file={book_path.resolve()}",
-        f"format={profile.get('book_format', 'pgn')}",
+        f"format={book_format}",
         f"order={profile.get('opening_order', 'random')}",
         f"plies={int(profile.get('opening_plies', 0))}",
         "-srand",
@@ -276,6 +319,7 @@ def build_fastchess_command(
         "-pgnout",
         f"file={pgn_path.resolve()}",
         "notation=san",
+        "append=false",
         "nodes=true",
         "seldepth=true",
         "nps=true",
@@ -303,9 +347,9 @@ def build_fastchess_command(
 
 def classify_result(stdout: str, stderr: str, return_code: int, decision_mode: str) -> tuple[str, str]:
     if return_code != 0:
-        return "REJECTED", f"fastchess-exit-{return_code}"
+        return "INCONCLUSIVE", f"fastchess-exit-{return_code}"
     if decision_mode != "sprt":
-        return "INCONCLUSIVE", "fixed-games-no-sprt-decision"
+        return "NOT_APPLICABLE", "fixed-games-no-sprt-decision"
     text = f"{stdout}\n{stderr}".lower()
     accepted = (
         re.search(r"h1(?:\s+was)?\s+accepted", text)
@@ -340,8 +384,10 @@ def build_manifest(
     effective_hash = args.hash_mb if args.hash_mb is not None else int(profile["hash_mb"])
     effective_tc = args.time_control or str(profile["time_control"])
     return {
-        "schema_version": 1,
-        "status": "DRY_RUN" if args.dry_run else "PREPARED",
+        "schema_version": 2,
+        "execution_status": "PREPARED",
+        "decision": "NOT_APPLICABLE",
+        "dry_run": args.dry_run,
         "profile_name": profile_name,
         "decision_mode": args.decision_mode,
         "command": command,
@@ -362,17 +408,42 @@ def build_manifest(
         "fastchess": fastchess,
         "opening_book": book,
         "uci_options": {"Hash": effective_hash},
-        "effective_threads": int(profile["threads"]),
+        "engine_thread_model": "single-threaded",
         "time_control": effective_tc,
-        "rounds": effective_rounds,
-        "games_expected": effective_rounds * 2,
+        "rounds_max": effective_rounds,
+        "games_max": effective_rounds * 2,
+        "games_completed": None,
+        "stopped_early": None,
         "concurrency": effective_concurrency,
         "seed": effective_seed,
         "started_utc": datetime.now(timezone.utc).isoformat(),
     }
 
 
+def refuse_reused_output_dir(output_dir: Path) -> None:
+    if output_dir.exists() and any((output_dir / name).exists() for name in ("manifest.json", "games.pgn")):
+        raise FastchessError(
+            f"output directory already contains a tournament artifact: {output_dir}; "
+            "choose a new directory"
+        )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def count_pgn_games(path: Path) -> Optional[int]:
+    if not path.is_file():
+        return None
+    try:
+        return sum(
+            line.startswith("[Event ")
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
+    except OSError:
+        return None
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    output_dir = args.output_dir.expanduser().resolve()
+    refuse_reused_output_dir(output_dir)
     profile = load_profile(args.profile_config, args.profile_name)
     book_id = args.book_id or str(profile["book"])
     book = ensure_book(
@@ -383,17 +454,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.download_book,
     )
     fastchess_path = locate_fastchess(args.fastchess)
-    if fastchess_path is None and not args.dry_run:
-        raise FastchessError("Fastchess was not found; pass --fastchess or add it to PATH")
-    fastchess_info = fastchess_metadata(fastchess_path) if fastchess_path else None
-    output_dir = args.output_dir.expanduser().resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    fastchess_info = None
+    fastchess_error = None
+    if fastchess_path is None:
+        fastchess_error = "Fastchess was not found; pass --fastchess or add it to PATH"
+    elif not fastchess_path.is_file():
+        fastchess_error = f"Fastchess executable does not exist: {fastchess_path}"
+    else:
+        try:
+            fastchess_info = fastchess_metadata(fastchess_path)
+        except FastchessError as exc:
+            fastchess_error = str(exc)
     command = build_fastchess_command(
         fastchess_path or Path("fastchess"),
         args.engine_a,
         args.engine_b,
         profile,
         Path(book["resolved_path"]),
+        str(book["format"]),
         output_dir,
         args.decision_mode,
         rounds=args.rounds,
@@ -407,10 +485,67 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     manifest_path = output_dir / "manifest.json"
     write_json(manifest_path, manifest)
+    if fastchess_error and not args.dry_run:
+        manifest.update(
+            {
+                "execution_status": "LAUNCH_FAIL",
+                "decision": "INCONCLUSIVE",
+                "reason": fastchess_error,
+                "ended_utc": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        write_json(manifest_path, manifest)
+        return manifest
     if args.dry_run:
         return manifest
 
-    manifest["status"] = "RUNNING"
+    engine_a_argv = manifest["engine_a_baseline"]["argv"]
+    engine_b_argv = manifest["engine_b_candidate"]["argv"]
+    try:
+        engine_a_identity = probe_engine_identity(engine_a_argv)
+        engine_b_identity = probe_engine_identity(engine_b_argv)
+    except FastchessError as exc:
+        manifest.update(
+            {
+                "execution_status": "INTEGRITY_FAIL",
+                "decision": "INCONCLUSIVE",
+                "reason": f"profile-integrity-failure: {exc}",
+                "games_completed": 0,
+                "ended_utc": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        write_json(manifest_path, manifest)
+        return manifest
+
+    for engine_key, identity, expected in (
+        ("engine_a_baseline", engine_a_identity, manifest["engine_a_baseline"]["search_profile"]),
+        ("engine_b_candidate", engine_b_identity, manifest["engine_b_candidate"]["search_profile"]),
+    ):
+        manifest[engine_key].update(
+            {
+                "uci_name": identity["id_name"],
+                "uci_author": identity["id_author"],
+                "reported_search_profile": identity["reported_search_profile"],
+                "uci_probe": identity,
+            }
+        )
+        if identity["reported_search_profile"] != expected:
+            manifest.update(
+                {
+                    "execution_status": "INTEGRITY_FAIL",
+                    "decision": "INCONCLUSIVE",
+                    "reason": (
+                        f"profile-integrity-failure: {engine_key} reported "
+                        f"{identity['reported_search_profile']}, expected {expected}"
+                    ),
+                    "games_completed": 0,
+                    "ended_utc": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            write_json(manifest_path, manifest)
+            return manifest
+
+    manifest["execution_status"] = "RUNNING"
     write_json(manifest_path, manifest)
     stdout_path = output_dir / "fastchess.stdout.log"
     stderr_path = output_dir / "fastchess.stderr.log"
@@ -426,10 +561,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 text=True,
                 check=False,
             )
+    except KeyboardInterrupt:
+        manifest.update(
+            {
+                "execution_status": "INTERRUPTED",
+                "decision": "INCONCLUSIVE",
+                "reason": "fastchess-interrupted",
+                "ended_utc": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        write_json(manifest_path, manifest)
+        return manifest
     except OSError as exc:
         manifest.update(
             {
-                "status": "REJECTED",
+                "execution_status": "LAUNCH_FAIL",
+                "decision": "INCONCLUSIVE",
                 "reason": f"fastchess-launch-error: {exc}",
                 "ended_utc": datetime.now(timezone.utc).isoformat(),
             }
@@ -438,14 +585,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return manifest
     stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
     stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
-    status, reason = classify_result(
+    decision, reason = classify_result(
         stdout_text, stderr_text, process.returncode, args.decision_mode
     )
+    execution_status = "COMPLETED" if process.returncode == 0 else "INTEGRITY_FAIL"
+    games_completed = count_pgn_games(output_dir / "games.pgn")
     manifest.update(
         {
-            "status": status,
+            "execution_status": execution_status,
+            "decision": decision,
             "reason": reason,
             "return_code": process.returncode,
+            "games_completed": games_completed,
+            "stopped_early": (
+                games_completed is not None
+                and games_completed < manifest["games_max"]
+                if execution_status == "COMPLETED"
+                else None
+            ),
             "stdout_log": str(stdout_path),
             "stderr_log": str(stderr_path),
             "stdout_tail": stdout_text[-8192:],
@@ -490,7 +647,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"fastchess_error {exc}", file=sys.stderr)
         return 2
     print(json.dumps(manifest, indent=2, sort_keys=True))
-    return 0 if manifest["status"] in {"PASS", "INCONCLUSIVE", "DRY_RUN"} else 1
+    return 0 if manifest["execution_status"] in {"PREPARED", "COMPLETED"} else 1
 
 
 if __name__ == "__main__":

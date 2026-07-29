@@ -10,7 +10,7 @@
       "source_repository": "https://github.com/official-stockfish/books",
       "source_ref": "65815ccdbc7727cd4f6aee252ba8f67fb740e92f",
       "license": "CC0-1.0",
-      "content_sha384_base64": "hnlrIvi1xbnTt8z3AM2LW87YUCNsrcTTjqlAUBRf80SUCx9Zaq2hlntlimtoEBIn",
+      "content_sha384_base64": "drf0LyW+HCqpwYvn3pE5+KHnG3WQofGC18vtRV1kjnQvrRu8rB+RUFN0NsGDAq1/",
       "expected_positions": 34700,
       "expected_plies": 16,
       "description": "Official Stockfish development PGN suite, eight full moves deep."

@@ -4,9 +4,11 @@ import tempfile
 import unittest
 
 from run_fastchess import (
+    FastchessError,
     build_fastchess_command,
     classify_result,
     ensure_book,
+    probe_engine_identity,
     run,
     sha384_sri,
     parser,
@@ -44,6 +46,7 @@ class FastchessWrapperTests(unittest.TestCase):
                 root / "engine.exe",
                 self.profile(),
                 root / "book.pgn",
+                "epd",
                 root / "results",
                 "sprt",
             )
@@ -51,10 +54,20 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("args=--profile current", command)
             self.assertIn("args=--profile current-aspiration", command)
             self.assertIn("option.Hash=64", command)
+            self.assertIn("format=epd", command)
+            self.assertIn("append=false", command)
             self.assertIn("-repeat", command)
             self.assertIn("-sprt", command)
             self.assertNotIn("-games", command)
             self.assertNotIn("-concurrency 1", command)
+
+    def test_uci_identity_probe_records_reported_profile(self):
+        identity = probe_engine_identity([
+            "target/release/chess-engine-demo.exe", "--profile", "current-aspiration"
+        ])
+        self.assertEqual(identity["reported_search_profile"], "current-aspiration")
+        self.assertEqual(identity["id_name"], "ChessEngineDemo")
+        self.assertEqual(identity["id_author"], "Rust-learner")
 
     def test_classify_sprt_boundaries_without_reimplementing_statistics(self):
         self.assertEqual(
@@ -75,11 +88,11 @@ class FastchessWrapperTests(unittest.TestCase):
         )
         self.assertEqual(
             classify_result("", "fatal", 1, "sprt"),
-            ("REJECTED", "fastchess-exit-1"),
+            ("INCONCLUSIVE", "fastchess-exit-1"),
         )
         self.assertEqual(
             classify_result("Finished match", "", 0, "fixed"),
-            ("INCONCLUSIVE", "fixed-games-no-sprt-decision"),
+            ("NOT_APPLICABLE", "fixed-games-no-sprt-decision"),
         )
 
     def test_book_hash_is_verified(self):
@@ -165,7 +178,12 @@ class FastchessWrapperTests(unittest.TestCase):
             )
             manifest = run(args)
 
-            self.assertEqual(manifest["status"], "DRY_RUN")
+            self.assertEqual(manifest["execution_status"], "PREPARED")
+            self.assertEqual(manifest["decision"], "NOT_APPLICABLE")
+            self.assertEqual(manifest["games_max"], 400)
+            self.assertIsNone(manifest["games_completed"])
+            self.assertIsNone(manifest["stopped_early"])
+            self.assertEqual(manifest["engine_thread_model"], "single-threaded")
             self.assertEqual(manifest["engine_a_baseline"]["search_profile"], "current")
             self.assertEqual(
                 manifest["engine_b_candidate"]["search_profile"], "current-aspiration"
@@ -174,6 +192,75 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("args=--profile current", manifest["command"])
             self.assertIn("args=--profile current-aspiration", manifest["command"])
             self.assertTrue((root / "results" / "manifest.json").is_file())
+
+    def test_reused_output_dir_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            engine = root / "engine.exe"
+            engine.write_bytes(b"engine fixture")
+            book = root / "book.pgn"
+            book.write_bytes(b"[Event \"fixture\"]\n\n1. e4 *\n")
+            book_manifest = root / "books.json"
+            book_manifest.write_text(
+                json.dumps(
+                    {"books": {"fixture": {
+                        "format": "pgn",
+                        "content_filename": "book.pgn",
+                        "archive_url": "https://example.invalid/book.zip",
+                        "content_sha384_base64": sha384_sri(book),
+                    }}}
+                ),
+                encoding="utf-8",
+            )
+            profile_config = root / "profiles.json"
+            profile_config.write_text(
+                json.dumps({"profiles": {"fixture": self.profile()}}), encoding="utf-8"
+            )
+            output_dir = root / "results"
+            output_dir.mkdir()
+            (output_dir / "games.pgn").write_text("existing", encoding="utf-8")
+            args = parser().parse_args([
+                "--engine-a", str(engine), "--engine-b", str(engine),
+                "--sha-a", "base", "--sha-b", "candidate",
+                "--profile-name", "fixture", "--profile-config", str(profile_config),
+                "--book-manifest", str(book_manifest), "--book-path", str(book),
+                "--output-dir", str(output_dir), "--dry-run",
+            ])
+            with self.assertRaisesRegex(FastchessError, "already contains"):
+                run(args)
+
+    def test_missing_fastchess_is_launch_failure_not_candidate_rejection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            engine = root / "engine.exe"
+            engine.write_bytes(b"engine fixture")
+            book = root / "book.pgn"
+            book.write_bytes(b"[Event \"fixture\"]\n\n1. e4 *\n")
+            book_manifest = root / "books.json"
+            book_manifest.write_text(
+                json.dumps({"books": {"fixture": {
+                    "format": "pgn", "content_filename": "book.pgn",
+                    "archive_url": "https://example.invalid/book.zip",
+                    "content_sha384_base64": sha384_sri(book),
+                }}}), encoding="utf-8"
+            )
+            profile_config = root / "profiles.json"
+            profile_config.write_text(
+                json.dumps({"profiles": {"fixture": self.profile()}}), encoding="utf-8"
+            )
+            args = parser().parse_args([
+                "--fastchess", str(root / "missing-fastchess.exe"),
+                "--engine-a", str(engine), "--engine-b", str(engine),
+                "--sha-a", "base", "--sha-b", "candidate",
+                "--profile-name", "fixture", "--profile-config", str(profile_config),
+                "--book-manifest", str(book_manifest), "--book-path", str(book),
+                "--output-dir", str(root / "results"),
+            ])
+            manifest = run(args)
+            self.assertEqual(manifest["execution_status"], "LAUNCH_FAIL")
+            self.assertEqual(manifest["decision"], "INCONCLUSIVE")
+            self.assertNotEqual(manifest["decision"], "REJECTED")
+            self.assertEqual(manifest["games_completed"], None)
 
 
 if __name__ == "__main__":
