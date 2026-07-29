@@ -10,6 +10,23 @@ normal 16-ply PGN suite, not a Polyglot runtime book and not the 32-line
 protocol smoke fixture. The source is distributed under CC0-1.0 by the
 official Stockfish books repository.
 
+The preflight EPD suites are also pinned in the manifest:
+
+* `UHO_4060_v4.epd` for broad opening positions;
+* `closedpos.epd` for closed positions;
+* `endgames.epd` and `endgames_cdb95105.epd` for endgame positions;
+* `stalemates_200d30_v1.epd` for stalemate-sensitive positions.
+
+Acquire and verify all selected suites into the ignored local cache with:
+
+```text
+python tools/prepare_books.py --update-manifest
+```
+
+The manifest records the SHA-384 of the raw extracted content. The
+`upstream_normalized_sri` field records the official Stockfish value after its
+line-ending normalization; it is not a hash of the ZIP archive.
+
 Download and verify it through the Fastchess wrapper:
 
 ```text

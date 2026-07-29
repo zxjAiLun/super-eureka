@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "piece_limit": 5,
+  "directories": [],
+  "required_extensions": [
+    ".rtbw",
+    ".rtbz"
+  ],
+  "source": "user-provided Syzygy 3-5-piece tablebase directory",
+  "policy": "diagnostic-only-until-explicitly-enabled",
+  "notes": "Syzygy files are optional and intentionally not auto-downloaded; a complete 5-piece set is large and must be placed on a configured local volume first."
+}
