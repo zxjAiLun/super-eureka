@@ -252,7 +252,8 @@ def _run_worker(
         for _ in range(repeat):
             for fixture in fixtures:
                 measured.append(search(fixture))
-        duration_ms = (time.perf_counter() - measured_started) * 1000.0
+        measured_finished = time.perf_counter()
+        duration_ms = (measured_finished - measured_started) * 1000.0
         # Fastchess workload is defined by completed fixed-node searches.  The
         # final info line is not a reliable work counter because the node cap
         # can land inside an incomplete next iteration.
@@ -266,6 +267,8 @@ def _run_worker(
         return {
             "status": "PASS",
             "duration_ms": duration_ms,
+            "measurement_started_s": measured_started,
+            "measurement_finished_s": measured_finished,
             "work_nodes": work_nodes,
             "reported_info_nodes": [item["nodes"] for item in measured],
             "searches_completed": len(measured),
@@ -281,6 +284,8 @@ def _run_worker(
         return {
             "status": "FAIL",
             "duration_ms": (time.perf_counter() - started) * 1000.0,
+            "measurement_started_s": None,
+            "measurement_finished_s": None,
             "work_nodes": 0,
             "reported_info_nodes": [],
             "searches_completed": 0,
@@ -332,7 +337,12 @@ def _run_point(
     durations = [float(worker["duration_ms"]) for worker in completed]
     worker_nps = [float(worker["worker_nps"]) for worker in completed]
     total_work_nodes = sum(int(worker["work_nodes"]) for worker in completed)
-    aggregate_nps = total_work_nodes * 1000.0 / max(batch_duration_ms, 0.001)
+    measurement_starts = [float(worker["measurement_started_s"]) for worker in completed]
+    measurement_finishes = [float(worker["measurement_finished_s"]) for worker in completed]
+    measurement_duration_ms = (
+        max(measurement_finishes) - min(measurement_starts)
+    ) * 1000.0 if measurement_starts else 0.0
+    aggregate_nps = total_work_nodes * 1000.0 / max(measurement_duration_ms, 0.001)
     nodes_target_per_worker = nodes * len(fixtures) * repeat
     return {
         "concurrency": concurrency,
@@ -341,6 +351,7 @@ def _run_point(
         "median_worker_nps": statistics.median(worker_nps) if worker_nps else 0.0,
         "aggregate_nps": aggregate_nps,
         "aggregate_work_nodes": total_work_nodes,
+        "measurement_duration_ms": measurement_duration_ms,
         "median_duration_ms": statistics.median(durations) if durations else 0.0,
         "p95_duration_ms": _p95(durations),
         "worker_results": workers,
