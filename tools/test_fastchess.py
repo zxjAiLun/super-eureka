@@ -41,6 +41,23 @@ class FastchessWrapperTests(unittest.TestCase):
             "sprt": {"elo0": 0, "elo1": 5, "alpha": 0.05, "beta": 0.05, "model": "logistic"},
         }
 
+    def test_active_2m1s_profile_is_candidate_first_ready(self):
+        config = json.loads(
+            (Path(__file__).with_name("fastchess_profiles.json")).read_text(
+                encoding="utf-8"
+            )
+        )
+        profile = config["profiles"]["s2-current-vs-aspiration-2m1s"]
+        self.assertEqual(profile["status"], "active")
+        self.assertEqual(profile["time_control"], "2:00+1")
+        self.assertEqual(profile["concurrency"], 1)
+        self.assertEqual(profile["rounds"], 1000)
+        self.assertEqual(profile["baseline"]["search_profile"], "current")
+        self.assertEqual(
+            profile["candidate"]["search_profile"], "current-aspiration"
+        )
+        self.assertEqual(profile["seed"], 2026073001)
+
     def test_command_keeps_profiles_and_fastchess_owns_games(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

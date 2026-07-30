@@ -28,6 +28,34 @@
         "beta": 0.05,
         "model": "logistic"
       }
+    },
+    "s2-current-vs-aspiration-2m1s": {
+      "status": "active",
+      "baseline": {
+        "label": "Current",
+        "search_profile": "current"
+      },
+      "candidate": {
+        "label": "Aspiration",
+        "search_profile": "current-aspiration"
+      },
+      "book": "stockfish-8moves-v3",
+      "opening_order": "random",
+      "opening_plies": 16,
+      "seed": 2026073001,
+      "time_control": "2:00+1",
+      "hash_mb": 64,
+      "threads": 1,
+      "rounds": 1000,
+      "concurrency": 1,
+      "concurrency_policy": "empirical-cli-override",
+      "sprt": {
+        "elo0": 0,
+        "elo1": 5,
+        "alpha": 0.05,
+        "beta": 0.05,
+        "model": "logistic"
+      }
     }
   }
 }
