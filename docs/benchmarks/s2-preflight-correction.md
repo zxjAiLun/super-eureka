@@ -102,7 +102,8 @@ The existing UCI info fields (`score`, `depth`, `seldepth`, `time`, `nodes`,
 `nps`, `hashfull`, and `pv`) remain diagnostic data; no Rust search change was
 needed. The historical PGN predates the two new Fastchess fields.
 
-`tools/probe_concurrency.py --json` reported:
+The earlier topology-only mode of `tools/probe_concurrency.py --json`
+reported:
 
 ```text
 physical cores       = 14
@@ -111,9 +112,12 @@ recommended process concurrency = 13
 engine thread model  = single-threaded
 ```
 
-This is a host-capacity recommendation for future Fastchess sampling, not an
-authorization to start a match. The engine's internal thread count remains
-one, and `Current` remains unchanged.
+This is only a topology upper candidate, not an empirical throughput result.
+The corrected empirical mode uses completed fixed-node targets, reports
+relative worker speed and aggregate throughput, and selects the aggregate
+throughput maximum subject to safety guards. Its 100k/3-repeat/1-warmup
+matrix selected explicit `concurrency=12`; the repository default remains
+`1`, and the result is not authorization to change `Current`.
 
 ## Next gate
 
