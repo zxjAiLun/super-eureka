@@ -29,7 +29,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::chess::movegen::generate_legal_moves_with_stats;
+use crate::chess::movegen::{
+    generate_legal_evasions_with_stats, generate_legal_moves_with_stats,
+    generate_legal_tactical_moves_with_stats, has_any_legal_move_with_stats, MovegenStats,
+};
 use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
 use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
@@ -67,6 +70,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   cutoff.
 /// * `FutilityCandidate` enables only shallow, non-PV quiet-move futility
 ///   pruning with tactical, checking, mate-range, and promotion-threat guards.
+/// * `CurrentQsearchMovegen` preserves the `Current` search tree and changes
+///   only non-check qsearch move generation to a tactical-only path; check
+///   nodes still generate all legal evasions and stalemate is checked exactly.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
@@ -91,6 +97,7 @@ pub(crate) enum SearchProfile {
     NullMoveCandidate,
     FutilityCandidate,
     Current,
+    CurrentQsearchMovegen,
     CurrentAspiration,
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
@@ -147,6 +154,11 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
         )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_qsearch_movegen(self) -> bool {
+        matches!(self, Self::CurrentQsearchMovegen)
     }
 }
 
@@ -416,12 +428,38 @@ impl SearchContext {
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
     let (moves, stats) = generate_legal_moves_with_stats(pos);
+    add_movegen_profile(ctx, stats);
+    moves
+}
+
+#[inline]
+fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats) {
     ctx.add_profile_counter(&ctx.legal_move_generations, 1);
     ctx.add_profile_counter(&ctx.pseudo_moves, stats.pseudo_moves);
     ctx.add_profile_counter(&ctx.legal_moves, stats.legal_moves);
     ctx.add_profile_counter(&ctx.make_moves, stats.make_moves);
     ctx.add_profile_counter(&ctx.unmake_moves, stats.unmake_moves);
+}
+
+#[inline]
+fn generate_legal_tactical_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let (moves, stats) = generate_legal_tactical_moves_with_stats(pos);
+    add_movegen_profile(ctx, stats);
     moves
+}
+
+#[inline]
+fn generate_legal_evasions_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let (moves, stats) = generate_legal_evasions_with_stats(pos);
+    add_movegen_profile(ctx, stats);
+    moves
+}
+
+#[inline]
+fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool {
+    let (has_move, stats) = has_any_legal_move_with_stats(pos);
+    add_movegen_profile(ctx, stats);
+    has_move
 }
 
 #[inline]
@@ -1806,7 +1844,18 @@ fn negamax_entered_impl_with_null(
         // Leaf: hand off to quiescence (already counted). On a real return,
         // store a depth-0 entry under the caller window; on abort propagate
         // None WITHOUT storing (the partial node must not be cached).
-        return match quiescence_entered_impl(pos, ply, 0, alpha, beta, ctx, limits, pv, path) {
+        return match quiescence_entered_impl(
+            pos,
+            ply,
+            0,
+            alpha,
+            beta,
+            ctx,
+            limits,
+            pv,
+            path,
+            _profile.uses_qsearch_movegen(),
+        ) {
             Some(s) => {
                 let bound = classify_tt_bound(s, caller_alpha, caller_beta);
                 // The qsearch PV row start (if any) is the real best-capture
@@ -2563,8 +2612,9 @@ pub fn quiescence(
 /// the body ([`quiescence_entered_impl`]). This is the variant called by the
 /// quiescence body for its own recursion — it carries the live [`PvTable`].
 ///
-/// 8 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`];
-/// kept explicit (see [`negamax_impl`] for the rationale).
+/// 9 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`]
+/// and the isolated qsearch-movegen switch; kept explicit (see
+/// [`negamax_impl`] for the rationale).
 #[allow(clippy::too_many_arguments)]
 fn quiescence_impl(
     pos: &mut Position,
@@ -2580,7 +2630,7 @@ fn quiescence_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv, path)
+    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv, path, false)
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
@@ -2611,6 +2661,7 @@ fn quiescence_entered_impl(
     limits: &SearchLimits,
     pv: &mut PvTable,
     path: &mut SearchPath,
+    qsearch_movegen: bool,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
     // Node already entered by the caller: clear the row before any return.
@@ -2618,11 +2669,26 @@ fn quiescence_entered_impl(
 
     let in_check = pos.is_in_check(pos.side);
 
-    // Generate all legal moves once. Correctness-first: this is what lets us
-    // score checkmate / stalemate exactly.
-    let mut legal = generate_legal_moves_profiled(pos, ctx);
+    // The reference path generates every legal move. The isolated candidate
+    // generates only tactical legal moves at non-check nodes and all legal
+    // evasions under check; a tactical-empty node performs one early-stop
+    // legal-move probe so stalemate is never mistaken for stand-pat.
+    let mut legal = if qsearch_movegen {
+        if in_check {
+            generate_legal_evasions_profiled(pos, ctx)
+        } else {
+            generate_legal_tactical_moves_profiled(pos, ctx)
+        }
+    } else {
+        generate_legal_moves_profiled(pos, ctx)
+    };
     if legal.is_empty() {
-        return Some(if in_check { -(MATE - ply as i32) } else { 0 });
+        if in_check {
+            return Some(-(MATE - ply as i32));
+        }
+        if !qsearch_movegen || !has_any_legal_move_profiled(pos, ctx) {
+            return Some(0);
+        }
     }
 
     // Draw rules. Terminal (mate / stalemate) already returned above, so it
@@ -2672,7 +2738,11 @@ fn quiescence_entered_impl(
         if stand_pat > alpha {
             alpha = stand_pat;
         }
-        let mut tactical: Vec<Move> = legal.into_iter().filter(|m| is_tactical(pos, *m)).collect();
+        let mut tactical: Vec<Move> = if qsearch_movegen {
+            legal
+        } else {
+            legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
+        };
         if ctx.see_enabled.load(Ordering::Relaxed) {
             // SEE is ordering-only. Even a losing exchange remains in the
             // qsearch so tactical compensation cannot be removed by an
@@ -2724,6 +2794,7 @@ fn quiescence_entered_impl(
                     limits,
                     pv,
                     path,
+                    qsearch_movegen,
                 ) {
                     Some(s) => -s,
                     None => {
@@ -4054,6 +4125,14 @@ mod tests {
         assert!(!SearchProfile::Current.uses_aspiration());
         assert!(!SearchProfile::Current.uses_lmr());
         assert!(!SearchProfile::Current.uses_futility());
+        assert!(!SearchProfile::Current.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
+        assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
+        assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
+        assert!(!SearchProfile::CurrentQsearchMovegen.uses_aspiration());
+        assert!(!SearchProfile::CurrentQsearchMovegen.uses_lmr());
+        assert!(!SearchProfile::CurrentQsearchMovegen.uses_futility());
+        assert!(!SearchProfile::CurrentQsearchMovegen.uses_null_move());
     }
 
     #[test]
@@ -4358,6 +4437,106 @@ mod tests {
             generate_legal_moves(&mut pos.clone()).contains(&out.best_move),
             "futility candidate returned an illegal root move"
         );
+    }
+
+    #[test]
+    fn qsearch_movegen_candidate_matches_current_search_tree() {
+        let fixtures = [START_FEN, MVV_POS];
+        for fen in fixtures {
+            let mut current_pos = parse_fen(fen).unwrap();
+            let current_key = current_pos.zobrist_key();
+            let current_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let limits = SearchLimits {
+                depth: Some(3),
+                ..Default::default()
+            };
+            let current = search_best_move_with_history_tt_and_profile(
+                &mut current_pos,
+                &[current_key],
+                &limits,
+                &current_ctx,
+                &mut TranspositionTable::disabled(),
+                SearchProfile::Current,
+            )
+            .expect("Current fixture must be non-terminal");
+            let current_stats = current_ctx.stats();
+
+            let mut candidate_pos = parse_fen(fen).unwrap();
+            let candidate_key = candidate_pos.zobrist_key();
+            let candidate_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let candidate = search_best_move_with_history_tt_and_profile(
+                &mut candidate_pos,
+                &[candidate_key],
+                &limits,
+                &candidate_ctx,
+                &mut TranspositionTable::disabled(),
+                SearchProfile::CurrentQsearchMovegen,
+            )
+            .expect("qsearch movegen fixture must be non-terminal");
+            let candidate_stats = candidate_ctx.stats();
+
+            assert_eq!(candidate.completed_depth, current.completed_depth);
+            assert_eq!(candidate.score, current.score);
+            assert_eq!(candidate.best_move, current.best_move);
+            assert_eq!(candidate.pv, current.pv);
+            assert_eq!(candidate_stats.nodes, current_stats.nodes);
+            assert_eq!(candidate_stats.qsearch_nodes, current_stats.qsearch_nodes);
+            assert_eq!(candidate_stats.eval_calls, current_stats.eval_calls);
+            assert_eq!(candidate_stats.tt_probes, current_stats.tt_probes);
+            assert_eq!(candidate_stats.tt_stores, current_stats.tt_stores);
+            assert!(
+                candidate_stats.pseudo_moves < current_stats.pseudo_moves,
+                "specialized qsearch must reduce pseudo-move work for {fen}"
+            );
+            assert!(
+                candidate_stats.make_moves < current_stats.make_moves,
+                "specialized qsearch must reduce make/unmake work for {fen}"
+            );
+            assert_eq!(
+                candidate_stats.make_moves, candidate_stats.unmake_moves,
+                "candidate make/unmake must balance for {fen}"
+            );
+        }
+    }
+
+    #[test]
+    fn qsearch_movegen_preserves_checkmate_and_stalemate_scores() {
+        fn run_qsearch(fen: &str, specialized: bool) -> i32 {
+            let mut pos = parse_fen(fen).unwrap();
+            let key = pos.zobrist_key();
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let limits = SearchLimits::default();
+            let mut pv = PvTable::default();
+            let mut path = SearchPath::new(vec![key]);
+            assert!(try_enter_node(&ctx, &limits));
+            quiescence_entered_impl(
+                &mut pos,
+                0,
+                0,
+                i32::MIN + 1000,
+                i32::MAX - 1000,
+                &ctx,
+                &limits,
+                &mut pv,
+                &mut path,
+                specialized,
+            )
+            .expect("unlimited qsearch must complete")
+        }
+
+        let checkmate = "7k/6Q1/5K2/8/8/8/8/8 b - - 0 1";
+        let stalemate = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1";
+        for fen in [checkmate, stalemate] {
+            assert_eq!(
+                run_qsearch(fen, true),
+                run_qsearch(fen, false),
+                "specialized qsearch changed terminal score for {fen}"
+            );
+        }
+        assert_eq!(run_qsearch(checkmate, true), -(MATE));
+        assert_eq!(run_qsearch(stalemate, true), 0);
     }
 
     #[test]

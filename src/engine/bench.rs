@@ -144,6 +144,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::NullMoveCandidate => "null",
         SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
+        SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
         SearchProfile::CurrentAspiration => "current-aspiration",
         SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -349,6 +350,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "null" => SearchProfile::NullMoveCandidate,
                     "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
+                    "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
                     "current-aspiration" => SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -359,7 +361,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1241,7 +1243,7 @@ fn print_help() {
     println!("  --movetime <MS>                   ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1496,6 +1498,14 @@ mod tests {
         .unwrap();
         assert_eq!(a.profile, SearchProfile::AspirationCandidate);
 
+        let q = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "current-qsearch-movegen".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(q.profile, SearchProfile::CurrentQsearchMovegen);
+
         for (name, expected) in [
             ("current-aspiration", SearchProfile::CurrentAspiration),
             (
@@ -1538,6 +1548,10 @@ mod tests {
         assert_eq!(profile_str(SearchProfile::NullMoveCandidate), "null");
         assert_eq!(profile_str(SearchProfile::FutilityCandidate), "futility");
         assert_eq!(profile_str(SearchProfile::Current), "current");
+        assert_eq!(
+            profile_str(SearchProfile::CurrentQsearchMovegen),
+            "current-qsearch-movegen"
+        );
         assert_eq!(
             profile_str(SearchProfile::CurrentAspiration),
             "current-aspiration"

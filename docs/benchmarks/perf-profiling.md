@@ -26,7 +26,7 @@ Each `bench_result suite=profile` line reports:
 
 | Counter | Meaning |
 |---|---|
-| `total_nodes` | Total ordinary-search node entries, including any partial final iteration |
+| `total_nodes` | All counted search-node entries, including ordinary search, qsearch, and any partial final iteration |
 | `qsearch_nodes` | Nodes entered by quiescence, including depth-0 handoff nodes |
 | `completed_iterations` / `completed_depth` | Number of completed iterative-deepening passes and their deepest completed depth |
 | `last_completed_iteration_ms` / `last_completed_iteration_nodes` | Wall time and nodes spent by the most recent completed pass |
@@ -105,6 +105,29 @@ defined contract.
 
 These measurements are for search-cost diagnosis only. They do not authorize
 qsearch changes, pruning, a profile promotion, or an Elo/SPRT conclusion.
+
+## D1.2 candidate comparison
+
+The isolated D1.2 candidate is selected only by the bench profile name:
+
+```text
+cargo run --release -- bench profile --profile current --depth 6 --repeat 1
+cargo run --release -- bench profile --profile current-qsearch-movegen --depth 6 --repeat 1
+```
+
+`current-qsearch-movegen` preserves the `Current` search strategy and changes
+only qsearch move generation. It is not the default profile and is not promoted
+into the UCI `Current` path. Under non-check qsearch nodes it generates legal
+captures, en passant, and all promotions directly; under check it uses the
+complete legal-evasion path. When no tactical move exists it performs an
+early-stop legal-move probe so stalemate remains a zero score.
+
+The D1.2 correctness comparison requires identical completed depth, score,
+best move, PV, total nodes, qsearch nodes, evaluator calls, and terminal/draw
+behavior. A successful performance result should reduce pseudo-move and
+make/unmake work without reducing the searched node set. No SEE pruning, delta
+pruning, incremental evaluation, bitboard rewrite, or TT-key change belongs in
+this profile.
 
 ## Depth 7–8 boundary
 
