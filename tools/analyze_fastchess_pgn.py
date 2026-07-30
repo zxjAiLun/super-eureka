@@ -28,8 +28,11 @@ SEARCH_RE = re.compile(
     r".*?sd=(?P<seldepth>\d+)\s*,\s*nps=(?P<nps>\d+)"
     r"\s*,\s*hashfull=(?P<hashfull>\d+)\s*,\s*pv=\"(?P<pv>[^\"]*)\""
 )
-TIMELEFT_RE = re.compile(r"\b(?:tl|timeleft)=(?P<value>-?\d+(?:\.\d+)?)")
-LATENCY_RE = re.compile(r"\b(?:lat|latency)=(?P<value>-?\d+(?:\.\d+)?)")
+# Fastchess formats these diagnostics with formatTime(): seconds with an
+# explicit ``s`` suffix. Keep the suffix required so unitless values are not
+# silently interpreted in the wrong unit.
+TIMELEFT_RE = re.compile(r"\b(?:tl|timeleft)=(?P<value>-?\d+(?:\.\d+)?)s\b")
+LATENCY_RE = re.compile(r"\b(?:lat|latency)=(?P<value>-?\d+(?:\.\d+)?)s\b")
 
 MATE_CP = 100_000
 
@@ -71,7 +74,7 @@ def initial_time_ms_from_time_control(time_control: Optional[str]) -> Optional[f
         if ":" in base:
             minutes, seconds = base.split(":", 1)
             return (float(minutes) * 60.0 + float(seconds)) * 1000.0
-        return float(base) * 60.0 * 1000.0
+        return float(base) * 1000.0
     except ValueError:
         return None
 
@@ -108,12 +111,12 @@ def parse_comment(comment: str) -> tuple[Optional[ParsedScore], Optional[SearchI
         hashfull=int(search_match.group("hashfull")),
         pv=[move for move in search_match.group("pv").split() if move],
         time_left_ms=(
-            float(match.group("value"))
+            float(match.group("value")) * 1000.0
             if (match := TIMELEFT_RE.search(comment))
             else None
         ),
         latency_ms=(
-            float(match.group("value"))
+            float(match.group("value")) * 1000.0
             if (match := LATENCY_RE.search(comment))
             else None
         ),
@@ -232,7 +235,7 @@ def analyze_game(
         min_distance_after = _min_promotion_distance(pawns_after)
         shallow = info.depth <= max_depth
         long_think = info.time_s >= time_threshold_s
-        short_think = info.time_s <= time_threshold_s
+        short_think = info.time_s < time_threshold_s
         time_left_ratio = (
             info.time_left_ms / initial_time_ms
             if info.time_left_ms is not None

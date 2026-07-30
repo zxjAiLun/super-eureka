@@ -19,7 +19,7 @@ from analyze_fastchess_pgn import (
 
 class FastchessPgnAnalysisTests(unittest.TestCase):
     def test_time_control_initial_clock_parser(self):
-        self.assertEqual(initial_time_ms_from_time_control("10+0.1"), 600000.0)
+        self.assertEqual(initial_time_ms_from_time_control("10+0.1"), 10000.0)
         self.assertEqual(initial_time_ms_from_time_control("2:00+1"), 120000.0)
         self.assertIsNone(initial_time_ms_from_time_control("unknown"))
 
@@ -35,11 +35,19 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
 
     def test_optional_fastchess_timeleft_and_latency_are_captured(self):
         _, info = parse_comment(
-            '-0.50/4 0.380s, tl=1200, lat=-2, n=10, sd=4, '
+            '-0.50/4 0.380s, tl=0.500s, lat=-0.002s, n=10, sd=4, '
             'nps=25, hashfull=0, pv="e5"'
         )
-        self.assertEqual(info.time_left_ms, 1200.0)
+        self.assertEqual(info.time_left_ms, 500.0)
         self.assertEqual(info.latency_ms, -2.0)
+
+    def test_unitless_clock_diagnostics_are_not_assumed_to_be_seconds(self):
+        _, info = parse_comment(
+            '-0.50/4 0.380s, tl=500, lat=-2, n=10, sd=4, '
+            'nps=25, hashfull=0, pv="e5"'
+        )
+        self.assertIsNone(info.time_left_ms)
+        self.assertIsNone(info.latency_ms)
 
     def test_old_pgn_has_unknown_clock_pressure_but_think_time_diagnostics(self):
         _, info = parse_comment(
@@ -64,9 +72,9 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
         game = chess.pgn.read_game(
             io.StringIO(
                 '[Event "fixture"]\n[Result "*"]\n\n'
-                '1. e4 {[%eval +0.20] +0.20/4 0.100s, tl=500, n=10, sd=4, '
+                '1. e4 {[%eval +0.20] +0.20/4 0.100s, tl=0.500s, n=10, sd=4, '
                 'nps=25, hashfull=0, pv="e4"} e5 '
-                '{[%eval +2.00] +2.00/4 0.100s, tl=2000, n=10, sd=4, '
+                '{[%eval +2.00] +2.00/4 0.100s, tl=2.000s, n=10, sd=4, '
                 'nps=25, hashfull=0, pv="e5"} *\n'
             )
         )
@@ -76,6 +84,20 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
         self.assertTrue(records[0]["flags"]["time_pressure"])
         self.assertEqual(records[0]["time_left_ms"], 500.0)
         self.assertEqual(records[0]["time_left_ratio"], 0.05)
+
+    def test_think_time_threshold_has_no_overlap(self):
+        game = chess.pgn.read_game(
+            io.StringIO(
+                '[Event "fixture"]\n[Result "*"]\n\n'
+                '1. e4 {[%eval +0.20] +0.20/4 0.350s, n=10, sd=4, '
+                'nps=25, hashfull=0, pv="e4"} e5 '
+                '{[%eval +2.00] +2.00/4 0.100s, n=10, sd=4, '
+                'nps=25, hashfull=0, pv="e5"} *\n'
+            )
+        )
+        records, _ = analyze_game(game, 1, 150, 4, 0.35)
+        self.assertFalse(records[0]["flags"]["short_think"])
+        self.assertTrue(records[0]["flags"]["long_think"])
 
     def test_mate_scores_are_signed_and_comparable(self):
         _, info = parse_comment(
