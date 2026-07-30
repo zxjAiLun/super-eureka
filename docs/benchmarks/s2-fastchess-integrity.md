@@ -33,8 +33,9 @@ Fastchess command uses:
 
 The opening-book `format` is taken from the verified book manifest. It is not
 inferred from the selected engine profile. The pinned Stockfish PGN manifest
-hash matches the archive bytes as downloaded; the book contains 34,700
-positions at 16 plies.
+hash matches the raw extracted PGN content as downloaded; its normalized-
+content hash is recorded separately because upstream normalizes line endings.
+The book contains 34,700 positions at 16 plies.
 
 Before Fastchess starts, both final engine argv values receive a read-only UCI
 identity probe. The manifest records the reported UCI name, author, and search

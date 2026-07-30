@@ -75,6 +75,15 @@ def sha384_sri(path: Path) -> str:
     return base64.b64encode(digest.digest()).decode("ascii")
 
 
+def sha384_sri_bytes(data: bytes) -> str:
+    return base64.b64encode(hashlib.sha384(data).digest()).decode("ascii")
+
+
+def normalize_line_endings(data: bytes) -> bytes:
+    """Normalize CRLF and lone CR to LF for upstream book SRI checks."""
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def file_metadata(path: Path) -> dict[str, Any]:
     resolved = path.expanduser().resolve()
     if not resolved.is_file():
@@ -175,6 +184,20 @@ def _download_book(entry: dict[str, Any], destination: Path) -> None:
                         f"book archive must contain one {entry['content_filename']} member"
                     )
                 extracted = archive.read(matches[0])
+            actual_raw = sha384_sri_bytes(extracted)
+            expected_raw = entry["content_sha384_base64"]
+            if actual_raw != expected_raw:
+                raise FastchessError(
+                    f"downloaded book hash mismatch: expected {expected_raw}, got {actual_raw}"
+                )
+            expected_normalized = entry.get("upstream_normalized_sri")
+            if expected_normalized:
+                actual_normalized = sha384_sri_bytes(normalize_line_endings(extracted))
+                if actual_normalized != expected_normalized:
+                    raise FastchessError(
+                        "downloaded book normalized hash mismatch: "
+                        f"expected {expected_normalized}, got {actual_normalized}"
+                    )
             temporary = destination.with_suffix(destination.suffix + ".part")
             temporary.write_bytes(extracted)
             temporary.replace(destination)
@@ -207,12 +230,20 @@ def ensure_book(
             f"opening book hash mismatch for {book_path}: "
             f"expected {expected_sri}, got {actual_sri}"
         )
+    expected_normalized = entry.get("upstream_normalized_sri")
+    normalized_sri = sha384_sri_bytes(normalize_line_endings(book_path.read_bytes()))
+    if expected_normalized and normalized_sri != expected_normalized:
+        raise FastchessError(
+            f"opening book normalized hash mismatch for {book_path}: "
+            f"expected {expected_normalized}, got {normalized_sri}"
+        )
     result = dict(entry)
     result.update(
         {
             "book_id": book_id,
             "resolved_path": str(book_path.resolve()),
             "actual_content_sha384_base64": actual_sri,
+            "actual_normalized_content_sha384_base64": normalized_sri,
             "verified": True,
         }
     )
@@ -391,6 +422,7 @@ def build_manifest(
         "decision": "NOT_APPLICABLE",
         "dry_run": args.dry_run,
         "profile_name": profile_name,
+        "profile_status": profile.get("status", "active"),
         "decision_mode": args.decision_mode,
         "sprt_subject": "engine_b_candidate",
         "fastchess_player_1": "engine_b_candidate",
@@ -447,9 +479,15 @@ def count_pgn_games(path: Path) -> Optional[int]:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    profile = load_profile(args.profile_config, args.profile_name)
+    profile_status = str(profile.get("status", "active"))
+    if profile_status != "active" and not args.dry_run:
+        raise FastchessError(
+            f"Fastchess profile {args.profile_name} is not active "
+            f"(status={profile_status}); use --dry-run to inspect it"
+        )
     output_dir = args.output_dir.expanduser().resolve()
     refuse_reused_output_dir(output_dir)
-    profile = load_profile(args.profile_config, args.profile_name)
     book_id = args.book_id or str(profile["book"])
     book = ensure_book(
         args.book_manifest,
@@ -626,7 +664,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--engine-b", type=Path, required=True)
     result.add_argument("--sha-a", required=True, help="baseline Git SHA")
     result.add_argument("--sha-b", required=True, help="candidate Git SHA")
-    result.add_argument("--profile-name", default="s2-current-vs-aspiration")
+    result.add_argument("--profile-name", required=True)
     result.add_argument("--profile-config", type=Path, default=DEFAULT_PROFILE_CONFIG)
     result.add_argument("--book-id", default=None)
     result.add_argument("--book-manifest", type=Path, default=DEFAULT_BOOK_MANIFEST)

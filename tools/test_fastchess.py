@@ -2,15 +2,19 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 
 from run_fastchess import (
     FastchessError,
     build_fastchess_command,
     classify_result,
     ensure_book,
+    _download_book,
     probe_engine_identity,
     run,
     sha384_sri,
+    sha384_sri_bytes,
+    normalize_line_endings,
     parser,
 )
 
@@ -135,6 +139,46 @@ class FastchessWrapperTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "hash mismatch"):
                 ensure_book(manifest, "fixture", book, root / "cache", False)
 
+    def test_download_verifies_before_replacing_existing_book(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive_path = root / "book.zip"
+            extracted = b"line one\r\nline two\rline three\n"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("nested/book.pgn", extracted)
+            destination = root / "cache" / "book.pgn"
+            destination.parent.mkdir()
+            destination.write_bytes(b"known-good")
+            entry = {
+                "archive_url": archive_path.as_uri(),
+                "archive_filename": archive_path.name,
+                "content_filename": "book.pgn",
+                "content_sha384_base64": sha384_sri_bytes(b"wrong"),
+            }
+            with self.assertRaisesRegex(FastchessError, "hash mismatch"):
+                _download_book(entry, destination)
+            self.assertEqual(destination.read_bytes(), b"known-good")
+
+    def test_download_accepts_normalized_lone_cr_hash(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive_path = root / "book.zip"
+            extracted = b"line one\r\nline two\rline three\n"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("book.pgn", extracted)
+            destination = root / "cache" / "book.pgn"
+            entry = {
+                "archive_url": archive_path.as_uri(),
+                "archive_filename": archive_path.name,
+                "content_filename": "book.pgn",
+                "content_sha384_base64": sha384_sri_bytes(extracted),
+                "upstream_normalized_sri": sha384_sri_bytes(
+                    normalize_line_endings(extracted)
+                ),
+            }
+            _download_book(entry, destination)
+            self.assertEqual(destination.read_bytes(), extracted)
+
     def test_dry_run_manifest_records_commands_and_effective_profiles(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -205,6 +249,22 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("args=--profile current", manifest["command"])
             self.assertIn("args=--profile current-aspiration", manifest["command"])
             self.assertTrue((root / "results" / "manifest.json").is_file())
+
+    def test_non_active_profile_is_fail_closed_but_dry_run_can_inspect(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = root / "profiles.json"
+            profile = self.profile()
+            profile["status"] = "historical-cancelled"
+            config.write_text(json.dumps({"profiles": {"old": profile}}), encoding="utf-8")
+            args = parser().parse_args([
+                "--engine-a", str(root / "a.exe"), "--engine-b", str(root / "b.exe"),
+                "--sha-a", "a", "--sha-b", "b", "--profile-name", "old",
+                "--profile-config", str(config), "--output-dir", str(root / "run"),
+            ])
+            with self.assertRaisesRegex(FastchessError, "not active"):
+                run(args)
+            self.assertFalse((root / "run").exists())
 
     def test_reused_output_dir_is_refused(self):
         with tempfile.TemporaryDirectory() as temp:

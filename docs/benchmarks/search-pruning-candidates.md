@@ -7,12 +7,13 @@ Build: release, current local EVAL 1B tree
 This record covers the next independent depth 7–8 candidates after EVAL 1A/B,
 profiling, and SEE/qsearch shrinking. The bench runner now exposes `pvs`,
 `see`, `aspiration`, `lmr`, `null`, and `futility` profiles so each row can be
-measured from the same PVS baseline; `current` remains a combined diagnostic
-stack only.
+measured from the same PVS baseline. `current` is the approved M4.1 ordering +
+PVS production path and keeps every SEARCH 1 candidate disabled; cumulative
+`current-aspiration-*` profiles are separate tournament candidates.
 
-- aspiration windows on later Current-profile iterations;
+- aspiration windows on later candidate-profile iterations;
 - conservative LMR for quiet later moves;
-- a null-move probe only at Current non-PV null-window nodes;
+- a null-move probe only at candidate non-PV null-window nodes;
 - shallow quiet futility filtering.
 
 The reference profile remains unchanged. No bitboards, incremental evaluation,
@@ -27,7 +28,7 @@ The candidates are deliberately guarded as follows:
 - Null move is disabled for PV/full-window nodes, in-check nodes, shallow or
   low-material positions, and mate-near windows. A null fail-high is never
   accepted directly: the real position is fully re-searched before returning.
-- Futility applies only to later quiet moves in shallow Current null-window
+- Futility applies only to later quiet moves in shallow candidate null-window
   nodes with enough non-pawn material. The first move, captures, promotions,
   en-passant moves, and checking moves are retained.
 - Aspiration retries discard failed-window results and store an exact root TT
@@ -53,9 +54,15 @@ The following passed after the candidates were added:
 These are not proof of game-theoretic correctness or Elo strength. They are
 regression evidence for the guarded candidate implementation.
 
-## Fixed 100,000-node Current profile
+## Historical pre-fix-forward combined diagnostic table
 
-Command:
+The table that was formerly labelled `Current` came from an uncommitted
+pre-fix-forward worktree in which several candidate switches were combined.
+It is retained only as superseded diagnostic evidence and cannot be reproduced
+by `--profile current` at this SHA. It is not evidence about the approved
+production profile and must not be used for an Elo or promotion decision.
+
+Historical command:
 
 ```text
 cargo run --release -- bench profile --profile current --nodes 100000
@@ -75,11 +82,10 @@ Selected counters from the latest run:
 | kqk | 6 | 72,360 | 0 | 0 | 0 | 0 | 0 | 0 |
 | krk | 6 | 83,973 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-The ten-fixture median was about `719 ms / 139k nodes/s` in this run. The
-fixed-node result is machine-dependent and is not a rating measurement.
-The lower qsearch/tree counts on several Current fixtures are useful
-diagnostics, but the extra static checks and selective decisions still need
-independent strength validation.
+The ten-fixture median and counters in that historical table are machine-
+dependent and are not rating measurements. To reproduce current-tip behavior,
+run the six isolated profiles below and record the resulting `bench_result`
+lines instead.
 
 ## Independent candidate profiles
 
@@ -90,22 +96,21 @@ bench profile --profile pvs|see|aspiration|lmr|null|futility \
               --nodes 100000 --repeat 1 --fixture open-tactical
 ```
 
-Latest local release measurements for the open-tactical fixture were:
+Current-tip release measurements for the open-tactical fixture were:
 
 | Profile | Depth | qsearch nodes | eval calls | SEE calls | SEE pruned | aspiration retries | LMR reductions | null attempts | futility pruned | NPS |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| pvs | 4 | 93,752 | 83,022 | 0 | 0 | 0 | 0 | 0 | 0 | 68,724 |
-| see | 5 | 91,638 | 81,296 | 38,363 | 13,906 | 0 | 0 | 0 | 0 | 63,024 |
-| aspiration | 4 | 93,585 | 83,183 | 0 | 0 | 0 | 0 | 0 | 0 | 67,920 |
-| lmr | 4 | 93,926 | 83,144 | 0 | 0 | 0 | 27 | 0 | 0 | 67,552 |
-| null | 4 | 93,752 | 83,022 | 0 | 0 | 0 | 0 | 0 | 0 | 67,471 |
-| futility | 5 | 91,316 | 85,863 | 0 | 0 | 0 | 0 | 0 | 39,204 | 71,208 |
+| pvs | 4 | 93,752 | 83,022 | 0 | 0 | 0 | 0 | 0 | 0 | 166,090 |
+| see | 4 | 93,439 | 82,799 | 56,479 | 0 | 0 | 0 | 0 | 0 | 150,805 |
+| aspiration | 4 | 93,585 | 83,183 | 0 | 0 | 0 | 0 | 0 | 0 | 163,076 |
+| lmr | 4 | 93,926 | 83,144 | 0 | 0 | 0 | 26 | 0 | 0 | 162,329 |
+| null | 4 | 93,752 | 83,022 | 0 | 0 | 0 | 0 | 0 | 0 | 151,719 |
+| futility | 5 | 91,316 | 85,863 | 0 | 0 | 0 | 0 | 0 | 39,202 | 157,217 |
 
 These rows establish profile isolation and provide profiling evidence only.
-They are not Elo results, and the zero retry/attempt rows mean that the
-selected fixture did not exercise those guarded branches. `Current` remains a
-combined diagnostic stack; it must not be treated as an accepted replacement
-for any single candidate.
+They are not Elo results. The current tip must be measured with `pvs`,
+`aspiration`, `lmr`, `null`, `futility`, and `see` independently; the
+historical combined table above must not be described as `Current`.
 
 ## Decision and next boundary
 

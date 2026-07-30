@@ -47,12 +47,16 @@ cargo run --release -- bench profile --nodes 100000
 - `standard`：10 个单局面 fixture（开局、战术中局、封闭中局、王暴露、高分支、车兵残局、KQK、KRK、halfmove 上下文），三种 TT 模式 `disabled`/`cold`/`warm`，默认 `repeat 1`。
 - `throughput`：固定 nodes 预算测 NPS（默认 100000，默认 `repeat 3`）。
 - `profile`：固定 nodes 预算记录 qsearch、evaluation、movegen、make/unmake、
-  TT 以及 Current 的 aspiration/SEE/LMR/null/futility 计数；结果只用于定位
+  TT 以及显式候选 profile 的 aspiration/SEE/LMR/null/futility 计数；结果只用于定位
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
-- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--profile reference|m4.1|current`。
+- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`，以及
+  `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current` 或一个
+  明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
 - `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
   M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
-  `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选；`current` 才是全栈诊断配置。
+  `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选；`current` 是已批准的
+  M4.1 排序 + PVS 生产路径，所有这些候选开关均关闭。`current-aspiration-*` 是
+  累计 tournament candidate profile；没有现有 profile 同时包含 null 与全部累计功能。
   M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
   lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
 
@@ -205,8 +209,9 @@ bestmove b1c3
 - **SEE/qsearch 收缩（本地候选，未接受）**：已加入普通非将军负 SEE 吃子的过滤，
   但朴素数组盘面 SEE 的固定预算耗时尚不理想；见
   [`search-see-qsearch.md`](docs/benchmarks/search-see-qsearch.md)。
-- **SEARCH 1（本地候选，未接受）**：Current profile 已加入 aspiration、受限
-  LMR、验证式 null probe 和浅层 futility；见
+- **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
+  `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
+  和浅层 futility；批准的 `current` 仍关闭这些开关。见
   [`search-pruning-candidates.md`](docs/benchmarks/search-pruning-candidates.md)。
 - **Milestone 4**：高级增强（确认瓶颈后再加，且一次只加一个并做对照测试）——
   aspiration window、PVS、null-move pruning、LMR、SEE、futility pruning。Bitboard 不急。

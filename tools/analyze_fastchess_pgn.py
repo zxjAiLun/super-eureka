@@ -58,8 +58,22 @@ class SearchInfo:
     nps: int
     hashfull: int
     pv: list[str]
-    time_left: Optional[float]
-    latency: Optional[float]
+    time_left_ms: Optional[float]
+    latency_ms: Optional[float]
+
+
+def initial_time_ms_from_time_control(time_control: Optional[str]) -> Optional[float]:
+    """Parse Fastchess ``minutes+increment`` or ``mm:ss+increment`` TC text."""
+    if not time_control or "+" not in time_control:
+        return None
+    base, _increment = time_control.split("+", 1)
+    try:
+        if ":" in base:
+            minutes, seconds = base.split(":", 1)
+            return (float(minutes) * 60.0 + float(seconds)) * 1000.0
+        return float(base) * 60.0 * 1000.0
+    except ValueError:
+        return None
 
 
 def parse_score(raw: str) -> ParsedScore:
@@ -93,12 +107,12 @@ def parse_comment(comment: str) -> tuple[Optional[ParsedScore], Optional[SearchI
         nps=int(search_match.group("nps")),
         hashfull=int(search_match.group("hashfull")),
         pv=[move for move in search_match.group("pv").split() if move],
-        time_left=(
+        time_left_ms=(
             float(match.group("value"))
             if (match := TIMELEFT_RE.search(comment))
             else None
         ),
-        latency=(
+        latency_ms=(
             float(match.group("value"))
             if (match := LATENCY_RE.search(comment))
             else None
@@ -160,6 +174,9 @@ def analyze_game(
     min_loss_cp: int,
     max_depth: int,
     time_threshold_s: float,
+    time_left_threshold_ms: float = 1000.0,
+    time_left_ratio_threshold: float = 0.05,
+    initial_time_ms: Optional[float] = None,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     records: list[dict[str, Any]] = []
     counts = {"moves": 0, "moves_with_eval": 0, "search_infos": 0}
@@ -214,14 +231,33 @@ def analyze_game(
         min_distance_before = _min_promotion_distance(pawns_before)
         min_distance_after = _min_promotion_distance(pawns_after)
         shallow = info.depth <= max_depth
-        time_pressure = info.time_s >= time_threshold_s
+        long_think = info.time_s >= time_threshold_s
+        short_think = info.time_s <= time_threshold_s
+        time_left_ratio = (
+            info.time_left_ms / initial_time_ms
+            if info.time_left_ms is not None
+            and initial_time_ms is not None
+            and initial_time_ms > 0
+            else None
+        )
+        time_pressure = (
+            None
+            if info.time_left_ms is None
+            else info.time_left_ms <= time_left_threshold_ms
+            or (
+                time_left_ratio is not None
+                and time_left_ratio <= time_left_ratio_threshold
+            )
+        )
         promotion_race = bool(pawns_before or pawns_after) and (
             (min_distance_before is not None and min_distance_before <= 2)
             or (min_distance_after is not None and min_distance_after <= 2)
         )
         passed_pawn_context = bool(pawns_before or pawns_after)
         mate_transition = info.score.mate is not None or next_info.score.mate is not None
-        horizon_time_blunder = eval_loss >= min_loss_cp and (shallow or time_pressure)
+        horizon_time_blunder = eval_loss >= min_loss_cp and (
+            shallow or time_pressure is True
+        )
 
         if eval_loss >= min_loss_cp or promotion_race:
             records.append(
@@ -250,8 +286,9 @@ def analyze_game(
                     "nodes": info.nodes,
                     "nps": info.nps,
                     "hashfull": info.hashfull,
-                    "time_left": info.time_left,
-                    "latency": info.latency,
+                    "time_left_ms": info.time_left_ms,
+                    "time_left_ratio": time_left_ratio,
+                    "latency_ms": info.latency_ms,
                     "pv": info.pv,
                     "passed_pawns_before": pawns_before,
                     "passed_pawns_after": pawns_after,
@@ -259,6 +296,8 @@ def analyze_game(
                     "promotion_distance_after": min_distance_after,
                     "flags": {
                         "shallow": shallow,
+                        "long_think": long_think,
+                        "short_think": short_think,
                         "time_pressure": time_pressure,
                         "mate_transition": mate_transition,
                         "passed_pawn_context": passed_pawn_context,
@@ -276,6 +315,9 @@ def analyze_pgn(
     min_loss_cp: int = 150,
     max_depth: int = 4,
     time_threshold_s: float = 0.35,
+    time_left_threshold_ms: float = 1000.0,
+    time_left_ratio_threshold: float = 0.05,
+    initial_time_ms: Optional[float] = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     records: list[dict[str, Any]] = []
     games = 0
@@ -287,7 +329,14 @@ def analyze_pgn(
             if game.errors:
                 parse_errors += len(game.errors)
             game_records, counts = analyze_game(
-                game, games, min_loss_cp, max_depth, time_threshold_s
+                game,
+                games,
+                min_loss_cp,
+                max_depth,
+                time_threshold_s,
+                time_left_threshold_ms,
+                time_left_ratio_threshold,
+                initial_time_ms,
             )
             records.extend(game_records)
             for key, value in counts.items():
@@ -295,7 +344,7 @@ def analyze_pgn(
 
     records.sort(key=lambda record: (-int(record["eval_loss_cp"]), int(record["game"]), int(record["ply"])))
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "pgn": str(pgn_path.resolve()),
         "games": games,
         "parse_errors": parse_errors,
@@ -305,7 +354,14 @@ def analyze_pgn(
         "candidate_records": len(records),
         "horizon_time_blunders": sum(bool(r["flags"]["horizon_time_blunder"]) for r in records),
         "shallow_candidates": sum(bool(r["flags"]["shallow"]) for r in records),
-        "time_pressure_candidates": sum(bool(r["flags"]["time_pressure"]) for r in records),
+        "long_think_candidates": sum(bool(r["flags"]["long_think"]) for r in records),
+        "short_think_candidates": sum(bool(r["flags"]["short_think"]) for r in records),
+        "time_pressure_candidates": sum(
+            r["flags"]["time_pressure"] is True for r in records
+        ),
+        "time_pressure_unknown": sum(
+            r["flags"]["time_pressure"] is None for r in records
+        ),
         "mate_transition_candidates": sum(bool(r["flags"]["mate_transition"]) for r in records),
         "passed_pawn_candidates": sum(bool(r["flags"]["passed_pawn_context"]) for r in records),
         "promotion_race_candidates": sum(bool(r["flags"]["promotion_race"]) for r in records),
@@ -313,6 +369,9 @@ def analyze_pgn(
             "min_loss_cp": min_loss_cp,
             "max_depth": max_depth,
             "time_threshold_s": time_threshold_s,
+            "time_left_threshold_ms": time_left_threshold_ms,
+            "time_left_ratio_threshold": time_left_ratio_threshold,
+            "initial_time_ms": initial_time_ms,
         },
     }
     return records, summary
@@ -336,6 +395,10 @@ def write_report(output_dir: Path, records: list[dict[str, Any]], summary: dict[
         f"- Search-info moves: `{summary['search_infos']}`",
         f"- Candidate records: `{summary['candidate_records']}`",
         f"- Horizon/time flags: `{summary['horizon_time_blunders']}`",
+        f"- Long-think diagnostics: `{summary['long_think_candidates']}`",
+        f"- Short-think diagnostics: `{summary['short_think_candidates']}`",
+        f"- Time-pressure flags: `{summary['time_pressure_candidates']}`",
+        f"- Time-pressure unknown: `{summary['time_pressure_unknown']}`",
         f"- Mate-transition candidates: `{summary['mate_transition_candidates']}`",
         f"- Passed-pawn-context candidates: `{summary['passed_pawn_candidates']}`",
         f"- Promotion-race flags: `{summary['promotion_race_candidates']}`",
@@ -362,16 +425,37 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--min-loss-cp", type=int, default=150)
     result.add_argument("--max-depth", type=int, default=4)
     result.add_argument("--time-threshold-s", type=float, default=0.35)
+    result.add_argument("--time-left-threshold-ms", type=float, default=1000.0)
+    result.add_argument("--time-left-ratio-threshold", type=float, default=0.05)
+    result.add_argument(
+        "--initial-time-ms",
+        type=float,
+        default=None,
+        help="initial clock time for optional time-left ratio diagnostics",
+    )
     return result
 
 
 def main() -> int:
     args = parser().parse_args()
-    records, summary = analyze_pgn(
-        args.pgn, args.min_loss_cp, args.max_depth, args.time_threshold_s
-    )
+    manifest = None
+    initial_time_ms = args.initial_time_ms
     if args.manifest is not None:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        if initial_time_ms is None:
+            initial_time_ms = initial_time_ms_from_time_control(
+                manifest.get("time_control")
+            )
+    records, summary = analyze_pgn(
+        args.pgn,
+        args.min_loss_cp,
+        args.max_depth,
+        args.time_threshold_s,
+        args.time_left_threshold_ms,
+        args.time_left_ratio_threshold,
+        initial_time_ms,
+    )
+    if manifest is not None:
         summary["source_manifest"] = {
             "path": str(args.manifest.resolve()),
             "execution_status": manifest.get("execution_status"),

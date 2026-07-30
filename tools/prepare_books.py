@@ -33,6 +33,11 @@ def sha384_sri(data: bytes) -> str:
     return base64.b64encode(hashlib.sha384(data).digest()).decode("ascii")
 
 
+def normalize_line_endings(data: bytes) -> bytes:
+    """Normalize CRLF and lone CR to LF for upstream SRI checks."""
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def read_manifest(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -69,11 +74,8 @@ def download_entry(entry: dict, destination: Path) -> dict:
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             raise BookPreparationError(f"cannot download {entry['content_filename']}: {exc}") from exc
 
-    temporary = destination.with_suffix(destination.suffix + ".part")
-    temporary.write_bytes(content)
-    temporary.replace(destination)
     raw_sri = sha384_sri(content)
-    normalized_sri = sha384_sri(content.replace(b"\r\n", b"\n"))
+    normalized_sri = sha384_sri(normalize_line_endings(content))
     expected = entry.get("content_sha384_base64")
     if expected and expected != raw_sri:
         raise BookPreparationError(
@@ -84,6 +86,9 @@ def download_entry(entry: dict, destination: Path) -> dict:
         raise BookPreparationError(
             f"{entry['content_filename']}: normalized hash mismatch; expected {upstream}, got {normalized_sri}"
         )
+    temporary = destination.with_suffix(destination.suffix + ".part")
+    temporary.write_bytes(content)
+    temporary.replace(destination)
     return {
         "resolved_path": str(destination.resolve()),
         "archive_bytes": archive_bytes,

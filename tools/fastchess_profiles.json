@@ -2,6 +2,7 @@
   "schema_version": 1,
   "profiles": {
     "s2-current-vs-aspiration": {
+      "status": "historical-cancelled",
       "baseline": {
         "label": "Current",
         "search_profile": "current"
@@ -18,8 +19,8 @@
       "hash_mb": 64,
       "threads": 1,
       "rounds": 200,
-      "concurrency": 13,
-      "concurrency_policy": "physical-cores-minus-one",
+      "concurrency": 1,
+      "concurrency_policy": "single-process-default",
       "sprt": {
         "elo0": 0,
         "elo1": 5,

@@ -10,6 +10,7 @@ import chess.pgn
 from analyze_fastchess_pgn import (
     analyze_game,
     analyze_pgn,
+    initial_time_ms_from_time_control,
     parse_comment,
     passed_pawns,
     write_report,
@@ -17,6 +18,11 @@ from analyze_fastchess_pgn import (
 
 
 class FastchessPgnAnalysisTests(unittest.TestCase):
+    def test_time_control_initial_clock_parser(self):
+        self.assertEqual(initial_time_ms_from_time_control("10+0.1"), 600000.0)
+        self.assertEqual(initial_time_ms_from_time_control("2:00+1"), 120000.0)
+        self.assertIsNone(initial_time_ms_from_time_control("unknown"))
+
     def test_search_comment_parses_eval_and_uci_info(self):
         score, info = parse_comment(
             '[%eval -0.14] -0.50/4 0.380s, n=11252, sd=0, '
@@ -32,8 +38,44 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
             '-0.50/4 0.380s, tl=1200, lat=-2, n=10, sd=4, '
             'nps=25, hashfull=0, pv="e5"'
         )
-        self.assertEqual(info.time_left, 1200.0)
-        self.assertEqual(info.latency, -2.0)
+        self.assertEqual(info.time_left_ms, 1200.0)
+        self.assertEqual(info.latency_ms, -2.0)
+
+    def test_old_pgn_has_unknown_clock_pressure_but_think_time_diagnostics(self):
+        _, info = parse_comment(
+            '-0.50/4 0.380s, n=10, sd=4, nps=25, hashfull=0, pv="e5"'
+        )
+        self.assertIsNone(info.time_left_ms)
+        game = chess.pgn.read_game(
+            io.StringIO(
+                '[Event "fixture"]\n[Result "*"]\n\n'
+                '1. e4 {[%eval +0.20] +0.20/4 0.380s, n=10, sd=4, nps=25, '
+                'hashfull=0, pv="e4"} e5 '
+                '{[%eval +2.00] +2.00/4 0.100s, n=10, sd=4, nps=25, '
+                'hashfull=0, pv="e5"} *\n'
+            )
+        )
+        records, _ = analyze_game(game, 1, 150, 4, 0.35)
+        self.assertEqual(records[0]["flags"]["time_pressure"], None)
+        self.assertTrue(records[0]["flags"]["long_think"])
+        self.assertFalse(records[0]["flags"]["short_think"])
+
+    def test_timeleft_sets_clock_pressure_and_ratio(self):
+        game = chess.pgn.read_game(
+            io.StringIO(
+                '[Event "fixture"]\n[Result "*"]\n\n'
+                '1. e4 {[%eval +0.20] +0.20/4 0.100s, tl=500, n=10, sd=4, '
+                'nps=25, hashfull=0, pv="e4"} e5 '
+                '{[%eval +2.00] +2.00/4 0.100s, tl=2000, n=10, sd=4, '
+                'nps=25, hashfull=0, pv="e5"} *\n'
+            )
+        )
+        records, _ = analyze_game(
+            game, 1, 150, 4, 0.35, time_left_threshold_ms=1000, initial_time_ms=10000
+        )
+        self.assertTrue(records[0]["flags"]["time_pressure"])
+        self.assertEqual(records[0]["time_left_ms"], 500.0)
+        self.assertEqual(records[0]["time_left_ratio"], 0.05)
 
     def test_mate_scores_are_signed_and_comparable(self):
         _, info = parse_comment(

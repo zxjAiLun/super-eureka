@@ -6,6 +6,12 @@ This correction supersedes the proposed `2,000 games @ 10+0.1` aspiration
 SPRT. That run is cancelled. The time control for the next formal candidate
 test remains undecided between `1:00+0`, `2:00+1`, `3:00+0`, and `3:00+2`.
 
+The repository profile for that historical run is explicitly marked
+`historical-cancelled`. `run_fastchess.py` requires an explicit
+`--profile-name`; non-active profiles can be inspected with `--dry-run` but
+cannot launch a match. Its committed concurrency is `1`; any future host
+parallelism must be an explicit, separately measured invocation.
+
 ## Preserved ultrafast dataset
 
 The historical `10+0.1` 400-game result remains at:
@@ -32,28 +38,39 @@ python tools/analyze_fastchess_pgn.py \
 ```
 
 The generated output is intentionally ignored by Git and contains
-`candidates.jsonl`, `summary.json`, and `report.md`. The observed counts were:
+`candidates.jsonl`, `summary.json`, and `report.md`. It was regenerated with
+the corrected analyzer semantics.
 
 ```text
 games                 = 400
 moves                 = 60,728
+moves with eval       = 54,382
 search-info moves     = 54,328
 parse errors          = 0
 candidate records     = 9,109
 horizon/time flags    = 358
 shallow candidates    = 3,547
-time-pressure flags   = 14
+long-think diagnostics = 14
+short-think diagnostics = 9,095
+time-pressure flags   = 0
+time-pressure unknown = 9,109
 mate transitions      = 552
 passed-pawn context   = 8,939
 promotion-race flags  = 8,685
 ```
 
-These are diagnostic candidates, not automatic labels of engine blunders.
+The old PGN has no remaining-clock (`timeleft`) field. Therefore its
+time-pressure status is unknown: the historical `14` count described moves
+whose think time was at least `0.35s`, not moves made with little clock time.
+Actual clock-pressure flags require new PGN telemetry (`time_left_ms`, and
+when the initial clock is known, `time_left_ratio`). These are diagnostic
+candidates, not automatic labels of engine blunders.
 For each move, the analyzer compares the current node's pre-move UCI score
 with the next node's score after converting it to the mover's point of view.
 Mate transitions are explicitly flagged rather than silently presented as
-ordinary centipawn losses. The report keeps FEN, PV, depth, time, nodes, NPS,
-hashfull, optional time-left/latency fields, and passed-pawn fields; book-only
+ordinary centipawn losses. The report keeps FEN, PV, depth, think time, nodes,
+NPS, hashfull, optional `time_left_ms`, `time_left_ratio`, and `latency_ms`
+fields, and passed-pawn fields; book-only
 comments are treated as lacking search depth/time data.
 
 ## Book and endgame-suite preparation
