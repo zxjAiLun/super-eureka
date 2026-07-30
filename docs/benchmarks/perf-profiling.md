@@ -26,12 +26,20 @@ Each `bench_result suite=profile` line reports:
 
 | Counter | Meaning |
 |---|---|
+| `total_nodes` | Total ordinary-search node entries, including any partial final iteration |
 | `qsearch_nodes` | Nodes entered by quiescence, including depth-0 handoff nodes |
+| `completed_iterations` / `completed_depth` | Number of completed iterative-deepening passes and their deepest completed depth |
+| `last_completed_iteration_ms` / `last_completed_iteration_nodes` | Wall time and nodes spent by the most recent completed pass |
+| `aborted_iteration_depth` / `aborted_iteration_nodes` | Depth and node delta of a pass that unwound before completion; zero when no pass was aborted |
 | `eval_calls` | Calls to the static evaluator |
 | `legal_move_generations` | Search-side legal move-list generations |
 | `pseudo_moves` / `legal_moves` | Totals produced and retained by those generations |
 | `make_moves` / `unmake_moves` | Movegen legality probes plus search edges |
 | `tt_probes` / `tt_hits` / `tt_cutoffs` / `tt_stores` | Search TT activity |
+| `tt_rejected_depth` / `tt_rejected_bound` / `tt_rejected_decode` | Matching TT entries that could not cut off because of insufficient depth, an unsatisfied bound, or score decode failure |
+| `qsearch_ratio` | `qsearch_nodes / nodes` for the run |
+| `nodes_per_completed_depth` | Total nodes divided by completed depth, or zero when no depth completed |
+| `effective_branching_factor` | `nodes ^ (1 / completed_depth)`, a coarse cross-fixture indicator |
 
 Movegen legality checks are included in the make/unmake totals, so the latter
 are not merely PV-edge counts. The counters are per run and reset for every
@@ -72,6 +80,31 @@ completed_depth=6 nodes=100000
 The disabled/reference rows intentionally have zero TT hits and isolate the
 pre-pruning search cost. The cold/current row is a diagnostic comparison, not
 a replacement for the approved M4.2 benchmark lineage.
+
+## D1.1 fixed-depth telemetry
+
+D1.1 adds an observational fixed-depth mode so the cost of completing depth 6,
+7, and 8 can be measured directly instead of inferring it from a node cap:
+
+```text
+cargo run --release -- bench profile --depth 6 --repeat 1
+cargo run --release -- bench profile --depth 7 --repeat 1
+cargo run --release -- bench profile --depth 8 --repeat 1
+```
+
+Use `--fixture startpos` (or another standard fixture id) when a focused run is
+needed. The profile suite still uses the reference search profile by default;
+`--profile current` is an explicit diagnostic comparison and does not alter the
+UCI `Current` production path. A fixed-depth run must complete the requested
+depth or report a bench error rather than being treated as a valid cost point.
+
+The current engine does not compute a separate selective depth (`seldepth`)
+metric. D1.1 intentionally does not print a fabricated value; `seldepth` will
+be added only when the search tracks the deepest actually entered ply with a
+defined contract.
+
+These measurements are for search-cost diagnosis only. They do not authorize
+qsearch changes, pruning, a profile promotion, or an Elo/SPRT conclusion.
 
 ## Depth 7–8 boundary
 

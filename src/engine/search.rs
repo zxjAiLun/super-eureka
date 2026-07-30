@@ -202,6 +202,9 @@ pub struct SearchContext {
     pub tt_probes: AtomicU64,
     pub tt_hits: AtomicU64,
     pub tt_cutoffs: AtomicU64,
+    pub tt_rejected_depth: AtomicU64,
+    pub tt_rejected_bound: AtomicU64,
+    pub tt_rejected_decode: AtomicU64,
     pub tt_stores: AtomicU64,
     pub see_calls: AtomicU64,
     pub see_pruned: AtomicU64,
@@ -218,6 +221,11 @@ pub struct SearchContext {
     pub null_move_fail_highs: AtomicU64,
     pub null_move_researches: AtomicU64,
     pub futility_pruned: AtomicU64,
+    pub completed_iterations: AtomicU64,
+    pub last_completed_iteration_ms: AtomicU64,
+    pub last_completed_iteration_nodes: AtomicU64,
+    pub aborted_iteration_depth: AtomicU64,
+    pub aborted_iteration_nodes: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -233,6 +241,9 @@ pub struct SearchStats {
     pub tt_probes: u64,
     pub tt_hits: u64,
     pub tt_cutoffs: u64,
+    pub tt_rejected_depth: u64,
+    pub tt_rejected_bound: u64,
+    pub tt_rejected_decode: u64,
     pub tt_stores: u64,
     pub see_calls: u64,
     pub see_pruned: u64,
@@ -245,6 +256,11 @@ pub struct SearchStats {
     pub null_move_fail_highs: u64,
     pub null_move_researches: u64,
     pub futility_pruned: u64,
+    pub completed_iterations: u64,
+    pub last_completed_iteration_ms: u64,
+    pub last_completed_iteration_nodes: u64,
+    pub aborted_iteration_depth: u64,
+    pub aborted_iteration_nodes: u64,
 }
 
 impl SearchContext {
@@ -267,6 +283,9 @@ impl SearchContext {
             tt_probes: AtomicU64::new(0),
             tt_hits: AtomicU64::new(0),
             tt_cutoffs: AtomicU64::new(0),
+            tt_rejected_depth: AtomicU64::new(0),
+            tt_rejected_bound: AtomicU64::new(0),
+            tt_rejected_decode: AtomicU64::new(0),
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
@@ -281,6 +300,11 @@ impl SearchContext {
             null_move_fail_highs: AtomicU64::new(0),
             null_move_researches: AtomicU64::new(0),
             futility_pruned: AtomicU64::new(0),
+            completed_iterations: AtomicU64::new(0),
+            last_completed_iteration_ms: AtomicU64::new(0),
+            last_completed_iteration_nodes: AtomicU64::new(0),
+            aborted_iteration_depth: AtomicU64::new(0),
+            aborted_iteration_nodes: AtomicU64::new(0),
         }
     }
 
@@ -311,6 +335,9 @@ impl SearchContext {
             tt_probes: AtomicU64::new(0),
             tt_hits: AtomicU64::new(0),
             tt_cutoffs: AtomicU64::new(0),
+            tt_rejected_depth: AtomicU64::new(0),
+            tt_rejected_bound: AtomicU64::new(0),
+            tt_rejected_decode: AtomicU64::new(0),
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
@@ -325,6 +352,11 @@ impl SearchContext {
             null_move_fail_highs: AtomicU64::new(0),
             null_move_researches: AtomicU64::new(0),
             futility_pruned: AtomicU64::new(0),
+            completed_iterations: AtomicU64::new(0),
+            last_completed_iteration_ms: AtomicU64::new(0),
+            last_completed_iteration_nodes: AtomicU64::new(0),
+            aborted_iteration_depth: AtomicU64::new(0),
+            aborted_iteration_nodes: AtomicU64::new(0),
         }
     }
 
@@ -341,6 +373,9 @@ impl SearchContext {
             tt_probes: self.tt_probes.load(Ordering::Relaxed),
             tt_hits: self.tt_hits.load(Ordering::Relaxed),
             tt_cutoffs: self.tt_cutoffs.load(Ordering::Relaxed),
+            tt_rejected_depth: self.tt_rejected_depth.load(Ordering::Relaxed),
+            tt_rejected_bound: self.tt_rejected_bound.load(Ordering::Relaxed),
+            tt_rejected_decode: self.tt_rejected_decode.load(Ordering::Relaxed),
             tt_stores: self.tt_stores.load(Ordering::Relaxed),
             see_calls: self.see_calls.load(Ordering::Relaxed),
             see_pruned: self.see_pruned.load(Ordering::Relaxed),
@@ -353,6 +388,13 @@ impl SearchContext {
             null_move_fail_highs: self.null_move_fail_highs.load(Ordering::Relaxed),
             null_move_researches: self.null_move_researches.load(Ordering::Relaxed),
             futility_pruned: self.futility_pruned.load(Ordering::Relaxed),
+            completed_iterations: self.completed_iterations.load(Ordering::Relaxed),
+            last_completed_iteration_ms: self.last_completed_iteration_ms.load(Ordering::Relaxed),
+            last_completed_iteration_nodes: self
+                .last_completed_iteration_nodes
+                .load(Ordering::Relaxed),
+            aborted_iteration_depth: self.aborted_iteration_depth.load(Ordering::Relaxed),
+            aborted_iteration_nodes: self.aborted_iteration_nodes.load(Ordering::Relaxed),
         }
     }
 
@@ -970,6 +1012,16 @@ struct SearchTtProbe {
     /// The entry's stored best move, used only for move ordering. `None`
     /// when the entry has no move or the probe is a miss / decode failure.
     hash_move: Option<Move>,
+    /// Why a matching entry did not produce a cutoff. This is observational
+    /// telemetry only; the probe's search semantics remain unchanged.
+    reject: Option<TtRejectReason>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TtRejectReason {
+    Depth,
+    Bound,
+    Decode,
 }
 
 /// Build the context-safe TT key for the CURRENT position. The repetition
@@ -1003,6 +1055,7 @@ fn probe_tt_for_search(
             hit: false,
             cutoff: None,
             hash_move: None,
+            reject: None,
         };
     };
 
@@ -1014,6 +1067,7 @@ fn probe_tt_for_search(
             hit: true,
             cutoff: None,
             hash_move: None,
+            reject: Some(TtRejectReason::Decode),
         };
     };
 
@@ -1024,6 +1078,7 @@ fn probe_tt_for_search(
             hit: true,
             cutoff: None,
             hash_move: entry.best_move,
+            reject: Some(TtRejectReason::Depth),
         };
     }
 
@@ -1049,6 +1104,11 @@ fn probe_tt_for_search(
         hit: true,
         cutoff,
         hash_move: entry.best_move,
+        reject: if cutoff.is_none() {
+            Some(TtRejectReason::Bound)
+        } else {
+            None
+        },
     }
 }
 
@@ -1685,6 +1745,12 @@ fn negamax_entered_impl_with_null(
     let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
     if tt_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
+    }
+    match tt_probe.reject {
+        Some(TtRejectReason::Depth) => ctx.add_profile_counter(&ctx.tt_rejected_depth, 1),
+        Some(TtRejectReason::Bound) => ctx.add_profile_counter(&ctx.tt_rejected_bound, 1),
+        Some(TtRejectReason::Decode) => ctx.add_profile_counter(&ctx.tt_rejected_decode, 1),
+        None => {}
     }
     if tt_probe.cutoff.is_some() {
         ctx.add_profile_counter(&ctx.tt_cutoffs, 1);
@@ -2930,6 +2996,12 @@ fn root_search_with_window(
     if root_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
+    match root_probe.reject {
+        Some(TtRejectReason::Depth) => ctx.add_profile_counter(&ctx.tt_rejected_depth, 1),
+        Some(TtRejectReason::Bound) => ctx.add_profile_counter(&ctx.tt_rejected_bound, 1),
+        Some(TtRejectReason::Decode) => ctx.add_profile_counter(&ctx.tt_rejected_decode, 1),
+        None => {}
+    }
     if root_probe.cutoff.is_some() {
         ctx.add_profile_counter(&ctx.tt_cutoffs, 1);
     }
@@ -3518,6 +3590,17 @@ fn search_best_move_impl(
             }
         }
 
+        let iteration_started = if ctx.profiling_enabled {
+            Some(Instant::now())
+        } else {
+            None
+        };
+        let iteration_start_nodes = if ctx.profiling_enabled {
+            ctx.nodes.load(Ordering::Relaxed)
+        } else {
+            0
+        };
+
         let iteration = if _profile.uses_aspiration() {
             if let Some(previous_score) = completed.as_ref().map(|it| it.score) {
                 root_search_with_aspiration(
@@ -3575,6 +3658,17 @@ fn search_best_move_impl(
                     pv,
                 } = iter;
                 completed_depth = depth;
+                if let Some(start) = iteration_started {
+                    ctx.completed_iterations.fetch_add(1, Ordering::Relaxed);
+                    ctx.last_completed_iteration_ms
+                        .store(start.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    ctx.last_completed_iteration_nodes.store(
+                        ctx.nodes
+                            .load(Ordering::Relaxed)
+                            .saturating_sub(iteration_start_nodes),
+                        Ordering::Relaxed,
+                    );
+                }
                 // Move-ordering hook for the next iteration (cheap; real
                 // ordering heuristics land in Milestone 2). Driven by the
                 // explicit `best_move` field, never by `pv[0]`.
@@ -3648,6 +3742,16 @@ fn search_best_move_impl(
                 depth = depth.saturating_add(1);
             }
             None => {
+                if ctx.profiling_enabled {
+                    ctx.aborted_iteration_depth
+                        .store(depth as u64, Ordering::Relaxed);
+                    ctx.aborted_iteration_nodes.store(
+                        ctx.nodes
+                            .load(Ordering::Relaxed)
+                            .saturating_sub(iteration_start_nodes),
+                        Ordering::Relaxed,
+                    );
+                }
                 stopped = true;
                 break;
             }
@@ -4226,7 +4330,14 @@ mod tests {
         assert_eq!(second.score, first.score);
         assert_eq!(second.best_move, first.best_move);
         assert_eq!(second.pv, first.pv);
-        assert_eq!(second_stats, first_stats);
+        // Iteration wall time is diagnostic and naturally varies between
+        // otherwise identical runs; all node/counter telemetry must remain
+        // identical, including the completed/aborted iteration boundaries.
+        let mut comparable_first = first_stats;
+        let mut comparable_second = second_stats;
+        comparable_first.last_completed_iteration_ms = 0;
+        comparable_second.last_completed_iteration_ms = 0;
+        assert_eq!(comparable_second, comparable_first);
     }
 
     #[test]
@@ -6263,6 +6374,7 @@ mod tests {
         let p = probe_tt_for_search(&tt, key, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
         assert_eq!(p.cutoff, Some(42), "Exact sufficient-depth must cut off");
         assert_eq!(p.hash_move, None);
+        assert_eq!(p.reject, None);
 
         let mut tt = TranspositionTable::new_mb(1).unwrap();
         tt.store(TTEntry {
@@ -6283,6 +6395,7 @@ mod tests {
             lo_no.cutoff, None,
             "Lower decoded(100) < beta(200) does not cut off"
         );
+        assert_eq!(lo_no.reject, Some(TtRejectReason::Bound));
 
         let mut tt = TranspositionTable::new_mb(1).unwrap();
         tt.store(TTEntry {
@@ -6303,6 +6416,7 @@ mod tests {
             up_no.cutoff, None,
             "Upper decoded(-100) > alpha(-200) does not cut off"
         );
+        assert_eq!(up_no.reject, Some(TtRejectReason::Bound));
     }
 
     #[test]
@@ -6325,6 +6439,7 @@ mod tests {
             Some(hm),
             "shallower entry still yields its move"
         );
+        assert_eq!(p.reject, Some(TtRejectReason::Depth));
     }
 
     #[test]
@@ -6354,6 +6469,7 @@ mod tests {
         let p = probe_tt_for_search(&tt, key, 3, 1000, i32::MIN + 1000, i32::MAX - 1000);
         assert_eq!(p.cutoff, None, "decode failure -> no cut-off");
         assert_eq!(p.hash_move, None, "decode failure -> no hash move");
+        assert_eq!(p.reject, Some(TtRejectReason::Decode));
     }
 
     // ---- §14: context isolation ------------------------------------------------
