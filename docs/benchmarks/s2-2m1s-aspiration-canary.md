@@ -31,7 +31,9 @@ SPRT            [0, 5], alpha=beta=0.05, logistic model
 ```
 
 The canary used a fresh seed `2026073002`, `decision-mode=fixed`, eight
-opening pairs, and explicit `--concurrency 1`. It did not run SPRT.
+opening pairs, and explicit `--concurrency 1`. It did not run SPRT. A later
+corrected empirical probe may select a higher explicit concurrency for a new
+canary; this committed profile remains at `1`.
 
 ## Empirical concurrency probe
 
@@ -57,9 +59,13 @@ one warmup covered points 1 and 2:
 | 1 | 21,030.8 | 1.000 | 1.0000 | yes |
 | 2 | 14,453.9 | 0.687 | 1.0007 | no |
 
-Both full-confirmation points had zero worker failures. The probe therefore
-recommends `concurrency=1`. This is a host tournament-throughput result, not
-an engine multithreading implementation and not an Elo result.
+Both full-confirmation points had zero worker failures. That old matrix used
+the last complete `info nodes` value as work, and its per-worker threshold
+selected `concurrency=1`. It is superseded by the corrected selector, which
+uses the requested fixed-node target as the stable work unit and maximizes
+aggregate tournament throughput subject to failure, tail, and minimum
+per-worker-speed guards. This is not an engine multithreading implementation
+and not an Elo result.
 
 ## Candidate-first fixed canary
 
@@ -125,7 +131,7 @@ stored as milliseconds):
 | NPS p50 | 65,619 | 65,728.5 |
 | minimum time left | 17,612 ms | 17,529 ms |
 | median time left | 54,983 ms | 54,814.5 ms |
-| latency p50 / p95 | 1,276 / 3,014 ms | 1,198 / 2,855.75 ms |
+| `fastchess_latency_delta_ms` p50 / p95 | 1,276 / 3,014 ms | 1,198 / 2,855.75 ms |
 | moves below 1,000 ms | 0 | 0 |
 
 The analyzer reported 183 candidate records, one shallow/horizon flag, six

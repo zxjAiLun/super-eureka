@@ -39,7 +39,7 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
             'nps=25, hashfull=0, pv="e5"'
         )
         self.assertEqual(info.time_left_ms, 500.0)
-        self.assertEqual(info.latency_ms, -2.0)
+        self.assertEqual(info.fastchess_latency_delta_ms, -2.0)
 
     def test_unitless_clock_diagnostics_are_not_assumed_to_be_seconds(self):
         _, info = parse_comment(
@@ -47,7 +47,7 @@ class FastchessPgnAnalysisTests(unittest.TestCase):
             'nps=25, hashfull=0, pv="e5"'
         )
         self.assertIsNone(info.time_left_ms)
-        self.assertIsNone(info.latency_ms)
+        self.assertIsNone(info.fastchess_latency_delta_ms)
 
     def test_old_pgn_has_unknown_clock_pressure_but_think_time_diagnostics(self):
         _, info = parse_comment(

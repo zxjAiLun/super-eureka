@@ -76,6 +76,43 @@ for later investigation, not as ground-truth tactical annotations.
 
 ## Decision boundary
 
+## Promotion-race-only screen
+
+The existing `candidates.jsonl` was re-filtered without replaying the 400
+games. The screen is deliberately narrower than the aggregate report:
+
+```text
+promotion_race = true
+mate_transition = false
+eval_loss_cp >= 150
+```
+
+It returns 216 records from the 9,109 source records. The reproducible full
+JSONL and top-20 Markdown report are written by:
+
+```text
+python tools/summarize_promotion_races.py \
+  --input results/postmortem-400-20260729/candidates.jsonl \
+  --output-dir results/postmortem-400-20260729/promotion-race-screening \
+  --top 20
+```
+
+The report retains evaluation before/after, think time, PV, FEN, passed-pawn
+positions, promotion distances, clock fields, and the explicit
+`fastchess_latency_delta_ms` field. The highest-loss rows are shown here to
+make the requested promotion-race path directly auditable:
+
+| Game | Ply | Mover / move | Loss cp | Eval before → after | Depth / think s | PV | Passed pawns before → after | Distance before → after |
+| ---: | ---: | --- | ---: | --- | ---: | --- | --- | --- |
+| 61 | 201 | white / `Kf1 (g1f1)` | 1,384 | `-7.96 → +21.80` | 6 / 0.113 | `g1f1 d4d3 a5a6 a2a6 f1g2 d3d2` | a5(w,3), d4(b,3), g3(b,2) → same | 2 → 2 |
+| 101 | 179 | white / `Rxf5 (h5f5)` | 893 | `-1.53 → +10.46` | 4 / 0.120 | `h5f5` | f5(b,4), h3(b,2) → h3(b,2) | 2 → 2 |
+| 44 | 159 | white / `Kd3 (c3d3)` | 853 | `-1.90 → +10.43` | 6 / 0.127 | `c3d3 f4f3 d3c3 f3e4` | e3(b,2) → e3(b,2) | 2 → 2 |
+| 328 | 188 | black / `Kg8 (h8g8)` | 817 | `-3.50 → +11.67` | 8 / 0.117 | `h8g8 e4e3 g8h8 h6h7 h8g7 e3d4 g7h8 d4e4` | g6(w,2), h6(w,2) → same | 2 → 2 |
+| 297 | 133 | white / `Kf1 (e1f1)` | 801 | `-1.75 → +9.76` | 5 / 0.142 | `e1f1 c3c1 f1g2 c1c2 g2f1 c1c2 e3h3 f1g1 h3g4 g1f1` | c7(w,1), a6(b,5) → same | 1 → 1 |
+
+These are screening candidates, not ground-truth blunders; the old PGN has no
+remaining-clock telemetry, so its clock-pressure status remains unknown.
+
 The historical 400-game sample remains a valid protocol/PGN dataset. Its
 old SPRT orientation was invalid for candidate promotion, so its formal
 decision is `INCONCLUSIVE`. `Current` remains unchanged. The active follow-up

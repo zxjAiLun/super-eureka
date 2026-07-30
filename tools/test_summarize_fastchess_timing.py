@@ -28,7 +28,7 @@ class FastchessTimingSummaryTests(unittest.TestCase):
         self.assertEqual(aspiration["time_pressure_moves"], 1)
         self.assertEqual(current["time_left_ms_min"], 2000.0)
         self.assertEqual(current["time_pressure_moves"], 0)
-        self.assertEqual(aspiration["latency_ms_p50"], -2.0)
+        self.assertEqual(aspiration["fastchess_latency_delta_ms_p50"], -2.0)
 
 
 if __name__ == "__main__":

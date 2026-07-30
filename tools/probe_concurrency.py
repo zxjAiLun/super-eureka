@@ -2,8 +2,14 @@
 
 Topology mode is read-only and does not start an engine.  Empirical mode
 starts independent single-threaded UCI engine processes, runs the same fixed
-node suite in each worker, and selects the highest concurrency that keeps
-worker throughput and tail latency within the declared safety bounds.
+node suite in each worker, and selects the concurrency with the best aggregate
+tournament throughput subject to failure, tail-latency, and per-game speed
+safety bounds.
+
+For a successful ``go nodes N`` search, the requested node target is the
+stable work-unit measurement.  The last completed iterative-deepening ``info``
+line is retained only as diagnostics: it can under-report work when the node
+limit interrupts an unfinished next iteration.
 """
 
 from __future__ import annotations
@@ -27,6 +33,8 @@ from typing import Optional, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "chess-engine-demo.exe"
 DEFAULT_CONCURRENCY_POINTS = (1, 2, 4, 8, 12, 13)
+MIN_RELATIVE_WORKER_SPEED = 0.50
+MAX_P95_DURATION_RATIO = 1.35
 DEFAULT_FIXTURES = ("open-tactical", "high-branch")
 FIXTURES = {
     "open-tactical": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
@@ -245,8 +253,11 @@ def _run_worker(
             for fixture in fixtures:
                 measured.append(search(fixture))
         duration_ms = (time.perf_counter() - measured_started) * 1000.0
-        total_nodes = sum(item["nodes"] for item in measured)
-        worker_nps = total_nodes * 1000.0 / max(duration_ms, 0.001)
+        # Fastchess workload is defined by completed fixed-node searches.  The
+        # final info line is not a reliable work counter because the node cap
+        # can land inside an incomplete next iteration.
+        work_nodes = nodes * len(measured)
+        worker_nps = work_nodes * 1000.0 / max(duration_ms, 0.001)
         send("quit")
         process.wait(timeout=timeout_s)
         if process.returncode != 0:
@@ -255,7 +266,8 @@ def _run_worker(
         return {
             "status": "PASS",
             "duration_ms": duration_ms,
-            "nodes_completed": total_nodes,
+            "work_nodes": work_nodes,
+            "reported_info_nodes": [item["nodes"] for item in measured],
             "searches_completed": len(measured),
             "worker_nps": worker_nps,
             "depths": [item["depth"] for item in measured],
@@ -269,7 +281,8 @@ def _run_worker(
         return {
             "status": "FAIL",
             "duration_ms": (time.perf_counter() - started) * 1000.0,
-            "nodes_completed": 0,
+            "work_nodes": 0,
+            "reported_info_nodes": [],
             "searches_completed": 0,
             "worker_nps": 0.0,
             "error": str(exc),
@@ -318,18 +331,21 @@ def _run_point(
     completed = [worker for worker in workers if worker["status"] == "PASS"]
     durations = [float(worker["duration_ms"]) for worker in completed]
     worker_nps = [float(worker["worker_nps"]) for worker in completed]
-    total_nodes = sum(int(worker["nodes_completed"]) for worker in completed)
+    total_work_nodes = sum(int(worker["work_nodes"]) for worker in completed)
+    aggregate_nps = total_work_nodes * 1000.0 / max(batch_duration_ms, 0.001)
+    nodes_target_per_worker = nodes * len(fixtures) * repeat
     return {
         "concurrency": concurrency,
         "workers_completed": len(completed),
         "workers_failed": concurrency - len(completed),
         "median_worker_nps": statistics.median(worker_nps) if worker_nps else 0.0,
-        "aggregate_nps": total_nodes * 1000.0 / max(batch_duration_ms, 0.001),
+        "aggregate_nps": aggregate_nps,
+        "aggregate_work_nodes": total_work_nodes,
         "median_duration_ms": statistics.median(durations) if durations else 0.0,
         "p95_duration_ms": _p95(durations),
         "worker_results": workers,
         "batch_duration_ms": batch_duration_ms,
-        "nodes_target_per_worker": nodes * len(fixtures) * repeat,
+        "nodes_target_per_worker": nodes_target_per_worker,
         "fixtures": list(fixtures),
         "repeat": repeat,
         "warmup": warmup,
@@ -340,24 +356,38 @@ def recommend_concurrency(points: Sequence[dict[str, object]]) -> tuple[int, flo
     baseline_point = next((point for point in points if point["concurrency"] == 1), None)
     if baseline_point is None or baseline_point["workers_failed"] != 0:
         return 1, 0.0
-    baseline_nps = float(baseline_point["median_worker_nps"])
-    if baseline_nps <= 0:
+    baseline_worker_speed = float(baseline_point["median_worker_nps"])
+    baseline_aggregate_nps = float(baseline_point["aggregate_nps"])
+    if baseline_worker_speed <= 0 or baseline_aggregate_nps <= 0:
         return 1, 0.0
 
     for point in points:
-        point["relative_worker_nps"] = float(point["median_worker_nps"]) / baseline_nps
+        point["relative_worker_speed"] = (
+            float(point["median_worker_nps"]) / baseline_worker_speed
+        )
+        point["aggregate_throughput_ratio"] = (
+            float(point["aggregate_nps"]) / baseline_aggregate_nps
+        )
         median_duration = float(point["median_duration_ms"])
         p95_duration = float(point["p95_duration_ms"])
         duration_ratio = p95_duration / median_duration if median_duration > 0 else float("inf")
         point["duration_ratio_p95_median"] = duration_ratio
         point["eligible"] = (
             point["workers_failed"] == 0
-            and point["relative_worker_nps"] >= 0.80
-            and duration_ratio <= 1.35
+            and point["relative_worker_speed"] >= MIN_RELATIVE_WORKER_SPEED
+            and duration_ratio <= MAX_P95_DURATION_RATIO
         )
     eligible = [point for point in points if point.get("eligible")]
-    recommendation = max((int(point["concurrency"]) for point in eligible), default=1)
-    return recommendation, baseline_nps
+    winner = max(
+        eligible,
+        key=lambda point: (
+            float(point["aggregate_throughput_ratio"]),
+            int(point["concurrency"]),
+        ),
+        default=None,
+    )
+    recommendation = int(winner["concurrency"]) if winner is not None else 1
+    return recommendation, baseline_worker_speed
 
 
 def empirical_probe(
@@ -390,7 +420,7 @@ def empirical_probe(
     ]
     recommendation, baseline_nps = recommend_concurrency(points)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "mode": "empirical",
         "engine": str(engine.expanduser().resolve()),
         "profile": profile,
@@ -401,11 +431,16 @@ def empirical_probe(
         "hash_mb": hash_mb,
         "concurrency_points": list(concurrency_points),
         "baseline_median_worker_nps": baseline_nps,
+        "baseline_aggregate_nps": float(
+            next(point["aggregate_nps"] for point in points if point["concurrency"] == 1)
+        ),
         "recommended_fastchess_concurrency": recommendation,
         "selection_policy": {
             "workers_failed": 0,
-            "relative_worker_nps_min": 0.80,
-            "p95_duration_over_median_max": 1.35,
+            "relative_worker_speed_min": MIN_RELATIVE_WORKER_SPEED,
+            "p95_duration_over_median_max": MAX_P95_DURATION_RATIO,
+            "objective": "max_aggregate_throughput_ratio",
+            "work_units": "completed_fixed_node_search_targets",
         },
         "points": points,
         "formal_match_started": False,
@@ -453,6 +488,8 @@ def _print_human(report: dict[str, object]) -> None:
             f"{point['workers_completed']}/{point['workers_completed'] + point['workers_failed']} "
             f"median_worker_nps={point['median_worker_nps']:.0f} "
             f"aggregate_nps={point['aggregate_nps']:.0f} "
+            f"relative_worker_speed={point.get('relative_worker_speed', 0.0):.3f} "
+            f"aggregate_ratio={point.get('aggregate_throughput_ratio', 0.0):.3f} "
             f"p95/median={point.get('duration_ratio_p95_median', 0.0):.3f} "
             f"eligible={point.get('eligible', False)}"
         )

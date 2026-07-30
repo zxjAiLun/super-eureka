@@ -69,7 +69,9 @@ For each move, the analyzer compares the current node's pre-move UCI score
 with the next node's score after converting it to the mover's point of view.
 Mate transitions are explicitly flagged rather than silently presented as
 ordinary centipawn losses. The report keeps FEN, PV, depth, think time, nodes,
-NPS, hashfull, optional `time_left_ms`, `time_left_ratio`, and `latency_ms`
+NPS, hashfull, optional `time_left_ms`, `time_left_ratio`, and
+`fastchess_latency_delta_ms` (elapsed wall time minus the engine-reported
+search time; not pure IPC latency)
 fields, and passed-pawn fields; book-only
 comments are treated as lacking search depth/time data.
 

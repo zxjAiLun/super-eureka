@@ -62,7 +62,9 @@ class SearchInfo:
     hashfull: int
     pv: list[str]
     time_left_ms: Optional[float]
-    latency_ms: Optional[float]
+    # Fastchess's value is elapsed wall time minus the engine-reported search
+    # time. It is not pure IPC latency, so keep the source and unit explicit.
+    fastchess_latency_delta_ms: Optional[float]
 
 
 def initial_time_ms_from_time_control(time_control: Optional[str]) -> Optional[float]:
@@ -115,7 +117,7 @@ def parse_comment(comment: str) -> tuple[Optional[ParsedScore], Optional[SearchI
             if (match := TIMELEFT_RE.search(comment))
             else None
         ),
-        latency_ms=(
+        fastchess_latency_delta_ms=(
             float(match.group("value")) * 1000.0
             if (match := LATENCY_RE.search(comment))
             else None
@@ -291,7 +293,7 @@ def analyze_game(
                     "hashfull": info.hashfull,
                     "time_left_ms": info.time_left_ms,
                     "time_left_ratio": time_left_ratio,
-                    "latency_ms": info.latency_ms,
+                    "fastchess_latency_delta_ms": info.fastchess_latency_delta_ms,
                     "pv": info.pv,
                     "passed_pawns_before": pawns_before,
                     "passed_pawns_after": pawns_after,
@@ -347,7 +349,7 @@ def analyze_pgn(
 
     records.sort(key=lambda record: (-int(record["eval_loss_cp"]), int(record["game"]), int(record["ply"])))
     summary = {
-        "schema_version": 2,
+        "schema_version": 3,
         "pgn": str(pgn_path.resolve()),
         "games": games,
         "parse_errors": parse_errors,

@@ -37,7 +37,7 @@ def _summary(values: dict[str, list[float]], threshold_ms: float) -> dict[str, A
     nodes = values["nodes"]
     nps = values["nps"]
     clock = values["time_left_ms"]
-    latency = values["latency_ms"]
+    latency = values["fastchess_latency_delta_ms"]
     return {
         "search_info_moves": len(depths),
         "depth_p10": percentile(depths, 0.10),
@@ -50,9 +50,9 @@ def _summary(values: dict[str, list[float]], threshold_ms: float) -> dict[str, A
         "time_left_ms_p50": percentile(clock, 0.50),
         "time_pressure_moves": sum(value <= threshold_ms for value in clock),
         "clock_telemetry_moves": len(clock),
-        "latency_ms_p50": percentile(latency, 0.50),
-        "latency_ms_p95": percentile(latency, 0.95),
-        "latency_telemetry_moves": len(latency),
+        "fastchess_latency_delta_ms_p50": percentile(latency, 0.50),
+        "fastchess_latency_delta_ms_p95": percentile(latency, 0.95),
+        "fastchess_latency_telemetry_moves": len(latency),
     }
 
 
@@ -75,7 +75,7 @@ def summarize(pgn_path: Path, time_pressure_threshold_ms: float = 1000.0) -> dic
                         "nodes": [],
                         "nps": [],
                         "time_left_ms": [],
-                        "latency_ms": [],
+                        "fastchess_latency_delta_ms": [],
                     },
                 )
             board = game.board()
@@ -90,12 +90,14 @@ def summarize(pgn_path: Path, time_pressure_threshold_ms: float = 1000.0) -> dic
                     target["nps"].append(float(info.nps))
                     if info.time_left_ms is not None:
                         target["time_left_ms"].append(info.time_left_ms)
-                    if info.latency_ms is not None:
-                        target["latency_ms"].append(info.latency_ms)
+                    if info.fastchess_latency_delta_ms is not None:
+                        target["fastchess_latency_delta_ms"].append(
+                            info.fastchess_latency_delta_ms
+                        )
                 board.push(node.move)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "pgn": str(pgn_path.resolve()),
         "games": games,
         "parse_errors": parse_errors,
