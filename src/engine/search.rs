@@ -73,6 +73,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `CurrentQsearchMovegen` preserves the `Current` search tree and changes
 ///   only non-check qsearch move generation to a tactical-only path; check
 ///   nodes still generate all legal evasions and stalemate is checked exactly.
+/// * `CurrentQsearchPruning` builds on `CurrentQsearchMovegen` and adds only
+///   conservative non-check qsearch SEE pruning for eligible plain captures.
+///   Promotions, en passant, and checking captures are always kept.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
@@ -98,6 +101,7 @@ pub(crate) enum SearchProfile {
     FutilityCandidate,
     Current,
     CurrentQsearchMovegen,
+    CurrentQsearchPruning,
     CurrentAspiration,
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
@@ -158,7 +162,15 @@ impl SearchProfile {
 
     #[inline]
     pub(crate) const fn uses_qsearch_movegen(self) -> bool {
-        matches!(self, Self::CurrentQsearchMovegen)
+        matches!(
+            self,
+            Self::CurrentQsearchMovegen | Self::CurrentQsearchPruning
+        )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_qsearch_pruning(self) -> bool {
+        matches!(self, Self::CurrentQsearchPruning)
     }
 }
 
@@ -220,6 +232,11 @@ pub struct SearchContext {
     pub tt_stores: AtomicU64,
     pub see_calls: AtomicU64,
     pub see_pruned: AtomicU64,
+    pub qsearch_see_tests: AtomicU64,
+    pub qsearch_see_pruned: AtomicU64,
+    pub qsearch_checking_captures_kept: AtomicU64,
+    pub qsearch_promotions_kept: AtomicU64,
+    pub qsearch_en_passant_kept: AtomicU64,
     see_enabled: AtomicBool,
     /// Diagnostic counters are opt-in so ordinary searches do not pay for
     /// an atomic increment on every hot-path event.
@@ -259,6 +276,11 @@ pub struct SearchStats {
     pub tt_stores: u64,
     pub see_calls: u64,
     pub see_pruned: u64,
+    pub qsearch_see_tests: u64,
+    pub qsearch_see_pruned: u64,
+    pub qsearch_checking_captures_kept: u64,
+    pub qsearch_promotions_kept: u64,
+    pub qsearch_en_passant_kept: u64,
     pub aspiration_retries: u64,
     pub aspiration_fail_low: u64,
     pub aspiration_fail_high: u64,
@@ -301,6 +323,11 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
+            qsearch_see_tests: AtomicU64::new(0),
+            qsearch_see_pruned: AtomicU64::new(0),
+            qsearch_checking_captures_kept: AtomicU64::new(0),
+            qsearch_promotions_kept: AtomicU64::new(0),
+            qsearch_en_passant_kept: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
@@ -353,6 +380,11 @@ impl SearchContext {
             tt_stores: AtomicU64::new(0),
             see_calls: AtomicU64::new(0),
             see_pruned: AtomicU64::new(0),
+            qsearch_see_tests: AtomicU64::new(0),
+            qsearch_see_pruned: AtomicU64::new(0),
+            qsearch_checking_captures_kept: AtomicU64::new(0),
+            qsearch_promotions_kept: AtomicU64::new(0),
+            qsearch_en_passant_kept: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
@@ -391,6 +423,13 @@ impl SearchContext {
             tt_stores: self.tt_stores.load(Ordering::Relaxed),
             see_calls: self.see_calls.load(Ordering::Relaxed),
             see_pruned: self.see_pruned.load(Ordering::Relaxed),
+            qsearch_see_tests: self.qsearch_see_tests.load(Ordering::Relaxed),
+            qsearch_see_pruned: self.qsearch_see_pruned.load(Ordering::Relaxed),
+            qsearch_checking_captures_kept: self
+                .qsearch_checking_captures_kept
+                .load(Ordering::Relaxed),
+            qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
+            qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
             aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
             aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
             aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
@@ -1855,6 +1894,7 @@ fn negamax_entered_impl_with_null(
             pv,
             path,
             _profile.uses_qsearch_movegen(),
+            _profile.uses_qsearch_pruning(),
         ) {
             Some(s) => {
                 let bound = classify_tt_bound(s, caller_alpha, caller_beta);
@@ -2256,6 +2296,63 @@ fn is_tactical(pos: &Position, m: Move) -> bool {
         || pos.board[m.to as usize].is_some()
 }
 
+#[inline]
+fn is_plain_capture(pos: &Position, m: Move) -> bool {
+    matches!(m.flag, MoveFlag::Normal) && pos.board[m.to as usize].is_some()
+}
+
+/// Apply the first D1.3 qsearch pruning rule. Only a plain, non-checking
+/// capture is eligible for SEE<0 pruning. Promotions and en passant are
+/// deliberately fail-open, and all checking captures are kept before SEE is
+/// consulted. The helper preserves the existing move order for every move it
+/// keeps.
+fn prune_qsearch_captures_by_see(
+    pos: &mut Position,
+    moves: Vec<Move>,
+    ctx: &SearchContext,
+    alpha: i32,
+    beta: i32,
+) -> Vec<Move> {
+    if alpha <= -(MATE - 1000) || beta >= MATE - 1000 {
+        return moves;
+    }
+    let mut kept = Vec::with_capacity(moves.len());
+    for m in moves {
+        if matches!(m.flag, MoveFlag::Promotion(_)) {
+            ctx.add_profile_counter(&ctx.qsearch_promotions_kept, 1);
+            kept.push(m);
+            continue;
+        }
+        if matches!(m.flag, MoveFlag::EnPassant) {
+            ctx.add_profile_counter(&ctx.qsearch_en_passant_kept, 1);
+            kept.push(m);
+            continue;
+        }
+        if !is_plain_capture(pos, m) {
+            // The specialized qsearch generator should not produce a quiet
+            // move here, but an unexpected move is safer when searched.
+            kept.push(m);
+            continue;
+        }
+        if move_gives_check(pos, m) {
+            ctx.add_profile_counter(&ctx.qsearch_checking_captures_kept, 1);
+            kept.push(m);
+            continue;
+        }
+
+        // The source/target guards above make this a well-defined ordinary
+        // capture. If a future move flag or generator violates that contract,
+        // it reaches the fail-open path above instead of being pruned.
+        ctx.add_profile_counter(&ctx.qsearch_see_tests, 1);
+        if static_exchange_eval(pos, m) < 0 {
+            ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
+        } else {
+            kept.push(m);
+        }
+    }
+    kept
+}
+
 fn non_pawn_material_count(pos: &Position) -> usize {
     pos.board
         .iter()
@@ -2630,13 +2727,16 @@ fn quiescence_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    quiescence_entered_impl(pos, ply, qply, alpha, beta, ctx, limits, pv, path, false)
+    quiescence_entered_impl(
+        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false,
+    )
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
 /// Threads a [`PvTable`] so the tactical principal variation is recorded.
 ///
-/// 8 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`];
+/// 10 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`]
+/// and the two isolated qsearch candidate switches;
 /// kept explicit (see [`negamax_impl`] for the rationale).
 #[allow(clippy::too_many_arguments)]
 /// `clear_at` runs first (the node is already entered by the caller), so a
@@ -2662,6 +2762,7 @@ fn quiescence_entered_impl(
     pv: &mut PvTable,
     path: &mut SearchPath,
     qsearch_movegen: bool,
+    qsearch_pruning: bool,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
     // Node already entered by the caller: clear the row before any return.
@@ -2743,6 +2844,9 @@ fn quiescence_entered_impl(
         } else {
             legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
         };
+        if qsearch_pruning {
+            tactical = prune_qsearch_captures_by_see(pos, tactical, ctx, alpha, beta);
+        }
         if ctx.see_enabled.load(Ordering::Relaxed) {
             // SEE is ordering-only. Even a losing exchange remains in the
             // qsearch so tactical compensation cannot be removed by an
@@ -2795,6 +2899,7 @@ fn quiescence_entered_impl(
                     pv,
                     path,
                     qsearch_movegen,
+                    qsearch_pruning,
                 ) {
                     Some(s) => -s,
                     None => {
@@ -4126,6 +4231,7 @@ mod tests {
         assert!(!SearchProfile::Current.uses_lmr());
         assert!(!SearchProfile::Current.uses_futility());
         assert!(!SearchProfile::Current.uses_qsearch_movegen());
+        assert!(!SearchProfile::Current.uses_qsearch_pruning());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
@@ -4133,6 +4239,14 @@ mod tests {
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_lmr());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_futility());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_null_move());
+        assert!(SearchProfile::CurrentQsearchPruning.uses_pvs());
+        assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_pruning());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_see());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_aspiration());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_lmr());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_futility());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_null_move());
     }
 
     #[test]
@@ -4503,7 +4617,7 @@ mod tests {
 
     #[test]
     fn qsearch_movegen_preserves_checkmate_and_stalemate_scores() {
-        fn run_qsearch(fen: &str, specialized: bool) -> i32 {
+        fn run_qsearch(fen: &str, specialized: bool, pruning: bool) -> i32 {
             let mut pos = parse_fen(fen).unwrap();
             let key = pos.zobrist_key();
             let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
@@ -4522,6 +4636,7 @@ mod tests {
                 &mut pv,
                 &mut path,
                 specialized,
+                pruning,
             )
             .expect("unlimited qsearch must complete")
         }
@@ -4530,13 +4645,153 @@ mod tests {
         let stalemate = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1";
         for fen in [checkmate, stalemate] {
             assert_eq!(
-                run_qsearch(fen, true),
-                run_qsearch(fen, false),
+                run_qsearch(fen, true, false),
+                run_qsearch(fen, false, false),
                 "specialized qsearch changed terminal score for {fen}"
             );
+            assert_eq!(
+                run_qsearch(fen, true, true),
+                run_qsearch(fen, true, false),
+                "SEE pruning changed terminal score for {fen}"
+            );
         }
-        assert_eq!(run_qsearch(checkmate, true), -(MATE));
-        assert_eq!(run_qsearch(stalemate, true), 0);
+        assert_eq!(run_qsearch(checkmate, true, true), -(MATE));
+        assert_eq!(run_qsearch(stalemate, true, true), 0);
+    }
+
+    #[test]
+    fn qsearch_see_pruning_keeps_guards_and_prunes_only_losing_plain_captures() {
+        fn prune_one(fen: &str, uci: &str) -> (Vec<Move>, SearchStats) {
+            let mut pos = parse_fen(fen).unwrap();
+            let m = find_move(&pos, uci);
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let kept = prune_qsearch_captures_by_see(&mut pos, vec![m], &ctx, -10_000, 10_000);
+            (kept, ctx.stats())
+        }
+
+        // A plainly losing, non-checking capture is the only move class that
+        // the first D1.3 rule is allowed to remove.
+        let losing = "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1";
+        let losing_move = find_move(&parse_fen(losing).unwrap(), "f3e5");
+        assert!(static_exchange_eval(&parse_fen(losing).unwrap(), losing_move) < 0);
+        let (kept, stats) = prune_one(losing, "f3e5");
+        assert!(kept.is_empty());
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_see_pruned, 1);
+
+        // An x-ray rook recapture is also recognized as a losing exchange,
+        // rather than being treated as a one-ply pawn/rook gain.
+        let xray = "7k/r7/8/8/p7/8/8/R6K w - - 0 1";
+        let xray_pos = parse_fen(xray).unwrap();
+        let xray_move = find_move(&xray_pos, "a1a4");
+        assert!(static_exchange_eval(&xray_pos, xray_move) < 0);
+        let (kept, stats) = prune_one(xray, "a1a4");
+        assert!(kept.is_empty());
+        assert_eq!(stats.qsearch_see_pruned, 1);
+
+        // The defended queen win remains searchable.
+        let (kept, stats) = prune_one(MVV_POS, "e4a4");
+        assert_eq!(kept, vec![find_move(&parse_fen(MVV_POS).unwrap(), "e4a4")]);
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+
+        // A checking capture is a protected sacrifice/mating resource and is
+        // kept without trusting a static exchange result.
+        let checking = "4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1";
+        let (kept, stats) = prune_one(checking, "e4e5");
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_tests, 0);
+        assert_eq!(stats.qsearch_checking_captures_kept, 1);
+
+        // A pinned rook may still make the legal capture that removes the
+        // pinning rook; the legal move generator and SEE must not reject it.
+        let pinned = "4r1k1/8/8/8/8/8/r3R3/4K3 w - - 0 1";
+        let (kept, stats) = prune_one(pinned, "e2e8");
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+
+        // A legal king capture with no recapturer is not a losing exchange.
+        let king_capture = "6k1/8/8/3pK3/8/8/4P3/R7 w - - 0 1";
+        let (kept, stats) = prune_one(king_capture, "e5d5");
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+
+        // Quiet and capturing promotions are both fail-open.
+        let promotions = "1r5k/P7/8/8/8/8/8/7K w - - 0 1";
+        let mut promotion_pos = parse_fen(promotions).unwrap();
+        let promotion_moves: Vec<Move> = generate_legal_moves(&mut promotion_pos)
+            .into_iter()
+            .filter(|m| matches!(m.flag, MoveFlag::Promotion(_)))
+            .collect();
+        assert_eq!(promotion_moves.len(), 8);
+        let promotion_ctx =
+            SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        let kept_promotions = prune_qsearch_captures_by_see(
+            &mut promotion_pos,
+            promotion_moves.clone(),
+            &promotion_ctx,
+            -10_000,
+            10_000,
+        );
+        assert_eq!(kept_promotions, promotion_moves);
+        assert_eq!(promotion_ctx.stats().qsearch_promotions_kept, 8);
+        assert_eq!(promotion_ctx.stats().qsearch_see_tests, 0);
+
+        // En passant remains fail-open until SEE has a dedicated EP proof.
+        let ep = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1";
+        let (kept, stats) = prune_one(ep, "e5d6");
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_en_passant_kept, 1);
+        assert_eq!(stats.qsearch_see_tests, 0);
+
+        // Mate-range windows fail open even for an otherwise losing capture.
+        let mut mate_pos = parse_fen(losing).unwrap();
+        let mate_move = find_move(&mate_pos, "f3e5");
+        let mate_ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        let mate_kept = prune_qsearch_captures_by_see(
+            &mut mate_pos,
+            vec![mate_move],
+            &mate_ctx,
+            -(MATE - 1),
+            MATE - 1,
+        );
+        assert_eq!(mate_kept, vec![mate_move]);
+        assert_eq!(mate_ctx.stats().qsearch_see_tests, 0);
+    }
+
+    #[test]
+    fn qsearch_see_pruning_reduces_real_qsearch_work_without_changing_mate_score() {
+        let fen = MVV_POS;
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+
+        let run = |profile| {
+            let mut pos = parse_fen(fen).unwrap();
+            let key = pos.zobrist_key();
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let mut tt = TranspositionTable::disabled();
+            let out = search_best_move_with_history_tt_and_profile(
+                &mut pos,
+                &[key],
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            )
+            .expect("MVV fixture must be non-terminal");
+            (out, ctx.stats())
+        };
+
+        let (movegen, movegen_stats) = run(SearchProfile::CurrentQsearchMovegen);
+        let (pruning, pruning_stats) = run(SearchProfile::CurrentQsearchPruning);
+        assert_eq!(pruning.score, Some(990));
+        assert_eq!(pruning.best_move, movegen.best_move);
+        assert!(pruning_stats.qsearch_see_tests > 0);
+        assert!(pruning_stats.qsearch_see_pruned > 0);
+        assert!(pruning_stats.qsearch_nodes < movegen_stats.qsearch_nodes);
+        assert!(pruning_stats.nodes < movegen_stats.nodes);
     }
 
     #[test]

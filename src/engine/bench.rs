@@ -145,6 +145,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
         SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
+        SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         SearchProfile::CurrentAspiration => "current-aspiration",
         SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -351,6 +352,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
                     "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
+                    "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
                     "current-aspiration" => SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -361,7 +363,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -698,7 +700,7 @@ fn format_result_line(r: &BenchResult) -> String {
     };
     if r.suite == "profile" || r.suite == "ablation" {
         format!(
-            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
+            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} qsearch_see_tests={} qsearch_see_pruned={} qsearch_checking_captures_kept={} qsearch_promotions_kept={} qsearch_en_passant_kept={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
             line,
             r.nodes,
             r.stats.completed_iterations,
@@ -725,6 +727,11 @@ fn format_result_line(r: &BenchResult) -> String {
             r.stats.tt_stores,
             r.stats.see_calls,
             r.stats.see_pruned,
+            r.stats.qsearch_see_tests,
+            r.stats.qsearch_see_pruned,
+            r.stats.qsearch_checking_captures_kept,
+            r.stats.qsearch_promotions_kept,
+            r.stats.qsearch_en_passant_kept,
             r.stats.aspiration_retries,
             r.stats.aspiration_fail_low,
             r.stats.aspiration_fail_high,
@@ -1243,7 +1250,7 @@ fn print_help() {
     println!("  --movetime <MS>                   ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1506,6 +1513,14 @@ mod tests {
         .unwrap();
         assert_eq!(q.profile, SearchProfile::CurrentQsearchMovegen);
 
+        let p = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "current-qsearch-pruning".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(p.profile, SearchProfile::CurrentQsearchPruning);
+
         for (name, expected) in [
             ("current-aspiration", SearchProfile::CurrentAspiration),
             (
@@ -1551,6 +1566,10 @@ mod tests {
         assert_eq!(
             profile_str(SearchProfile::CurrentQsearchMovegen),
             "current-qsearch-movegen"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentQsearchPruning),
+            "current-qsearch-pruning"
         );
         assert_eq!(
             profile_str(SearchProfile::CurrentAspiration),
@@ -1704,6 +1723,11 @@ mod tests {
                 lmr_researches: 1,
                 futility_pruned: 5,
                 see_calls: 6,
+                qsearch_see_tests: 7,
+                qsearch_see_pruned: 2,
+                qsearch_checking_captures_kept: 3,
+                qsearch_promotions_kept: 4,
+                qsearch_en_passant_kept: 5,
                 ..SearchStats::default()
             },
         };
@@ -1714,6 +1738,11 @@ mod tests {
         assert!(line.contains("lmr_reductions=4"));
         assert!(line.contains("futility_pruned=5"));
         assert!(line.contains("see_calls=6"));
+        assert!(line.contains("qsearch_see_tests=7"));
+        assert!(line.contains("qsearch_see_pruned=2"));
+        assert!(line.contains("qsearch_checking_captures_kept=3"));
+        assert!(line.contains("qsearch_promotions_kept=4"));
+        assert!(line.contains("qsearch_en_passant_kept=5"));
         assert!(line.contains("total_nodes=1000"));
         assert!(line.contains("completed_iterations=0"));
         assert!(line.contains("qsearch_ratio=0.012000"));
