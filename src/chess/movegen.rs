@@ -141,6 +141,7 @@ pub(crate) fn generate_legal_tactical_moves_with_stats(
 pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, MovegenStats) {
     let mut pseudo = Vec::new();
     generate_pseudo_moves(pos, &mut pseudo);
+    let pseudo_count = pseudo.len() as u64;
     let us = pos.side;
     let mut checked = 0u64;
     for m in pseudo {
@@ -152,7 +153,7 @@ pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, Movege
             return (
                 true,
                 MovegenStats {
-                    pseudo_moves: checked,
+                    pseudo_moves: pseudo_count,
                     legal_moves: 1,
                     make_moves: checked,
                     unmake_moves: checked,
@@ -163,7 +164,7 @@ pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, Movege
     (
         false,
         MovegenStats {
-            pseudo_moves: checked,
+            pseudo_moves: pseudo_count,
             legal_moves: 0,
             make_moves: checked,
             unmake_moves: checked,
@@ -543,11 +544,19 @@ mod tests {
     #[test]
     fn has_any_legal_move_distinguishes_quiet_position_and_stalemate() {
         let mut quiet = parse_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
-        let (has_quiet, _) = has_any_legal_move_with_stats(&mut quiet);
+        let mut quiet_pseudo = Vec::new();
+        generate_pseudo_moves(&quiet, &mut quiet_pseudo);
+        let (has_quiet, quiet_stats) = has_any_legal_move_with_stats(&mut quiet);
         assert!(has_quiet);
+        assert_eq!(quiet_stats.pseudo_moves, quiet_pseudo.len() as u64);
+        assert!(quiet_stats.make_moves < quiet_stats.pseudo_moves);
 
         let mut stalemate = parse_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1").unwrap();
-        let (has_stalemate_move, _) = has_any_legal_move_with_stats(&mut stalemate);
+        let mut stalemate_pseudo = Vec::new();
+        generate_pseudo_moves(&stalemate, &mut stalemate_pseudo);
+        let (has_stalemate_move, stalemate_stats) = has_any_legal_move_with_stats(&mut stalemate);
         assert!(!has_stalemate_move);
+        assert_eq!(stalemate_stats.pseudo_moves, stalemate_pseudo.len() as u64);
+        assert_eq!(stalemate_stats.make_moves, stalemate_stats.pseudo_moves);
     }
 }
