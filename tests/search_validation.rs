@@ -5,6 +5,7 @@
 //! qsearch-pruning candidate. This is a safety gate, not an Elo measurement.
 
 use std::collections::{HashSet, VecDeque};
+use std::ffi::OsStr;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -19,6 +20,7 @@ const UCI_TIMEOUT: Duration = Duration::from_secs(5);
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(30);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
 const RECENT_OUTPUT_LINES: usize = 20;
+const READER_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug)]
 struct Case {
@@ -55,6 +57,14 @@ struct Outcome {
     recent_stderr: Vec<String>,
 }
 
+#[derive(Debug)]
+struct SearchResult {
+    bestmove: String,
+    completed_depth: u32,
+    score_at_completed_depth: Option<Score>,
+    pv_at_completed_depth: Vec<String>,
+}
+
 type LineReceiver = Receiver<io::Result<String>>;
 
 fn engine_path() -> std::path::PathBuf {
@@ -65,7 +75,7 @@ fn engine_path() -> std::path::PathBuf {
 }
 
 fn spawn_line_reader<R: Read + Send + 'static>(reader: R) -> LineReceiver {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(READER_CHANNEL_CAPACITY);
     thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         loop {
@@ -99,8 +109,16 @@ struct EngineProcess {
 
 impl EngineProcess {
     fn spawn(profile: &str) -> Result<Self, String> {
-        let mut child = Command::new(engine_path())
-            .args(["--profile", profile])
+        Self::spawn_command(profile, engine_path(), &["--profile", profile])
+    }
+
+    fn spawn_command<S: AsRef<OsStr>>(
+        profile: &str,
+        program: S,
+        args: &[&str],
+    ) -> Result<Self, String> {
+        let mut child = Command::new(program)
+            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -196,7 +214,7 @@ impl EngineProcess {
             Ok(Err(error)) => Err(self.failure(stage, error)),
             Err(RecvTimeoutError::Timeout) => Err(self.failure(
                 stage,
-                format_args!("timed out after {} seconds", timeout.as_secs()),
+                format_args!("timed out after {} ms", timeout.as_millis()),
             )),
             Err(RecvTimeoutError::Disconnected) => {
                 Err(self.failure(stage, "stdout reader disconnected"))
@@ -258,6 +276,48 @@ impl EngineProcess {
                 Err(self.failure("quitting engine", "process did not exit before deadline"))
             }
         }
+    }
+
+    fn read_search_result(&mut self, timeout: Duration) -> Result<SearchResult, String> {
+        let started = Instant::now();
+        let mut highest_info: Option<InfoSnapshot> = None;
+        let bestmove = loop {
+            let remaining = timeout.checked_sub(started.elapsed()).ok_or_else(|| {
+                self.failure("search", "total search deadline expired before bestmove")
+            })?;
+            let line = self.read_line("search", remaining)?;
+            if line.starts_with("info ") {
+                if let Some(info) = parse_info(&line) {
+                    let replace = highest_info
+                        .as_ref()
+                        .map(|previous| {
+                            info.depth > previous.depth
+                                || (info.depth == previous.depth && info.score.is_some())
+                        })
+                        .unwrap_or(true);
+                    if replace {
+                        highest_info = Some(info);
+                    }
+                }
+            }
+            if let Some(move_text) = line.strip_prefix("bestmove ") {
+                break move_text
+                    .split_whitespace()
+                    .next()
+                    .ok_or_else(|| self.failure("parsing bestmove", "missing move text"))?
+                    .to_string();
+            }
+        };
+
+        Ok(SearchResult {
+            bestmove,
+            completed_depth: highest_info.as_ref().map(|info| info.depth).unwrap_or(0),
+            score_at_completed_depth: highest_info.as_ref().and_then(|info| info.score),
+            pv_at_completed_depth: highest_info
+                .as_ref()
+                .map(|info| info.pv.clone())
+                .unwrap_or_default(),
+        })
     }
 }
 
@@ -348,47 +408,16 @@ fn run_case(case: &Case, profile: &str) -> Result<Outcome, String> {
     engine.send_line(&format!("position fen {}", case.fen))?;
     engine.send_line(&format!("go depth {}", case.depth))?;
 
-    let mut highest_info: Option<InfoSnapshot> = None;
-    let bestmove = loop {
-        let line = engine.read_line("search", SEARCH_TIMEOUT)?;
-        if line.starts_with("info ") {
-            if let Some(info) = parse_info(&line) {
-                let replace = highest_info
-                    .as_ref()
-                    .map(|previous| {
-                        info.depth > previous.depth
-                            || (info.depth == previous.depth && info.score.is_some())
-                    })
-                    .unwrap_or(true);
-                if replace {
-                    highest_info = Some(info);
-                }
-            }
-        }
-        if let Some(move_text) = line.strip_prefix("bestmove ") {
-            break move_text
-                .split_whitespace()
-                .next()
-                .ok_or_else(|| engine.failure("parsing bestmove", "missing move text"))?
-                .to_string();
-        }
-    };
-
-    let completed_depth = highest_info.as_ref().map(|info| info.depth).unwrap_or(0);
-    let score_at_completed_depth = highest_info.as_ref().and_then(|info| info.score);
-    let pv_at_completed_depth = highest_info
-        .as_ref()
-        .map(|info| info.pv.clone())
-        .unwrap_or_default();
+    let result = engine.read_search_result(SEARCH_TIMEOUT)?;
     let recent_stdout = engine.recent_stdout.iter().cloned().collect();
     let recent_stderr = engine.recent_stderr.iter().cloned().collect();
 
     engine.finish()?;
     Ok(Outcome {
-        bestmove,
-        completed_depth,
-        score_at_completed_depth,
-        pv_at_completed_depth,
+        bestmove: result.bestmove,
+        completed_depth: result.completed_depth,
+        score_at_completed_depth: result.score_at_completed_depth,
+        pv_at_completed_depth: result.pv_at_completed_depth,
         recent_stdout,
         recent_stderr,
     })
@@ -532,6 +561,33 @@ fn assert_legal_and_allowed(case: &Case, outcome: &Outcome, profile: &str, legal
     }
 }
 
+fn assert_pv(case: &Case, outcome: &Outcome, profile: &str, legal_moves: &[String]) {
+    if case.score_class.starts_with("terminal-") {
+        return;
+    }
+    assert!(
+        !outcome.pv_at_completed_depth.is_empty(),
+        "{} {profile} has no PV at completed depth; {}",
+        case.id,
+        context(case, profile, outcome)
+    );
+    assert_eq!(
+        outcome.pv_at_completed_depth[0],
+        outcome.bestmove,
+        "{} {profile} PV first move does not match bestmove; {}",
+        case.id,
+        context(case, profile, outcome)
+    );
+    assert!(
+        legal_moves
+            .iter()
+            .any(|mv| mv == &outcome.pv_at_completed_depth[0]),
+        "{} {profile} PV first move is illegal; {}",
+        case.id,
+        context(case, profile, outcome)
+    );
+}
+
 fn assert_manifest_case(case: &Case) {
     assert!(!case.id.is_empty());
     assert!(!case.fen.is_empty());
@@ -604,6 +660,7 @@ fn current_qsearch_pruning_passes_external_search_safety_corpus() {
             .unwrap_or_else(|error| panic!("baseline failed for {}: {error}", case.id));
         assert_completed_depth(&case, &baseline, PROFILES[0]);
         assert_legal_and_allowed(&case, &baseline, PROFILES[0], &baseline_legal);
+        assert_pv(&case, &baseline, PROFILES[0], &baseline_legal);
         assert_score_class(
             &case,
             &baseline,
@@ -617,6 +674,7 @@ fn current_qsearch_pruning_passes_external_search_safety_corpus() {
             .unwrap_or_else(|error| panic!("candidate failed for {}: {error}", case.id));
         assert_completed_depth(&case, &candidate, PROFILES[1]);
         assert_legal_and_allowed(&case, &candidate, PROFILES[1], &candidate_legal);
+        assert_pv(&case, &candidate, PROFILES[1], &candidate_legal);
         assert_score_class(
             &case,
             &candidate,
@@ -638,4 +696,62 @@ fn current_qsearch_pruning_passes_external_search_safety_corpus() {
             );
         }
     }
+}
+
+fn spawn_continuous_info_engine() -> Result<EngineProcess, String> {
+    #[cfg(windows)]
+    {
+        let script = "Write-Output 'id name D19DeadlineFake'; Write-Output 'id author tests'; Write-Output 'info string search profile current'; Write-Output 'uciok'; Write-Output 'readyok'; while ($true) { Write-Output 'info depth 1 score cp 0 pv a2a3'; Start-Sleep -Milliseconds 10 }";
+        EngineProcess::spawn_command(
+            "current",
+            "powershell.exe",
+            &[
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ],
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let script = "printf '%s\\n' 'id name D19DeadlineFake' 'id author tests' 'info string search profile current' 'uciok' 'readyok'; while :; do printf '%s\\n' 'info depth 1 score cp 0 pv a2a3'; sleep 0.01; done";
+        EngineProcess::spawn_command("current", "sh", &["-c", script])
+    }
+}
+
+#[test]
+fn search_total_deadline_kills_continuous_info_engine() {
+    let mut engine = spawn_continuous_info_engine().expect("deadline fake must start");
+    engine
+        .read_until("uciok", UCI_TIMEOUT)
+        .expect("deadline fake must complete UCI handshake");
+    engine
+        .read_until("readyok", UCI_TIMEOUT)
+        .expect("deadline fake must complete readiness");
+
+    let started = Instant::now();
+    let error = engine
+        .read_search_result(Duration::from_millis(250))
+        .expect_err("continuous info without bestmove must hit total deadline");
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "search deadline was not bounded: {elapsed:?}; {error}"
+    );
+    assert!(
+        error.contains("search") && error.contains("profile=current"),
+        "deadline error lacks process context: {error}"
+    );
+
+    engine.cleanup_process();
+    assert!(
+        engine
+            .child
+            .try_wait()
+            .expect("deadline fake status must be readable")
+            .is_some(),
+        "deadline fake must be killed and reaped"
+    );
 }
