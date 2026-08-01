@@ -228,8 +228,9 @@ bestmove b1c3
   与 `current-qsearch-pruning` 的合法着、终局、mate/score class 和候选相对基线安全性；
   不改变 `Current`，不代表 Elo。见
   [`d1.9-external-search-validation.md`](docs/benchmarks/d1.9-external-search-validation.md)。
-- **D1.10 SEE-specific corpus expansion（验证数据完成）**：将 manifest 扩展到 23 个固定的
-  升变链、唯一升马、吃子升变、x-ray、钉住子、王吃子、将军吃子、EP 发现将军和防守吃子案例，
+- **D1.10 SEE-specific corpus expansion（验证数据完成）**：将 manifest 固定为 23 个 case、46 次
+  真实 UCI 搜索，覆盖升变链、唯一升马、吃子升变、x-ray、钉住子、王吃子、普通与负 SEE 将军吃子、
+  EP 发现将军和防守吃子案例，
   支持显式 forbidden-move 门禁；仍只比较 `current` 与 `current-qsearch-pruning`，不改变
   `Current`，不代表 Elo 或允许 SEE pruning 晋级。见
   [`d1.10-see-specific-corpus.md`](docs/benchmarks/d1.10-see-specific-corpus.md)。

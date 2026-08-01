@@ -16,6 +16,20 @@ use chess_engine_demo::chess::{generate_legal_moves, move_to_uci, parse_fen};
 
 const MANIFEST: &str = include_str!("data/search_validation.epd");
 const PROFILES: [&str; 2] = ["current", "current-qsearch-pruning"];
+const EXPECTED_CORPUS_V2_CASES: usize = 23;
+const EXPECTED_D10_IDS: [&str; 11] = [
+    "d10-promotion-chain-white",
+    "d10-promotion-chain-black",
+    "d10-unique-underpromotion",
+    "d10-promotion-capture",
+    "d10-xray-recapture",
+    "d10-pinned-recapture",
+    "d10-king-recapture",
+    "d10-checking-capture",
+    "d10-en-passant-discovered-check",
+    "d10-defensive-capture",
+    "d10-checking-losing-capture",
+];
 const UCI_TIMEOUT: Duration = Duration::from_secs(5);
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(30);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -532,6 +546,12 @@ fn assert_score_class(
             case.id,
             context(case, profile, outcome)
         ),
+        "losing" => assert!(
+            matches!(outcome.score_at_completed_depth, Some(Score::Cp(cp)) if cp < -150),
+            "{} {profile} must remain in the pinned centipawn-loss class; {}",
+            case.id,
+            context(case, profile, outcome)
+        ),
         other => panic!("{} has unknown score class {other}", case.id),
     }
 }
@@ -677,8 +697,10 @@ fn assert_manifest_case(case: &Case) {
 fn validation_manifest_is_pinned_and_well_formed() {
     let cases = parse_manifest();
     assert!(
-        cases.len() >= 20,
-        "validation corpus must not shrink silently"
+        cases.len() == EXPECTED_CORPUS_V2_CASES,
+        "validation corpus cardinality changed: expected {}, got {}",
+        EXPECTED_CORPUS_V2_CASES,
+        cases.len()
     );
     let mut ids = HashSet::new();
     for case in &cases {
@@ -712,6 +734,25 @@ fn validation_manifest_is_pinned_and_well_formed() {
             "D1.10 corpus is missing category {category}"
         );
     }
+    let actual_d10_ids: HashSet<String> = cases
+        .iter()
+        .filter(|case| case.id.starts_with("d10-"))
+        .map(|case| case.id.clone())
+        .collect();
+    let expected_d10_ids: HashSet<String> = EXPECTED_D10_IDS
+        .iter()
+        .map(|id| (*id).to_string())
+        .collect();
+    assert_eq!(
+        actual_d10_ids, expected_d10_ids,
+        "D1.10 case IDs changed; update the pinned corpus deliberately"
+    );
+    assert!(
+        cases
+            .iter()
+            .any(|case| case.category == "checking-losing-capture"),
+        "D1.10 corpus is missing the negative-SEE checking-capture case"
+    );
 }
 
 #[test]

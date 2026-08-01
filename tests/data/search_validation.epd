@@ -30,6 +30,7 @@ d10-promotion-capture|promotion-capture|3p3k/4P3/8/8/8/8/8/4K3 w - - 0 1|e7d8q|w
 d10-xray-recapture|xray-recapture|7k/r7/8/8/p7/8/8/R6K w - - 0 1|h1g2|nonlosing|5|project-curated|CC0-1.0|a1a4
 d10-pinned-recapture|pinned-recapture|4r1k1/8/8/8/8/8/r3R3/4K3 w - - 0 1|e2e8|nonlosing|5|project-curated|CC0-1.0|-
 d10-king-recapture|king-recapture|6k1/8/8/3pK3/8/8/4P3/R7 w - - 0 1|a1a7|winning|5|project-curated|CC0-1.0|e5d5
-d10-checking-capture|checking-capture|4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1|e4e5|winning|5|project-curated|CC0-1.0|-
+d10-checking-capture|checking-capture|4k3/8/4r3/8/4Q3/8/8/K7 w - - 0 1|e4e6|winning|5|project-curated|CC0-1.0|-
 d10-en-passant-discovered-check|en-passant-discovered-check|4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1|e5d6|winning|5|project-curated|CC0-1.0|e5e6
 d10-defensive-capture|defensive-capture|6k1/8/8/8/8/8/3q4/4K2R w - - 0 1|e1d2|winning|5|project-curated|CC0-1.0|-
+d10-checking-losing-capture|checking-losing-capture|8/2bp4/4k1q1/8/3Q4/8/8/5b1K w - - 0 1|d4d7|losing|5|project-curated|CC0-1.0|-
