@@ -77,6 +77,21 @@ class DepthUpliftTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_depth_uplift(Path(temp) / "missing.exe", fixture_ids={"unknown"})
 
+    def test_fixture_summaries_do_not_mix_positions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report = run_depth_uplift(
+                self._fake_engine(Path(temp)),
+                movetime_ms=10,
+                repeats=1,
+                timeout_s=1.0,
+                fixture_ids={"startpos", "queen-win"},
+            )
+        self.assertEqual(len(report["fixture_summary"]), 2)
+        self.assertEqual(
+            {item["fixture"] for item in report["fixture_summary"]},
+            {"startpos", "queen-win"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

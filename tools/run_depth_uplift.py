@@ -156,6 +156,7 @@ def _median(values: list[float]) -> Optional[float]:
 
 
 def _aggregate_fixture(rows: list[dict[str, Any]], fixture_id: str) -> dict[str, Any]:
+    rows = [row for row in rows if row.get("fixture") == fixture_id]
     by_pair: dict[int, dict[str, dict[str, Any]]] = {}
     for row in rows:
         by_pair.setdefault(row["pair"], {})[row["role"]] = row
