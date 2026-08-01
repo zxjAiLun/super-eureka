@@ -78,6 +78,11 @@ class DepthUpliftTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_depth_uplift(Path(temp) / "missing.exe", fixture_ids={"unknown"})
 
+    def test_gate_decision_is_explicit_and_validated(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(ValueError):
+                run_depth_uplift(Path(temp) / "missing.exe", fixture_ids={"startpos"}, gate_decision="maybe")
+
     def test_fixture_summaries_do_not_mix_positions(self):
         with tempfile.TemporaryDirectory() as temp:
             report = run_depth_uplift(

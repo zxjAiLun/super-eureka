@@ -209,9 +209,12 @@ def run_depth_uplift(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     fixture_ids: Optional[set[str]] = None,
     report_path: Optional[Path] = None,
+    gate_decision: str = "UNDECIDED",
 ) -> dict[str, Any]:
     if movetime_ms <= 0 or repeats <= 0 or hash_mb <= 0 or timeout_s <= 0:
         raise ValueError("movetime, repeats, hash, and timeout must be positive")
+    if gate_decision not in {"PASS", "FAIL", "UNDECIDED"}:
+        raise ValueError("gate_decision must be PASS, FAIL, or UNDECIDED")
     fixtures = tuple(f for f in FIXTURES if fixture_ids is None or f.fixture_id in fixture_ids)
     if not fixtures:
         raise ValueError("fixture filter selected no known fixtures")
@@ -239,7 +242,7 @@ def run_depth_uplift(
     report: dict[str, Any] = {
         "tool": "d1.12-depth-uplift",
         "measurement_status": "FAIL" if errors else "PASS",
-        "gate_decision": "UNDECIDED",
+        "gate_decision": gate_decision,
         "profiles": profiles,
         "resources": {
             "hash_mb": hash_mb,
@@ -275,6 +278,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hash-mb", type=int, default=DEFAULT_HASH_MB)
     parser.add_argument("--timeout-s", type=float, default=DEFAULT_TIMEOUT_S)
     parser.add_argument("--fixture", action="append", dest="fixtures")
+    parser.add_argument("--gate-decision", choices=("PASS", "FAIL", "UNDECIDED"), default="UNDECIDED")
     parser.add_argument("--report", type=Path, default=None)
     return parser
 
@@ -290,6 +294,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             timeout_s=args.timeout_s,
             fixture_ids=set(args.fixtures) if args.fixtures else None,
             report_path=args.report,
+            gate_decision=args.gate_decision,
         )
     except (OSError, ValueError) as exc:
         print(json.dumps({"measurement_status": "FAIL", "error": str(exc)}, indent=2))
