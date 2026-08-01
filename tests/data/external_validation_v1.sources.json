@@ -26,25 +26,25 @@
     },
     {
       "book_id": "stockfish-stalemates-200d30-v1",
-      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee2528f67fb740e92f/stalemates_200d30_v1.epd.zip",
+      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee252ba8f67fb740e92f/stalemates_200d30_v1.epd.zip",
       "source_repository": "https://github.com/official-stockfish/books",
-      "source_ref": "65815ccdbc7727cd4f6aee2528f67fb740e92f",
+      "source_ref": "65815ccdbc7727cd4f6aee252ba8f67fb740e92f",
       "license": "CC0-1.0",
       "raw_content_sha384_base64": "FRdKMTDCSEBRDY8Jyq9Wk8nQbFBFuLwnLFyoNqkfSxRLMFPdffXmOCPct7D9o6v3"
     },
     {
       "book_id": "stockfish-endgames",
-      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee2528f67fb740e92f/endgames.epd.zip",
+      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee252ba8f67fb740e92f/endgames.epd.zip",
       "source_repository": "https://github.com/official-stockfish/books",
-      "source_ref": "65815ccdbc7727cd4f6aee2528f67fb740e92f",
+      "source_ref": "65815ccdbc7727cd4f6aee252ba8f67fb740e92f",
       "license": "CC0-1.0",
       "raw_content_sha384_base64": "nxIaD6KHWtRWCjwK1WS4FffBMilSTT3psxwNSNtW/zSMMlI1n/m6dximaniQGGe4"
     },
     {
       "book_id": "stockfish-endgames-cdb95105",
-      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee2528f67fb740e92f/endgames_cdb95105.epd.zip",
+      "archive_url": "https://raw.githubusercontent.com/official-stockfish/books/65815ccdbc7727cd4f6aee252ba8f67fb740e92f/endgames_cdb95105.epd.zip",
       "source_repository": "https://github.com/official-stockfish/books",
-      "source_ref": "65815ccdbc7727cd4f6aee2528f67fb740e92f",
+      "source_ref": "65815ccdbc7727cd4f6aee252ba8f67fb740e92f",
       "license": "CC0-1.0",
       "raw_content_sha384_base64": "fN/3qVBEIEgHShovoRO3SEq5uikm8qlMNMIatUXdK3w4Y83rLZZjj3/+VzmPJEQ0"
     }
