@@ -17,7 +17,7 @@ use crate::chess::zobrist::{
     castling_key, castling_mask, effective_ep_file, ep_file_key, piece_square_key, ZobristKey,
     SIDE_KEY,
 };
-use crate::engine::eval::{base_eval_piece_delta, BaseEvalCache};
+use crate::engine::eval::{base_eval_piece_delta, recompute_base_eval, BaseEvalCache};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Position {
@@ -31,9 +31,10 @@ pub struct Position {
     pub(crate) king_sq: [Square; 2],
     /// Derived Zobrist key (crate-private; never written by callers).
     pub(crate) zobrist_key: ZobristKey,
-    /// Cached base tapered evaluation, maintained by make/unmake. Exact
-    /// KQK/KRK mop-up remains a board-scan evaluation term.
-    pub(crate) eval_cache: BaseEvalCache,
+    /// Optional base tapered evaluation cache. It is enabled only for the
+    /// incremental-evaluation candidate during a search; ordinary Current
+    /// positions carry no cache-maintenance state.
+    pub(crate) eval_cache: Option<BaseEvalCache>,
 }
 
 /// Everything needed to reverse a move. Stored by value so `unmake_move`
@@ -51,7 +52,7 @@ pub struct Undo {
     /// `zobrist_key` captured before the move, so `unmake_move` can
     /// restore it verbatim (no reverse hash replay).
     previous_zobrist_key: ZobristKey,
-    previous_eval_cache: BaseEvalCache,
+    previous_eval_cache: Option<BaseEvalCache>,
 }
 
 impl Position {
@@ -83,6 +84,24 @@ impl Position {
     }
     pub fn zobrist_key(&self) -> ZobristKey {
         self.zobrist_key
+    }
+
+    /// Enable candidate-only incremental evaluation and return the previous
+    /// tracking state so the caller can restore it after the search.
+    pub(crate) fn begin_incremental_eval(&mut self) -> Option<BaseEvalCache> {
+        let previous = self.eval_cache;
+        self.eval_cache = Some(recompute_base_eval(self));
+        previous
+    }
+
+    /// Disable candidate-only incremental evaluation and return the previous
+    /// tracking state so a public caller can restore it after a probe.
+    pub(crate) fn disable_incremental_eval(&mut self) -> Option<BaseEvalCache> {
+        self.eval_cache.take()
+    }
+
+    pub(crate) fn end_incremental_eval(&mut self, previous: Option<BaseEvalCache>) {
+        self.eval_cache = previous;
     }
 
     /// Apply `m` and return an `Undo` that reverses it.
@@ -281,10 +300,13 @@ impl Position {
 
     #[inline]
     fn update_eval_cache(&mut self, piece: Piece, sq: Square, sign: i32) {
+        let Some(cache) = self.eval_cache.as_mut() else {
+            return;
+        };
         let delta = base_eval_piece_delta(piece, sq as usize);
-        self.eval_cache.white_minus_black_mg += sign * delta.white_minus_black_mg;
-        self.eval_cache.white_minus_black_eg += sign * delta.white_minus_black_eg;
-        self.eval_cache.phase += sign * delta.phase;
+        cache.white_minus_black_mg += sign * delta.white_minus_black_mg;
+        cache.white_minus_black_eg += sign * delta.white_minus_black_eg;
+        cache.phase += sign * delta.phase;
     }
 
     #[inline]

@@ -269,7 +269,7 @@ pub struct SearchContext {
     pub qsearch_checking_captures_kept: AtomicU64,
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
-    pub full_eval_scans: AtomicU64,
+    pub full_eval_recomputations: AtomicU64,
     see_enabled: AtomicBool,
     incremental_eval_enabled: AtomicBool,
     /// Diagnostic counters are opt-in so ordinary searches do not pay for
@@ -316,7 +316,7 @@ pub struct SearchStats {
     pub qsearch_checking_captures_kept: u64,
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
-    pub full_eval_scans: u64,
+    pub full_eval_recomputations: u64,
     pub aspiration_retries: u64,
     pub aspiration_fail_low: u64,
     pub aspiration_fail_high: u64,
@@ -365,7 +365,7 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
-            full_eval_scans: AtomicU64::new(0),
+            full_eval_recomputations: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             incremental_eval_enabled: AtomicBool::new(false),
             profiling_enabled: false,
@@ -425,7 +425,7 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
-            full_eval_scans: AtomicU64::new(0),
+            full_eval_recomputations: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             incremental_eval_enabled: AtomicBool::new(false),
             profiling_enabled,
@@ -475,7 +475,7 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
             qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
-            full_eval_scans: self.full_eval_scans.load(Ordering::Relaxed),
+            full_eval_recomputations: self.full_eval_recomputations.load(Ordering::Relaxed),
             aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
             aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
             aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
@@ -553,7 +553,7 @@ fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
     if ctx.incremental_eval_enabled.load(Ordering::Relaxed) {
         evaluate_incremental(pos)
     } else {
-        ctx.add_profile_counter(&ctx.full_eval_scans, 1);
+        ctx.add_profile_counter(&ctx.full_eval_recomputations, 1);
         evaluate(pos)
     }
 }
@@ -3026,9 +3026,11 @@ pub fn quiescence(
     limits: &SearchLimits,
 ) -> Option<i32> {
     // The public qsearch API is the historical correctness path. It must not
-    // inherit SEE state left behind by a private candidate-profile search on
-    // a reused context.
+    // inherit candidate state left behind by a private profile search on a
+    // reused context or Position.
     ctx.see_enabled.store(false, Ordering::Relaxed);
+    ctx.incremental_eval_enabled.store(false, Ordering::Relaxed);
+    let previous_eval_cache = pos.disable_incremental_eval();
     // Public entry: throwaway PV table, discarded on return.
     let mut pv = PvTable::default();
     // Thin history view: a single-element root key. This caller has
@@ -3038,6 +3040,7 @@ pub fn quiescence(
     let root_len = path.len();
     let r = quiescence_impl(pos, ply, qply, alpha, beta, ctx, limits, &mut pv, &mut path);
     path.restore_root(root_len);
+    pos.end_incremental_eval(previous_eval_cache);
     r
 }
 
@@ -4018,6 +4021,11 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
+    let previous_eval_cache = if profile.uses_incremental_eval() {
+        pos.begin_incremental_eval()
+    } else {
+        pos.disable_incremental_eval()
+    };
     ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
     ctx.incremental_eval_enabled
         .store(profile.uses_incremental_eval(), Ordering::Relaxed);
@@ -4025,6 +4033,7 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     let root_len = path.len();
     let r = search_best_move_impl(pos, limits, ctx, profile, &mut path, tt);
     path.restore_root(root_len);
+    pos.end_incremental_eval(previous_eval_cache);
     r
 }
 
@@ -5009,11 +5018,12 @@ mod tests {
                     profile,
                 )
                 .expect("incremental-eval fixture must be non-terminal");
-                (outcome, ctx.stats())
+                (outcome, ctx.stats(), pos.eval_cache.is_none())
             };
 
-            let (full, full_stats) = run(SearchProfile::Current);
-            let (incremental, incremental_stats) = run(SearchProfile::CurrentIncrementalEval);
+            let (full, full_stats, full_cache_restored) = run(SearchProfile::Current);
+            let (incremental, incremental_stats, incremental_cache_restored) =
+                run(SearchProfile::CurrentIncrementalEval);
             assert_eq!(incremental.completed_depth, full.completed_depth);
             assert_eq!(incremental.score, full.score);
             assert_eq!(incremental.best_move, full.best_move);
@@ -5023,8 +5033,10 @@ mod tests {
             assert_eq!(incremental_stats.eval_calls, full_stats.eval_calls);
             assert_eq!(incremental_stats.tt_probes, full_stats.tt_probes);
             assert_eq!(incremental_stats.tt_stores, full_stats.tt_stores);
-            assert_eq!(full_stats.full_eval_scans, full_stats.eval_calls);
-            assert_eq!(incremental_stats.full_eval_scans, 0);
+            assert_eq!(full_stats.full_eval_recomputations, full_stats.eval_calls);
+            assert_eq!(incremental_stats.full_eval_recomputations, 0);
+            assert!(full_cache_restored);
+            assert!(incremental_cache_restored);
         }
     }
 

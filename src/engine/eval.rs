@@ -462,12 +462,15 @@ pub fn evaluate(pos: &Position) -> i32 {
 /// base tapered lanes. Exact KQK/KRK mop-up intentionally remains the
 /// existing board-scan path, so D1.6 changes only the base evaluation cost.
 pub(crate) fn evaluate_incremental(pos: &Position) -> i32 {
+    let cache = pos
+        .eval_cache
+        .expect("incremental evaluation requires an active cache");
     let perspective = if pos.side == Color::White { 1 } else { -1 };
     finish_evaluation(
         pos,
-        perspective * pos.eval_cache.white_minus_black_mg,
-        perspective * pos.eval_cache.white_minus_black_eg,
-        pos.eval_cache.phase.min(MAX_PHASE),
+        perspective * cache.white_minus_black_mg,
+        perspective * cache.white_minus_black_eg,
+        cache.phase.min(MAX_PHASE),
     )
 }
 
@@ -526,11 +529,18 @@ mod tests {
             ("4k3/8/8/8/8/8/P7/4K3 w - - 0 1", "a2a4"),
             ("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7a8q"),
             ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1"),
+            ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1c1"),
+            ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "e8g8"),
+            ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "e8c8"),
             ("1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7b8q"),
+            ("4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1", "e4d3"),
+            ("4k3/8/8/8/8/8/p7/4K3 b - - 0 1", "a2a1q"),
+            ("4k3/8/8/8/8/8/1p6/R3K3 b - - 0 1", "b2a1q"),
         ];
 
         for (fen, uci) in cases {
             let mut pos = parse_fen(fen).expect("test FEN must parse");
+            let previous_cache = pos.begin_incremental_eval();
             let before = evaluate(&pos);
             let mv = generate_legal_moves(&mut pos.clone())
                 .into_iter()
@@ -540,14 +550,32 @@ mod tests {
             assert_eq!(evaluate_incremental(&pos), evaluate(&pos), "after {uci}");
             pos.unmake_move(undo);
             assert_eq!(evaluate_incremental(&pos), before, "after unmake {uci}");
-            assert_eq!(pos.eval_cache, super::recompute_base_eval(&pos));
+            assert_eq!(pos.eval_cache, Some(super::recompute_base_eval(&pos)));
+            pos.end_incremental_eval(previous_cache);
+            assert_eq!(pos.eval_cache, previous_cache);
         }
+    }
+
+    #[test]
+    fn ordinary_position_moves_do_not_maintain_candidate_cache() {
+        let mut pos = parse_fen(START_FEN).unwrap();
+        assert!(pos.eval_cache.is_none());
+        let mv = generate_legal_moves(&mut pos.clone())
+            .into_iter()
+            .next()
+            .expect("startpos has a legal move");
+        let undo = pos.make_move(mv);
+        assert!(pos.eval_cache.is_none());
+        pos.unmake_move(undo);
+        assert!(pos.eval_cache.is_none());
     }
 
     #[test]
     fn incremental_base_matches_full_on_deterministic_legal_walk() {
         let mut pos = parse_fen(START_FEN).unwrap();
+        let previous_cache = pos.begin_incremental_eval();
         let mut seed = 0x0D16_0EA1_u64;
+        let mut plies = 0;
         for _ in 0..512 {
             assert_eq!(evaluate_incremental(&pos), evaluate(&pos));
             let legal = generate_legal_moves(&mut pos);
@@ -561,6 +589,10 @@ mod tests {
             pos.unmake_move(undo);
             assert_eq!(evaluate_incremental(&pos), evaluate(&pos));
             let _ = pos.make_move(mv);
+            plies += 1;
         }
+        assert_eq!(plies, 512);
+        pos.end_incremental_eval(previous_cache);
+        assert_eq!(pos.eval_cache, previous_cache);
     }
 }

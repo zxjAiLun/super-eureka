@@ -704,7 +704,7 @@ fn format_result_line(r: &BenchResult) -> String {
     };
     if r.suite == "profile" || r.suite == "ablation" {
         format!(
-            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} full_eval_scans={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} qsearch_see_tests={} qsearch_see_pruned={} qsearch_see_fail_open_promotions={} qsearch_checking_captures_kept={} qsearch_promotions_kept={} qsearch_en_passant_kept={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
+            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} full_eval_recomputations={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} qsearch_see_tests={} qsearch_see_pruned={} qsearch_see_fail_open_promotions={} qsearch_checking_captures_kept={} qsearch_promotions_kept={} qsearch_en_passant_kept={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
             line,
             r.nodes,
             r.stats.completed_iterations,
@@ -717,7 +717,7 @@ fn format_result_line(r: &BenchResult) -> String {
             r.stats.aborted_iteration_nodes,
             r.stats.qsearch_nodes,
             r.stats.eval_calls,
-            r.stats.full_eval_scans,
+            r.stats.full_eval_recomputations,
             r.stats.legal_move_generations,
             r.stats.pseudo_moves,
             r.stats.legal_moves,
