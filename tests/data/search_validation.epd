@@ -1,0 +1,21 @@
+# Search validation corpus v1.
+#
+# This is a small project-curated, CC0-1.0 corpus used to validate candidate
+# search profiles. It is intentionally versioned in-repository and is not an
+# Elo suite. Each non-comment line is:
+# id|category|full FEN|allowed bestmoves|score class|depth|source|license
+#
+# `*` in the allowed-bestmoves column means any legal move is accepted while
+# the score class and candidate-vs-baseline safety checks still apply.
+tactical-queen-win|tactical-capture|7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1|e4a4|winning|4|project-curated|CC0-1.0
+checking-capture|checking-capture|4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1|e4e5|winning|4|project-curated|CC0-1.0
+mate-in-one-rook|mate-sequence|6k1/5ppp/8/8/8/8/8/R6K w - - 0 1|a1a8|mate|4|project-curated|CC0-1.0
+already-checkmated|mate-sequence|rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3|0000|terminal-mate|1|project-curated|CC0-1.0
+quiet-promotion|promotion|7k/4P3/8/8/8/8/8/K7 w - - 0 1|e7e8q,e7e8r,e7e8b,e7e8n|winning|4|project-curated|CC0-1.0
+underpromotion-options|underpromotion|8/P7/8/8/8/8/8/k6K w - - 0 1|a7a8q,a7a8r,a7a8b,a7a8n|winning|4|project-curated|CC0-1.0
+promotion-race|promotion-race|4k3/P7/8/8/8/8/7p/4K3 w - - 0 1|a7a8q,a7a8r,a7a8b,a7a8n|winning|4|project-curated|CC0-1.0
+en-passant-tactic|en-passant|4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1|*|nonlosing|4|project-curated|CC0-1.0
+sacrifice-recapture|sacrifice|6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1|*|nonlosing|4|project-curated|CC0-1.0
+stalemate-resource|stalemate|7k/5Q2/6K1/8/8/8/8/8 b - - 0 1|0000|terminal-draw|1|project-curated|CC0-1.0
+kqk-mopup|endgame-kqk|7k/8/5K2/8/3Q4/8/8/8 w - - 0 1|d4g1|mate|3|project-curated|CC0-1.0
+krk-mopup|endgame-krk|7k/8/5K2/8/3R4/8/8/8 w - - 0 1|f6g6|mate|3|project-curated|CC0-1.0

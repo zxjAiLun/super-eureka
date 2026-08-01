@@ -118,6 +118,11 @@ fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
         "current-aspiration",
         true,
     );
+    run_profile_process(
+        &["--profile", "current-qsearch-pruning"],
+        "current-qsearch-pruning",
+        false,
+    );
 
     assert_startup_rejected(&["--profile", "null"]);
     assert_startup_rejected(&["--profile", "current", "--profile", "current-aspiration"]);

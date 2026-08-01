@@ -147,6 +147,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentAspirationLmrFutilitySee => {
             "current-aspiration-lmr-futility-see"
         }
+        search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
 }
@@ -380,8 +381,10 @@ fn handle_setoption(
 
 /// Parse the optional command-line profile used when launching a tournament
 /// candidate. Only the cumulative S1 profiles are exposed through the UCI
-/// executable; the default remains `Current`, and the dormant null probe is
-/// intentionally not selectable here.
+/// executable; the default remains `Current`, and dormant null/standalone
+/// search candidates are intentionally not selectable here. The conservative
+/// qsearch-pruning profile is exposed only for the external validation harness
+/// and remains separate from `Current`.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     let mut profile = search::SearchProfile::Current;
     let mut profile_seen = false;
@@ -412,9 +415,10 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-aspiration-lmr-futility-see" => {
                         search::SearchProfile::CurrentAspirationLmrFutilitySee
                     }
+                    "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "invalid --profile '{}' (expected current|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
