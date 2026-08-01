@@ -2304,8 +2304,9 @@ fn is_plain_capture(pos: &Position, m: Move) -> bool {
 /// Apply the first D1.3 qsearch pruning rule. Only a plain, non-checking
 /// capture is eligible for SEE<0 pruning. Promotions and en passant are
 /// deliberately fail-open, and all checking captures are kept before SEE is
-/// consulted. The helper preserves the existing move order for every move it
-/// keeps.
+/// consulted. If a later recapture promotes, the pruning-specific SEE also
+/// fails open because the current exchange model does not prove that line.
+/// The helper preserves the existing move order for every move it keeps.
 fn prune_qsearch_captures_by_see(
     pos: &mut Position,
     moves: Vec<Move>,
@@ -2344,10 +2345,16 @@ fn prune_qsearch_captures_by_see(
         // capture. If a future move flag or generator violates that contract,
         // it reaches the fail-open path above instead of being pruned.
         ctx.add_profile_counter(&ctx.qsearch_see_tests, 1);
-        if static_exchange_eval(pos, m) < 0 {
-            ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
-        } else {
-            kept.push(m);
+        match static_exchange_eval_for_pruning(pos, m) {
+            Some(value) if value < 0 => {
+                ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
+            }
+            Some(_) | None => {
+                // An unsupported exchange, including a later promotion,
+                // must fail open because this SEE result is now a deletion
+                // proof rather than an ordering hint.
+                kept.push(m);
+            }
         }
     }
     kept
@@ -2555,6 +2562,22 @@ fn least_valuable_attacker(pos: &mut Position, target: u8) -> Option<Move> {
 }
 
 fn static_exchange_eval(pos: &Position, m: Move) -> i32 {
+    static_exchange_eval_impl(pos, m, false).expect("ordering SEE must not reject any exchange")
+}
+
+/// SEE used as a qsearch deletion proof. Unlike ordering SEE, this function
+/// refuses to make a claim when the exchange contains a promotion after the
+/// initial move. The current exchange model does not yet encode promotion
+/// choice and promotion gain at every recapture ply, so an unsupported line
+/// must be searched rather than pruned.
+fn static_exchange_eval_for_pruning(pos: &Position, m: Move) -> Option<i32> {
+    static_exchange_eval_impl(pos, m, true)
+}
+
+fn static_exchange_eval_impl(pos: &Position, m: Move, reject_promotions: bool) -> Option<i32> {
+    if reject_promotions && m.promotion.is_some() {
+        return None;
+    }
     let victim_value = match m.flag {
         MoveFlag::EnPassant => PieceType::Pawn.value(),
         MoveFlag::Promotion(_)
@@ -2580,6 +2603,9 @@ fn static_exchange_eval(pos: &Position, m: Move) -> i32 {
         let Some(attacker) = least_valuable_attacker(&mut child, m.to) else {
             break;
         };
+        if reject_promotions && attacker.promotion.is_some() {
+            return None;
+        }
         depth += 1;
         gains[depth] = captured_value - gains[depth - 1];
         captured_value = see_piece_after_move(&child, attacker);
@@ -2589,7 +2615,7 @@ fn static_exchange_eval(pos: &Position, m: Move) -> i32 {
         depth -= 1;
         gains[depth] = -(-gains[depth]).max(gains[depth + 1]);
     }
-    gains[0]
+    Some(gains[0])
 }
 
 fn move_gives_check(pos: &mut Position, m: Move) -> bool {
@@ -4689,6 +4715,37 @@ mod tests {
         assert!(kept.is_empty());
         assert_eq!(stats.qsearch_see_pruned, 1);
 
+        // The old ordering SEE can return a false negative when the
+        // exchange is completed by a pawn promotion. The pruning interface
+        // must reject that unsupported line and fail open instead.
+        let promotion_exchange = "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1";
+        let promotion_exchange_pos = parse_fen(promotion_exchange).unwrap();
+        let promotion_exchange_move = find_move(&promotion_exchange_pos, "e2e8");
+        assert!(static_exchange_eval(&promotion_exchange_pos, promotion_exchange_move) < 0);
+        assert_eq!(
+            static_exchange_eval_for_pruning(&promotion_exchange_pos, promotion_exchange_move),
+            None
+        );
+        let (kept, stats) = prune_one(promotion_exchange, "e2e8");
+        assert_eq!(kept, vec![promotion_exchange_move]);
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+
+        // Color-swapped counterpart: the safety rule must not depend on the
+        // side to move or the direction of the promotion.
+        let black_promotion_exchange = "6K1/4q3/8/8/8/1k6/3p4/R3B3 b - - 0 1";
+        let black_promotion_pos = parse_fen(black_promotion_exchange).unwrap();
+        let black_promotion_move = find_move(&black_promotion_pos, "e7e1");
+        assert!(static_exchange_eval(&black_promotion_pos, black_promotion_move) < 0);
+        assert_eq!(
+            static_exchange_eval_for_pruning(&black_promotion_pos, black_promotion_move),
+            None
+        );
+        let (kept, stats) = prune_one(black_promotion_exchange, "e7e1");
+        assert_eq!(kept, vec![black_promotion_move]);
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+
         // The defended queen win remains searchable.
         let (kept, stats) = prune_one(MVV_POS, "e4a4");
         assert_eq!(kept, vec![find_move(&parse_fen(MVV_POS).unwrap(), "e4a4")]);
@@ -4736,6 +4793,31 @@ mod tests {
         assert_eq!(kept_promotions, promotion_moves);
         assert_eq!(promotion_ctx.stats().qsearch_promotions_kept, 8);
         assert_eq!(promotion_ctx.stats().qsearch_see_tests, 0);
+
+        // Both queen/underpromotion choices, with and without a later
+        // recapture, are unsupported by the pruning proof and therefore
+        // fail open. This covers quiet and capturing promotions separately.
+        for move_uci in ["a7a8q", "a7a8n", "a7b8q", "a7b8n"] {
+            let move_to_test = find_move(&promotion_pos, move_uci);
+            assert_eq!(
+                static_exchange_eval_for_pruning(&promotion_pos, move_to_test),
+                None,
+                "promotion must fail open: {move_uci}"
+            );
+        }
+        let capturing_promotion_with_recapture = "1r1r2k1/P7/8/8/8/8/8/7K w - - 0 1";
+        let recapture_pos = parse_fen(capturing_promotion_with_recapture).unwrap();
+        for move_uci in ["a7b8q", "a7b8n"] {
+            let move_to_test = find_move(&recapture_pos, move_uci);
+            assert_eq!(
+                static_exchange_eval_for_pruning(&recapture_pos, move_to_test),
+                None,
+                "capturing promotion must fail open: {move_uci}"
+            );
+            let (kept, stats) = prune_one(capturing_promotion_with_recapture, move_uci);
+            assert_eq!(kept, vec![move_to_test]);
+            assert_eq!(stats.qsearch_see_pruned, 0);
+        }
 
         // En passant remains fail-open until SEE has a dedicated EP proof.
         let ep = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1";
