@@ -234,6 +234,7 @@ pub struct SearchContext {
     pub see_pruned: AtomicU64,
     pub qsearch_see_tests: AtomicU64,
     pub qsearch_see_pruned: AtomicU64,
+    pub qsearch_see_fail_open_promotions: AtomicU64,
     pub qsearch_checking_captures_kept: AtomicU64,
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
@@ -278,6 +279,7 @@ pub struct SearchStats {
     pub see_pruned: u64,
     pub qsearch_see_tests: u64,
     pub qsearch_see_pruned: u64,
+    pub qsearch_see_fail_open_promotions: u64,
     pub qsearch_checking_captures_kept: u64,
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
@@ -325,6 +327,7 @@ impl SearchContext {
             see_pruned: AtomicU64::new(0),
             qsearch_see_tests: AtomicU64::new(0),
             qsearch_see_pruned: AtomicU64::new(0),
+            qsearch_see_fail_open_promotions: AtomicU64::new(0),
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
@@ -382,6 +385,7 @@ impl SearchContext {
             see_pruned: AtomicU64::new(0),
             qsearch_see_tests: AtomicU64::new(0),
             qsearch_see_pruned: AtomicU64::new(0),
+            qsearch_see_fail_open_promotions: AtomicU64::new(0),
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
@@ -425,6 +429,9 @@ impl SearchContext {
             see_pruned: self.see_pruned.load(Ordering::Relaxed),
             qsearch_see_tests: self.qsearch_see_tests.load(Ordering::Relaxed),
             qsearch_see_pruned: self.qsearch_see_pruned.load(Ordering::Relaxed),
+            qsearch_see_fail_open_promotions: self
+                .qsearch_see_fail_open_promotions
+                .load(Ordering::Relaxed),
             qsearch_checking_captures_kept: self
                 .qsearch_checking_captures_kept
                 .load(Ordering::Relaxed),
@@ -2349,10 +2356,14 @@ fn prune_qsearch_captures_by_see(
             Some(value) if value < 0 => {
                 ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
             }
-            Some(_) | None => {
+            Some(_) => {
+                kept.push(m);
+            }
+            None => {
                 // An unsupported exchange, including a later promotion,
                 // must fail open because this SEE result is now a deletion
                 // proof rather than an ordering hint.
+                ctx.add_profile_counter(&ctx.qsearch_see_fail_open_promotions, 1);
                 kept.push(m);
             }
         }
@@ -4730,6 +4741,7 @@ mod tests {
         assert_eq!(kept, vec![promotion_exchange_move]);
         assert_eq!(stats.qsearch_see_tests, 1);
         assert_eq!(stats.qsearch_see_pruned, 0);
+        assert_eq!(stats.qsearch_see_fail_open_promotions, 1);
 
         // Color-swapped counterpart: the safety rule must not depend on the
         // side to move or the direction of the promotion.
@@ -4745,6 +4757,7 @@ mod tests {
         assert_eq!(kept, vec![black_promotion_move]);
         assert_eq!(stats.qsearch_see_tests, 1);
         assert_eq!(stats.qsearch_see_pruned, 0);
+        assert_eq!(stats.qsearch_see_fail_open_promotions, 1);
 
         // The defended queen win remains searchable.
         let (kept, stats) = prune_one(MVV_POS, "e4a4");

@@ -73,6 +73,7 @@ fn default_search_does_not_collect_diagnostic_counters() {
     assert_eq!(stats.see_pruned, 0);
     assert_eq!(stats.qsearch_see_tests, 0);
     assert_eq!(stats.qsearch_see_pruned, 0);
+    assert_eq!(stats.qsearch_see_fail_open_promotions, 0);
     assert_eq!(stats.qsearch_checking_captures_kept, 0);
     assert_eq!(stats.qsearch_promotions_kept, 0);
     assert_eq!(stats.qsearch_en_passant_kept, 0);
