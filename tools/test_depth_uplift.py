@@ -70,6 +70,7 @@ class DepthUpliftTests(unittest.TestCase):
         summary = report["fixture_summary"][0]
         self.assertEqual(summary["candidate_minus_baseline_depth_median"], 1)
         self.assertIsNone(report["rows"][0]["qsearch_nodes"])
+        self.assertEqual(report["rows"][0]["time_to_depth_ms"], 3)
         self.assertTrue(report["resources"]["fresh_process_per_search"])
 
     def test_unknown_fixture_is_rejected(self):

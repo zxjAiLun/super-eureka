@@ -80,6 +80,7 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
     deadline = time.monotonic() + session.timeout_s
     highest = None
     latest_nodes: Optional[int] = None
+    time_to_depth_ms: Optional[int] = None
     while True:
         line = session._readline(deadline)
         if line.startswith("info "):
@@ -88,6 +89,13 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
                 if highest is None or info[0] >= highest[0]:
                     highest = info
                 tokens = line.split()
+                try:
+                    time_index = tokens.index("time")
+                    parsed_time = int(tokens[time_index + 1])
+                except (ValueError, IndexError):
+                    parsed_time = None
+                if parsed_time is not None:
+                    time_to_depth_ms = parsed_time
                 try:
                     node_index = tokens.index("nodes")
                     parsed_nodes = int(tokens[node_index + 1])
@@ -112,6 +120,7 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
         "pv": list(result.pv),
         "nodes": latest_nodes,
         "qsearch_nodes": None,
+        "time_to_depth_ms": time_to_depth_ms,
         "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
     }
 
@@ -172,8 +181,15 @@ def _aggregate_fixture(rows: list[dict[str, Any]], fixture_id: str) -> dict[str,
         baseline_depths.append(baseline["completed_depth"])
         candidate_depths.append(candidate["completed_depth"])
         deltas.append(candidate["completed_depth"] - baseline["completed_depth"])
-        if candidate["completed_depth"] == baseline["completed_depth"] and baseline["elapsed_ms"] > 0:
-            time_ratios.append(candidate["elapsed_ms"] / baseline["elapsed_ms"])
+        baseline_time = baseline.get("time_to_depth_ms")
+        candidate_time = candidate.get("time_to_depth_ms")
+        if (
+            candidate["completed_depth"] == baseline["completed_depth"]
+            and baseline_time is not None
+            and candidate_time is not None
+            and baseline_time > 0
+        ):
+            time_ratios.append(candidate_time / baseline_time)
     return {
         "fixture": fixture_id,
         "paired_samples": len(deltas),
@@ -242,6 +258,7 @@ def run_depth_uplift(
         "notes": [
             "This is a fixed-time depth measurement, not an Elo or promotion decision.",
             "qsearch_nodes is null because the current UCI protocol exposes total nodes only.",
+            "Equal-depth timing uses the UCI info time at the highest completed depth, not only bestmove wall time.",
         ],
     }
     if report_path:
