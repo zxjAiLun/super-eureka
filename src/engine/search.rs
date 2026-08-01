@@ -5041,6 +5041,28 @@ mod tests {
     }
 
     #[test]
+    fn public_quiescence_resets_and_restores_incremental_eval_state() {
+        let mut pos = parse_fen(START_FEN).unwrap();
+        let previous_cache = pos.begin_incremental_eval();
+        let cache_before = pos.eval_cache;
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        ctx.incremental_eval_enabled.store(true, Ordering::Relaxed);
+        let _ = quiescence(
+            &mut pos,
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &SearchLimits::default(),
+        );
+        assert!(!ctx.incremental_eval_enabled.load(Ordering::Relaxed));
+        assert_eq!(pos.eval_cache, cache_before);
+        pos.end_incremental_eval(previous_cache);
+        assert_eq!(pos.eval_cache, previous_cache);
+    }
+
+    #[test]
     fn qsearch_movegen_preserves_checkmate_and_stalemate_scores() {
         fn run_qsearch(fen: &str, specialized: bool, pruning: bool) -> i32 {
             let mut pos = parse_fen(fen).unwrap();
