@@ -14,12 +14,15 @@ from build_external_validation_v1 import DEFAULT_CACHE, verify_snapshot
 from run_external_validation import (
     DEFAULT_BOOKS_MANIFEST,
     DEFAULT_CORPUS,
+    DEFAULT_PROJECT_CORPUS,
     DEFAULT_SOURCES,
     CorpusIntegrityError,
     Case,
     EngineFailure,
     EngineSession,
+    build_parser,
     load_corpus,
+    load_project_corpus,
     parse_info,
     score_rank,
     Score,
@@ -135,6 +138,24 @@ class ExternalValidationTests(unittest.TestCase):
     def test_external_fens_have_legal_move_sets(self):
         cases, _metadata = load_corpus(DEFAULT_CORPUS, DEFAULT_SOURCES, DEFAULT_BOOKS_MANIFEST)
         self.assertTrue(all(any(chess.Board(case.fen).legal_moves) for case in cases))
+
+    def test_project_corpus_loader_and_depth_override_cli(self):
+        cases, metadata = load_project_corpus(DEFAULT_PROJECT_CORPUS)
+        self.assertEqual(len(cases), 23)
+        self.assertEqual(metadata["corpus_id"], "d1.10-project-curated-v2")
+        self.assertIn("d10-promotion-chain-white", {case.case_id for case in cases})
+        args = build_parser().parse_args(
+            [
+                "--engine",
+                "engine",
+                "--corpus-kind",
+                "project",
+                "--depth-override",
+                "7",
+            ]
+        )
+        self.assertEqual(args.corpus_kind, "project")
+        self.assertEqual(args.depth_override, 7)
 
     def test_source_lines_reproduce_snapshot_when_cache_is_prepared(self):
         if not all(DEFAULT_CACHE.joinpath(name).is_file() for name in (

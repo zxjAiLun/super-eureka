@@ -17,7 +17,7 @@ import sys
 import threading
 import time
 from collections import Counter, deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -26,6 +26,7 @@ import chess
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CORPUS = ROOT / "tests" / "data" / "external_validation_v1.epd"
+DEFAULT_PROJECT_CORPUS = ROOT / "tests" / "data" / "search_validation.epd"
 DEFAULT_SOURCES = ROOT / "tests" / "data" / "external_validation_v1.sources.json"
 DEFAULT_BOOKS_MANIFEST = ROOT / "books" / "manifest.json"
 READER_QUEUE_SIZE = 256
@@ -48,6 +49,9 @@ class Case:
     source_book_id: str
     source_line: int
     depth: int
+    allowed_moves: tuple[str, ...] = ()
+    allowed_wildcard: bool = False
+    score_class: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,17 @@ class SearchResult:
     completed_depth: int
     score: Score
     pv: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TimedSearchResult:
+    bestmove: str
+    completed_depth: int
+    score: Score
+    pv: tuple[str, ...]
+    nodes: Optional[int]
+    qsearch_nodes: Optional[int]
+    elapsed_ms: float
 
 
 def sha256_file(path: Path) -> str:
@@ -115,6 +130,83 @@ def _parse_cases(corpus_path: Path) -> list[Case]:
             raise CorpusIntegrityError(f"{case_id}: group/source line/depth is invalid")
         cases.append(Case(case_id, group, fen, source_book_id, source_line, depth))
     return cases
+
+
+def load_project_corpus(corpus_path: Path = DEFAULT_PROJECT_CORPUS) -> tuple[list[Case], dict[str, Any]]:
+    """Load the pinned D1.10 project-curated corpus for deep differential runs."""
+
+    cases: list[Case] = []
+    seen: set[str] = set()
+    try:
+        lines = corpus_path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise CorpusIntegrityError(f"cannot read project corpus {corpus_path}: {exc}") from exc
+    for line_number, line in enumerate(lines, 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = line.split("|")
+        if len(fields) not in (8, 9):
+            raise CorpusIntegrityError(
+                f"{corpus_path}:{line_number}: expected 8 or 9 fields, got {len(fields)}"
+            )
+        case_id, group, fen, allowed_text, score_class, depth_text, source, license_text = fields[:8]
+        forbidden_text = fields[8] if len(fields) == 9 else "-"
+        if not case_id or case_id in seen:
+            raise CorpusIntegrityError(f"duplicate or empty project case id at line {line_number}")
+        if source != "project-curated" or license_text != "CC0-1.0":
+            raise CorpusIntegrityError(f"{case_id}: project corpus source/license changed")
+        try:
+            board = chess.Board(fen)
+            depth = int(depth_text)
+        except (ValueError, TypeError) as exc:
+            raise CorpusIntegrityError(f"{case_id}: invalid FEN or depth: {exc}") from exc
+        # D1.10 is the existing project-curated corpus.  Preserve its
+        # historical FEN acceptance boundary here; the Rust harness owns its
+        # established corpus semantics, while this loader only needs a
+        # parseable position and a legal move set for differential probing.
+        if depth <= 0 or not group or not score_class:
+            raise CorpusIntegrityError(f"{case_id}: invalid project corpus fields")
+        allowed_wildcard = allowed_text == "*"
+        allowed_moves = () if allowed_wildcard else tuple(
+            move.strip() for move in allowed_text.split(",") if move.strip()
+        )
+        if not allowed_wildcard and not allowed_moves:
+            raise CorpusIntegrityError(f"{case_id}: allowed move set is empty")
+        legal = {move.uci() for move in board.legal_moves}
+        terminal = board.is_checkmate() or board.is_stalemate()
+        if any(move != "0000" and move not in legal for move in allowed_moves):
+            raise CorpusIntegrityError(f"{case_id}: allowed move is not legal")
+        if "0000" in allowed_moves and not terminal:
+            raise CorpusIntegrityError(f"{case_id}: 0000 is only valid for a terminal case")
+        forbidden_moves = () if forbidden_text in {"", "-"} else tuple(
+            move.strip() for move in forbidden_text.split(",") if move.strip()
+        )
+        if any(move not in legal for move in forbidden_moves):
+            raise CorpusIntegrityError(f"{case_id}: forbidden move is not legal")
+        if set(allowed_moves) & set(forbidden_moves):
+            raise CorpusIntegrityError(f"{case_id}: allowed and forbidden moves overlap")
+        seen.add(case_id)
+        cases.append(
+            Case(
+                case_id,
+                group,
+                fen,
+                source,
+                line_number,
+                depth,
+                allowed_moves,
+                allowed_wildcard,
+                score_class,
+            )
+        )
+    if len(cases) != 23:
+        raise CorpusIntegrityError(f"D1.10 case count changed: expected 23, got {len(cases)}")
+    return cases, {
+        "corpus_id": "d1.10-project-curated-v2",
+        "case_count": len(cases),
+        "group_counts": dict(Counter(case.group for case in cases)),
+        "snapshot_sha256": sha256_file(corpus_path),
+    }
 
 
 def load_corpus(
@@ -256,6 +348,28 @@ def score_rank(score: Score) -> int:
     if score.value >= -150:
         return 2
     return 1
+
+
+def _score_class_matches(board: chess.Board, score: Score, score_class: str) -> bool:
+    if score_class == "terminal-mate":
+        return board.is_checkmate()
+    if score_class == "terminal-draw":
+        return board.is_stalemate()
+    if score_class == "mate":
+        return score.kind == "mate" and score.value > 0
+    if score_class == "winning":
+        return (score.kind == "mate" and score.value > 0) or (
+            score.kind == "cp" and score.value >= 300
+        )
+    if score_class == "nonlosing":
+        return score.kind == "mate" and score.value > 0 or (
+            score.kind == "cp" and score.value >= -150
+        )
+    if score_class == "losing":
+        return (score.kind == "mate" and score.value < 0) or (
+            score.kind == "cp" and score.value < -150
+        )
+    return False
 
 
 class EngineSession:
@@ -403,14 +517,76 @@ class EngineSession:
                 bestmove = fields[1]
                 break
         if highest is None:
-            raise EngineFailure(f"{self.profile}: no scored info line; {self._context()}")
-        result = SearchResult(bestmove, highest[0], highest[1], highest[2])
-        if result.completed_depth < case.depth:
+            if bestmove != "0000" or not board.is_game_over(claim_draw=False):
+                raise EngineFailure(f"{self.profile}: no scored info line; {self._context()}")
+            terminal_score = Score("mate", 1) if board.is_checkmate() else Score("cp", 0)
+            result = SearchResult(bestmove, 0, terminal_score, ())
+        else:
+            result = SearchResult(bestmove, highest[0], highest[1], highest[2])
+        if result.completed_depth < case.depth and result.bestmove != "0000":
             raise EngineFailure(
                 f"{self.profile}: completed depth {result.completed_depth} < {case.depth}; {self._context()}"
             )
         self._validate_result(board, result)
+        self._validate_case_contract(board, case, result)
         return result
+
+    def search_movetime(self, case: Case, movetime_ms: int) -> TimedSearchResult:
+        """Run a fixed-time search and return observable UCI progress metrics.
+
+        The engine's current UCI protocol exposes total nodes, but not the
+        diagnostic qsearch counter.  The latter is therefore intentionally
+        returned as ``None`` rather than inferred or estimated.
+        """
+
+        if movetime_ms <= 0:
+            raise ValueError("movetime_ms must be positive")
+        board = chess.Board(case.fen)
+        self._send(f"position fen {case.fen}")
+        started = time.perf_counter()
+        self._send(f"go movetime {movetime_ms}")
+        deadline = time.monotonic() + self.timeout_s
+        highest: Optional[tuple[int, Score, tuple[str, ...]]] = None
+        latest_nodes: Optional[int] = None
+        while True:
+            line = self._readline(deadline)
+            if line.startswith("info "):
+                info = parse_info(line)
+                if info is not None:
+                    if highest is None or info[0] >= highest[0]:
+                        highest = info
+                    tokens = line.split()
+                    try:
+                        node_index = tokens.index("nodes")
+                        parsed_nodes = int(tokens[node_index + 1])
+                    except (ValueError, IndexError):
+                        parsed_nodes = None
+                    if parsed_nodes is not None:
+                        latest_nodes = max(latest_nodes or 0, parsed_nodes)
+            if line.startswith("bestmove "):
+                fields = line.split()
+                if len(fields) < 2:
+                    raise EngineFailure(f"{self.profile}: malformed bestmove; {self._context()}")
+                bestmove = fields[1]
+                break
+        if highest is None:
+            if bestmove != "0000" or not board.is_game_over(claim_draw=False):
+                raise EngineFailure(f"{self.profile}: no scored info line; {self._context()}")
+            terminal_score = Score("mate", 1) if board.is_checkmate() else Score("cp", 0)
+            result = SearchResult(bestmove, 0, terminal_score, ())
+        else:
+            result = SearchResult(bestmove, highest[0], highest[1], highest[2])
+        self._validate_result(board, result)
+        self._validate_case_contract(board, case, result)
+        return TimedSearchResult(
+            bestmove=result.bestmove,
+            completed_depth=result.completed_depth,
+            score=result.score,
+            pv=result.pv,
+            nodes=latest_nodes,
+            qsearch_nodes=None,
+            elapsed_ms=round((time.perf_counter() - started) * 1000.0, 3),
+        )
 
     def _validate_result(self, board: chess.Board, result: SearchResult) -> None:
         if result.bestmove == "0000":
@@ -435,6 +611,18 @@ class EngineSession:
             raise EngineFailure(f"{self.profile}: bestmove is not legal; {self._context()}")
         if result.score.kind == "mate" and result.score.value == 0:
             raise EngineFailure(f"{self.profile}: mate score has zero distance; {self._context()}")
+
+    def _validate_case_contract(self, board: chess.Board, case: Case, result: SearchResult) -> None:
+        if not case.allowed_wildcard and case.allowed_moves and result.bestmove not in case.allowed_moves:
+            raise EngineFailure(
+                f"{self.profile}: bestmove {result.bestmove} is not allowed for {case.case_id}; "
+                f"{self._context()}"
+            )
+        if case.score_class and not _score_class_matches(board, result.score, case.score_class):
+            raise EngineFailure(
+                f"{self.profile}: score class {case.score_class} failed for {case.case_id}; "
+                f"{self._context()}"
+            )
 
     def close(self, require_success: bool = True) -> None:
         cleanup_error: Optional[BaseException] = None
@@ -500,13 +688,20 @@ def run_corpus(
     timeout_s: float = 30.0,
     baseline_profile: str = "current",
     candidate_profile: str = "current-qsearch-pruning",
+    corpus_kind: str = "external",
+    depth_override: Optional[int] = None,
 ) -> dict[str, Any]:
     started = time.time()
     report: dict[str, Any] = {
         "decision": "FAIL",
         "corpus": None,
         "profiles": {"baseline": baseline_profile, "candidate": candidate_profile},
-        "resources": {"hash_mb": hash_mb, "timeout_s": timeout_s},
+        "resources": {
+            "hash_mb": hash_mb,
+            "timeout_s": timeout_s,
+            "corpus_kind": corpus_kind,
+            "depth_override": depth_override,
+        },
         "cases": [],
         "group_stats": {},
         "searches_expected": None,
@@ -515,7 +710,20 @@ def run_corpus(
         "elapsed_s": None,
     }
     try:
-        cases, corpus_meta = load_corpus(corpus_path, sources_path, books_manifest_path)
+        if corpus_kind == "external":
+            cases, corpus_meta = load_corpus(corpus_path, sources_path, books_manifest_path)
+        elif corpus_kind == "project":
+            cases, corpus_meta = load_project_corpus(corpus_path)
+        else:
+            raise CorpusIntegrityError(f"unknown corpus kind: {corpus_kind}")
+        source_cases = cases
+        if depth_override is not None:
+            if depth_override <= 0:
+                raise CorpusIntegrityError("depth_override must be positive")
+            cases = [replace(case, depth=depth_override) for case in cases]
+            corpus_meta = dict(corpus_meta)
+            corpus_meta["source_depths"] = sorted({case.depth for case in source_cases})
+            corpus_meta["effective_depth"] = depth_override
         report["corpus"] = corpus_meta
         report["searches_expected"] = len(cases) * 2
     except CorpusIntegrityError as exc:
@@ -529,6 +737,9 @@ def run_corpus(
         row: dict[str, Any] = {
             "case_id": case.case_id,
             "group": case.group,
+            "source_depth": next(
+                source_case.depth for source_case in source_cases if source_case.case_id == case.case_id
+            ),
             "depth": case.depth,
             "source_book_id": case.source_book_id,
             "source_line": case.source_line,
@@ -586,6 +797,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-s", type=float, default=30.0)
     parser.add_argument("--baseline-profile", default="current")
     parser.add_argument("--candidate-profile", default="current-qsearch-pruning")
+    parser.add_argument("--corpus-kind", choices=("external", "project"), default="external")
+    parser.add_argument("--depth-override", type=int, default=None)
     return parser
 
 
@@ -604,6 +817,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         timeout_s=args.timeout_s,
         baseline_profile=args.baseline_profile,
         candidate_profile=args.candidate_profile,
+        corpus_kind=args.corpus_kind,
+        depth_override=args.depth_override,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["decision"] == "PASS" else 1
