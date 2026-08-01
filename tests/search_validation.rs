@@ -32,6 +32,7 @@ struct Case {
     depth: u32,
     source: String,
     license: String,
+    forbidden_moves: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -337,12 +338,16 @@ fn parse_manifest() -> Vec<Case> {
         .filter(|(_, line)| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
         .map(|(line_no, line)| {
             let fields: Vec<&str> = line.split('|').collect();
-            assert_eq!(
-                fields.len(),
-                8,
-                "manifest line {} must have 8 pipe-separated fields",
+            assert!(
+                (8..=9).contains(&fields.len()),
+                "manifest line {} must have 8 or 9 pipe-separated fields",
                 line_no + 1
             );
+            let forbidden_moves = fields
+                .get(8)
+                .filter(|field| !field.is_empty() && **field != "-")
+                .map(|field| field.split(',').map(str::to_string).collect())
+                .unwrap_or_default();
             Case {
                 id: fields[0].to_string(),
                 category: fields[1].to_string(),
@@ -354,6 +359,7 @@ fn parse_manifest() -> Vec<Case> {
                     .unwrap_or_else(|_| panic!("invalid depth on manifest line {}", line_no + 1)),
                 source: fields[6].to_string(),
                 license: fields[7].to_string(),
+                forbidden_moves,
             }
         })
         .collect()
@@ -549,6 +555,17 @@ fn assert_legal_and_allowed(case: &Case, outcome: &Outcome, profile: &str, legal
         outcome.bestmove,
         context(case, profile, outcome)
     );
+    assert!(
+        !case
+            .forbidden_moves
+            .iter()
+            .any(|mv| mv == &outcome.bestmove),
+        "{} {profile} emitted forbidden bestmove {}; forbidden set {:?}; {}",
+        case.id,
+        outcome.bestmove,
+        case.forbidden_moves,
+        context(case, profile, outcome)
+    );
     if case.allowed_moves != ["*"] {
         assert!(
             case.allowed_moves.iter().any(|mv| mv == &outcome.bestmove),
@@ -601,6 +618,36 @@ fn assert_manifest_case(case: &Case) {
         case.id
     );
     let (legal_moves, in_check) = position_facts(case);
+    assert!(
+        case.forbidden_moves.iter().all(|mv| !mv.is_empty()),
+        "{} has an empty forbidden-move entry",
+        case.id
+    );
+    assert!(
+        case.forbidden_moves
+            .iter()
+            .all(|mv| legal_moves.contains(mv)),
+        "{} forbidden set contains an illegal move: {:?} vs {:?}",
+        case.id,
+        case.forbidden_moves,
+        legal_moves
+    );
+    if case.allowed_moves != ["*"] {
+        assert!(
+            case.forbidden_moves
+                .iter()
+                .all(|mv| !case.allowed_moves.contains(mv)),
+            "{} allowed and forbidden sets overlap",
+            case.id
+        );
+    }
+    if case.score_class.starts_with("terminal-") {
+        assert!(
+            case.forbidden_moves.is_empty(),
+            "{} terminal case cannot have forbidden moves",
+            case.id
+        );
+    }
     if case.allowed_moves == ["*"] {
         assert!(
             !legal_moves.is_empty(),
@@ -630,7 +677,7 @@ fn assert_manifest_case(case: &Case) {
 fn validation_manifest_is_pinned_and_well_formed() {
     let cases = parse_manifest();
     assert!(
-        cases.len() >= 10,
+        cases.len() >= 20,
         "validation corpus must not shrink silently"
     );
     let mut ids = HashSet::new();
@@ -650,6 +697,21 @@ fn validation_manifest_is_pinned_and_well_formed() {
     assert!(cases.iter().any(|case| case.category == "stalemate"));
     assert!(cases.iter().any(|case| case.category == "endgame-kqk"));
     assert!(cases.iter().any(|case| case.category == "endgame-krk"));
+    for category in [
+        "promotion-chain",
+        "unique-underpromotion",
+        "promotion-capture",
+        "xray-recapture",
+        "pinned-recapture",
+        "king-recapture",
+        "en-passant-discovered-check",
+        "defensive-capture",
+    ] {
+        assert!(
+            cases.iter().any(|case| case.category == category),
+            "D1.10 corpus is missing category {category}"
+        );
+    }
 }
 
 #[test]

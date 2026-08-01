@@ -1,12 +1,14 @@
-# Search validation corpus v1.
+# Search validation corpus v2.
 #
 # This is a small project-curated, CC0-1.0 corpus used to validate candidate
 # search profiles. It is intentionally versioned in-repository and is not an
 # Elo suite. Each non-comment line is:
-# id|category|full FEN|allowed bestmoves|score class|depth|source|license
+# id|category|full FEN|allowed bestmoves|score class|depth|source|license[|forbidden bestmoves]
 #
 # `*` in the allowed-bestmoves column means any legal move is accepted while
 # the score class and candidate-vs-baseline safety checks still apply.
+# The optional ninth field is `-` when there is no forbidden set. It is used
+# by the D1.10 pinned cases to reject known unsafe alternatives explicitly.
 tactical-queen-win|tactical-capture|7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1|e4a4|winning|4|project-curated|CC0-1.0
 checking-capture|checking-capture|4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1|e4e5|winning|4|project-curated|CC0-1.0
 mate-in-one-rook|mate-sequence|6k1/5ppp/8/8/8/8/8/R6K w - - 0 1|a1a8|mate|4|project-curated|CC0-1.0
@@ -19,3 +21,15 @@ sacrifice-recapture|sacrifice|6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1|*|nonlosing|4|
 stalemate-resource|stalemate|7k/5Q2/6K1/8/8/8/8/8 b - - 0 1|0000|terminal-draw|1|project-curated|CC0-1.0
 kqk-mopup|endgame-kqk|7k/8/5K2/8/3Q4/8/8/8 w - - 0 1|d4g1|mate|3|project-curated|CC0-1.0
 krk-mopup|endgame-krk|7k/8/5K2/8/3R4/8/8/8 w - - 0 1|f6g6|mate|3|project-curated|CC0-1.0
+# D1.10 SEE-specific additions. These are fixed project-curated safety cases,
+# not a broad tactical strength suite.
+d10-promotion-chain-white|promotion-chain|r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1|d7e8q|winning|5|project-curated|CC0-1.0|d7e8r,d7e8b,d7e8n
+d10-promotion-chain-black|promotion-chain|6K1/4q3/8/8/8/1k6/3p4/R3B3 b - - 0 1|d2e1q|winning|5|project-curated|CC0-1.0|d2e1r,d2e1b,d2e1n
+d10-unique-underpromotion|unique-underpromotion|8/3P4/2n2K2/8/8/8/8/6k1 w - - 0 1|d7d8n|nonlosing|5|project-curated|CC0-1.0|d7d8q,d7d8r,d7d8b
+d10-promotion-capture|promotion-capture|3p3k/4P3/8/8/8/8/8/4K3 w - - 0 1|e7d8q|winning|5|project-curated|CC0-1.0|e7d8r,e7d8b,e7d8n,e7e8q,e7e8r,e7e8b,e7e8n
+d10-xray-recapture|xray-recapture|7k/r7/8/8/p7/8/8/R6K w - - 0 1|h1g2|nonlosing|5|project-curated|CC0-1.0|a1a4
+d10-pinned-recapture|pinned-recapture|4r1k1/8/8/8/8/8/r3R3/4K3 w - - 0 1|e2e8|nonlosing|5|project-curated|CC0-1.0|-
+d10-king-recapture|king-recapture|6k1/8/8/3pK3/8/8/4P3/R7 w - - 0 1|a1a7|winning|5|project-curated|CC0-1.0|e5d5
+d10-checking-capture|checking-capture|4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1|e4e5|winning|5|project-curated|CC0-1.0|-
+d10-en-passant-discovered-check|en-passant-discovered-check|4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1|e5d6|winning|5|project-curated|CC0-1.0|e5e6
+d10-defensive-capture|defensive-capture|6k1/8/8/8/8/8/3q4/4K2R w - - 0 1|e1d2|winning|5|project-curated|CC0-1.0|-
