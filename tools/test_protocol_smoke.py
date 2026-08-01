@@ -263,11 +263,15 @@ for raw in sys.stdin:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             args = self.tournament_args(
-                self.legal_move_engine(0.08),
+                self.legal_move_engine(0.3),
                 self.legal_move_engine(),
                 root / "timeouts",
                 games=4,
             )
+            # Keep the fixture about timeout classification, not whether the
+            # host can schedule a newly spawned candidate inside 10 ms.
+            args.movetime_ms = 100
+            args.move_grace_ms = 100
             summary = run_tournament(args)
             self.assertEqual(summary["status"], "COMPLETED")
             self.assertEqual(summary["integrity_status"], "PASS")
