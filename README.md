@@ -51,7 +51,7 @@ cargo run --release -- bench profile --nodes 100000
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`，以及
   `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
-  `current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-incremental-eval|current-one-pass-eval`，
+  `current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
   或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
 - `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
   M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
@@ -215,13 +215,13 @@ bestmove b1c3
   等待外部战术验证；fast SEE 正确性通过但性能门禁失败，均未进入 Current。见
   [`d1.3-qsearch-see-pruning.md`](docs/benchmarks/d1.3-qsearch-see-pruning.md) 和
   [`d1.4-fast-pruning-see.md`](docs/benchmarks/d1.4-fast-pruning-see.md)。
-- **D1.6 incremental base evaluation（bench-only）**：缓存基础 tapered MG/EG/phase
-  并保留 KQK/KRK mop-up 的原扫描路径；固定深度结果等价，但三路跨二进制性能门禁
-  未通过，未进入 Current。见
+- **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
+  MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
+  仅保留文档与 Git lineage。见
   [`d1.6-incremental-base-eval.md`](docs/benchmarks/d1.6-incremental-base-eval.md)。
- - **D1.7 one-pass full evaluation（正确性通过、性能拒绝，bench-only）**：在单次
-   64 格扫描中同时计算 MG/EG/phase；不修改 `Position`、`Undo` 或 `make_move`。
-   固定深度搜索结果完全一致，但交错 paired wall-time 没有稳定改善。见
+ - **D1.7 one-pass full evaluation（已关闭）**：历史候选曾在单次 64 格扫描中同时
+   计算 MG/EG/phase；固定深度搜索结果完全一致，但交错 paired wall-time 没有稳定
+   改善，运行时代码已移除。仅保留文档与 Git lineage。见
   [`d1.7-one-pass-eval.md`](docs/benchmarks/d1.7-one-pass-eval.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
