@@ -216,7 +216,8 @@ bestmove b1c3
   [`d1.3-qsearch-see-pruning.md`](docs/benchmarks/d1.3-qsearch-see-pruning.md) 和
   [`d1.4-fast-pruning-see.md`](docs/benchmarks/d1.4-fast-pruning-see.md)。
 - **D1.6 incremental base evaluation（bench-only）**：缓存基础 tapered MG/EG/phase
-  并保留 KQK/KRK mop-up 的原扫描路径；固定深度结果等价，性能仍在独立评估。见
+  并保留 KQK/KRK mop-up 的原扫描路径；固定深度结果等价，但三路跨二进制性能门禁
+  未通过，未进入 Current。见
   [`d1.6-incremental-base-eval.md`](docs/benchmarks/d1.6-incremental-base-eval.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
