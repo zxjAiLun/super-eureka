@@ -94,9 +94,10 @@ cargo run --release -- bench profile --depth 8 --repeat 1
 
 Use `--fixture startpos` (or another standard fixture id) when a focused run is
 needed. The profile suite still uses the reference search profile by default;
-`--profile current` is an explicit diagnostic comparison and does not alter the
-UCI `Current` production path. A fixed-depth run must complete the requested
-depth or report a bench error rather than being treated as a valid cost point.
+`--profile current` selects the UCI `Current` production search configuration,
+including the approved D1.2 specialized qsearch move generator. A fixed-depth
+run must complete the requested depth or report a bench error rather than
+being treated as a valid cost point.
 
 The current engine does not compute a separate selective depth (`seldepth`)
 metric. D1.1 intentionally does not print a fabricated value; `seldepth` will
@@ -106,18 +107,19 @@ defined contract.
 These measurements are for search-cost diagnosis only. They do not authorize
 qsearch changes, pruning, a profile promotion, or an Elo/SPRT conclusion.
 
-## D1.2 candidate comparison
+## D1.2 / D1.5 qsearch movegen comparison
 
-The isolated D1.2 candidate is selected only by the bench profile name:
+The historical pre-integration comparison used the candidate profile name:
 
 ```text
-cargo run --release -- bench profile --profile current --depth 6 --repeat 1
+cargo run --release -- bench profile --profile pvs --depth 6 --repeat 1
 cargo run --release -- bench profile --profile current-qsearch-movegen --depth 6 --repeat 1
+cargo run --release -- bench profile --profile current --depth 6 --repeat 1
 ```
 
-`current-qsearch-movegen` preserves the `Current` search strategy and changes
-only qsearch move generation. It is not the default profile and is not promoted
-into the UCI `Current` path. Under non-check qsearch nodes it generates legal
+`current-qsearch-movegen` remains a named checksum profile. D1.5 integrates
+the same behavior into `Current`; `PvsReference` is the no-specialized-movegen
+comparison profile. Under non-check qsearch nodes the integrated path generates legal
 captures, en passant, and all promotions directly; under check it uses the
 complete legal-evasion path. When no tactical move exists it performs an
 early-stop legal-move probe so stalemate remains a zero score.
@@ -127,7 +129,8 @@ best move, PV, total nodes, qsearch nodes, evaluator calls, and terminal/draw
 behavior. A successful performance result should reduce pseudo-move and
 make/unmake work without reducing the searched node set. No SEE pruning, delta
 pruning, incremental evaluation, bitboard rewrite, or TT-key change belongs in
-this profile.
+this profile. D1.3 SEE pruning and D1.4 fast SEE remain separate bench-only
+profiles.
 
 ## Depth 7–8 boundary
 

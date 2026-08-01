@@ -50,12 +50,14 @@ cargo run --release -- bench profile --nodes 100000
   TT 以及显式候选 profile 的 aspiration/SEE/LMR/null/futility 计数；结果只用于定位
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`，以及
-  `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current` 或一个
-  明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
+  `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
+  `current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
+  或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
 - `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
   M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
   `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选；`current` 是已批准的
-  M4.1 排序 + PVS 生产路径，所有这些候选开关均关闭。`current-aspiration-*` 是
+  M4.1 排序 + PVS + 已批准的 specialized qsearch movegen 生产路径；SEE pruning、
+  fast SEE、aspiration、LMR、null 和 futility 仍关闭。`current-aspiration-*` 是
   累计 tournament candidate profile；没有现有 profile 同时包含 null 与全部累计功能。
   M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
   lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
@@ -206,9 +208,13 @@ bestmove b1c3
   - ✅ [EVAL 1A：tapered evaluation + King PST](docs/specs/eval-1a-tapered-king.md)；
   - ✅ [EVAL 1B：exact KQK/KRK mop-up](docs/specs/eval-1b-kqk-krk.md)；
   - 当前不宣称 Elo，Depth 7–8 的瓶颈仍须 profiling、qsearch 收缩和后续独立搜索里程碑处理。
-- **SEE/qsearch 收缩（本地候选，未接受）**：已加入普通非将军负 SEE 吃子的过滤，
-  但朴素数组盘面 SEE 的固定预算耗时尚不理想；见
-  [`search-see-qsearch.md`](docs/benchmarks/search-see-qsearch.md)。
+- **D1.2 qsearch movegen（已合入 Current）**：非将军 qsearch 使用 specialized
+  tactical generation；规则、搜索树和 PV 保持等价，降低节点内 movegen 成本。见
+  [`d1.2-qsearch-movegen.md`](docs/benchmarks/d1.2-qsearch-movegen.md)。
+- **D1.3/D1.4 qsearch pruning（bench-only）**：保守 SEE pruning 正确性通过但仍
+  等待外部战术验证；fast SEE 正确性通过但性能门禁失败，均未进入 Current。见
+  [`d1.3-qsearch-see-pruning.md`](docs/benchmarks/d1.3-qsearch-see-pruning.md) 和
+  [`d1.4-fast-pruning-see.md`](docs/benchmarks/d1.4-fast-pruning-see.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
   和浅层 futility；批准的 `current` 仍关闭这些开关。见

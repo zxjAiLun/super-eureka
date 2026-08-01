@@ -80,7 +80,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   tree and replaces only its pruning SEE attacker scan with a direct
 ///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
-///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
+///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
+///   with the D1.2 specialized non-check qsearch move generator integrated.
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
@@ -168,7 +169,12 @@ impl SearchProfile {
     pub(crate) const fn uses_qsearch_movegen(self) -> bool {
         matches!(
             self,
-            Self::CurrentQsearchMovegen
+            Self::Current
+                | Self::CurrentAspiration
+                | Self::CurrentAspirationLmr
+                | Self::CurrentAspirationLmrFutility
+                | Self::CurrentAspirationLmrFutilitySee
+                | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
         )
@@ -4542,7 +4548,7 @@ mod tests {
         assert!(!SearchProfile::Current.uses_aspiration());
         assert!(!SearchProfile::Current.uses_lmr());
         assert!(!SearchProfile::Current.uses_futility());
-        assert!(!SearchProfile::Current.uses_qsearch_movegen());
+        assert!(SearchProfile::Current.uses_qsearch_movegen());
         assert!(!SearchProfile::Current.uses_qsearch_pruning());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
@@ -4569,6 +4575,17 @@ mod tests {
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_lmr());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_futility());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_null_move());
+        for profile in [
+            SearchProfile::CurrentAspiration,
+            SearchProfile::CurrentAspirationLmr,
+            SearchProfile::CurrentAspirationLmrFutility,
+            SearchProfile::CurrentAspirationLmrFutilitySee,
+        ] {
+            assert!(
+                profile.uses_qsearch_movegen(),
+                "Current-based candidate lost integrated qsearch movegen: {profile:?}"
+            );
+        }
     }
 
     #[test]
@@ -4876,17 +4893,32 @@ mod tests {
     }
 
     #[test]
-    fn qsearch_movegen_candidate_matches_current_search_tree() {
+    fn qsearch_movegen_integration_matches_pvs_reference_search_tree() {
         let fixtures = [START_FEN, MVV_POS];
         for fen in fixtures {
-            let mut current_pos = parse_fen(fen).unwrap();
-            let current_key = current_pos.zobrist_key();
-            let current_ctx =
+            let mut reference_pos = parse_fen(fen).unwrap();
+            let reference_key = reference_pos.zobrist_key();
+            let reference_ctx =
                 SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
             let limits = SearchLimits {
                 depth: Some(3),
                 ..Default::default()
             };
+            let reference = search_best_move_with_history_tt_and_profile(
+                &mut reference_pos,
+                &[reference_key],
+                &limits,
+                &reference_ctx,
+                &mut TranspositionTable::disabled(),
+                SearchProfile::PvsReference,
+            )
+            .expect("PVS reference fixture must be non-terminal");
+            let reference_stats = reference_ctx.stats();
+
+            let mut current_pos = parse_fen(fen).unwrap();
+            let current_key = current_pos.zobrist_key();
+            let current_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
             let current = search_best_move_with_history_tt_and_profile(
                 &mut current_pos,
                 &[current_key],
@@ -4898,41 +4930,26 @@ mod tests {
             .expect("Current fixture must be non-terminal");
             let current_stats = current_ctx.stats();
 
-            let mut candidate_pos = parse_fen(fen).unwrap();
-            let candidate_key = candidate_pos.zobrist_key();
-            let candidate_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let candidate = search_best_move_with_history_tt_and_profile(
-                &mut candidate_pos,
-                &[candidate_key],
-                &limits,
-                &candidate_ctx,
-                &mut TranspositionTable::disabled(),
-                SearchProfile::CurrentQsearchMovegen,
-            )
-            .expect("qsearch movegen fixture must be non-terminal");
-            let candidate_stats = candidate_ctx.stats();
-
-            assert_eq!(candidate.completed_depth, current.completed_depth);
-            assert_eq!(candidate.score, current.score);
-            assert_eq!(candidate.best_move, current.best_move);
-            assert_eq!(candidate.pv, current.pv);
-            assert_eq!(candidate_stats.nodes, current_stats.nodes);
-            assert_eq!(candidate_stats.qsearch_nodes, current_stats.qsearch_nodes);
-            assert_eq!(candidate_stats.eval_calls, current_stats.eval_calls);
-            assert_eq!(candidate_stats.tt_probes, current_stats.tt_probes);
-            assert_eq!(candidate_stats.tt_stores, current_stats.tt_stores);
+            assert_eq!(current.completed_depth, reference.completed_depth);
+            assert_eq!(current.score, reference.score);
+            assert_eq!(current.best_move, reference.best_move);
+            assert_eq!(current.pv, reference.pv);
+            assert_eq!(current_stats.nodes, reference_stats.nodes);
+            assert_eq!(current_stats.qsearch_nodes, reference_stats.qsearch_nodes);
+            assert_eq!(current_stats.eval_calls, reference_stats.eval_calls);
+            assert_eq!(current_stats.tt_probes, reference_stats.tt_probes);
+            assert_eq!(current_stats.tt_stores, reference_stats.tt_stores);
             assert!(
-                candidate_stats.pseudo_moves < current_stats.pseudo_moves,
-                "specialized qsearch must reduce pseudo-move work for {fen}"
+                current_stats.pseudo_moves < reference_stats.pseudo_moves,
+                "integrated qsearch must reduce pseudo-move work for {fen}"
             );
             assert!(
-                candidate_stats.make_moves < current_stats.make_moves,
-                "specialized qsearch must reduce make/unmake work for {fen}"
+                current_stats.make_moves < reference_stats.make_moves,
+                "integrated qsearch must reduce make/unmake work for {fen}"
             );
             assert_eq!(
-                candidate_stats.make_moves, candidate_stats.unmake_moves,
-                "candidate make/unmake must balance for {fen}"
+                current_stats.make_moves, current_stats.unmake_moves,
+                "Current make/unmake must balance for {fen}"
             );
         }
     }
