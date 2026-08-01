@@ -234,11 +234,13 @@ bestmove b1c3
   支持显式 forbidden-move 门禁；仍只比较 `current` 与 `current-qsearch-pruning`，不改变
   `Current`，不代表 Elo 或允许 SEE pruning 晋级。见
   [`d1.10-see-specific-corpus.md`](docs/benchmarks/d1.10-see-specific-corpus.md)。
-- **D1.11 External Validation Corpus v1（PASS，验证数据完成）**：基于固定版本的
-  Official Stockfish books，提交 32 个外部 case，按 tactical / mate / promotion / endgame
-  各 8 个分组，完成 64 次真实 UCI 搜索并通过合法着、completed depth、PV 回放、score/mate
-  自洽、超时和进程完整性门禁。它与 D1.10 的 23 个项目自建 case 分开统计；不改变
-  `Current`，不代表 Elo，也不授权 D1.3 SEE pruning 晋级。见
+- **D1.11/D1.11.1 外部位置切片差分 smoke（PASS，非 motif 验证完成）**：基于固定版本的
+  Official Stockfish books，提交 32 个外部 case，按 `closedpos` / `stalemate-stress` /
+  `endgames-a` / `endgames-cdb` 各 8 个切片，完成 64 次真实 UCI 搜索并通过合法着、completed
+  depth、PV 回放、score/mate 自洽、超时、正常退出码和进程完整性门禁。离线 verifier 还会
+  按固定 source line 与本地 SHA-384 已验证的上游 EPD 逐行比对。它与 D1.10 的 23 个项目自建
+  case 分开统计；不代表 tactical/mate/promotion/endgame motif 已验证，不改变 `Current`，
+  不代表 Elo，也不授权 D1.3 SEE pruning 晋级。见
   [`d1.11-external-validation-corpus.md`](docs/benchmarks/d1.11-external-validation-corpus.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
