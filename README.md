@@ -242,6 +242,12 @@ bestmove b1c3
   case 分开统计；不代表 tactical/mate/promotion/endgame motif 已验证，不改变 `Current`，
   不代表 Elo，也不授权 D1.3 SEE pruning 晋级。见
   [`d1.11-external-validation-corpus.md`](docs/benchmarks/d1.11-external-validation-corpus.md)。
+- **D1.12 D1.3 depth-uplift gate（FAIL，Current 未改变）**：复用 D1.10/D1.11 corpus，
+  增加 depth override 以及十个标准局面的固定时间 `A/B` 交错对照；记录 completed depth、
+  nodes、耗时、score、bestmove 和 PV。它不修改搜索实现或 `Current`，不把 protocol smoke
+  或固定时间样本直接解释成 Elo；结果显示没有稳定的跨局面 depth uplift，因此 D1.3
+  仍未进入 `Current` 或 Elo/SPRT。当前 UCI 未暴露 qsearch counter，因此报告明确记为 null。
+  见 [`d1.12-depth-uplift-gate.md`](docs/benchmarks/d1.12-depth-uplift-gate.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
   和浅层 futility；批准的 `current` 仍关闭这些开关。见
