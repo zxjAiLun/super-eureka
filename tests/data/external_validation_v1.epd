@@ -1,0 +1,39 @@
+# D1.11 external validation corpus v1.
+#
+# Derived, without semantic edits, from the pinned CC0-1.0 official Stockfish
+# books EPD snapshots. This is a deliberately small auditable slice, not the
+# full upstream suites and not an answer-key or Elo corpus.
+#
+# id|group|full FEN|source book id|source line|depth
+d11-tactical-closedpos-0001|tactical|rnbq1rk1/pp2bppp/4p3/2ppP3/3P1Pn1/P1N2N2/1PP3PP/R1BQKB1R w KQ - 0 5|stockfish-closedpos|1|4
+d11-tactical-closedpos-0002|tactical|r1bq1rk1/pp2ppbp/n2p1np1/2pP4/4P3/3B1N1P/PPPN1PP1/R1BQK2R w KQ - 3 5|stockfish-closedpos|2|4
+d11-tactical-closedpos-0003|tactical|r1bq1rk1/pp1p2pp/2n1pn2/2b2p2/5P2/P3PN2/2PPB1PP/RNBQK2R w KQ - 5 5|stockfish-closedpos|3|4
+d11-tactical-closedpos-0004|tactical|rnbqkb1r/2pn1ppp/4p3/p2pP3/1p1P1P2/5N2/PPP3PP/R1BQKBNR w KQkq - 0 5|stockfish-closedpos|4|4
+d11-tactical-closedpos-0005|tactical|rnbq1rk1/p1p1b1pp/1p1ppn2/5p2/3P4/N3P2N/PPP1BPPP/1RBQ1RK1 w - - 1 5|stockfish-closedpos|5|4
+d11-tactical-closedpos-0006|tactical|r1bq1rk1/ppp1npbp/2np2p1/4p3/P7/1P1P2P1/1BPNPPBP/R2QK1NR w KQ - 3 5|stockfish-closedpos|6|4
+d11-tactical-closedpos-0007|tactical|rnbqk2r/1pp1b1pp/p3pn2/3p1p2/3P1P2/4P3/PPPNBNPP/R1BQK2R w KQkq - 3 5|stockfish-closedpos|7|4
+d11-tactical-closedpos-0008|tactical|rnbq1rk1/p4ppp/1p1bpn2/2pp4/2PP4/PP2PN2/3N1PPP/R1BQKB1R w KQ - 1 5|stockfish-closedpos|8|4
+d11-mate-stalemates-0001|mate|8/Q7/8/1rnb4/k2Bp3/3nP3/8/K7 b - - 10 91|stockfish-stalemates-200d30-v1|3|4
+d11-mate-stalemates-0002|mate|7k/5Q2/3P4/1p6/2p4K/2Pr2P1/1P6/4r3 w - - 3 43|stockfish-stalemates-200d30-v1|4|4
+d11-mate-stalemates-0003|mate|5b2/p7/1p2R3/6r1/2R5/PK4k1/1B3r2/8 b - - 2 52|stockfish-stalemates-200d30-v1|6|4
+d11-mate-stalemates-0004|mate|7k/6b1/1q2r3/6R1/3Q1P1P/5N2/8/6K1 w - - 3 49|stockfish-stalemates-200d30-v1|7|4
+d11-mate-stalemates-0005|mate|8/8/6p1/3b4/1R1k1p1P/7r/3NK3/8 b - - 3 65|stockfish-stalemates-200d30-v1|9|4
+d11-mate-stalemates-0006|mate|4q2k/8/5b1p/1p5K/1P6/P2Q4/6R1/8 w - - 7 67|stockfish-stalemates-200d30-v1|10|4
+d11-mate-stalemates-0007|mate|8/1k1N4/1PpB1K2/p2p4/8/3Bq3/8/8 b - - 1 59|stockfish-stalemates-200d30-v1|11|4
+d11-mate-stalemates-0008|mate|1B6/8/5R2/6pk/5P1p/4p2P/6PK/3r4 w - - 0 50|stockfish-stalemates-200d30-v1|12|4
+d11-promotion-endgames-0001|promotion|8/pp2nkR1/5n1p/3p4/5p2/P2BP3/1PPKN3/8 b - - 0 31|stockfish-endgames|1|4
+d11-promotion-endgames-0002|promotion|3n4/2k3p1/p4r2/1pp4P/5PB1/P6P/1KP5/5R2 w - - 0 32|stockfish-endgames|2|4
+d11-promotion-endgames-0003|promotion|4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38|stockfish-endgames|3|4
+d11-promotion-endgames-0004|promotion|1b6/4k1p1/3p3p/p6P/Bp6/2r1P1P1/4KP2/R7 w - - 0 70|stockfish-endgames|4|4
+d11-promotion-endgames-0005|promotion|4k3/2Rb4/3r3p/4p1p1/5p2/7P/4R1P1/6K1 w - - 0 61|stockfish-endgames|5|4
+d11-promotion-endgames-0006|promotion|5k2/2R1B2p/1p4p1/pr3n2/3P1P2/3N4/4K1PP/8 b - - 0 36|stockfish-endgames|6|4
+d11-promotion-endgames-0007|promotion|6k1/p4pp1/1p5p/8/P7/4P2P/4QPP1/2q3K1 w - - 0 31|stockfish-endgames|7|4
+d11-promotion-endgames-0008|promotion|4rk2/4bp2/p7/2p1p3/6PP/P3R3/5NK1/8 w - - 0 36|stockfish-endgames|8|4
+d11-endgame-cdb-0001|endgame|6k1/5p2/5qp1/7p/8/6P1/3QP2K/8 w - - 0 51|stockfish-endgames-cdb95105|2|4
+d11-endgame-cdb-0002|endgame|1BB5/4k2p/6p1/5p2/1n5P/8/6K1/b7 b - - 0 42|stockfish-endgames-cdb95105|3|4
+d11-endgame-cdb-0003|endgame|4B3/8/2R2b2/5pk1/4p1b1/4P3/5P2/5K2 b - - 0 54|stockfish-endgames-cdb95105|5|4
+d11-endgame-cdb-0004|endgame|8/6kp/6p1/b2B1p2/4n2P/6BK/8/8 b - - 0 43|stockfish-endgames-cdb95105|8|4
+d11-endgame-cdb-0005|endgame|8/2r5/5p1k/6bp/4R3/5N2/6K1/8 b - - 0 45|stockfish-endgames-cdb95105|9|4
+d11-endgame-cdb-0006|endgame|2b5/8/7k/1B5p/5P2/4KNP1/7P/2b5 w - - 0 42|stockfish-endgames-cdb95105|13|4
+d11-endgame-cdb-0007|endgame|2b5/8/7k/6Np/5P2/4KBP1/1b5P/8 w - - 0 44|stockfish-endgames-cdb95105|20|4
+d11-endgame-cdb-0008|endgame|5k2/7p/6p1/5p2/3b1BnP/8/B5K1/8 b - - 0 44|stockfish-endgames-cdb95105|23|4
