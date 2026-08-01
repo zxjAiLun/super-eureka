@@ -13,6 +13,7 @@ import hashlib
 import json
 import queue
 import subprocess
+import sys
 import threading
 import time
 from collections import Counter, deque
@@ -172,7 +173,12 @@ def load_corpus(
     cases = _parse_cases(corpus_path)
     if len(cases) != 32:
         raise CorpusIntegrityError(f"D1.11 case count changed: expected 32, got {len(cases)}")
-    expected_groups = {"tactical": 8, "mate": 8, "promotion": 8, "endgame": 8}
+    expected_groups = {
+        "closedpos": 8,
+        "stalemate-stress": 8,
+        "endgames-a": 8,
+        "endgames-cdb": 8,
+    }
     actual_groups = Counter(case.group for case in cases)
     if dict(actual_groups) != expected_groups:
         raise CorpusIntegrityError(
@@ -258,8 +264,14 @@ class EngineSession:
         self.hash_mb = hash_mb
         self.timeout_s = timeout_s
         try:
+            resolved_program = program.expanduser().resolve()
+            command = (
+                [sys.executable, "-u", str(resolved_program), "--profile", profile]
+                if resolved_program.suffix.lower() == ".py"
+                else [str(resolved_program), "--profile", profile]
+            )
             self.process = subprocess.Popen(
-                [str(program), "--profile", profile],
+                command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -424,25 +436,58 @@ class EngineSession:
         if result.score.kind == "mate" and result.score.value == 0:
             raise EngineFailure(f"{self.profile}: mate score has zero distance; {self._context()}")
 
-    def close(self) -> None:
+    def close(self, require_success: bool = True) -> None:
+        cleanup_error: Optional[BaseException] = None
         if self.process.poll() is None:
             try:
                 self._stdin.write("stop\nquit\n")
                 self._stdin.flush()
-            except OSError:
-                pass
+            except OSError as exc:
+                cleanup_error = exc
             try:
                 self.process.wait(timeout=min(self.timeout_s, 5.0))
             except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
+                try:
+                    self.process.kill()
+                    self.process.wait()
+                except (OSError, ValueError) as exc:
+                    cleanup_error = cleanup_error or exc
+        else:
+            try:
+                self.process.wait(timeout=0)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                cleanup_error = cleanup_error or exc
         self._drain_stderr()
+        for thread in self._threads:
+            thread.join(timeout=1.0)
+        for stream in (self._stdin, self.process.stdout, self.process.stderr):
+            if stream is not None:
+                try:
+                    stream.close()
+                except (OSError, ValueError) as exc:
+                    cleanup_error = cleanup_error or exc
+        if require_success:
+            returncode = self.process.returncode
+            if returncode != 0:
+                raise EngineFailure(
+                    f"{self.profile}: engine exited with code {returncode}; {self._context()}"
+                )
+            if cleanup_error is not None:
+                raise EngineFailure(
+                    f"{self.profile}: engine cleanup failed: {cleanup_error}; {self._context()}"
+                )
 
     def __enter__(self) -> "EngineSession":
         return self
 
-    def __exit__(self, _type: Any, _value: Any, _traceback: Any) -> None:
-        self.close()
+    def __exit__(self, exc_type: Any, _value: Any, _traceback: Any) -> None:
+        if exc_type is None:
+            self.close(require_success=True)
+        else:
+            try:
+                self.close(require_success=False)
+            except BaseException:
+                pass
 
 
 def run_corpus(

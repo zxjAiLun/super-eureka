@@ -2,15 +2,21 @@
   "schema_version": 1,
   "corpus_id": "d1.11-official-stockfish-books-slice-v1",
   "snapshot_file": "tests/data/external_validation_v1.epd",
-  "snapshot_sha256": "8d98bf296d27e04ef19b658d83306a21a4f96a9253ba4bb9719c48842aea695c",
+  "snapshot_sha256": "e37e4657c4e3fc7657e9127b25ca0c109a9aefe9500f54004b7e3d35034e858e",
   "license": "CC0-1.0",
   "selection": {
-    "method": "first eight valid positions matching each group filter from the pinned source file",
+    "method": "fixed source-line slice from the pinned source files; verifier checks exact FEN equality",
     "groups": {
-      "tactical": "stockfish-closedpos",
-      "mate": "stockfish-stalemates-200d30-v1",
-      "promotion": "stockfish-endgames",
-      "endgame": "stockfish-endgames-cdb95105"
+      "closedpos": "stockfish-closedpos",
+      "stalemate-stress": "stockfish-stalemates-200d30-v1",
+      "endgames-a": "stockfish-endgames",
+      "endgames-cdb": "stockfish-endgames-cdb95105"
+    },
+    "source_lines": {
+      "closedpos": [1, 2, 3, 4, 5, 6, 7, 8],
+      "stalemate-stress": [3, 4, 6, 7, 9, 10, 11, 12],
+      "endgames-a": [1, 2, 3, 4, 5, 6, 7, 8],
+      "endgames-cdb": [2, 3, 5, 8, 9, 13, 20, 23]
     },
     "cases": 32,
     "depth": 4
