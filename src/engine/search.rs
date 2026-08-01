@@ -76,6 +76,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `CurrentQsearchPruning` builds on `CurrentQsearchMovegen` and adds only
 ///   conservative non-check qsearch SEE pruning for eligible plain captures.
 ///   Promotions, en passant, and checking captures are always kept.
+/// * `CurrentQsearchFastPruning` preserves the `CurrentQsearchPruning` search
+///   tree and replaces only its pruning SEE attacker scan with a direct
+///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4).
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
@@ -102,6 +105,7 @@ pub(crate) enum SearchProfile {
     Current,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
+    CurrentQsearchFastPruning,
     CurrentAspiration,
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
@@ -164,13 +168,23 @@ impl SearchProfile {
     pub(crate) const fn uses_qsearch_movegen(self) -> bool {
         matches!(
             self,
-            Self::CurrentQsearchMovegen | Self::CurrentQsearchPruning
+            Self::CurrentQsearchMovegen
+                | Self::CurrentQsearchPruning
+                | Self::CurrentQsearchFastPruning
         )
     }
 
     #[inline]
     pub(crate) const fn uses_qsearch_pruning(self) -> bool {
-        matches!(self, Self::CurrentQsearchPruning)
+        matches!(
+            self,
+            Self::CurrentQsearchPruning | Self::CurrentQsearchFastPruning
+        )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_qsearch_fast_pruning(self) -> bool {
+        matches!(self, Self::CurrentQsearchFastPruning)
     }
 }
 
@@ -1902,6 +1916,7 @@ fn negamax_entered_impl_with_null(
             path,
             _profile.uses_qsearch_movegen(),
             _profile.uses_qsearch_pruning(),
+            _profile.uses_qsearch_fast_pruning(),
         ) {
             Some(s) => {
                 let bound = classify_tt_bound(s, caller_alpha, caller_beta);
@@ -2321,6 +2336,27 @@ fn prune_qsearch_captures_by_see(
     alpha: i32,
     beta: i32,
 ) -> Vec<Move> {
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false)
+}
+
+fn prune_qsearch_captures_by_fast_see(
+    pos: &mut Position,
+    moves: Vec<Move>,
+    ctx: &SearchContext,
+    alpha: i32,
+    beta: i32,
+) -> Vec<Move> {
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, true)
+}
+
+fn prune_qsearch_captures_by_see_impl(
+    pos: &mut Position,
+    moves: Vec<Move>,
+    ctx: &SearchContext,
+    alpha: i32,
+    beta: i32,
+    fast_see: bool,
+) -> Vec<Move> {
     if alpha <= -(MATE - 1000) || beta >= MATE - 1000 {
         return moves;
     }
@@ -2352,11 +2388,16 @@ fn prune_qsearch_captures_by_see(
         // capture. If a future move flag or generator violates that contract,
         // it reaches the fail-open path above instead of being pruned.
         ctx.add_profile_counter(&ctx.qsearch_see_tests, 1);
-        match static_exchange_eval_for_pruning(pos, m) {
-            Some(value) if value < 0 => {
+        let see_ge = if fast_see {
+            see_ge_for_pruning(pos, m, 0)
+        } else {
+            static_exchange_eval_for_pruning(pos, m).map(|value| value >= 0)
+        };
+        match see_ge {
+            Some(false) => {
                 ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
             }
-            Some(_) => {
+            Some(true) => {
                 kept.push(m);
             }
             None => {
@@ -2629,6 +2670,234 @@ fn static_exchange_eval_impl(pos: &Position, m: Move, reject_promotions: bool) -
     Some(gains[0])
 }
 
+#[inline]
+fn square_with_offset(square: u8, file_delta: i32, rank_delta: i32) -> Option<u8> {
+    let file = file_of(square) as i32 + file_delta;
+    let rank = rank_of(square) as i32 + rank_delta;
+    if (0..8).contains(&file) && (0..8).contains(&rank) {
+        Some(make_square(file as u8, rank as u8))
+    } else {
+        None
+    }
+}
+
+#[inline]
+fn add_fast_attacker_source(
+    pos: &Position,
+    piece_type: PieceType,
+    from: u8,
+    sources: &mut [u8; 8],
+    count: &mut usize,
+) {
+    if pos.board[from as usize] != Some(Piece::new(pos.side, piece_type)) {
+        return;
+    }
+    debug_assert!(*count < sources.len());
+    if *count >= sources.len() {
+        return;
+    }
+    sources[*count] = from;
+    *count += 1;
+}
+
+#[inline]
+fn collect_fast_slider_attackers(
+    pos: &Position,
+    target: u8,
+    piece_type: PieceType,
+    directions: &[(i32, i32)],
+    sources: &mut [u8; 8],
+    count: &mut usize,
+) {
+    let target_file = file_of(target) as i32;
+    let target_rank = rank_of(target) as i32;
+    for &(file_delta, rank_delta) in directions {
+        let mut file = target_file + file_delta;
+        let mut rank = target_rank + rank_delta;
+        while (0..8).contains(&file) && (0..8).contains(&rank) {
+            let from = make_square(file as u8, rank as u8);
+            if pos.board[from as usize].is_some() {
+                add_fast_attacker_source(pos, piece_type, from, sources, count);
+                break;
+            }
+            file += file_delta;
+            rank += rank_delta;
+        }
+    }
+}
+
+#[inline]
+fn collect_fast_attacker_candidates(
+    pos: &Position,
+    target: u8,
+    piece_type: PieceType,
+) -> ([u8; 8], usize) {
+    let mut sources = [0; 8];
+    let mut count = 0;
+    match piece_type {
+        PieceType::Pawn => {
+            let direction = if pos.side == Color::White { 1 } else { -1 };
+            let source_rank = rank_of(target) as i32 - direction;
+            if (0..8).contains(&source_rank) {
+                for file_delta in [-1, 1] {
+                    if let Some(from) = square_with_offset(
+                        make_square(file_of(target), source_rank as u8),
+                        file_delta,
+                        0,
+                    ) {
+                        add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
+                    }
+                }
+            }
+        }
+        PieceType::Knight => {
+            for &(file_delta, rank_delta) in &KNIGHT_OFFSETS {
+                if let Some(from) = square_with_offset(target, file_delta, rank_delta) {
+                    add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
+                }
+            }
+        }
+        PieceType::Bishop => collect_fast_slider_attackers(
+            pos,
+            target,
+            piece_type,
+            &BISHOP_DIRS,
+            &mut sources,
+            &mut count,
+        ),
+        PieceType::Rook => collect_fast_slider_attackers(
+            pos,
+            target,
+            piece_type,
+            &ROOK_DIRS,
+            &mut sources,
+            &mut count,
+        ),
+        PieceType::Queen => {
+            collect_fast_slider_attackers(
+                pos,
+                target,
+                piece_type,
+                &BISHOP_DIRS,
+                &mut sources,
+                &mut count,
+            );
+            collect_fast_slider_attackers(
+                pos,
+                target,
+                piece_type,
+                &ROOK_DIRS,
+                &mut sources,
+                &mut count,
+            );
+        }
+        PieceType::King => {
+            for &(file_delta, rank_delta) in &KING_OFFSETS {
+                if let Some(from) = square_with_offset(target, file_delta, rank_delta) {
+                    add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
+                }
+            }
+        }
+    }
+    for index in 1..count {
+        let source = sources[index];
+        let mut insert_at = index;
+        while insert_at > 0 && sources[insert_at - 1] > source {
+            sources[insert_at] = sources[insert_at - 1];
+            insert_at -= 1;
+        }
+        sources[insert_at] = source;
+    }
+    (sources, count)
+}
+
+#[inline]
+fn least_valuable_attacker_fast(pos: &mut Position, target: u8) -> Option<Move> {
+    for piece_type in [
+        PieceType::Pawn,
+        PieceType::Knight,
+        PieceType::Bishop,
+        PieceType::Rook,
+        PieceType::Queen,
+        PieceType::King,
+    ] {
+        let (sources, count) = collect_fast_attacker_candidates(pos, target, piece_type);
+        let promotion = if piece_type == PieceType::Pawn
+            && ((pos.side == Color::White && rank_of(target) == 7)
+                || (pos.side == Color::Black && rank_of(target) == 0))
+        {
+            Some(PieceType::Knight)
+        } else {
+            None
+        };
+        let move_flag = promotion.map_or(MoveFlag::Normal, MoveFlag::Promotion);
+        for &from in sources.iter().take(count) {
+            let candidate = Move {
+                from,
+                to: target,
+                promotion,
+                flag: move_flag,
+            };
+            let undo = pos.make_move(candidate);
+            let legal = !pos.is_square_attacked(pos.king_square(pos.side.opposite()), pos.side);
+            pos.unmake_move(undo);
+            if legal {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// Fast boolean SEE for pruning. It deliberately preserves the exact
+/// promotion fail-open rule and exchange back-propagation of the D1.3
+/// integer SEE, while replacing the 64-square attacker scan with direct
+/// target-relative occupancy walks.
+#[inline]
+fn see_ge_for_pruning(pos: &Position, m: Move, threshold: i32) -> Option<bool> {
+    if m.promotion.is_some() {
+        return None;
+    }
+    let victim_value = match m.flag {
+        MoveFlag::EnPassant => PieceType::Pawn.value(),
+        MoveFlag::Promotion(_)
+        | MoveFlag::Normal
+        | MoveFlag::DoublePawnPush
+        | MoveFlag::KingCastle
+        | MoveFlag::QueenCastle => pos.board[m.to as usize]
+            .map(|piece| piece.piece_type.value())
+            .unwrap_or(0),
+    };
+    let promotion_gain = m
+        .promotion
+        .map(|piece| piece.value() - PieceType::Pawn.value())
+        .unwrap_or(0);
+    let mut gains = [0i32; 32];
+    gains[0] = victim_value + promotion_gain;
+
+    let mut child = *pos;
+    let mut captured_value = see_piece_after_move(pos, m);
+    child.make_move(m);
+    let mut depth = 0usize;
+    while depth + 1 < gains.len() {
+        let Some(attacker) = least_valuable_attacker_fast(&mut child, m.to) else {
+            break;
+        };
+        if attacker.promotion.is_some() {
+            return None;
+        }
+        depth += 1;
+        gains[depth] = captured_value - gains[depth - 1];
+        captured_value = see_piece_after_move(&child, attacker);
+        child.make_move(attacker);
+    }
+    while depth > 0 {
+        depth -= 1;
+        gains[depth] = -(-gains[depth]).max(gains[depth + 1]);
+    }
+    Some(gains[0] >= threshold)
+}
+
 fn move_gives_check(pos: &mut Position, m: Move) -> bool {
     let undo = pos.make_move(m);
     let gives_check = pos.is_in_check(pos.side);
@@ -2765,15 +3034,15 @@ fn quiescence_impl(
         return None;
     }
     quiescence_entered_impl(
-        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false,
+        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false, false,
     )
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
 /// Threads a [`PvTable`] so the tactical principal variation is recorded.
 ///
-/// 10 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`]
-/// and the two isolated qsearch candidate switches;
+/// 11 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`]
+/// and the three isolated qsearch candidate switches;
 /// kept explicit (see [`negamax_impl`] for the rationale).
 #[allow(clippy::too_many_arguments)]
 /// `clear_at` runs first (the node is already entered by the caller), so a
@@ -2800,6 +3069,7 @@ fn quiescence_entered_impl(
     path: &mut SearchPath,
     qsearch_movegen: bool,
     qsearch_pruning: bool,
+    qsearch_fast_pruning: bool,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
     // Node already entered by the caller: clear the row before any return.
@@ -2882,7 +3152,11 @@ fn quiescence_entered_impl(
             legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
         };
         if qsearch_pruning {
-            tactical = prune_qsearch_captures_by_see(pos, tactical, ctx, alpha, beta);
+            tactical = if qsearch_fast_pruning {
+                prune_qsearch_captures_by_fast_see(pos, tactical, ctx, alpha, beta)
+            } else {
+                prune_qsearch_captures_by_see(pos, tactical, ctx, alpha, beta)
+            };
         }
         if ctx.see_enabled.load(Ordering::Relaxed) {
             // SEE is ordering-only. Even a losing exchange remains in the
@@ -2937,6 +3211,7 @@ fn quiescence_entered_impl(
                     path,
                     qsearch_movegen,
                     qsearch_pruning,
+                    qsearch_fast_pruning,
                 ) {
                     Some(s) => -s,
                     None => {
@@ -4279,11 +4554,21 @@ mod tests {
         assert!(SearchProfile::CurrentQsearchPruning.uses_pvs());
         assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_movegen());
         assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_pruning());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_qsearch_fast_pruning());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_see());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_aspiration());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_lmr());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_futility());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_null_move());
+        assert!(SearchProfile::CurrentQsearchFastPruning.uses_pvs());
+        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_pruning());
+        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_fast_pruning());
+        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_see());
+        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_aspiration());
+        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_lmr());
+        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_futility());
+        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_null_move());
     }
 
     #[test]
@@ -4674,6 +4959,7 @@ mod tests {
                 &mut path,
                 specialized,
                 pruning,
+                false,
             )
             .expect("unlimited qsearch must complete")
         }
@@ -4887,6 +5173,91 @@ mod tests {
         assert!(pruning_stats.qsearch_see_pruned > 0);
         assert!(pruning_stats.qsearch_nodes < movegen_stats.qsearch_nodes);
         assert!(pruning_stats.nodes < movegen_stats.nodes);
+    }
+
+    #[test]
+    fn fast_qsearch_see_matches_d13_decisions() {
+        let positions = [
+            START_FEN,
+            MVV_POS,
+            "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1",
+            "7k/r7/8/8/p7/8/8/R6K w - - 0 1",
+            "1r5k/P7/8/8/8/8/8/7K w - - 0 1",
+            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+            "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1",
+            "6K1/4q3/8/8/8/1k6/3p4/R3B3 b - - 0 1",
+        ];
+        for fen in positions {
+            let mut slow_pos = parse_fen(fen).unwrap();
+            let tactical = generate_legal_tactical_moves_with_stats(&mut slow_pos).0;
+            let slow_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let slow = prune_qsearch_captures_by_see(
+                &mut slow_pos,
+                tactical.clone(),
+                &slow_ctx,
+                -10_000,
+                10_000,
+            );
+
+            let mut fast_pos = parse_fen(fen).unwrap();
+            let fast_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let fast = prune_qsearch_captures_by_fast_see(
+                &mut fast_pos,
+                tactical,
+                &fast_ctx,
+                -10_000,
+                10_000,
+            );
+
+            assert_eq!(fast, slow, "fast SEE changed keep/prune set for {fen}");
+            assert_eq!(
+                fast_ctx.stats().qsearch_see_pruned,
+                slow_ctx.stats().qsearch_see_pruned,
+                "fast SEE changed prune count for {fen}"
+            );
+            assert_eq!(
+                fast_ctx.stats().qsearch_see_fail_open_promotions,
+                slow_ctx.stats().qsearch_see_fail_open_promotions,
+                "fast SEE changed fail-open count for {fen}"
+            );
+        }
+
+        let mut walk = parse_fen(START_FEN).unwrap();
+        let mut seed = 0xD140_5EED_u64;
+        for _ in 0..256 {
+            let mut slow_pos = walk;
+            let tactical = generate_legal_tactical_moves_with_stats(&mut slow_pos).0;
+            let slow_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let slow = prune_qsearch_captures_by_see(
+                &mut slow_pos,
+                tactical.clone(),
+                &slow_ctx,
+                -10_000,
+                10_000,
+            );
+            let mut fast_pos = walk;
+            let fast_ctx =
+                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let fast = prune_qsearch_captures_by_fast_see(
+                &mut fast_pos,
+                tactical,
+                &fast_ctx,
+                -10_000,
+                10_000,
+            );
+            assert_eq!(fast, slow, "fast SEE changed walk decision");
+
+            let mut legal = generate_legal_moves(&mut walk);
+            if legal.is_empty() {
+                break;
+            }
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let move_to_play = legal.swap_remove((seed as usize) % legal.len());
+            walk.make_move(move_to_play);
+        }
     }
 
     #[test]

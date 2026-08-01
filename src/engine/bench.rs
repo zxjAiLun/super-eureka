@@ -146,6 +146,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::Current => "current",
         SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
         SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
+        SearchProfile::CurrentQsearchFastPruning => "current-qsearch-fast-pruning",
         SearchProfile::CurrentAspiration => "current-aspiration",
         SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -353,6 +354,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current" => SearchProfile::Current,
                     "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
                     "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
+                    "current-qsearch-fast-pruning" => SearchProfile::CurrentQsearchFastPruning,
                     "current-aspiration" => SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -363,7 +365,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1251,7 +1253,7 @@ fn print_help() {
     println!("  --movetime <MS>                   ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1522,6 +1524,14 @@ mod tests {
         .unwrap();
         assert_eq!(p.profile, SearchProfile::CurrentQsearchPruning);
 
+        let p = parse_args(&[
+            "standard".to_string(),
+            "--profile".to_string(),
+            "current-qsearch-fast-pruning".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(p.profile, SearchProfile::CurrentQsearchFastPruning);
+
         for (name, expected) in [
             ("current-aspiration", SearchProfile::CurrentAspiration),
             (
@@ -1571,6 +1581,10 @@ mod tests {
         assert_eq!(
             profile_str(SearchProfile::CurrentQsearchPruning),
             "current-qsearch-pruning"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentQsearchFastPruning),
+            "current-qsearch-fast-pruning"
         );
         assert_eq!(
             profile_str(SearchProfile::CurrentAspiration),
