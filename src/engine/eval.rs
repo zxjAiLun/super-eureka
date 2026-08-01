@@ -458,6 +458,27 @@ pub fn evaluate(pos: &Position) -> i32 {
     finish_evaluation(pos, mg, eg, game_phase(pos))
 }
 
+/// Evaluate the same full-board function while computing MG, EG, and phase
+/// in one 64-square pass. This is a bench-only candidate: it deliberately
+/// keeps the existing `Position`, make/unmake, and exact KQK/KRK paths
+/// unchanged.
+pub(crate) fn evaluate_one_pass(pos: &Position) -> i32 {
+    let mut mg = 0;
+    let mut eg = 0;
+    let mut phase = 0;
+    for sq in 0..64usize {
+        if let Some(p) = pos.board[sq] {
+            let sign = if p.color == pos.side { 1 } else { -1 };
+            let material = material_score(p.piece_type);
+            let positional = pst_score(p.piece_type, pst_idx(sq, p.color));
+            mg += sign * (material.mg + positional.mg);
+            eg += sign * (material.eg + positional.eg);
+            phase += phase_weight(p.piece_type);
+        }
+    }
+    finish_evaluation(pos, mg, eg, phase.min(MAX_PHASE))
+}
+
 /// Evaluate the same function as [`evaluate`] using the Position-maintained
 /// base tapered lanes. Exact KQK/KRK mop-up intentionally remains the
 /// existing board-scan path, so D1.6 changes only the base evaluation cost.
@@ -477,10 +498,10 @@ pub(crate) fn evaluate_incremental(pos: &Position) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate, evaluate_incremental, exact_mop_up, game_phase, interpolate, KING_EG_PST,
-        KING_MG_PST, MAX_PHASE,
+        evaluate, evaluate_incremental, evaluate_one_pass, exact_mop_up, game_phase, interpolate,
+        KING_EG_PST, KING_MG_PST, MAX_PHASE,
     };
-    use crate::chess::fen::parse_fen;
+    use crate::chess::fen::{parse_fen, to_fen};
     use crate::chess::movegen::generate_legal_moves;
     use crate::chess::types::{move_to_uci, START_FEN};
 
@@ -500,6 +521,43 @@ mod tests {
         assert_eq!(interpolate(100, 200, MAX_PHASE), 100);
         assert_eq!(interpolate(100, 200, 0), 200);
         assert_eq!(interpolate(100, 200, MAX_PHASE / 2), 150);
+    }
+
+    #[test]
+    fn one_pass_evaluation_matches_two_pass_evaluation() {
+        let fens = [
+            START_FEN,
+            "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/Q7/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/R7/4K3 b - - 0 1",
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1",
+        ];
+
+        for fen in fens {
+            let pos = parse_fen(fen).expect("one-pass fixture must parse");
+            let before = to_fen(&pos);
+            assert_eq!(evaluate_one_pass(&pos), evaluate(&pos), "{fen}");
+            assert_eq!(
+                to_fen(&pos),
+                before,
+                "one-pass evaluation must be read-only"
+            );
+        }
+
+        let mut walk = parse_fen(START_FEN).unwrap();
+        let mut seed = 0xD17_0A55_u64;
+        for _ in 0..512 {
+            assert_eq!(evaluate_one_pass(&walk), evaluate(&walk));
+            let legal = generate_legal_moves(&mut walk);
+            assert!(!legal.is_empty(), "deterministic walk ended early");
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let mv = legal[(seed as usize) % legal.len()];
+            let undo = walk.make_move(mv);
+            assert_eq!(evaluate_one_pass(&walk), evaluate(&walk));
+            walk.unmake_move(undo);
+            let _ = walk.make_move(mv);
+        }
     }
 
     #[test]

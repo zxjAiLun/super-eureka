@@ -39,7 +39,7 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::{evaluate, evaluate_incremental};
+use crate::engine::eval::{evaluate, evaluate_incremental, evaluate_one_pass};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
@@ -86,6 +86,9 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   `Current` search tree and replaces only the base tapered evaluation scan
 ///   with Position-maintained MG/EG/phase lanes. Exact KQK/KRK mop-up remains
 ///   on the existing board-scan path.
+/// * `CurrentOnePassEval` is a bench-only candidate that preserves the
+///   `Current` search tree and combines the base MG/EG/phase recomputation into
+///   one board pass. It does not add Position or Undo state.
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
@@ -112,6 +115,7 @@ pub(crate) enum SearchProfile {
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
     CurrentIncrementalEval,
+    CurrentOnePassEval,
     CurrentAspiration,
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
@@ -183,6 +187,7 @@ impl SearchProfile {
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
                 | Self::CurrentIncrementalEval
+                | Self::CurrentOnePassEval
         )
     }
 
@@ -202,6 +207,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_incremental_eval(self) -> bool {
         matches!(self, Self::CurrentIncrementalEval)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_one_pass_eval(self) -> bool {
+        matches!(self, Self::CurrentOnePassEval)
     }
 }
 
@@ -270,8 +280,10 @@ pub struct SearchContext {
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
     pub full_eval_recomputations: AtomicU64,
+    pub board_cells_visited: AtomicU64,
     see_enabled: AtomicBool,
     incremental_eval_enabled: AtomicBool,
+    one_pass_eval_enabled: AtomicBool,
     /// Diagnostic counters are opt-in so ordinary searches do not pay for
     /// an atomic increment on every hot-path event.
     profiling_enabled: bool,
@@ -317,6 +329,7 @@ pub struct SearchStats {
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
     pub full_eval_recomputations: u64,
+    pub board_cells_visited: u64,
     pub aspiration_retries: u64,
     pub aspiration_fail_low: u64,
     pub aspiration_fail_high: u64,
@@ -366,8 +379,10 @@ impl SearchContext {
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
             full_eval_recomputations: AtomicU64::new(0),
+            board_cells_visited: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             incremental_eval_enabled: AtomicBool::new(false),
+            one_pass_eval_enabled: AtomicBool::new(false),
             profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -426,8 +441,10 @@ impl SearchContext {
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
             full_eval_recomputations: AtomicU64::new(0),
+            board_cells_visited: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             incremental_eval_enabled: AtomicBool::new(false),
+            one_pass_eval_enabled: AtomicBool::new(false),
             profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -476,6 +493,7 @@ impl SearchContext {
             qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
             qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
             full_eval_recomputations: self.full_eval_recomputations.load(Ordering::Relaxed),
+            board_cells_visited: self.board_cells_visited.load(Ordering::Relaxed),
             aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
             aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
             aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
@@ -552,8 +570,13 @@ fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
     if ctx.incremental_eval_enabled.load(Ordering::Relaxed) {
         evaluate_incremental(pos)
+    } else if ctx.one_pass_eval_enabled.load(Ordering::Relaxed) {
+        ctx.add_profile_counter(&ctx.full_eval_recomputations, 1);
+        ctx.add_profile_counter(&ctx.board_cells_visited, 64);
+        evaluate_one_pass(pos)
     } else {
         ctx.add_profile_counter(&ctx.full_eval_recomputations, 1);
+        ctx.add_profile_counter(&ctx.board_cells_visited, 128);
         evaluate(pos)
     }
 }
@@ -3030,6 +3053,7 @@ pub fn quiescence(
     // reused context or Position.
     ctx.see_enabled.store(false, Ordering::Relaxed);
     ctx.incremental_eval_enabled.store(false, Ordering::Relaxed);
+    ctx.one_pass_eval_enabled.store(false, Ordering::Relaxed);
     let previous_eval_cache = pos.disable_incremental_eval();
     // Public entry: throwaway PV table, discarded on return.
     let mut pv = PvTable::default();
@@ -4029,6 +4053,8 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
     ctx.incremental_eval_enabled
         .store(profile.uses_incremental_eval(), Ordering::Relaxed);
+    ctx.one_pass_eval_enabled
+        .store(profile.uses_one_pass_eval(), Ordering::Relaxed);
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
     let r = search_best_move_impl(pos, limits, ctx, profile, &mut path, tt);
@@ -4619,6 +4645,16 @@ mod tests {
         assert!(!SearchProfile::CurrentIncrementalEval.uses_lmr());
         assert!(!SearchProfile::CurrentIncrementalEval.uses_futility());
         assert!(!SearchProfile::CurrentIncrementalEval.uses_null_move());
+        assert!(SearchProfile::CurrentOnePassEval.uses_pvs());
+        assert!(SearchProfile::CurrentOnePassEval.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentOnePassEval.uses_one_pass_eval());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_incremental_eval());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_qsearch_pruning());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_see());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_aspiration());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_lmr());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_futility());
+        assert!(!SearchProfile::CurrentOnePassEval.uses_null_move());
         for profile in [
             SearchProfile::CurrentAspiration,
             SearchProfile::CurrentAspirationLmr,
@@ -5037,6 +5073,59 @@ mod tests {
             assert_eq!(incremental_stats.full_eval_recomputations, 0);
             assert!(full_cache_restored);
             assert!(incremental_cache_restored);
+        }
+    }
+
+    #[test]
+    fn one_pass_eval_candidate_matches_current_search_tree() {
+        for fen in [START_FEN, MVV_POS] {
+            let run = |profile: SearchProfile| {
+                let mut pos = parse_fen(fen).unwrap();
+                let key = pos.zobrist_key();
+                let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+                let limits = SearchLimits {
+                    depth: Some(3),
+                    ..Default::default()
+                };
+                let outcome = search_best_move_with_history_tt_and_profile(
+                    &mut pos,
+                    &[key],
+                    &limits,
+                    &ctx,
+                    &mut TranspositionTable::disabled(),
+                    profile,
+                )
+                .expect("one-pass fixture must be non-terminal");
+                (outcome, ctx.stats())
+            };
+
+            let (current, current_stats) = run(SearchProfile::Current);
+            let (one_pass, one_pass_stats) = run(SearchProfile::CurrentOnePassEval);
+            assert_eq!(one_pass.completed_depth, current.completed_depth);
+            assert_eq!(one_pass.score, current.score);
+            assert_eq!(one_pass.best_move, current.best_move);
+            assert_eq!(one_pass.pv, current.pv);
+            assert_eq!(one_pass_stats.nodes, current_stats.nodes);
+            assert_eq!(one_pass_stats.qsearch_nodes, current_stats.qsearch_nodes);
+            assert_eq!(one_pass_stats.eval_calls, current_stats.eval_calls);
+            assert_eq!(one_pass_stats.tt_probes, current_stats.tt_probes);
+            assert_eq!(one_pass_stats.tt_stores, current_stats.tt_stores);
+            assert_eq!(
+                current_stats.full_eval_recomputations,
+                current_stats.eval_calls
+            );
+            assert_eq!(
+                one_pass_stats.full_eval_recomputations,
+                one_pass_stats.eval_calls
+            );
+            assert_eq!(
+                current_stats.board_cells_visited,
+                current_stats.eval_calls * 128
+            );
+            assert_eq!(
+                one_pass_stats.board_cells_visited,
+                one_pass_stats.eval_calls * 64
+            );
         }
     }
 
