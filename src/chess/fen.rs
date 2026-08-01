@@ -160,7 +160,6 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         fullmove,
         king_sq,
         zobrist_key: 0,
-        eval_cache: None,
     };
     pos.zobrist_key = recompute_zobrist(&pos);
     Ok(pos)

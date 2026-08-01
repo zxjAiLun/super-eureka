@@ -182,49 +182,6 @@ impl Score {
     }
 }
 
-/// Cached base tapered-evaluation lanes. The values are always White minus
-/// Black; the side-to-move perspective is applied only when evaluating.
-/// Exact KQK/KRK mop-up is deliberately not cached in this structure.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct BaseEvalCache {
-    pub(crate) white_minus_black_mg: i32,
-    pub(crate) white_minus_black_eg: i32,
-    pub(crate) phase: i32,
-}
-
-#[inline]
-fn signed_piece_score(piece: Piece, sq: usize) -> BaseEvalCache {
-    let sign = if piece.color == Color::White { 1 } else { -1 };
-    let material = material_score(piece.piece_type);
-    let positional = pst_score(piece.piece_type, pst_idx(sq, piece.color));
-    BaseEvalCache {
-        white_minus_black_mg: sign * (material.mg + positional.mg),
-        white_minus_black_eg: sign * (material.eg + positional.eg),
-        phase: phase_weight(piece.piece_type),
-    }
-}
-
-/// Return the incremental contribution of one piece on one square.
-pub(crate) fn base_eval_piece_delta(piece: Piece, sq: usize) -> BaseEvalCache {
-    signed_piece_score(piece, sq)
-}
-
-/// Recompute only the cached base tapered lanes from the board. FEN parsing
-/// uses this once; the search candidate then maintains the result through
-/// make/unmake rather than calling this on every leaf.
-pub(crate) fn recompute_base_eval(pos: &Position) -> BaseEvalCache {
-    let mut cache = BaseEvalCache::default();
-    for (sq, piece) in pos.board.iter().enumerate() {
-        if let Some(piece) = piece {
-            let delta = signed_piece_score(*piece, sq);
-            cache.white_minus_black_mg += delta.white_minus_black_mg;
-            cache.white_minus_black_eg += delta.white_minus_black_eg;
-            cache.phase += delta.phase;
-        }
-    }
-    cache
-}
-
 /// Map a piece type to its piece-square table. An exhaustive `match` (not
 /// `table[piece_type as usize]`) so the compiler forces every new piece
 /// kind to be handled explicitly instead of silently indexing the wrong row
@@ -458,52 +415,10 @@ pub fn evaluate(pos: &Position) -> i32 {
     finish_evaluation(pos, mg, eg, game_phase(pos))
 }
 
-/// Evaluate the same full-board function while computing MG, EG, and phase
-/// in one 64-square pass. This is a bench-only candidate: it deliberately
-/// keeps the existing `Position`, make/unmake, and exact KQK/KRK paths
-/// unchanged.
-pub(crate) fn evaluate_one_pass(pos: &Position) -> i32 {
-    let mut mg = 0;
-    let mut eg = 0;
-    let mut phase = 0;
-    for sq in 0..64usize {
-        if let Some(p) = pos.board[sq] {
-            let sign = if p.color == pos.side { 1 } else { -1 };
-            let material = material_score(p.piece_type);
-            let positional = pst_score(p.piece_type, pst_idx(sq, p.color));
-            mg += sign * (material.mg + positional.mg);
-            eg += sign * (material.eg + positional.eg);
-            phase += phase_weight(p.piece_type);
-        }
-    }
-    finish_evaluation(pos, mg, eg, phase.min(MAX_PHASE))
-}
-
-/// Evaluate the same function as [`evaluate`] using the Position-maintained
-/// base tapered lanes. Exact KQK/KRK mop-up intentionally remains the
-/// existing board-scan path, so D1.6 changes only the base evaluation cost.
-pub(crate) fn evaluate_incremental(pos: &Position) -> i32 {
-    let cache = pos
-        .eval_cache
-        .expect("incremental evaluation requires an active cache");
-    let perspective = if pos.side == Color::White { 1 } else { -1 };
-    finish_evaluation(
-        pos,
-        perspective * cache.white_minus_black_mg,
-        perspective * cache.white_minus_black_eg,
-        cache.phase.min(MAX_PHASE),
-    )
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        evaluate, evaluate_incremental, evaluate_one_pass, exact_mop_up, game_phase, interpolate,
-        KING_EG_PST, KING_MG_PST, MAX_PHASE,
-    };
-    use crate::chess::fen::{parse_fen, to_fen};
-    use crate::chess::movegen::generate_legal_moves;
-    use crate::chess::types::{move_to_uci, START_FEN};
+    use super::{exact_mop_up, game_phase, interpolate, KING_EG_PST, KING_MG_PST, MAX_PHASE};
+    use crate::chess::fen::parse_fen;
 
     #[test]
     fn phase_counts_non_pawn_material_only() {
@@ -524,43 +439,6 @@ mod tests {
     }
 
     #[test]
-    fn one_pass_evaluation_matches_two_pass_evaluation() {
-        let fens = [
-            START_FEN,
-            "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1",
-            "4k3/8/8/8/8/8/Q7/4K3 w - - 0 1",
-            "4k3/8/8/8/8/8/R7/4K3 b - - 0 1",
-            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
-            "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1",
-        ];
-
-        for fen in fens {
-            let pos = parse_fen(fen).expect("one-pass fixture must parse");
-            let before = to_fen(&pos);
-            assert_eq!(evaluate_one_pass(&pos), evaluate(&pos), "{fen}");
-            assert_eq!(
-                to_fen(&pos),
-                before,
-                "one-pass evaluation must be read-only"
-            );
-        }
-
-        let mut walk = parse_fen(START_FEN).unwrap();
-        let mut seed = 0xD17_0A55_u64;
-        for _ in 0..512 {
-            assert_eq!(evaluate_one_pass(&walk), evaluate(&walk));
-            let legal = generate_legal_moves(&mut walk);
-            assert!(!legal.is_empty(), "deterministic walk ended early");
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let mv = legal[(seed as usize) % legal.len()];
-            let undo = walk.make_move(mv);
-            assert_eq!(evaluate_one_pass(&walk), evaluate(&walk));
-            walk.unmake_move(undo);
-            let _ = walk.make_move(mv);
-        }
-    }
-
-    #[test]
     fn king_tables_are_distinct() {
         assert_ne!(KING_MG_PST[4], KING_EG_PST[4]);
         assert_ne!(KING_MG_PST[28], KING_EG_PST[28]);
@@ -573,84 +451,5 @@ mod tests {
 
         assert!(exact_mop_up(&exact).is_some());
         assert!(exact_mop_up(&two_queens).is_none());
-    }
-
-    #[test]
-    fn incremental_base_matches_full_for_special_moves_and_unmake() {
-        let cases = [
-            (START_FEN, "e2e4"),
-            (
-                "rnbqkbnr/pppp1ppp/8/3pP3/8/8/PPPP2PP/RNBQKBNR w KQkq d6 0 3",
-                "e5d6",
-            ),
-            ("4k3/8/8/8/8/8/P7/4K3 w - - 0 1", "a2a3"),
-            ("4k3/8/8/8/8/8/P7/4K3 w - - 0 1", "a2a4"),
-            ("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7a8q"),
-            ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1"),
-            ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1c1"),
-            ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "e8g8"),
-            ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "e8c8"),
-            ("1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7b8q"),
-            ("4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1", "e4d3"),
-            ("4k3/8/8/8/8/8/p7/4K3 b - - 0 1", "a2a1q"),
-            ("4k3/8/8/8/8/8/1p6/R3K3 b - - 0 1", "b2a1q"),
-        ];
-
-        for (fen, uci) in cases {
-            let mut pos = parse_fen(fen).expect("test FEN must parse");
-            let previous_cache = pos.begin_incremental_eval();
-            let before = evaluate(&pos);
-            let mv = generate_legal_moves(&mut pos.clone())
-                .into_iter()
-                .find(|mv| move_to_uci(*mv) == uci)
-                .unwrap_or_else(|| panic!("missing legal move {uci} in {fen}"));
-            let undo = pos.make_move(mv);
-            assert_eq!(evaluate_incremental(&pos), evaluate(&pos), "after {uci}");
-            pos.unmake_move(undo);
-            assert_eq!(evaluate_incremental(&pos), before, "after unmake {uci}");
-            assert_eq!(pos.eval_cache, Some(super::recompute_base_eval(&pos)));
-            pos.end_incremental_eval(previous_cache);
-            assert_eq!(pos.eval_cache, previous_cache);
-        }
-    }
-
-    #[test]
-    fn ordinary_position_moves_do_not_maintain_candidate_cache() {
-        let mut pos = parse_fen(START_FEN).unwrap();
-        assert!(pos.eval_cache.is_none());
-        let mv = generate_legal_moves(&mut pos.clone())
-            .into_iter()
-            .next()
-            .expect("startpos has a legal move");
-        let undo = pos.make_move(mv);
-        assert!(pos.eval_cache.is_none());
-        pos.unmake_move(undo);
-        assert!(pos.eval_cache.is_none());
-    }
-
-    #[test]
-    fn incremental_base_matches_full_on_deterministic_legal_walk() {
-        let mut pos = parse_fen(START_FEN).unwrap();
-        let previous_cache = pos.begin_incremental_eval();
-        let mut seed = 0x0D16_0EA1_u64;
-        let mut plies = 0;
-        for _ in 0..512 {
-            assert_eq!(evaluate_incremental(&pos), evaluate(&pos));
-            let legal = generate_legal_moves(&mut pos);
-            if legal.is_empty() {
-                break;
-            }
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let mv = legal[(seed as usize) % legal.len()];
-            let undo = pos.make_move(mv);
-            assert_eq!(evaluate_incremental(&pos), evaluate(&pos));
-            pos.unmake_move(undo);
-            assert_eq!(evaluate_incremental(&pos), evaluate(&pos));
-            let _ = pos.make_move(mv);
-            plies += 1;
-        }
-        assert_eq!(plies, 512);
-        pos.end_incremental_eval(previous_cache);
-        assert_eq!(pos.eval_cache, previous_cache);
     }
 }
