@@ -4,13 +4,21 @@
 //! case is run through a real UCI process for both Current and the isolated
 //! qsearch-pruning candidate. This is a safety gate, not an Elo measurement.
 
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::collections::{HashSet, VecDeque};
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use chess_engine_demo::chess::{generate_legal_moves, move_to_uci, parse_fen};
 
 const MANIFEST: &str = include_str!("data/search_validation.epd");
 const PROFILES: [&str; 2] = ["current", "current-qsearch-pruning"];
+const UCI_TIMEOUT: Duration = Duration::from_secs(5);
+const SEARCH_TIMEOUT: Duration = Duration::from_secs(30);
+const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
+const RECENT_OUTPUT_LINES: usize = 20;
 
 #[derive(Debug)]
 struct Case {
@@ -30,17 +38,236 @@ enum Score {
     Mate(i32),
 }
 
+#[derive(Debug, Clone)]
+struct InfoSnapshot {
+    depth: u32,
+    score: Option<Score>,
+    pv: Vec<String>,
+}
+
 #[derive(Debug)]
 struct Outcome {
     bestmove: String,
-    score: Option<Score>,
+    completed_depth: u32,
+    score_at_completed_depth: Option<Score>,
+    pv_at_completed_depth: Vec<String>,
+    recent_stdout: Vec<String>,
+    recent_stderr: Vec<String>,
 }
+
+type LineReceiver = Receiver<io::Result<String>>;
 
 fn engine_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
         std::env::var("CARGO_BIN_EXE_chess-engine-demo")
             .expect("CARGO_BIN_EXE_chess-engine-demo must be set by cargo"),
     )
+}
+
+fn spawn_line_reader<R: Read + Send + 'static>(reader: R) -> LineReceiver {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if sender.send(Ok(line.trim_end().to_string())).is_err() {
+                        break;
+                    }
+                }
+                Err(error) => {
+                    let _ = sender.send(Err(error));
+                    break;
+                }
+            }
+        }
+    });
+    receiver
+}
+
+struct EngineProcess {
+    profile: String,
+    child: Child,
+    stdin: Option<ChildStdin>,
+    stdout: LineReceiver,
+    stderr: LineReceiver,
+    recent_stdout: VecDeque<String>,
+    recent_stderr: VecDeque<String>,
+}
+
+impl EngineProcess {
+    fn spawn(profile: &str) -> Result<Self, String> {
+        let mut child = Command::new(engine_path())
+            .args(["--profile", profile])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| format!("failed to start {profile}: {error}"))?;
+        let stdin = match child.stdin.take() {
+            Some(stdin) => stdin,
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{profile}: engine stdin was not piped"));
+            }
+        };
+        let stdout = match child.stdout.take() {
+            Some(stdout) => stdout,
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{profile}: engine stdout was not piped"));
+            }
+        };
+        let stderr = match child.stderr.take() {
+            Some(stderr) => stderr,
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{profile}: engine stderr was not piped"));
+            }
+        };
+
+        Ok(Self {
+            profile: profile.to_string(),
+            child,
+            stdin: Some(stdin),
+            stdout: spawn_line_reader(stdout),
+            stderr: spawn_line_reader(stderr),
+            recent_stdout: VecDeque::new(),
+            recent_stderr: VecDeque::new(),
+        })
+    }
+
+    fn remember(lines: &mut VecDeque<String>, line: String) {
+        lines.push_back(line);
+        while lines.len() > RECENT_OUTPUT_LINES {
+            lines.pop_front();
+        }
+    }
+
+    fn drain_stderr(&mut self) {
+        while let Ok(result) = self.stderr.try_recv() {
+            match result {
+                Ok(line) => Self::remember(&mut self.recent_stderr, line),
+                Err(error) => Self::remember(
+                    &mut self.recent_stderr,
+                    format!("<stderr reader error: {error}>"),
+                ),
+            }
+        }
+    }
+
+    fn diagnostics(&mut self) -> String {
+        self.drain_stderr();
+        format!(
+            "profile={} recent stdout={:?}; recent stderr={:?}",
+            self.profile, self.recent_stdout, self.recent_stderr
+        )
+    }
+
+    fn failure(&mut self, stage: &str, detail: impl std::fmt::Display) -> String {
+        let profile = self.profile.clone();
+        let diagnostics = self.diagnostics();
+        format!("{} during {stage}: {detail}; {}", profile, diagnostics)
+    }
+
+    fn send_line(&mut self, line: &str) -> Result<(), String> {
+        let result = {
+            let stdin = self
+                .stdin
+                .as_mut()
+                .ok_or_else(|| format!("{} stdin is closed", self.profile))?;
+            writeln!(stdin, "{line}").and_then(|_| stdin.flush())
+        };
+        result.map_err(|error| self.failure("sending command", error))
+    }
+
+    fn read_line(&mut self, stage: &str, timeout: Duration) -> Result<String, String> {
+        match self.stdout.recv_timeout(timeout) {
+            Ok(Ok(line)) => {
+                Self::remember(&mut self.recent_stdout, line.clone());
+                self.drain_stderr();
+                Ok(line)
+            }
+            Ok(Err(error)) => Err(self.failure(stage, error)),
+            Err(RecvTimeoutError::Timeout) => Err(self.failure(
+                stage,
+                format_args!("timed out after {} seconds", timeout.as_secs()),
+            )),
+            Err(RecvTimeoutError::Disconnected) => {
+                Err(self.failure(stage, "stdout reader disconnected"))
+            }
+        }
+    }
+
+    fn read_until(&mut self, prefix: &str, timeout: Duration) -> Result<Vec<String>, String> {
+        let started = Instant::now();
+        let mut lines = Vec::new();
+        loop {
+            let remaining = timeout
+                .checked_sub(started.elapsed())
+                .ok_or_else(|| self.failure("waiting for engine output", "deadline expired"))?;
+            let line = self.read_line("waiting for engine output", remaining)?;
+            let matched = line.starts_with(prefix);
+            lines.push(line);
+            if matched {
+                return Ok(lines);
+            }
+        }
+    }
+
+    fn wait_for_exit(&mut self, timeout: Duration) -> Result<Option<ExitStatus>, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) => {
+                    self.drain_stderr();
+                    return Ok(Some(status));
+                }
+                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
+                Ok(None) => return Ok(None),
+                Err(error) => return Err(self.failure("checking process status", error)),
+            }
+        }
+    }
+
+    fn cleanup_process(&mut self) {
+        let _ = self.send_line("stop");
+        let _ = self.send_line("quit");
+        if !matches!(self.wait_for_exit(Duration::from_millis(250)), Ok(Some(_))) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+        self.drain_stderr();
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        self.send_line("quit")?;
+        match self.wait_for_exit(QUIT_TIMEOUT)? {
+            Some(status) if status.success() => Ok(()),
+            Some(status) => Err(self.failure(
+                "quitting engine",
+                format_args!("process exited unsuccessfully with {status}"),
+            )),
+            None => {
+                self.cleanup_process();
+                Err(self.failure("quitting engine", "process did not exit before deadline"))
+            }
+        }
+    }
+}
+
+impl Drop for EngineProcess {
+    fn drop(&mut self) {
+        let still_running = self.child.try_wait().ok().flatten().is_none();
+        if still_running {
+            self.cleanup_process();
+        }
+    }
 }
 
 fn parse_manifest() -> Vec<Case> {
@@ -72,39 +299,13 @@ fn parse_manifest() -> Vec<Case> {
         .collect()
 }
 
-fn spawn_engine(profile: &str) -> (Child, ChildStdin, BufReader<ChildStdout>) {
-    let mut child = Command::new(engine_path())
-        .args(["--profile", profile])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap_or_else(|error| panic!("failed to start {profile}: {error}"));
-    let stdin = child.stdin.take().expect("engine stdin must be piped");
-    let stdout = child.stdout.take().expect("engine stdout must be piped");
-    (child, stdin, BufReader::new(stdout))
-}
-
-fn read_until(reader: &mut BufReader<ChildStdout>, prefix: &str) -> Vec<String> {
-    let mut lines = Vec::new();
-    loop {
-        let mut line = String::new();
-        let read = reader
-            .read_line(&mut line)
-            .expect("engine stdout must remain readable");
-        assert!(read > 0, "engine exited before emitting {prefix}");
-        let line = line.trim_end().to_string();
-        let matched = line.starts_with(prefix);
-        lines.push(line);
-        if matched {
-            return lines;
-        }
-    }
-}
-
-fn parse_info_score(line: &str) -> Option<Score> {
+fn parse_info(line: &str) -> Option<InfoSnapshot> {
     let words: Vec<&str> = line.split_whitespace().collect();
-    words.windows(3).find_map(|window| {
+    let depth = words
+        .windows(2)
+        .find(|window| window[0] == "depth")
+        .and_then(|window| window[1].parse().ok())?;
+    let score = words.windows(3).find_map(|window| {
         if window[0] != "score" {
             return None;
         }
@@ -113,63 +314,84 @@ fn parse_info_score(line: &str) -> Option<Score> {
             "mate" => window[2].parse().ok().map(Score::Mate),
             _ => None,
         }
-    })
+    });
+    let pv = words
+        .iter()
+        .position(|word| *word == "pv")
+        .map(|index| {
+            words[index + 1..]
+                .iter()
+                .map(|word| word.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(InfoSnapshot { depth, score, pv })
 }
 
-fn run_case(case: &Case, profile: &str) -> Outcome {
-    let (mut child, mut stdin, mut reader) = spawn_engine(profile);
+fn run_case(case: &Case, profile: &str) -> Result<Outcome, String> {
+    let mut engine = EngineProcess::spawn(profile)?;
 
-    stdin.write_all(b"uci\n").unwrap();
-    stdin.flush().unwrap();
-    let handshake = read_until(&mut reader, "uciok");
-    assert!(
-        handshake
-            .iter()
-            .any(|line| line == &format!("info string search profile {profile}")),
-        "{} must report profile {profile}: {:?}",
-        case.id,
-        handshake
-    );
+    engine.send_line("uci")?;
+    let handshake = engine.read_until("uciok", UCI_TIMEOUT)?;
+    if !handshake
+        .iter()
+        .any(|line| line == &format!("info string search profile {profile}"))
+    {
+        return Err(engine.failure(
+            "checking profile identity",
+            format_args!("expected profile identity in handshake: {handshake:?}"),
+        ));
+    }
 
-    stdin.write_all(b"isready\n").unwrap();
-    stdin.flush().unwrap();
-    read_until(&mut reader, "readyok");
+    engine.send_line("isready")?;
+    engine.read_until("readyok", UCI_TIMEOUT)?;
+    engine.send_line(&format!("position fen {}", case.fen))?;
+    engine.send_line(&format!("go depth {}", case.depth))?;
 
-    writeln!(stdin, "position fen {}", case.fen).unwrap();
-    writeln!(stdin, "go depth {}", case.depth).unwrap();
-    stdin.flush().unwrap();
-
-    let mut score = None;
-    let bestmove;
-    loop {
-        let mut line = String::new();
-        let read = reader
-            .read_line(&mut line)
-            .expect("engine stdout must remain readable during search");
-        assert!(read > 0, "{} exited before bestmove", case.id);
-        let line = line.trim_end();
+    let mut highest_info: Option<InfoSnapshot> = None;
+    let bestmove = loop {
+        let line = engine.read_line("search", SEARCH_TIMEOUT)?;
         if line.starts_with("info ") {
-            if let Some(parsed) = parse_info_score(line) {
-                score = Some(parsed);
+            if let Some(info) = parse_info(&line) {
+                let replace = highest_info
+                    .as_ref()
+                    .map(|previous| {
+                        info.depth > previous.depth
+                            || (info.depth == previous.depth && info.score.is_some())
+                    })
+                    .unwrap_or(true);
+                if replace {
+                    highest_info = Some(info);
+                }
             }
         }
         if let Some(move_text) = line.strip_prefix("bestmove ") {
-            bestmove = move_text.split_whitespace().next().unwrap().to_string();
-            break;
+            break move_text
+                .split_whitespace()
+                .next()
+                .ok_or_else(|| engine.failure("parsing bestmove", "missing move text"))?
+                .to_string();
         }
-    }
+    };
 
-    stdin.write_all(b"quit\n").unwrap();
-    stdin.flush().unwrap();
-    drop(stdin);
-    let status = child.wait().expect("engine must be reaped");
-    assert!(
-        status.success(),
-        "{} {profile} exited unsuccessfully",
-        case.id
-    );
+    let completed_depth = highest_info.as_ref().map(|info| info.depth).unwrap_or(0);
+    let score_at_completed_depth = highest_info.as_ref().and_then(|info| info.score);
+    let pv_at_completed_depth = highest_info
+        .as_ref()
+        .map(|info| info.pv.clone())
+        .unwrap_or_default();
+    let recent_stdout = engine.recent_stdout.iter().cloned().collect();
+    let recent_stderr = engine.recent_stderr.iter().cloned().collect();
 
-    Outcome { bestmove, score }
+    engine.finish()?;
+    Ok(Outcome {
+        bestmove,
+        completed_depth,
+        score_at_completed_depth,
+        pv_at_completed_depth,
+        recent_stdout,
+        recent_stderr,
+    })
 }
 
 fn score_rank(score: Option<Score>) -> i32 {
@@ -183,67 +405,167 @@ fn score_rank(score: Option<Score>) -> i32 {
     }
 }
 
-fn assert_score_class(case: &Case, outcome: &Outcome, profile: &str) {
+fn position_facts(case: &Case) -> (Vec<String>, bool) {
+    let mut pos = parse_fen(&case.fen).unwrap_or_else(|error| panic!("{}: {error}", case.id));
+    let in_check = pos.is_in_check(pos.side_to_move());
+    let legal_moves: Vec<String> = generate_legal_moves(&mut pos)
+        .into_iter()
+        .map(move_to_uci)
+        .collect();
+    (legal_moves, in_check)
+}
+
+fn context(case: &Case, profile: &str, outcome: &Outcome) -> String {
+    format!(
+        "case={} profile={} depth={} score={:?} pv={:?} recent stdout={:?}; recent stderr={:?}",
+        case.id,
+        profile,
+        outcome.completed_depth,
+        outcome.score_at_completed_depth,
+        outcome.pv_at_completed_depth,
+        outcome.recent_stdout,
+        outcome.recent_stderr
+    )
+}
+
+fn assert_completed_depth(case: &Case, outcome: &Outcome, profile: &str) {
+    if !case.score_class.starts_with("terminal-") {
+        assert!(
+            outcome.completed_depth >= case.depth,
+            "{}: requested depth {}, completed depth {}; {}",
+            case.id,
+            case.depth,
+            outcome.completed_depth,
+            context(case, profile, outcome)
+        );
+    }
+}
+
+fn assert_score_class(
+    case: &Case,
+    outcome: &Outcome,
+    profile: &str,
+    legal_moves: &[String],
+    in_check: bool,
+) {
     match case.score_class.as_str() {
-        "terminal-mate" | "terminal-draw" => {
-            assert_eq!(
-                outcome.bestmove, "0000",
-                "{} {profile} terminal case must emit bestmove 0000",
+        "terminal-mate" => {
+            assert!(
+                legal_moves.is_empty(),
+                "{} must have no legal moves",
                 case.id
+            );
+            assert!(in_check, "{} must be checkmate, not stalemate", case.id);
+            assert_eq!(
+                outcome.bestmove,
+                "0000",
+                "{} {profile} terminal checkmate must emit bestmove 0000; {}",
+                case.id,
+                context(case, profile, outcome)
+            );
+        }
+        "terminal-draw" => {
+            assert!(
+                legal_moves.is_empty(),
+                "{} must have no legal moves",
+                case.id
+            );
+            assert!(!in_check, "{} must be stalemate, not checkmate", case.id);
+            assert_eq!(
+                outcome.bestmove,
+                "0000",
+                "{} {profile} terminal stalemate must emit bestmove 0000; {}",
+                case.id,
+                context(case, profile, outcome)
             );
         }
         "mate" => assert!(
-            matches!(outcome.score, Some(Score::Mate(moves)) if moves > 0),
-            "{} {profile} must retain a forced mate, got {:?}",
+            matches!(outcome.score_at_completed_depth, Some(Score::Mate(moves)) if moves > 0),
+            "{} {profile} must retain a forced mate; {}",
             case.id,
-            outcome.score
+            context(case, profile, outcome)
         ),
         "winning" => assert!(
-            score_rank(outcome.score) >= 3,
-            "{} {profile} must remain winning, got {:?}",
+            score_rank(outcome.score_at_completed_depth) >= 3,
+            "{} {profile} must remain winning; {}",
             case.id,
-            outcome.score
+            context(case, profile, outcome)
         ),
         "nonlosing" => assert!(
-            score_rank(outcome.score) >= 2,
-            "{} {profile} must remain non-losing, got {:?}",
+            score_rank(outcome.score_at_completed_depth) >= 2,
+            "{} {profile} must remain non-losing; {}",
             case.id,
-            outcome.score
+            context(case, profile, outcome)
         ),
         other => panic!("{} has unknown score class {other}", case.id),
     }
 }
 
-fn assert_legal_and_allowed(case: &Case, outcome: &Outcome, profile: &str) {
-    let mut pos = parse_fen(&case.fen).unwrap_or_else(|error| panic!("{}: {error}", case.id));
-    let legal_moves: Vec<String> = generate_legal_moves(&mut pos)
-        .into_iter()
-        .map(move_to_uci)
-        .collect();
-
+fn assert_legal_and_allowed(case: &Case, outcome: &Outcome, profile: &str, legal_moves: &[String]) {
     if outcome.bestmove == "0000" {
         assert!(
             legal_moves.is_empty(),
-            "{} {profile} emitted 0000 with legal moves {:?}",
+            "{} {profile} emitted 0000 with legal moves {:?}; {}",
             case.id,
-            legal_moves
+            legal_moves,
+            context(case, profile, outcome)
         );
         return;
     }
 
     assert!(
         legal_moves.iter().any(|mv| mv == &outcome.bestmove),
-        "{} {profile} emitted illegal bestmove {}",
+        "{} {profile} emitted illegal bestmove {}; {}",
         case.id,
-        outcome.bestmove
+        outcome.bestmove,
+        context(case, profile, outcome)
     );
     if case.allowed_moves != ["*"] {
         assert!(
             case.allowed_moves.iter().any(|mv| mv == &outcome.bestmove),
-            "{} {profile} bestmove {} is outside allowed set {:?}",
+            "{} {profile} bestmove {} is outside allowed set {:?}; {}",
             case.id,
             outcome.bestmove,
-            case.allowed_moves
+            case.allowed_moves,
+            context(case, profile, outcome)
+        );
+    }
+}
+
+fn assert_manifest_case(case: &Case) {
+    assert!(!case.id.is_empty());
+    assert!(!case.fen.is_empty());
+    assert!(case.depth > 0);
+    assert_eq!(case.source, "project-curated");
+    assert_eq!(case.license, "CC0-1.0");
+    assert!(!case.allowed_moves.is_empty());
+    assert!(
+        case.allowed_moves == ["*"] || case.allowed_moves.iter().all(|mv| !mv.is_empty()),
+        "{} has an empty allowed-move entry",
+        case.id
+    );
+    let (legal_moves, in_check) = position_facts(case);
+    if case.allowed_moves == ["*"] {
+        assert!(
+            !legal_moves.is_empty(),
+            "{} wildcard must be non-terminal",
+            case.id
+        );
+    } else if case.score_class.starts_with("terminal-") {
+        assert_eq!(case.allowed_moves, ["0000"], "{} terminal marker", case.id);
+        assert!(legal_moves.is_empty(), "{} must be terminal", case.id);
+        match case.score_class.as_str() {
+            "terminal-mate" => assert!(in_check, "{} must be checkmate", case.id),
+            "terminal-draw" => assert!(!in_check, "{} must be stalemate", case.id),
+            _ => unreachable!(),
+        }
+    } else {
+        assert!(
+            case.allowed_moves.iter().all(|mv| legal_moves.contains(mv)),
+            "{} allowed set contains an illegal move: {:?} vs {:?}",
+            case.id,
+            case.allowed_moves,
+            legal_moves
         );
     }
 }
@@ -255,6 +577,15 @@ fn validation_manifest_is_pinned_and_well_formed() {
         cases.len() >= 10,
         "validation corpus must not shrink silently"
     );
+    let mut ids = HashSet::new();
+    for case in &cases {
+        assert!(
+            ids.insert(case.id.clone()),
+            "duplicate manifest id {}",
+            case.id
+        );
+        assert_manifest_case(case);
+    }
     assert!(cases.iter().any(|case| case.category == "tactical-capture"));
     assert!(cases.iter().any(|case| case.category == "mate-sequence"));
     assert!(cases.iter().any(|case| case.category == "underpromotion"));
@@ -263,33 +594,47 @@ fn validation_manifest_is_pinned_and_well_formed() {
     assert!(cases.iter().any(|case| case.category == "stalemate"));
     assert!(cases.iter().any(|case| case.category == "endgame-kqk"));
     assert!(cases.iter().any(|case| case.category == "endgame-krk"));
-    for case in cases {
-        assert!(!case.id.is_empty());
-        assert!(!case.fen.is_empty());
-        assert!(case.depth > 0);
-        assert_eq!(case.source, "project-curated");
-        assert_eq!(case.license, "CC0-1.0");
-    }
 }
 
 #[test]
 fn current_qsearch_pruning_passes_external_search_safety_corpus() {
     for case in parse_manifest() {
-        let baseline = run_case(&case, PROFILES[0]);
-        assert_legal_and_allowed(&case, &baseline, PROFILES[0]);
-        assert_score_class(&case, &baseline, PROFILES[0]);
+        let (baseline_legal, baseline_in_check) = position_facts(&case);
+        let baseline = run_case(&case, PROFILES[0])
+            .unwrap_or_else(|error| panic!("baseline failed for {}: {error}", case.id));
+        assert_completed_depth(&case, &baseline, PROFILES[0]);
+        assert_legal_and_allowed(&case, &baseline, PROFILES[0], &baseline_legal);
+        assert_score_class(
+            &case,
+            &baseline,
+            PROFILES[0],
+            &baseline_legal,
+            baseline_in_check,
+        );
 
-        let candidate = run_case(&case, PROFILES[1]);
-        assert_legal_and_allowed(&case, &candidate, PROFILES[1]);
-        assert_score_class(&case, &candidate, PROFILES[1]);
+        let (candidate_legal, candidate_in_check) = position_facts(&case);
+        let candidate = run_case(&case, PROFILES[1])
+            .unwrap_or_else(|error| panic!("candidate failed for {}: {error}", case.id));
+        assert_completed_depth(&case, &candidate, PROFILES[1]);
+        assert_legal_and_allowed(&case, &candidate, PROFILES[1], &candidate_legal);
+        assert_score_class(
+            &case,
+            &candidate,
+            PROFILES[1],
+            &candidate_legal,
+            candidate_in_check,
+        );
 
         if !case.score_class.starts_with("terminal-") {
             assert!(
-                score_rank(candidate.score) >= score_rank(baseline.score),
-                "{} candidate downgraded baseline {:?} to {:?}",
+                score_rank(candidate.score_at_completed_depth)
+                    >= score_rank(baseline.score_at_completed_depth),
+                "{} candidate downgraded baseline {:?} to {:?}; baseline={}, candidate={}",
                 case.id,
-                baseline.score,
-                candidate.score
+                baseline.score_at_completed_depth,
+                candidate.score_at_completed_depth,
+                context(&case, PROFILES[0], &baseline),
+                context(&case, PROFILES[1], &candidate)
             );
         }
     }
