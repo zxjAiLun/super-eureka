@@ -223,9 +223,10 @@ bestmove b1c3
   计算 MG/EG/phase；固定深度搜索结果完全一致，但交错 paired wall-time 没有稳定
   改善，运行时代码已移除。仅保留文档与 Git lineage。见
   [`d1.7-one-pass-eval.md`](docs/benchmarks/d1.7-one-pass-eval.md)。
-- **D1.9 外部搜索安全验证 harness（基础设施完成）**：使用固定版本的 EPD manifest，
-  通过真实 UCI 进程比较 `current` 与 `current-qsearch-pruning` 的合法着、终局、
-  mate/score class 和候选相对基线安全性；不改变 `Current`，不代表 Elo。见
+- **D1.9/D1.9.1 外部搜索安全验证 harness（基础设施完成）**：使用固定版本的 EPD manifest，
+  通过带 deadline、stderr 诊断和 completed-depth 门禁的真实 UCI 进程比较 `current`
+  与 `current-qsearch-pruning` 的合法着、终局、mate/score class 和候选相对基线安全性；
+  不改变 `Current`，不代表 Elo。见
   [`d1.9-external-search-validation.md`](docs/benchmarks/d1.9-external-search-validation.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
