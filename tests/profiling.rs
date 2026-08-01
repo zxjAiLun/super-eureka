@@ -35,6 +35,7 @@ fn search_stats_cover_the_search_without_changing_the_root() {
     assert!(stats.nodes > 0);
     assert!(stats.qsearch_nodes > 0);
     assert!(stats.eval_calls > 0);
+    assert!(stats.full_eval_scans > 0);
     assert!(stats.legal_move_generations > 0);
     assert!(stats.pseudo_moves >= stats.legal_moves);
     assert_eq!(stats.make_moves, stats.unmake_moves);
@@ -57,6 +58,7 @@ fn default_search_does_not_collect_diagnostic_counters() {
     assert!(stats.nodes > 0);
     assert_eq!(stats.qsearch_nodes, 0);
     assert_eq!(stats.eval_calls, 0);
+    assert_eq!(stats.full_eval_scans, 0);
     assert_eq!(stats.legal_move_generations, 0);
     assert_eq!(stats.pseudo_moves, 0);
     assert_eq!(stats.legal_moves, 0);

@@ -39,7 +39,7 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::evaluate;
+use crate::engine::eval::{evaluate, evaluate_incremental};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
@@ -82,6 +82,10 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
+/// * `CurrentIncrementalEval` is a bench-only candidate that preserves the
+///   `Current` search tree and replaces only the base tapered evaluation scan
+///   with Position-maintained MG/EG/phase lanes. Exact KQK/KRK mop-up remains
+///   on the existing board-scan path.
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
@@ -107,6 +111,7 @@ pub(crate) enum SearchProfile {
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
+    CurrentIncrementalEval,
     CurrentAspiration,
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
@@ -177,6 +182,7 @@ impl SearchProfile {
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
+                | Self::CurrentIncrementalEval
         )
     }
 
@@ -191,6 +197,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_qsearch_fast_pruning(self) -> bool {
         matches!(self, Self::CurrentQsearchFastPruning)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_incremental_eval(self) -> bool {
+        matches!(self, Self::CurrentIncrementalEval)
     }
 }
 
@@ -258,7 +269,9 @@ pub struct SearchContext {
     pub qsearch_checking_captures_kept: AtomicU64,
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
+    pub full_eval_scans: AtomicU64,
     see_enabled: AtomicBool,
+    incremental_eval_enabled: AtomicBool,
     /// Diagnostic counters are opt-in so ordinary searches do not pay for
     /// an atomic increment on every hot-path event.
     profiling_enabled: bool,
@@ -303,6 +316,7 @@ pub struct SearchStats {
     pub qsearch_checking_captures_kept: u64,
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
+    pub full_eval_scans: u64,
     pub aspiration_retries: u64,
     pub aspiration_fail_low: u64,
     pub aspiration_fail_high: u64,
@@ -351,7 +365,9 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            full_eval_scans: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
+            incremental_eval_enabled: AtomicBool::new(false),
             profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -409,7 +425,9 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            full_eval_scans: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
+            incremental_eval_enabled: AtomicBool::new(false),
             profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
             aspiration_fail_low: AtomicU64::new(0),
@@ -457,6 +475,7 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
             qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
+            full_eval_scans: self.full_eval_scans.load(Ordering::Relaxed),
             aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
             aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
             aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
@@ -531,7 +550,12 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
 #[inline]
 fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
-    evaluate(pos)
+    if ctx.incremental_eval_enabled.load(Ordering::Relaxed) {
+        evaluate_incremental(pos)
+    } else {
+        ctx.add_profile_counter(&ctx.full_eval_scans, 1);
+        evaluate(pos)
+    }
 }
 
 #[inline]
@@ -3995,6 +4019,8 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
     ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
+    ctx.incremental_eval_enabled
+        .store(profile.uses_incremental_eval(), Ordering::Relaxed);
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
     let r = search_best_move_impl(pos, limits, ctx, profile, &mut path, tt);
@@ -4575,6 +4601,15 @@ mod tests {
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_lmr());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_futility());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_null_move());
+        assert!(SearchProfile::CurrentIncrementalEval.uses_pvs());
+        assert!(SearchProfile::CurrentIncrementalEval.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentIncrementalEval.uses_incremental_eval());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_qsearch_pruning());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_see());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_aspiration());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_lmr());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_futility());
+        assert!(!SearchProfile::CurrentIncrementalEval.uses_null_move());
         for profile in [
             SearchProfile::CurrentAspiration,
             SearchProfile::CurrentAspirationLmr,
@@ -4951,6 +4986,45 @@ mod tests {
                 current_stats.make_moves, current_stats.unmake_moves,
                 "Current make/unmake must balance for {fen}"
             );
+        }
+    }
+
+    #[test]
+    fn incremental_eval_candidate_matches_current_search_tree() {
+        for fen in [START_FEN, MVV_POS] {
+            let run = |profile: SearchProfile| {
+                let mut pos = parse_fen(fen).unwrap();
+                let key = pos.zobrist_key();
+                let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+                let limits = SearchLimits {
+                    depth: Some(3),
+                    ..Default::default()
+                };
+                let outcome = search_best_move_with_history_tt_and_profile(
+                    &mut pos,
+                    &[key],
+                    &limits,
+                    &ctx,
+                    &mut TranspositionTable::disabled(),
+                    profile,
+                )
+                .expect("incremental-eval fixture must be non-terminal");
+                (outcome, ctx.stats())
+            };
+
+            let (full, full_stats) = run(SearchProfile::Current);
+            let (incremental, incremental_stats) = run(SearchProfile::CurrentIncrementalEval);
+            assert_eq!(incremental.completed_depth, full.completed_depth);
+            assert_eq!(incremental.score, full.score);
+            assert_eq!(incremental.best_move, full.best_move);
+            assert_eq!(incremental.pv, full.pv);
+            assert_eq!(incremental_stats.nodes, full_stats.nodes);
+            assert_eq!(incremental_stats.qsearch_nodes, full_stats.qsearch_nodes);
+            assert_eq!(incremental_stats.eval_calls, full_stats.eval_calls);
+            assert_eq!(incremental_stats.tt_probes, full_stats.tt_probes);
+            assert_eq!(incremental_stats.tt_stores, full_stats.tt_stores);
+            assert_eq!(full_stats.full_eval_scans, full_stats.eval_calls);
+            assert_eq!(incremental_stats.full_eval_scans, 0);
         }
     }
 

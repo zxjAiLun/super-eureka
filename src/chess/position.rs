@@ -17,6 +17,7 @@ use crate::chess::zobrist::{
     castling_key, castling_mask, effective_ep_file, ep_file_key, piece_square_key, ZobristKey,
     SIDE_KEY,
 };
+use crate::engine::eval::{base_eval_piece_delta, BaseEvalCache};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Position {
@@ -30,6 +31,9 @@ pub struct Position {
     pub(crate) king_sq: [Square; 2],
     /// Derived Zobrist key (crate-private; never written by callers).
     pub(crate) zobrist_key: ZobristKey,
+    /// Cached base tapered evaluation, maintained by make/unmake. Exact
+    /// KQK/KRK mop-up remains a board-scan evaluation term.
+    pub(crate) eval_cache: BaseEvalCache,
 }
 
 /// Everything needed to reverse a move. Stored by value so `unmake_move`
@@ -47,6 +51,7 @@ pub struct Undo {
     /// `zobrist_key` captured before the move, so `unmake_move` can
     /// restore it verbatim (no reverse hash replay).
     previous_zobrist_key: ZobristKey,
+    previous_eval_cache: BaseEvalCache,
 }
 
 impl Position {
@@ -105,6 +110,7 @@ impl Position {
             fullmove: self.fullmove,
             king_sq: self.king_sq,
             previous_zobrist_key: self.zobrist_key,
+            previous_eval_cache: self.eval_cache,
         };
 
         // --- Zobrist: strip the OLD state (ep + castling) before the board moves. ---
@@ -115,14 +121,17 @@ impl Position {
 
         // --- board changes + piece-square XORs ---
         self.board[m.from as usize] = None;
+        self.update_eval_cache(moved_piece, m.from, -1);
         self.xor_piece(moved_piece, m.from);
 
         match m.flag {
             MoveFlag::EnPassant => {
                 let cap_sq = ep_cap_sq.unwrap();
                 self.board[cap_sq as usize] = None;
+                self.update_eval_cache(captured.unwrap(), cap_sq, -1);
                 self.xor_piece(captured.unwrap(), cap_sq);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.update_eval_cache(moved_piece, m.to, 1);
                 self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::KingCastle => {
@@ -133,10 +142,13 @@ impl Position {
                 };
                 let rook = self.board[rf as usize].expect("king castle rook missing");
                 self.board[rf as usize] = None;
+                self.update_eval_cache(rook, rf, -1);
                 self.xor_piece(rook, rf);
                 self.board[rt as usize] = Some(rook);
+                self.update_eval_cache(rook, rt, 1);
                 self.xor_piece(rook, rt);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.update_eval_cache(moved_piece, m.to, 1);
                 self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::QueenCastle => {
@@ -147,27 +159,34 @@ impl Position {
                 };
                 let rook = self.board[rf as usize].expect("queen castle rook missing");
                 self.board[rf as usize] = None;
+                self.update_eval_cache(rook, rf, -1);
                 self.xor_piece(rook, rf);
                 self.board[rt as usize] = Some(rook);
+                self.update_eval_cache(rook, rt, 1);
                 self.xor_piece(rook, rt);
                 self.board[m.to as usize] = Some(moved_piece);
+                self.update_eval_cache(moved_piece, m.to, 1);
                 self.xor_piece(moved_piece, m.to);
             }
             MoveFlag::Promotion(pt) => {
                 if let Some(cap) = captured {
                     self.board[m.to as usize] = None;
+                    self.update_eval_cache(cap, m.to, -1);
                     self.xor_piece(cap, m.to);
                 }
                 let promoted = Piece::new(us, pt);
                 self.board[m.to as usize] = Some(promoted);
+                self.update_eval_cache(promoted, m.to, 1);
                 self.xor_piece(promoted, m.to);
             }
             _ => {
                 if let Some(cap) = captured {
                     self.board[m.to as usize] = None;
+                    self.update_eval_cache(cap, m.to, -1);
                     self.xor_piece(cap, m.to);
                 }
                 self.board[m.to as usize] = Some(moved_piece);
+                self.update_eval_cache(moved_piece, m.to, 1);
                 self.xor_piece(moved_piece, m.to);
             }
         }
@@ -257,6 +276,15 @@ impl Position {
         // Restore the derived key verbatim — no reverse hash replay, so the
         // make/unmake hash logic can never silently drift.
         self.zobrist_key = undo.previous_zobrist_key;
+        self.eval_cache = undo.previous_eval_cache;
+    }
+
+    #[inline]
+    fn update_eval_cache(&mut self, piece: Piece, sq: Square, sign: i32) {
+        let delta = base_eval_piece_delta(piece, sq as usize);
+        self.eval_cache.white_minus_black_mg += sign * delta.white_minus_black_mg;
+        self.eval_cache.white_minus_black_eg += sign * delta.white_minus_black_eg;
+        self.eval_cache.phase += sign * delta.phase;
     }
 
     #[inline]

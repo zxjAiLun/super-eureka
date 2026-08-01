@@ -3,6 +3,7 @@
 use crate::chess::position::Position;
 use crate::chess::types::*;
 use crate::chess::zobrist::recompute_zobrist;
+use crate::engine::eval::recompute_base_eval;
 
 pub fn parse_fen(fen: &str) -> Result<Position, String> {
     let mut parts = fen.split_whitespace();
@@ -160,8 +161,10 @@ pub fn parse_fen(fen: &str) -> Result<Position, String> {
         fullmove,
         king_sq,
         zobrist_key: 0,
+        eval_cache: Default::default(),
     };
     pos.zobrist_key = recompute_zobrist(&pos);
+    pos.eval_cache = recompute_base_eval(&pos);
     Ok(pos)
 }
 
