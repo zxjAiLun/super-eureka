@@ -2,7 +2,7 @@
   "analysis": "D1.14 Stockfish postmortem",
   "candidate_minus_baseline": {
     "blunder_rate": -0.001175247746949673,
-    "mate_swing": -5,
+    "mate_swing": -2,
     "mean_cpl": -0.7546330746607168,
     "median_cpl": 0.0,
     "p75_cpl": -5.5,
@@ -15,9 +15,21 @@
     "candidate_lower_cpl": 41,
     "common_fen_groups": 413,
     "comparable_cp_groups": 400,
-    "equal_cpl": 326
+    "different_move_baseline_lower_cpl": 33,
+    "different_move_candidate_lower_cpl": 41,
+    "different_move_comparable_cp_groups": 75,
+    "different_move_equal_cpl": 1,
+    "different_move_groups": 78,
+    "equal_cpl": 326,
+    "paired_common_position_groups": 413,
+    "same_move_groups": 335
   },
   "phase": "screen",
+  "postprocess": {
+    "kind": "score-reclassification",
+    "reclassified_from": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\postmortem-screen-20k-v3\\positions.jsonl",
+    "stockfish_searches_reused": true
+  },
   "profiles": {
     "Current": {
       "best_move_match_rate": 0.38735177865612647,
@@ -29,8 +41,14 @@
       "cpl_500_plus": 1,
       "inaccuracy": 87,
       "inaccuracy_rate": 0.21014492753623187,
+      "mate_categories": {
+        "allowed_mate": 49,
+        "losing_mate_accelerated": 25,
+        "winning_mate_accelerated": 14,
+        "winning_mate_delayed": 4
+      },
       "mate_outcomes": 92,
-      "mate_swing": 26,
+      "mate_swing": 29,
       "mean_cpl": 60.471014492753625,
       "median_cpl": 22.0,
       "mistake": 58,
@@ -56,8 +74,15 @@
       "cpl_500_plus": 2,
       "inaccuracy": 94,
       "inaccuracy_rate": 0.22982885085574573,
+      "mate_categories": {
+        "allowed_mate": 43,
+        "losing_mate_accelerated": 18,
+        "losing_mate_delayed": 2,
+        "winning_mate_accelerated": 13,
+        "winning_mate_delayed": 9
+      },
       "mate_outcomes": 85,
-      "mate_swing": 21,
+      "mate_swing": 27,
       "mean_cpl": 59.71638141809291,
       "median_cpl": 22,
       "mistake": 51,
@@ -85,7 +110,9 @@
     "mode": "complete-pair-bounded-screen",
     "per_decisive": 1,
     "per_draw": 1,
+    "postprocess": "negative-mate-classification-fix-forward",
     "random_draws": 0,
+    "reclassified_from": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\postmortem-screen-20k-v3\\positions.jsonl",
     "seed": 11414,
     "selected": 1000,
     "stockfish_identity": [

@@ -2,7 +2,7 @@
   "analysis": "D1.14 Stockfish postmortem",
   "candidate_minus_baseline": {
     "blunder_rate": 0.007234042553191489,
-    "mate_swing": -8,
+    "mate_swing": -7,
     "mean_cpl": -2.5902127659574603,
     "median_cpl": -1.5,
     "p75_cpl": -9.25,
@@ -15,9 +15,21 @@
     "candidate_lower_cpl": 0,
     "common_fen_groups": 58,
     "comparable_cp_groups": 41,
-    "equal_cpl": 40
+    "different_move_baseline_lower_cpl": 1,
+    "different_move_candidate_lower_cpl": 0,
+    "different_move_comparable_cp_groups": 1,
+    "different_move_equal_cpl": 0,
+    "different_move_groups": 1,
+    "equal_cpl": 40,
+    "paired_common_position_groups": 42,
+    "same_move_groups": 41
   },
   "phase": "deep-review",
+  "postprocess": {
+    "kind": "score-reclassification",
+    "reclassified_from": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\postmortem-deep-500k\\positions.jsonl",
+    "stockfish_searches_reused": true
+  },
   "profiles": {
     "Current": {
       "best_move_match_rate": 0.02564102564102564,
@@ -29,8 +41,13 @@
       "cpl_500_plus": 3,
       "inaccuracy": 1,
       "inaccuracy_rate": 0.02,
+      "mate_categories": {
+        "allowed_mate": 3,
+        "losing_mate_accelerated": 22,
+        "winning_mate_delayed": 3
+      },
       "mate_outcomes": 28,
-      "mate_swing": 20,
+      "mate_swing": 25,
       "mean_cpl": 270.42,
       "median_cpl": 246.5,
       "mistake": 10,
@@ -56,8 +73,13 @@
       "cpl_500_plus": 3,
       "inaccuracy": 1,
       "inaccuracy_rate": 0.02127659574468085,
+      "mate_categories": {
+        "allowed_mate": 7,
+        "losing_mate_accelerated": 14,
+        "winning_mate_delayed": 4
+      },
       "mate_outcomes": 25,
-      "mate_swing": 12,
+      "mate_swing": 18,
       "mean_cpl": 267.82978723404256,
       "median_cpl": 245,
       "mistake": 9,
@@ -79,6 +101,8 @@
   "score_model": "centipawn-loss and explicit mate outcomes",
   "selection": {
     "mode": "top-screen-losses",
+    "postprocess": "negative-mate-classification-fix-forward",
+    "reclassified_from": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\postmortem-deep-500k\\positions.jsonl",
     "requested": 150,
     "seed": null,
     "selected": 150,
