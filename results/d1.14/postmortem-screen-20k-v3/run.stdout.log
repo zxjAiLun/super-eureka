@@ -1,0 +1,159 @@
+analyzed 1/1000 positions
+analyzed 25/1000 positions
+analyzed 50/1000 positions
+analyzed 75/1000 positions
+analyzed 100/1000 positions
+analyzed 125/1000 positions
+analyzed 150/1000 positions
+analyzed 175/1000 positions
+analyzed 200/1000 positions
+analyzed 225/1000 positions
+analyzed 250/1000 positions
+analyzed 275/1000 positions
+analyzed 300/1000 positions
+analyzed 325/1000 positions
+analyzed 350/1000 positions
+analyzed 375/1000 positions
+analyzed 400/1000 positions
+analyzed 425/1000 positions
+analyzed 450/1000 positions
+analyzed 475/1000 positions
+analyzed 500/1000 positions
+analyzed 525/1000 positions
+analyzed 550/1000 positions
+analyzed 575/1000 positions
+analyzed 600/1000 positions
+analyzed 625/1000 positions
+analyzed 650/1000 positions
+analyzed 675/1000 positions
+analyzed 700/1000 positions
+analyzed 725/1000 positions
+analyzed 750/1000 positions
+analyzed 775/1000 positions
+analyzed 800/1000 positions
+analyzed 825/1000 positions
+analyzed 850/1000 positions
+analyzed 875/1000 positions
+analyzed 900/1000 positions
+analyzed 925/1000 positions
+analyzed 950/1000 positions
+analyzed 975/1000 positions
+analyzed 1000/1000 positions
+{
+  "analysis": "D1.14 Stockfish postmortem",
+  "candidate_minus_baseline": {
+    "blunder_rate": -0.001175247746949673,
+    "mate_swing": -5,
+    "mean_cpl": -0.7546330746607168,
+    "median_cpl": 0.0,
+    "p75_cpl": -5.5,
+    "p90_cpl": 1.1999999999999886,
+    "p95_cpl": 1.0,
+    "quiet_blunders": 0
+  },
+  "common_position_comparison": {
+    "baseline_lower_cpl": 33,
+    "candidate_lower_cpl": 41,
+    "common_fen_groups": 413,
+    "comparable_cp_groups": 400,
+    "equal_cpl": 326
+  },
+  "phase": "screen",
+  "profiles": {
+    "Current": {
+      "best_move_match_rate": 0.38735177865612647,
+      "best_move_matches": 196,
+      "blunder": 43,
+      "blunder_rate": 0.10386473429951691,
+      "cp_scored_moves": 414,
+      "cpl_300_plus": 15,
+      "cpl_500_plus": 1,
+      "inaccuracy": 87,
+      "inaccuracy_rate": 0.21014492753623187,
+      "mate_outcomes": 92,
+      "mate_swing": 26,
+      "mean_cpl": 60.471014492753625,
+      "median_cpl": 22.0,
+      "mistake": 58,
+      "mistake_rate": 0.14009661835748793,
+      "moves": 506,
+      "p75_cpl": 76.5,
+      "p90_cpl": 182.39999999999998,
+      "p95_cpl": 252.39999999999986,
+      "quiet_blunders": 31,
+      "stage": {
+        "endgame": 64,
+        "middlegame": 78,
+        "opening": 364
+      }
+    },
+    "CurrentLmr": {
+      "best_move_match_rate": 0.3967611336032389,
+      "best_move_matches": 196,
+      "blunder": 42,
+      "blunder_rate": 0.10268948655256724,
+      "cp_scored_moves": 409,
+      "cpl_300_plus": 16,
+      "cpl_500_plus": 2,
+      "inaccuracy": 94,
+      "inaccuracy_rate": 0.22982885085574573,
+      "mate_outcomes": 85,
+      "mate_swing": 21,
+      "mean_cpl": 59.71638141809291,
+      "median_cpl": 22,
+      "mistake": 51,
+      "mistake_rate": 0.12469437652811736,
+      "moves": 494,
+      "p75_cpl": 71.0,
+      "p90_cpl": 183.59999999999997,
+      "p95_cpl": 253.39999999999986,
+      "quiet_blunders": 31,
+      "stage": {
+        "endgame": 61,
+        "middlegame": 74,
+        "opening": 359
+      }
+    }
+  },
+  "records": 1000,
+  "schema_version": 1,
+  "score_model": "centipawn-loss and explicit mate outcomes",
+  "selection": {
+    "common_per_pair": 1,
+    "input_games": 826,
+    "input_moves": 112781,
+    "max_positions": 1000,
+    "mode": "complete-pair-bounded-screen",
+    "per_decisive": 1,
+    "per_draw": 1,
+    "random_draws": 0,
+    "seed": 11414,
+    "selected": 1000,
+    "stockfish_identity": [
+      "id name Stockfish 18",
+      "id author the Stockfish developers (see AUTHORS file)"
+    ]
+  },
+  "source": {
+    "complete_opening_pairs": 413,
+    "complete_pair_games": 826,
+    "manifest_status": "INTEGRITY_FAIL",
+    "match_decision": "INCONCLUSIVE",
+    "raw_games": 827,
+    "run_dir": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\formal",
+    "unpaired_games": 1
+  },
+  "stockfish": {
+    "hash_mb": 16,
+    "identity": [
+      "id name Stockfish 18",
+      "id author the Stockfish developers (see AUTHORS file)"
+    ],
+    "nodes_per_search": 20000,
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\.cache\\stockfish-18\\stockfish\\stockfish-windows-x86-64-avx2.exe",
+    "sha256": "c86215fa1977d53b82ed854540a4c7b025be4cd042276c85ba3de53fb9118911",
+    "threads": 1
+  },
+  "wdl_enabled": false,
+  "wdl_used": false
+}

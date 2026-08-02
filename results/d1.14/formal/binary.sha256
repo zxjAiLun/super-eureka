@@ -1,0 +1,13 @@
+{
+  "binary": {
+    "mtime_utc": "2026-08-02T07:39:41.113762+00:00",
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+    "sha256": "23b2f3ada3ca2ec8471d4ee5b98d1a40b8d88130e6865a51fd0631c101eb561f",
+    "size": 497152
+  },
+  "engine_code_baseline_sha": "dcb009813239549f4805e9a2467aadae4ccebc11",
+  "profiles": {
+    "baseline": "current",
+    "candidate": "current-lmr"
+  }
+}

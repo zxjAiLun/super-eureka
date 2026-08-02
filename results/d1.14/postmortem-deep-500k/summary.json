@@ -1,0 +1,113 @@
+{
+  "analysis": "D1.14 Stockfish postmortem",
+  "candidate_minus_baseline": {
+    "blunder_rate": 0.007234042553191489,
+    "mate_swing": -8,
+    "mean_cpl": -2.5902127659574603,
+    "median_cpl": -1.5,
+    "p75_cpl": -9.25,
+    "p90_cpl": 9.89999999999975,
+    "p95_cpl": 5.249999999999943,
+    "quiet_blunders": 0
+  },
+  "common_position_comparison": {
+    "baseline_lower_cpl": 1,
+    "candidate_lower_cpl": 0,
+    "common_fen_groups": 58,
+    "comparable_cp_groups": 41,
+    "equal_cpl": 40
+  },
+  "phase": "deep-review",
+  "profiles": {
+    "Current": {
+      "best_move_match_rate": 0.02564102564102564,
+      "best_move_matches": 2,
+      "blunder": 39,
+      "blunder_rate": 0.78,
+      "cp_scored_moves": 50,
+      "cpl_300_plus": 17,
+      "cpl_500_plus": 3,
+      "inaccuracy": 1,
+      "inaccuracy_rate": 0.02,
+      "mate_outcomes": 28,
+      "mate_swing": 20,
+      "mean_cpl": 270.42,
+      "median_cpl": 246.5,
+      "mistake": 10,
+      "mistake_rate": 0.2,
+      "moves": 78,
+      "p75_cpl": 336.25,
+      "p90_cpl": 408.5000000000001,
+      "p95_cpl": 499.9499999999999,
+      "quiet_blunders": 29,
+      "stage": {
+        "endgame": 10,
+        "middlegame": 20,
+        "opening": 48
+      }
+    },
+    "CurrentLmr": {
+      "best_move_match_rate": 0.06944444444444445,
+      "best_move_matches": 5,
+      "blunder": 37,
+      "blunder_rate": 0.7872340425531915,
+      "cp_scored_moves": 47,
+      "cpl_300_plus": 15,
+      "cpl_500_plus": 3,
+      "inaccuracy": 1,
+      "inaccuracy_rate": 0.02127659574468085,
+      "mate_outcomes": 25,
+      "mate_swing": 12,
+      "mean_cpl": 267.82978723404256,
+      "median_cpl": 245,
+      "mistake": 9,
+      "mistake_rate": 0.19148936170212766,
+      "moves": 72,
+      "p75_cpl": 327.0,
+      "p90_cpl": 418.39999999999986,
+      "p95_cpl": 505.1999999999998,
+      "quiet_blunders": 29,
+      "stage": {
+        "endgame": 15,
+        "middlegame": 14,
+        "opening": 43
+      }
+    }
+  },
+  "records": 150,
+  "schema_version": 1,
+  "score_model": "centipawn-loss and explicit mate outcomes",
+  "selection": {
+    "mode": "top-screen-losses",
+    "requested": 150,
+    "seed": null,
+    "selected": 150,
+    "source_jsonl": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\postmortem-screen-20k-v3\\positions.jsonl",
+    "stockfish_identity": [
+      "id name Stockfish 18",
+      "id author the Stockfish developers (see AUTHORS file)"
+    ]
+  },
+  "source": {
+    "complete_opening_pairs": 413,
+    "complete_pair_games": 826,
+    "manifest_status": "INTEGRITY_FAIL",
+    "match_decision": "INCONCLUSIVE",
+    "raw_games": 827,
+    "run_dir": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\d1.14\\formal",
+    "unpaired_games": 1
+  },
+  "stockfish": {
+    "hash_mb": 16,
+    "identity": [
+      "id name Stockfish 18",
+      "id author the Stockfish developers (see AUTHORS file)"
+    ],
+    "nodes_per_search": 500000,
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\.cache\\stockfish-18\\stockfish\\stockfish-windows-x86-64-avx2.exe",
+    "sha256": "c86215fa1977d53b82ed854540a4c7b025be4cd042276c85ba3de53fb9118911",
+    "threads": 1
+  },
+  "wdl_enabled": false,
+  "wdl_used": false
+}

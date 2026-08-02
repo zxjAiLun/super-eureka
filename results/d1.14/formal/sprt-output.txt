@@ -1,0 +1,2483 @@
+Started game 1 of 9704 (CurrentLmr vs Current)
+Started game 2 of 9704 (Current vs CurrentLmr)
+Finished game 1 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 1 - 0 - 0  [1.000] 1
+Started game 3 of 9704 (CurrentLmr vs Current)
+Finished game 2 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 1 - 1 - 0  [0.500] 2
+Started game 4 of 9704 (Current vs CurrentLmr)
+Finished game 3 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 2 - 1 - 0  [0.667] 3
+Started game 5 of 9704 (CurrentLmr vs Current)
+Finished game 4 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 2 - 2 - 0  [0.500] 4
+Started game 6 of 9704 (Current vs CurrentLmr)
+Finished game 5 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 2 - 3 - 0  [0.400] 5
+Started game 7 of 9704 (CurrentLmr vs Current)
+Finished game 7 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 2 - 4 - 0  [0.333] 6
+Started game 8 of 9704 (Current vs CurrentLmr)
+Finished game 6 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 2 - 5 - 0  [0.286] 7
+Started game 9 of 9704 (CurrentLmr vs Current)
+Finished game 8 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 3 - 5 - 0  [0.375] 8
+Started game 10 of 9704 (Current vs CurrentLmr)
+Finished game 9 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 4 - 5 - 0  [0.444] 9
+Started game 11 of 9704 (CurrentLmr vs Current)
+Finished game 10 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 5 - 5 - 0  [0.500] 10
+Started game 12 of 9704 (Current vs CurrentLmr)
+Finished game 11 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 6 - 5 - 0  [0.545] 11
+Started game 13 of 9704 (CurrentLmr vs Current)
+Finished game 12 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 6 - 6 - 0  [0.500] 12
+Started game 14 of 9704 (Current vs CurrentLmr)
+Finished game 13 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 6 - 6 - 1  [0.500] 13
+Started game 15 of 9704 (CurrentLmr vs Current)
+Finished game 14 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 6 - 7 - 1  [0.464] 14
+Started game 16 of 9704 (Current vs CurrentLmr)
+Finished game 15 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 6 - 7 - 2  [0.467] 15
+Started game 17 of 9704 (CurrentLmr vs Current)
+Finished game 17 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 6 - 7 - 3  [0.469] 16
+Started game 18 of 9704 (Current vs CurrentLmr)
+Finished game 16 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 6 - 7 - 4  [0.471] 17
+Started game 19 of 9704 (CurrentLmr vs Current)
+Finished game 18 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 7 - 7 - 4  [0.500] 18
+Started game 20 of 9704 (Current vs CurrentLmr)
+Finished game 19 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 8 - 7 - 4  [0.526] 19
+Started game 21 of 9704 (CurrentLmr vs Current)
+Finished game 21 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 8 - 7 - 5  [0.525] 20
+Started game 22 of 9704 (Current vs CurrentLmr)
+Finished game 20 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 9 - 7 - 5  [0.548] 21
+Started game 23 of 9704 (CurrentLmr vs Current)
+Finished game 22 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 9 - 8 - 5  [0.523] 22
+Started game 24 of 9704 (Current vs CurrentLmr)
+Finished game 23 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 9 - 9 - 5  [0.500] 23
+Started game 25 of 9704 (CurrentLmr vs Current)
+Finished game 24 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 10 - 9 - 5  [0.521] 24
+Started game 26 of 9704 (Current vs CurrentLmr)
+Finished game 25 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 11 - 9 - 5  [0.540] 25
+Started game 27 of 9704 (CurrentLmr vs Current)
+Finished game 26 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 12 - 9 - 5  [0.558] 26
+Started game 28 of 9704 (Current vs CurrentLmr)
+Finished game 27 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 13 - 9 - 5  [0.574] 27
+Started game 29 of 9704 (CurrentLmr vs Current)
+Finished game 28 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 13 - 10 - 5  [0.554] 28
+Started game 30 of 9704 (Current vs CurrentLmr)
+Finished game 30 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 14 - 10 - 5  [0.569] 29
+Started game 31 of 9704 (CurrentLmr vs Current)
+Finished game 29 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 15 - 10 - 5  [0.583] 30
+Started game 32 of 9704 (Current vs CurrentLmr)
+Finished game 32 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 15 - 11 - 5  [0.565] 31
+Started game 33 of 9704 (CurrentLmr vs Current)
+Finished game 31 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 16 - 11 - 5  [0.578] 32
+Started game 34 of 9704 (Current vs CurrentLmr)
+Finished game 33 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 16 - 11 - 6  [0.576] 33
+Started game 35 of 9704 (CurrentLmr vs Current)
+Finished game 34 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 16 - 12 - 6  [0.559] 34
+Started game 36 of 9704 (Current vs CurrentLmr)
+Finished game 36 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 16 - 13 - 6  [0.543] 35
+Started game 37 of 9704 (CurrentLmr vs Current)
+Finished game 35 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 17 - 13 - 6  [0.556] 36
+Started game 38 of 9704 (Current vs CurrentLmr)
+Finished game 37 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 18 - 13 - 6  [0.568] 37
+Started game 39 of 9704 (CurrentLmr vs Current)
+Finished game 38 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 18 - 13 - 7  [0.566] 38
+Started game 40 of 9704 (Current vs CurrentLmr)
+Finished game 39 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 18 - 13 - 8  [0.564] 39
+Started game 41 of 9704 (CurrentLmr vs Current)
+Finished game 40 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 19 - 13 - 8  [0.575] 40
+Started game 42 of 9704 (Current vs CurrentLmr)
+Finished game 41 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 19 - 13 - 9  [0.573] 41
+Started game 43 of 9704 (CurrentLmr vs Current)
+Finished game 42 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 20 - 13 - 9  [0.583] 42
+Started game 44 of 9704 (Current vs CurrentLmr)
+Finished game 43 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 20 - 14 - 9  [0.570] 43
+Started game 45 of 9704 (CurrentLmr vs Current)
+Finished game 44 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 20 - 14 - 10  [0.568] 44
+Started game 46 of 9704 (Current vs CurrentLmr)
+Finished game 45 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 21 - 14 - 10  [0.578] 45
+Started game 47 of 9704 (CurrentLmr vs Current)
+Finished game 46 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 21 - 15 - 10  [0.565] 46
+Started game 48 of 9704 (Current vs CurrentLmr)
+Finished game 47 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 21 - 16 - 10  [0.553] 47
+Started game 49 of 9704 (CurrentLmr vs Current)
+Finished game 48 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 22 - 16 - 10  [0.563] 48
+Started game 50 of 9704 (Current vs CurrentLmr)
+Finished game 49 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 23 - 16 - 10  [0.571] 49
+Started game 51 of 9704 (CurrentLmr vs Current)
+Finished game 50 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 23 - 17 - 10  [0.560] 50
+Started game 52 of 9704 (Current vs CurrentLmr)
+Finished game 51 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 24 - 17 - 10  [0.569] 51
+Started game 53 of 9704 (CurrentLmr vs Current)
+Finished game 52 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 25 - 17 - 10  [0.577] 52
+Started game 54 of 9704 (Current vs CurrentLmr)
+Finished game 53 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 26 - 17 - 10  [0.585] 53
+Started game 55 of 9704 (CurrentLmr vs Current)
+Finished game 54 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 26 - 18 - 10  [0.574] 54
+Started game 56 of 9704 (Current vs CurrentLmr)
+Finished game 55 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 26 - 19 - 10  [0.564] 55
+Started game 57 of 9704 (CurrentLmr vs Current)
+Finished game 56 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 27 - 19 - 10  [0.571] 56
+Started game 58 of 9704 (Current vs CurrentLmr)
+Finished game 57 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 27 - 20 - 10  [0.561] 57
+Started game 59 of 9704 (CurrentLmr vs Current)
+Finished game 59 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 27 - 20 - 11  [0.560] 58
+Started game 60 of 9704 (Current vs CurrentLmr)
+Finished game 58 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 28 - 20 - 11  [0.568] 59
+Started game 61 of 9704 (CurrentLmr vs Current)
+Finished game 60 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 29 - 20 - 11  [0.575] 60
+Started game 62 of 9704 (Current vs CurrentLmr)
+Finished game 61 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 29 - 20 - 12  [0.574] 61
+Started game 63 of 9704 (CurrentLmr vs Current)
+Finished game 62 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 29 - 21 - 12  [0.565] 62
+Started game 64 of 9704 (Current vs CurrentLmr)
+Finished game 63 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 29 - 21 - 13  [0.563] 63
+Started game 65 of 9704 (CurrentLmr vs Current)
+Finished game 64 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 30 - 21 - 13  [0.570] 64
+Started game 66 of 9704 (Current vs CurrentLmr)
+Finished game 66 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 30 - 22 - 13  [0.562] 65
+Started game 67 of 9704 (CurrentLmr vs Current)
+Finished game 65 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 31 - 22 - 13  [0.568] 66
+Started game 68 of 9704 (Current vs CurrentLmr)
+Finished game 67 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 31 - 23 - 13  [0.560] 67
+Started game 69 of 9704 (CurrentLmr vs Current)
+Finished game 68 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 32 - 23 - 13  [0.566] 68
+Started game 70 of 9704 (Current vs CurrentLmr)
+Finished game 69 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 33 - 23 - 13  [0.572] 69
+Started game 71 of 9704 (CurrentLmr vs Current)
+Finished game 70 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 33 - 24 - 13  [0.564] 70
+Started game 72 of 9704 (Current vs CurrentLmr)
+Finished game 71 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 34 - 24 - 13  [0.570] 71
+Started game 73 of 9704 (CurrentLmr vs Current)
+Finished game 72 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 35 - 24 - 13  [0.576] 72
+Started game 74 of 9704 (Current vs CurrentLmr)
+Finished game 74 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 36 - 24 - 13  [0.582] 73
+Started game 75 of 9704 (CurrentLmr vs Current)
+Finished game 73 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 36 - 24 - 14  [0.581] 74
+Started game 76 of 9704 (Current vs CurrentLmr)
+Finished game 75 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 37 - 24 - 14  [0.587] 75
+Started game 77 of 9704 (CurrentLmr vs Current)
+Finished game 76 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 37 - 25 - 14  [0.579] 76
+Started game 78 of 9704 (Current vs CurrentLmr)
+Finished game 77 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 38 - 25 - 14  [0.584] 77
+Started game 79 of 9704 (CurrentLmr vs Current)
+Finished game 78 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 38 - 26 - 14  [0.577] 78
+Started game 80 of 9704 (Current vs CurrentLmr)
+Finished game 79 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 38 - 27 - 14  [0.570] 79
+Started game 81 of 9704 (CurrentLmr vs Current)
+Finished game 80 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 38 - 28 - 14  [0.563] 80
+Started game 82 of 9704 (Current vs CurrentLmr)
+Finished game 81 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 38 - 28 - 15  [0.562] 81
+Started game 83 of 9704 (CurrentLmr vs Current)
+Finished game 82 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 39 - 28 - 15  [0.567] 82
+Started game 84 of 9704 (Current vs CurrentLmr)
+Finished game 83 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 28 - 15  [0.572] 83
+Started game 85 of 9704 (CurrentLmr vs Current)
+Finished game 84 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 29 - 15  [0.565] 84
+Started game 86 of 9704 (Current vs CurrentLmr)
+Finished game 85 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 40 - 29 - 16  [0.565] 85
+Started game 87 of 9704 (CurrentLmr vs Current)
+Finished game 86 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 30 - 16  [0.558] 86
+Started game 88 of 9704 (Current vs CurrentLmr)
+Finished game 88 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 31 - 16  [0.552] 87
+Started game 89 of 9704 (CurrentLmr vs Current)
+Finished game 89 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 40 - 32 - 16  [0.545] 88
+Started game 90 of 9704 (Current vs CurrentLmr)
+Finished game 87 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 40 - 32 - 17  [0.545] 89
+Started game 91 of 9704 (CurrentLmr vs Current)
+Finished game 90 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 33 - 17  [0.539] 90
+Started game 92 of 9704 (Current vs CurrentLmr)
+Finished game 91 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 40 - 33 - 18  [0.538] 91
+Started game 93 of 9704 (CurrentLmr vs Current)
+Finished game 92 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 40 - 33 - 19  [0.538] 92
+Started game 94 of 9704 (Current vs CurrentLmr)
+Finished game 93 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 40 - 34 - 19  [0.532] 93
+Started game 95 of 9704 (CurrentLmr vs Current)
+Finished game 94 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 40 - 35 - 19  [0.527] 94
+Started game 96 of 9704 (Current vs CurrentLmr)
+Finished game 95 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 40 - 35 - 20  [0.526] 95
+Started game 97 of 9704 (CurrentLmr vs Current)
+Finished game 96 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 40 - 35 - 21  [0.526] 96
+Started game 98 of 9704 (Current vs CurrentLmr)
+Finished game 97 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 41 - 35 - 21  [0.531] 97
+Started game 99 of 9704 (CurrentLmr vs Current)
+Finished game 98 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 41 - 36 - 21  [0.526] 98
+Started game 100 of 9704 (Current vs CurrentLmr)
+Finished game 99 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 41 - 37 - 21  [0.520] 99
+Started game 101 of 9704 (CurrentLmr vs Current)
+Finished game 101 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 41 - 38 - 21  [0.515] 100
+Started game 102 of 9704 (Current vs CurrentLmr)
+Finished game 100 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 41 - 39 - 21  [0.510] 101
+Started game 103 of 9704 (CurrentLmr vs Current)
+Finished game 103 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 41 - 40 - 21  [0.505] 102
+Started game 104 of 9704 (Current vs CurrentLmr)
+Finished game 102 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 41 - 41 - 21  [0.500] 103
+Started game 105 of 9704 (CurrentLmr vs Current)
+Finished game 105 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 41 - 42 - 21  [0.495] 104
+Started game 106 of 9704 (Current vs CurrentLmr)
+Finished game 104 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 41 - 43 - 21  [0.490] 105
+Started game 107 of 9704 (CurrentLmr vs Current)
+Finished game 106 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 42 - 43 - 21  [0.495] 106
+Started game 108 of 9704 (Current vs CurrentLmr)
+Finished game 107 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 42 - 44 - 21  [0.491] 107
+Started game 109 of 9704 (CurrentLmr vs Current)
+Finished game 108 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 42 - 45 - 21  [0.486] 108
+Started game 110 of 9704 (Current vs CurrentLmr)
+Finished game 109 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 43 - 45 - 21  [0.491] 109
+Started game 111 of 9704 (CurrentLmr vs Current)
+Finished game 110 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 43 - 46 - 21  [0.486] 110
+Started game 112 of 9704 (Current vs CurrentLmr)
+Finished game 111 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 43 - 47 - 21  [0.482] 111
+Started game 113 of 9704 (CurrentLmr vs Current)
+Finished game 112 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 43 - 48 - 21  [0.478] 112
+Started game 114 of 9704 (Current vs CurrentLmr)
+Finished game 113 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 43 - 48 - 22  [0.478] 113
+Started game 115 of 9704 (CurrentLmr vs Current)
+Finished game 114 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 43 - 48 - 23  [0.478] 114
+Started game 116 of 9704 (Current vs CurrentLmr)
+Finished game 115 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 43 - 49 - 23  [0.474] 115
+Started game 117 of 9704 (CurrentLmr vs Current)
+Finished game 116 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 44 - 49 - 23  [0.478] 116
+Started game 118 of 9704 (Current vs CurrentLmr)
+Finished game 117 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 45 - 49 - 23  [0.483] 117
+Started game 119 of 9704 (CurrentLmr vs Current)
+Finished game 118 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 45 - 50 - 23  [0.479] 118
+Started game 120 of 9704 (Current vs CurrentLmr)
+Finished game 119 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 45 - 51 - 23  [0.475] 119
+Started game 121 of 9704 (CurrentLmr vs Current)
+Finished game 120 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 45 - 52 - 23  [0.471] 120
+Started game 122 of 9704 (Current vs CurrentLmr)
+Finished game 121 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 45 - 53 - 23  [0.467] 121
+Started game 123 of 9704 (CurrentLmr vs Current)
+Finished game 122 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 45 - 53 - 24  [0.467] 122
+Started game 124 of 9704 (Current vs CurrentLmr)
+Finished game 123 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 46 - 53 - 24  [0.472] 123
+Started game 125 of 9704 (CurrentLmr vs Current)
+Finished game 124 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 47 - 53 - 24  [0.476] 124
+Started game 126 of 9704 (Current vs CurrentLmr)
+Finished game 125 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 47 - 54 - 24  [0.472] 125
+Started game 127 of 9704 (CurrentLmr vs Current)
+Finished game 126 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 47 - 55 - 24  [0.468] 126
+Started game 128 of 9704 (Current vs CurrentLmr)
+Finished game 127 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 48 - 55 - 24  [0.472] 127
+Started game 129 of 9704 (CurrentLmr vs Current)
+Finished game 128 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 48 - 56 - 24  [0.469] 128
+Started game 130 of 9704 (Current vs CurrentLmr)
+Finished game 129 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 49 - 56 - 24  [0.473] 129
+Started game 131 of 9704 (CurrentLmr vs Current)
+Finished game 130 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 49 - 57 - 24  [0.469] 130
+Started game 132 of 9704 (Current vs CurrentLmr)
+Finished game 131 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 49 - 58 - 24  [0.466] 131
+Started game 133 of 9704 (CurrentLmr vs Current)
+Finished game 132 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 50 - 58 - 24  [0.470] 132
+Started game 134 of 9704 (Current vs CurrentLmr)
+Finished game 133 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 50 - 58 - 25  [0.470] 133
+Started game 135 of 9704 (CurrentLmr vs Current)
+Finished game 135 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 50 - 58 - 26  [0.470] 134
+Started game 136 of 9704 (Current vs CurrentLmr)
+Finished game 134 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 50 - 59 - 26  [0.467] 135
+Started game 137 of 9704 (CurrentLmr vs Current)
+Finished game 137 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 50 - 60 - 26  [0.463] 136
+Started game 138 of 9704 (Current vs CurrentLmr)
+Finished game 136 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 50 - 60 - 27  [0.464] 137
+Started game 139 of 9704 (CurrentLmr vs Current)
+Finished game 138 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 50 - 61 - 27  [0.460] 138
+Started game 140 of 9704 (Current vs CurrentLmr)
+Finished game 139 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 51 - 61 - 27  [0.464] 139
+Started game 141 of 9704 (CurrentLmr vs Current)
+Finished game 140 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 51 - 62 - 27  [0.461] 140
+Started game 142 of 9704 (Current vs CurrentLmr)
+Finished game 141 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 51 - 63 - 27  [0.457] 141
+Started game 143 of 9704 (CurrentLmr vs Current)
+Finished game 142 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 52 - 63 - 27  [0.461] 142
+Started game 144 of 9704 (Current vs CurrentLmr)
+Finished game 143 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 53 - 63 - 27  [0.465] 143
+Started game 145 of 9704 (CurrentLmr vs Current)
+Finished game 145 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 54 - 63 - 27  [0.469] 144
+Started game 146 of 9704 (Current vs CurrentLmr)
+Finished game 144 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 54 - 64 - 27  [0.466] 145
+Started game 147 of 9704 (CurrentLmr vs Current)
+Finished game 146 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 54 - 65 - 27  [0.462] 146
+Started game 148 of 9704 (Current vs CurrentLmr)
+Finished game 147 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 55 - 65 - 27  [0.466] 147
+Started game 149 of 9704 (CurrentLmr vs Current)
+Finished game 148 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 55 - 66 - 27  [0.463] 148
+Started game 150 of 9704 (Current vs CurrentLmr)
+Finished game 149 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 56 - 66 - 27  [0.466] 149
+Started game 151 of 9704 (CurrentLmr vs Current)
+Finished game 150 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 56 - 67 - 27  [0.463] 150
+Started game 152 of 9704 (Current vs CurrentLmr)
+Finished game 151 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 57 - 67 - 27  [0.467] 151
+Started game 153 of 9704 (CurrentLmr vs Current)
+Finished game 152 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 57 - 68 - 27  [0.464] 152
+Started game 154 of 9704 (Current vs CurrentLmr)
+Finished game 154 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 57 - 68 - 28  [0.464] 153
+Started game 155 of 9704 (CurrentLmr vs Current)
+Finished game 153 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 57 - 69 - 28  [0.461] 154
+Started game 156 of 9704 (Current vs CurrentLmr)
+Finished game 156 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 58 - 69 - 28  [0.465] 155
+Started game 157 of 9704 (CurrentLmr vs Current)
+Finished game 155 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 58 - 70 - 28  [0.462] 156
+Started game 158 of 9704 (Current vs CurrentLmr)
+Finished game 157 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 59 - 70 - 28  [0.465] 157
+Started game 159 of 9704 (CurrentLmr vs Current)
+Finished game 159 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 59 - 70 - 29  [0.465] 158
+Started game 160 of 9704 (Current vs CurrentLmr)
+Finished game 158 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 59 - 70 - 30  [0.465] 159
+Started game 161 of 9704 (CurrentLmr vs Current)
+Finished game 160 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 60 - 70 - 30  [0.469] 160
+Started game 162 of 9704 (Current vs CurrentLmr)
+Finished game 161 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 60 - 71 - 30  [0.466] 161
+Started game 163 of 9704 (CurrentLmr vs Current)
+Finished game 162 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 61 - 71 - 30  [0.469] 162
+Started game 164 of 9704 (Current vs CurrentLmr)
+Finished game 163 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 61 - 72 - 30  [0.466] 163
+Started game 165 of 9704 (CurrentLmr vs Current)
+Finished game 164 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 62 - 72 - 30  [0.470] 164
+Started game 166 of 9704 (Current vs CurrentLmr)
+Finished game 166 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 62 - 73 - 30  [0.467] 165
+Started game 167 of 9704 (CurrentLmr vs Current)
+Finished game 165 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 63 - 73 - 30  [0.470] 166
+Started game 168 of 9704 (Current vs CurrentLmr)
+Finished game 167 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 64 - 73 - 30  [0.473] 167
+Started game 169 of 9704 (CurrentLmr vs Current)
+Finished game 168 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 64 - 74 - 30  [0.470] 168
+Started game 170 of 9704 (Current vs CurrentLmr)
+Finished game 169 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 64 - 75 - 30  [0.467] 169
+Started game 171 of 9704 (CurrentLmr vs Current)
+Finished game 170 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 65 - 75 - 30  [0.471] 170
+Started game 172 of 9704 (Current vs CurrentLmr)
+Finished game 171 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 66 - 75 - 30  [0.474] 171
+Started game 173 of 9704 (CurrentLmr vs Current)
+Finished game 173 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 66 - 76 - 30  [0.471] 172
+Started game 174 of 9704 (Current vs CurrentLmr)
+Finished game 172 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 66 - 76 - 31  [0.471] 173
+Started game 175 of 9704 (CurrentLmr vs Current)
+Finished game 174 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 67 - 76 - 31  [0.474] 174
+Started game 176 of 9704 (Current vs CurrentLmr)
+Finished game 175 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 68 - 76 - 31  [0.477] 175
+Started game 177 of 9704 (CurrentLmr vs Current)
+Finished game 176 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 68 - 77 - 31  [0.474] 176
+Started game 178 of 9704 (Current vs CurrentLmr)
+Finished game 177 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 69 - 77 - 31  [0.477] 177
+Started game 179 of 9704 (CurrentLmr vs Current)
+Finished game 178 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 69 - 78 - 31  [0.475] 178
+Started game 180 of 9704 (Current vs CurrentLmr)
+Finished game 179 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 69 - 79 - 31  [0.472] 179
+Started game 181 of 9704 (CurrentLmr vs Current)
+Finished game 181 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 70 - 79 - 31  [0.475] 180
+Started game 182 of 9704 (Current vs CurrentLmr)
+Finished game 180 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 70 - 79 - 32  [0.475] 181
+Started game 183 of 9704 (CurrentLmr vs Current)
+Finished game 182 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 70 - 80 - 32  [0.473] 182
+Started game 184 of 9704 (Current vs CurrentLmr)
+Finished game 183 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 71 - 80 - 32  [0.475] 183
+Started game 185 of 9704 (CurrentLmr vs Current)
+Finished game 184 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 71 - 81 - 32  [0.473] 184
+Started game 186 of 9704 (Current vs CurrentLmr)
+Finished game 185 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 71 - 82 - 32  [0.470] 185
+Started game 187 of 9704 (CurrentLmr vs Current)
+Finished game 186 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 72 - 82 - 32  [0.473] 186
+Started game 188 of 9704 (Current vs CurrentLmr)
+Finished game 187 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 72 - 82 - 33  [0.473] 187
+Started game 189 of 9704 (CurrentLmr vs Current)
+Finished game 188 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 73 - 82 - 33  [0.476] 188
+Started game 190 of 9704 (Current vs CurrentLmr)
+Finished game 190 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 74 - 82 - 33  [0.479] 189
+Started game 191 of 9704 (CurrentLmr vs Current)
+Finished game 189 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 74 - 83 - 33  [0.476] 190
+Started game 192 of 9704 (Current vs CurrentLmr)
+Finished game 191 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 74 - 84 - 33  [0.474] 191
+Started game 193 of 9704 (CurrentLmr vs Current)
+Finished game 192 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 74 - 84 - 34  [0.474] 192
+Started game 194 of 9704 (Current vs CurrentLmr)
+Finished game 193 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 75 - 84 - 34  [0.477] 193
+Started game 195 of 9704 (CurrentLmr vs Current)
+Finished game 194 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 76 - 84 - 34  [0.479] 194
+Started game 196 of 9704 (Current vs CurrentLmr)
+Finished game 195 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 76 - 84 - 35  [0.479] 195
+Started game 197 of 9704 (CurrentLmr vs Current)
+Finished game 196 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 76 - 84 - 36  [0.480] 196
+Started game 198 of 9704 (Current vs CurrentLmr)
+Finished game 197 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 76 - 84 - 37  [0.480] 197
+Started game 199 of 9704 (CurrentLmr vs Current)
+Finished game 199 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 77 - 84 - 37  [0.482] 198
+Started game 200 of 9704 (Current vs CurrentLmr)
+Finished game 200 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 77 - 85 - 37  [0.480] 199
+Started game 201 of 9704 (CurrentLmr vs Current)
+Finished game 198 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 78 - 85 - 37  [0.482] 200
+Started game 202 of 9704 (Current vs CurrentLmr)
+Finished game 201 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 78 - 86 - 37  [0.480] 201
+Started game 203 of 9704 (CurrentLmr vs Current)
+Finished game 202 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 78 - 86 - 38  [0.480] 202
+Started game 204 of 9704 (Current vs CurrentLmr)
+Finished game 203 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 78 - 87 - 38  [0.478] 203
+Started game 205 of 9704 (CurrentLmr vs Current)
+Finished game 204 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 78 - 88 - 38  [0.475] 204
+Started game 206 of 9704 (Current vs CurrentLmr)
+Finished game 206 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 78 - 89 - 38  [0.473] 205
+Started game 207 of 9704 (CurrentLmr vs Current)
+Finished game 205 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 78 - 90 - 38  [0.471] 206
+Started game 208 of 9704 (Current vs CurrentLmr)
+Finished game 208 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 79 - 90 - 38  [0.473] 207
+Started game 209 of 9704 (CurrentLmr vs Current)
+Finished game 207 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 79 - 91 - 38  [0.471] 208
+Started game 210 of 9704 (Current vs CurrentLmr)
+Finished game 210 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 80 - 91 - 38  [0.474] 209
+Started game 211 of 9704 (CurrentLmr vs Current)
+Finished game 209 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 81 - 91 - 38  [0.476] 210
+Started game 212 of 9704 (Current vs CurrentLmr)
+Finished game 211 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 81 - 92 - 38  [0.474] 211
+Started game 213 of 9704 (CurrentLmr vs Current)
+Finished game 212 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 81 - 93 - 38  [0.472] 212
+Started game 214 of 9704 (Current vs CurrentLmr)
+Finished game 213 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 82 - 93 - 38  [0.474] 213
+Started game 215 of 9704 (CurrentLmr vs Current)
+Finished game 214 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 82 - 93 - 39  [0.474] 214
+Started game 216 of 9704 (Current vs CurrentLmr)
+Finished game 215 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 82 - 94 - 39  [0.472] 215
+Started game 217 of 9704 (CurrentLmr vs Current)
+Finished game 216 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 82 - 94 - 40  [0.472] 216
+Started game 218 of 9704 (Current vs CurrentLmr)
+Finished game 217 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 82 - 95 - 40  [0.470] 217
+Started game 219 of 9704 (CurrentLmr vs Current)
+Finished game 218 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 83 - 95 - 40  [0.472] 218
+Started game 220 of 9704 (Current vs CurrentLmr)
+Finished game 219 (CurrentLmr vs Current): 1/2-1/2 {Draw by stalemate}
+Score of CurrentLmr vs Current: 83 - 95 - 41  [0.473] 219
+Started game 221 of 9704 (CurrentLmr vs Current)
+Finished game 220 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 83 - 95 - 42  [0.473] 220
+Started game 222 of 9704 (Current vs CurrentLmr)
+Finished game 221 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 83 - 96 - 42  [0.471] 221
+Started game 223 of 9704 (CurrentLmr vs Current)
+Finished game 223 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 83 - 97 - 42  [0.468] 222
+Started game 224 of 9704 (Current vs CurrentLmr)
+Finished game 222 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 83 - 98 - 42  [0.466] 223
+Started game 225 of 9704 (CurrentLmr vs Current)
+Finished game 225 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 84 - 98 - 42  [0.469] 224
+Started game 226 of 9704 (Current vs CurrentLmr)
+Finished game 226 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 84 - 99 - 42  [0.467] 225
+Started game 227 of 9704 (CurrentLmr vs Current)
+Finished game 224 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 84 - 99 - 43  [0.467] 226
+Started game 228 of 9704 (Current vs CurrentLmr)
+Finished game 227 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 85 - 99 - 43  [0.469] 227
+Started game 229 of 9704 (CurrentLmr vs Current)
+Finished game 228 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 86 - 99 - 43  [0.471] 228
+Started game 230 of 9704 (Current vs CurrentLmr)
+Finished game 229 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 86 - 99 - 44  [0.472] 229
+Started game 231 of 9704 (CurrentLmr vs Current)
+Finished game 230 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 86 - 99 - 45  [0.472] 230
+Started game 232 of 9704 (Current vs CurrentLmr)
+Finished game 231 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 86 - 100 - 45  [0.470] 231
+Started game 233 of 9704 (CurrentLmr vs Current)
+Finished game 232 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 86 - 100 - 46  [0.470] 232
+Started game 234 of 9704 (Current vs CurrentLmr)
+Finished game 233 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 87 - 100 - 46  [0.472] 233
+Started game 235 of 9704 (CurrentLmr vs Current)
+Finished game 234 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 88 - 100 - 46  [0.474] 234
+Started game 236 of 9704 (Current vs CurrentLmr)
+Finished game 235 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 88 - 100 - 47  [0.474] 235
+Started game 237 of 9704 (CurrentLmr vs Current)
+Finished game 236 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 88 - 101 - 47  [0.472] 236
+Started game 238 of 9704 (Current vs CurrentLmr)
+Finished game 237 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 89 - 101 - 47  [0.475] 237
+Started game 239 of 9704 (CurrentLmr vs Current)
+Finished game 238 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 89 - 102 - 47  [0.473] 238
+Started game 240 of 9704 (Current vs CurrentLmr)
+Finished game 239 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 89 - 102 - 48  [0.473] 239
+Started game 241 of 9704 (CurrentLmr vs Current)
+Finished game 240 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 89 - 103 - 48  [0.471] 240
+Started game 242 of 9704 (Current vs CurrentLmr)
+Finished game 242 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 89 - 104 - 48  [0.469] 241
+Started game 243 of 9704 (CurrentLmr vs Current)
+Finished game 241 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 89 - 105 - 48  [0.467] 242
+Started game 244 of 9704 (Current vs CurrentLmr)
+Finished game 243 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 90 - 105 - 48  [0.469] 243
+Started game 245 of 9704 (CurrentLmr vs Current)
+Finished game 244 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 90 - 105 - 49  [0.469] 244
+Started game 246 of 9704 (Current vs CurrentLmr)
+Finished game 245 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 91 - 105 - 49  [0.471] 245
+Started game 247 of 9704 (CurrentLmr vs Current)
+Finished game 246 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 91 - 106 - 49  [0.470] 246
+Started game 248 of 9704 (Current vs CurrentLmr)
+Finished game 247 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 91 - 106 - 50  [0.470] 247
+Started game 249 of 9704 (CurrentLmr vs Current)
+Finished game 248 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 92 - 106 - 50  [0.472] 248
+Started game 250 of 9704 (Current vs CurrentLmr)
+Finished game 249 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 93 - 106 - 50  [0.474] 249
+Started game 251 of 9704 (CurrentLmr vs Current)
+Finished game 250 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 93 - 107 - 50  [0.472] 250
+Started game 252 of 9704 (Current vs CurrentLmr)
+Finished game 252 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 93 - 108 - 50  [0.470] 251
+Started game 253 of 9704 (CurrentLmr vs Current)
+Finished game 251 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 93 - 108 - 51  [0.470] 252
+Started game 254 of 9704 (Current vs CurrentLmr)
+Finished game 253 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 93 - 108 - 52  [0.470] 253
+Started game 255 of 9704 (CurrentLmr vs Current)
+Finished game 254 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 93 - 109 - 52  [0.469] 254
+Started game 256 of 9704 (Current vs CurrentLmr)
+Finished game 255 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 94 - 109 - 52  [0.471] 255
+Started game 257 of 9704 (CurrentLmr vs Current)
+Finished game 256 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 94 - 110 - 52  [0.469] 256
+Started game 258 of 9704 (Current vs CurrentLmr)
+Finished game 257 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 95 - 110 - 52  [0.471] 257
+Started game 259 of 9704 (CurrentLmr vs Current)
+Finished game 258 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 96 - 110 - 52  [0.473] 258
+Started game 260 of 9704 (Current vs CurrentLmr)
+Finished game 259 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 97 - 110 - 52  [0.475] 259
+Started game 261 of 9704 (CurrentLmr vs Current)
+Finished game 260 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 97 - 111 - 52  [0.473] 260
+Started game 262 of 9704 (Current vs CurrentLmr)
+Finished game 261 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 98 - 111 - 52  [0.475] 261
+Started game 263 of 9704 (CurrentLmr vs Current)
+Finished game 262 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 98 - 112 - 52  [0.473] 262
+Started game 264 of 9704 (Current vs CurrentLmr)
+Finished game 264 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 99 - 112 - 52  [0.475] 263
+Started game 265 of 9704 (CurrentLmr vs Current)
+Finished game 263 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 99 - 113 - 52  [0.473] 264
+Started game 266 of 9704 (Current vs CurrentLmr)
+Finished game 265 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 100 - 113 - 52  [0.475] 265
+Started game 267 of 9704 (CurrentLmr vs Current)
+Finished game 266 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 101 - 113 - 52  [0.477] 266
+Started game 268 of 9704 (Current vs CurrentLmr)
+Finished game 267 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 101 - 114 - 52  [0.476] 267
+Started game 269 of 9704 (CurrentLmr vs Current)
+Finished game 268 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 101 - 115 - 52  [0.474] 268
+Started game 270 of 9704 (Current vs CurrentLmr)
+Finished game 269 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 102 - 115 - 52  [0.476] 269
+Started game 271 of 9704 (CurrentLmr vs Current)
+Finished game 270 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 102 - 116 - 52  [0.474] 270
+Started game 272 of 9704 (Current vs CurrentLmr)
+Finished game 272 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 102 - 116 - 53  [0.474] 271
+Started game 273 of 9704 (CurrentLmr vs Current)
+Finished game 271 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 103 - 116 - 53  [0.476] 272
+Started game 274 of 9704 (Current vs CurrentLmr)
+Finished game 274 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 103 - 116 - 54  [0.476] 273
+Started game 275 of 9704 (CurrentLmr vs Current)
+Finished game 273 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 103 - 117 - 54  [0.474] 274
+Started game 276 of 9704 (Current vs CurrentLmr)
+Finished game 275 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 103 - 118 - 54  [0.473] 275
+Started game 277 of 9704 (CurrentLmr vs Current)
+Finished game 276 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 103 - 118 - 55  [0.473] 276
+Started game 278 of 9704 (Current vs CurrentLmr)
+Finished game 277 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 104 - 118 - 55  [0.475] 277
+Started game 279 of 9704 (CurrentLmr vs Current)
+Finished game 278 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 104 - 118 - 56  [0.475] 278
+Started game 280 of 9704 (Current vs CurrentLmr)
+Finished game 279 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 105 - 118 - 56  [0.477] 279
+Started game 281 of 9704 (CurrentLmr vs Current)
+Finished game 280 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 105 - 119 - 56  [0.475] 280
+Started game 282 of 9704 (Current vs CurrentLmr)
+Finished game 281 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 106 - 119 - 56  [0.477] 281
+Started game 283 of 9704 (CurrentLmr vs Current)
+Finished game 282 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 106 - 119 - 57  [0.477] 282
+Started game 284 of 9704 (Current vs CurrentLmr)
+Finished game 283 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 106 - 120 - 57  [0.475] 283
+Started game 285 of 9704 (CurrentLmr vs Current)
+Finished game 284 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 107 - 120 - 57  [0.477] 284
+Started game 286 of 9704 (Current vs CurrentLmr)
+Finished game 285 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 107 - 120 - 58  [0.477] 285
+Started game 287 of 9704 (CurrentLmr vs Current)
+Finished game 286 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 107 - 120 - 59  [0.477] 286
+Started game 288 of 9704 (Current vs CurrentLmr)
+Finished game 288 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 108 - 120 - 59  [0.479] 287
+Started game 289 of 9704 (CurrentLmr vs Current)
+Finished game 287 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 108 - 121 - 59  [0.477] 288
+Started game 290 of 9704 (Current vs CurrentLmr)
+Finished game 290 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 108 - 122 - 59  [0.476] 289
+Started game 291 of 9704 (CurrentLmr vs Current)
+Finished game 289 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 108 - 122 - 60  [0.476] 290
+Started game 292 of 9704 (Current vs CurrentLmr)
+Finished game 292 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 108 - 123 - 60  [0.474] 291
+Started game 293 of 9704 (CurrentLmr vs Current)
+Finished game 291 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 109 - 123 - 60  [0.476] 292
+Started game 294 of 9704 (Current vs CurrentLmr)
+Finished game 293 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 110 - 123 - 60  [0.478] 293
+Started game 295 of 9704 (CurrentLmr vs Current)
+Finished game 294 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 110 - 124 - 60  [0.476] 294
+Started game 296 of 9704 (Current vs CurrentLmr)
+Finished game 295 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 110 - 125 - 60  [0.475] 295
+Started game 297 of 9704 (CurrentLmr vs Current)
+Finished game 296 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 110 - 126 - 60  [0.473] 296
+Started game 298 of 9704 (Current vs CurrentLmr)
+Finished game 297 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 111 - 126 - 60  [0.475] 297
+Started game 299 of 9704 (CurrentLmr vs Current)
+Finished game 298 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 112 - 126 - 60  [0.477] 298
+Started game 300 of 9704 (Current vs CurrentLmr)
+Finished game 299 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 112 - 127 - 60  [0.475] 299
+Started game 301 of 9704 (CurrentLmr vs Current)
+Finished game 300 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 112 - 127 - 61  [0.475] 300
+Started game 302 of 9704 (Current vs CurrentLmr)
+Finished game 301 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 112 - 127 - 62  [0.475] 301
+Started game 303 of 9704 (CurrentLmr vs Current)
+Finished game 302 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 112 - 128 - 62  [0.474] 302
+Started game 304 of 9704 (Current vs CurrentLmr)
+Finished game 303 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 112 - 129 - 62  [0.472] 303
+Started game 305 of 9704 (CurrentLmr vs Current)
+Finished game 304 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 112 - 130 - 62  [0.470] 304
+Started game 306 of 9704 (Current vs CurrentLmr)
+Finished game 305 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 112 - 131 - 62  [0.469] 305
+Started game 307 of 9704 (CurrentLmr vs Current)
+Finished game 306 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 113 - 131 - 62  [0.471] 306
+Started game 308 of 9704 (Current vs CurrentLmr)
+Finished game 307 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 113 - 132 - 62  [0.469] 307
+Started game 309 of 9704 (CurrentLmr vs Current)
+Finished game 308 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 113 - 133 - 62  [0.468] 308
+Started game 310 of 9704 (Current vs CurrentLmr)
+Finished game 309 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 114 - 133 - 62  [0.469] 309
+Started game 311 of 9704 (CurrentLmr vs Current)
+Finished game 310 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 114 - 134 - 62  [0.468] 310
+Started game 312 of 9704 (Current vs CurrentLmr)
+Finished game 312 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 114 - 135 - 62  [0.466] 311
+Started game 313 of 9704 (CurrentLmr vs Current)
+Finished game 311 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 114 - 136 - 62  [0.465] 312
+Started game 314 of 9704 (Current vs CurrentLmr)
+Finished game 314 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 114 - 137 - 62  [0.463] 313
+Started game 315 of 9704 (CurrentLmr vs Current)
+Finished game 313 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 114 - 138 - 62  [0.462] 314
+Started game 316 of 9704 (Current vs CurrentLmr)
+Finished game 315 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 114 - 139 - 62  [0.460] 315
+Started game 317 of 9704 (CurrentLmr vs Current)
+Finished game 316 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 114 - 139 - 63  [0.460] 316
+Started game 318 of 9704 (Current vs CurrentLmr)
+Finished game 317 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 114 - 140 - 63  [0.459] 317
+Started game 319 of 9704 (CurrentLmr vs Current)
+Finished game 318 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 114 - 141 - 63  [0.458] 318
+Started game 320 of 9704 (Current vs CurrentLmr)
+Finished game 319 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 114 - 141 - 64  [0.458] 319
+Started game 321 of 9704 (CurrentLmr vs Current)
+Finished game 321 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 114 - 141 - 65  [0.458] 320
+Started game 322 of 9704 (Current vs CurrentLmr)
+Finished game 320 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 114 - 141 - 66  [0.458] 321
+Started game 323 of 9704 (CurrentLmr vs Current)
+Finished game 323 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 115 - 141 - 66  [0.460] 322
+Started game 324 of 9704 (Current vs CurrentLmr)
+Finished game 322 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 115 - 141 - 67  [0.460] 323
+Started game 325 of 9704 (CurrentLmr vs Current)
+Finished game 325 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 115 - 142 - 67  [0.458] 324
+Started game 326 of 9704 (Current vs CurrentLmr)
+Finished game 324 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 115 - 143 - 67  [0.457] 325
+Started game 327 of 9704 (CurrentLmr vs Current)
+Finished game 326 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 115 - 144 - 67  [0.456] 326
+Started game 328 of 9704 (Current vs CurrentLmr)
+Finished game 327 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 116 - 144 - 67  [0.457] 327
+Started game 329 of 9704 (CurrentLmr vs Current)
+Finished game 328 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 116 - 144 - 68  [0.457] 328
+Started game 330 of 9704 (Current vs CurrentLmr)
+Finished game 329 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 116 - 145 - 68  [0.456] 329
+Started game 331 of 9704 (CurrentLmr vs Current)
+Finished game 330 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 117 - 145 - 68  [0.458] 330
+Started game 332 of 9704 (Current vs CurrentLmr)
+Finished game 331 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 117 - 145 - 69  [0.458] 331
+Started game 333 of 9704 (CurrentLmr vs Current)
+Finished game 332 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 117 - 146 - 69  [0.456] 332
+Started game 334 of 9704 (Current vs CurrentLmr)
+Finished game 333 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 118 - 146 - 69  [0.458] 333
+Started game 335 of 9704 (CurrentLmr vs Current)
+Finished game 334 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 118 - 147 - 69  [0.457] 334
+Started game 336 of 9704 (Current vs CurrentLmr)
+Finished game 335 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 118 - 148 - 69  [0.455] 335
+Started game 337 of 9704 (CurrentLmr vs Current)
+Finished game 336 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 118 - 148 - 70  [0.455] 336
+Started game 338 of 9704 (Current vs CurrentLmr)
+Finished game 337 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 118 - 148 - 71  [0.455] 337
+Started game 339 of 9704 (CurrentLmr vs Current)
+Finished game 338 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 119 - 148 - 71  [0.457] 338
+Started game 340 of 9704 (Current vs CurrentLmr)
+Finished game 339 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 120 - 148 - 71  [0.459] 339
+Started game 341 of 9704 (CurrentLmr vs Current)
+Finished game 340 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 120 - 149 - 71  [0.457] 340
+Started game 342 of 9704 (Current vs CurrentLmr)
+Finished game 342 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 120 - 150 - 71  [0.456] 341
+Started game 343 of 9704 (CurrentLmr vs Current)
+Finished game 341 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 120 - 150 - 72  [0.456] 342
+Started game 344 of 9704 (Current vs CurrentLmr)
+Finished game 343 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 121 - 150 - 72  [0.458] 343
+Started game 345 of 9704 (CurrentLmr vs Current)
+Finished game 345 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 122 - 150 - 72  [0.459] 344
+Started game 346 of 9704 (Current vs CurrentLmr)
+Finished game 344 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 123 - 150 - 72  [0.461] 345
+Started game 347 of 9704 (CurrentLmr vs Current)
+Finished game 346 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 123 - 151 - 72  [0.460] 346
+Started game 348 of 9704 (Current vs CurrentLmr)
+Finished game 347 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 124 - 151 - 72  [0.461] 347
+Started game 349 of 9704 (CurrentLmr vs Current)
+Finished game 348 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 124 - 151 - 73  [0.461] 348
+Started game 350 of 9704 (Current vs CurrentLmr)
+Finished game 349 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 125 - 151 - 73  [0.463] 349
+Started game 351 of 9704 (CurrentLmr vs Current)
+Finished game 350 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 125 - 152 - 73  [0.461] 350
+Started game 352 of 9704 (Current vs CurrentLmr)
+Finished game 352 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 126 - 152 - 73  [0.463] 351
+Started game 353 of 9704 (CurrentLmr vs Current)
+Finished game 351 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 126 - 152 - 74  [0.463] 352
+Started game 354 of 9704 (Current vs CurrentLmr)
+Finished game 353 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 127 - 152 - 74  [0.465] 353
+Started game 355 of 9704 (CurrentLmr vs Current)
+Finished game 354 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 128 - 152 - 74  [0.466] 354
+Started game 356 of 9704 (Current vs CurrentLmr)
+Finished game 355 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 129 - 152 - 74  [0.468] 355
+Started game 357 of 9704 (CurrentLmr vs Current)
+Finished game 356 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 130 - 152 - 74  [0.469] 356
+Started game 358 of 9704 (Current vs CurrentLmr)
+Finished game 357 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 130 - 153 - 74  [0.468] 357
+Started game 359 of 9704 (CurrentLmr vs Current)
+Finished game 358 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 130 - 154 - 74  [0.466] 358
+Started game 360 of 9704 (Current vs CurrentLmr)
+Finished game 359 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 130 - 155 - 74  [0.465] 359
+Started game 361 of 9704 (CurrentLmr vs Current)
+Finished game 361 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 131 - 155 - 74  [0.467] 360
+Started game 362 of 9704 (Current vs CurrentLmr)
+Finished game 360 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 132 - 155 - 74  [0.468] 361
+Started game 363 of 9704 (CurrentLmr vs Current)
+Finished game 363 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 132 - 155 - 75  [0.468] 362
+Started game 364 of 9704 (Current vs CurrentLmr)
+Finished game 364 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 133 - 155 - 75  [0.470] 363
+Started game 365 of 9704 (CurrentLmr vs Current)
+Finished game 362 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 133 - 156 - 75  [0.468] 364
+Started game 366 of 9704 (Current vs CurrentLmr)
+Finished game 366 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 134 - 156 - 75  [0.470] 365
+Started game 367 of 9704 (CurrentLmr vs Current)
+Finished game 365 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 134 - 157 - 75  [0.469] 366
+Started game 368 of 9704 (Current vs CurrentLmr)
+Finished game 367 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 134 - 158 - 75  [0.467] 367
+Started game 369 of 9704 (CurrentLmr vs Current)
+Finished game 368 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 135 - 158 - 75  [0.469] 368
+Started game 370 of 9704 (Current vs CurrentLmr)
+Finished game 369 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 136 - 158 - 75  [0.470] 369
+Started game 371 of 9704 (CurrentLmr vs Current)
+Finished game 371 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 137 - 158 - 75  [0.472] 370
+Started game 372 of 9704 (Current vs CurrentLmr)
+Finished game 370 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 137 - 159 - 75  [0.470] 371
+Started game 373 of 9704 (CurrentLmr vs Current)
+Finished game 373 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 137 - 160 - 75  [0.469] 372
+Started game 374 of 9704 (Current vs CurrentLmr)
+Finished game 372 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 137 - 160 - 76  [0.469] 373
+Started game 375 of 9704 (CurrentLmr vs Current)
+Finished game 374 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 138 - 160 - 76  [0.471] 374
+Started game 376 of 9704 (Current vs CurrentLmr)
+Finished game 375 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 139 - 160 - 76  [0.472] 375
+Started game 377 of 9704 (CurrentLmr vs Current)
+Finished game 376 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 139 - 160 - 77  [0.472] 376
+Started game 378 of 9704 (Current vs CurrentLmr)
+Finished game 377 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 139 - 161 - 77  [0.471] 377
+Started game 379 of 9704 (CurrentLmr vs Current)
+Finished game 378 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 139 - 162 - 77  [0.470] 378
+Started game 380 of 9704 (Current vs CurrentLmr)
+Finished game 379 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 140 - 162 - 77  [0.471] 379
+Started game 381 of 9704 (CurrentLmr vs Current)
+Finished game 380 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 140 - 163 - 77  [0.470] 380
+Started game 382 of 9704 (Current vs CurrentLmr)
+Finished game 381 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 141 - 163 - 77  [0.471] 381
+Started game 383 of 9704 (CurrentLmr vs Current)
+Finished game 382 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 141 - 164 - 77  [0.470] 382
+Started game 384 of 9704 (Current vs CurrentLmr)
+Finished game 383 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 141 - 165 - 77  [0.469] 383
+Started game 385 of 9704 (CurrentLmr vs Current)
+Finished game 384 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 141 - 165 - 78  [0.469] 384
+Started game 386 of 9704 (Current vs CurrentLmr)
+Finished game 386 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 142 - 165 - 78  [0.470] 385
+Started game 387 of 9704 (CurrentLmr vs Current)
+Finished game 385 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 142 - 166 - 78  [0.469] 386
+Started game 388 of 9704 (Current vs CurrentLmr)
+Finished game 388 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 142 - 167 - 78  [0.468] 387
+Started game 389 of 9704 (CurrentLmr vs Current)
+Finished game 387 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 143 - 167 - 78  [0.469] 388
+Started game 390 of 9704 (Current vs CurrentLmr)
+Finished game 389 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 144 - 167 - 78  [0.470] 389
+Started game 391 of 9704 (CurrentLmr vs Current)
+Finished game 390 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 145 - 167 - 78  [0.472] 390
+Started game 392 of 9704 (Current vs CurrentLmr)
+Finished game 391 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 146 - 167 - 78  [0.473] 391
+Started game 393 of 9704 (CurrentLmr vs Current)
+Finished game 392 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 146 - 167 - 79  [0.473] 392
+Started game 394 of 9704 (Current vs CurrentLmr)
+Finished game 393 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 147 - 167 - 79  [0.475] 393
+Started game 395 of 9704 (CurrentLmr vs Current)
+Finished game 394 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 148 - 167 - 79  [0.476] 394
+Started game 396 of 9704 (Current vs CurrentLmr)
+Finished game 395 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 149 - 167 - 79  [0.477] 395
+Started game 397 of 9704 (CurrentLmr vs Current)
+Finished game 396 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 149 - 167 - 80  [0.477] 396
+Started game 398 of 9704 (Current vs CurrentLmr)
+Finished game 397 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 150 - 167 - 80  [0.479] 397
+Started game 399 of 9704 (CurrentLmr vs Current)
+Finished game 398 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 150 - 168 - 80  [0.477] 398
+Started game 400 of 9704 (Current vs CurrentLmr)
+Finished game 399 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 150 - 169 - 80  [0.476] 399
+Started game 401 of 9704 (CurrentLmr vs Current)
+Finished game 400 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 151 - 169 - 80  [0.477] 400
+Started game 402 of 9704 (Current vs CurrentLmr)
+Finished game 402 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 151 - 170 - 80  [0.476] 401
+Started game 403 of 9704 (CurrentLmr vs Current)
+Finished game 401 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 152 - 170 - 80  [0.478] 402
+Started game 404 of 9704 (Current vs CurrentLmr)
+Finished game 403 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 153 - 170 - 80  [0.479] 403
+Started game 405 of 9704 (CurrentLmr vs Current)
+Finished game 404 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 153 - 170 - 81  [0.479] 404
+Started game 406 of 9704 (Current vs CurrentLmr)
+Finished game 405 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 153 - 170 - 82  [0.479] 405
+Started game 407 of 9704 (CurrentLmr vs Current)
+Finished game 406 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 154 - 170 - 82  [0.480] 406
+Started game 408 of 9704 (Current vs CurrentLmr)
+Finished game 407 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 155 - 170 - 82  [0.482] 407
+Started game 409 of 9704 (CurrentLmr vs Current)
+Finished game 408 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 155 - 171 - 82  [0.480] 408
+Started game 410 of 9704 (Current vs CurrentLmr)
+Finished game 409 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 156 - 171 - 82  [0.482] 409
+Started game 411 of 9704 (CurrentLmr vs Current)
+Finished game 411 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 156 - 172 - 82  [0.480] 410
+Started game 412 of 9704 (Current vs CurrentLmr)
+Finished game 410 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 157 - 172 - 82  [0.482] 411
+Started game 413 of 9704 (CurrentLmr vs Current)
+Finished game 412 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 158 - 172 - 82  [0.483] 412
+Started game 414 of 9704 (Current vs CurrentLmr)
+Finished game 413 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 158 - 173 - 82  [0.482] 413
+Started game 415 of 9704 (CurrentLmr vs Current)
+Finished game 414 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 159 - 173 - 82  [0.483] 414
+Started game 416 of 9704 (Current vs CurrentLmr)
+Finished game 415 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 159 - 173 - 83  [0.483] 415
+Started game 417 of 9704 (CurrentLmr vs Current)
+Finished game 416 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 159 - 173 - 84  [0.483] 416
+Started game 418 of 9704 (Current vs CurrentLmr)
+Finished game 417 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 160 - 173 - 84  [0.484] 417
+Started game 419 of 9704 (CurrentLmr vs Current)
+Finished game 418 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 160 - 174 - 84  [0.483] 418
+Started game 420 of 9704 (Current vs CurrentLmr)
+Finished game 419 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 160 - 175 - 84  [0.482] 419
+Started game 421 of 9704 (CurrentLmr vs Current)
+Finished game 420 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 161 - 175 - 84  [0.483] 420
+Started game 422 of 9704 (Current vs CurrentLmr)
+Finished game 421 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 162 - 175 - 84  [0.485] 421
+Started game 423 of 9704 (CurrentLmr vs Current)
+Finished game 422 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 163 - 175 - 84  [0.486] 422
+Started game 424 of 9704 (Current vs CurrentLmr)
+Finished game 423 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 163 - 176 - 84  [0.485] 423
+Started game 425 of 9704 (CurrentLmr vs Current)
+Finished game 425 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 164 - 176 - 84  [0.486] 424
+Started game 426 of 9704 (Current vs CurrentLmr)
+Finished game 424 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 165 - 176 - 84  [0.487] 425
+Started game 427 of 9704 (CurrentLmr vs Current)
+Finished game 426 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 165 - 177 - 84  [0.486] 426
+Started game 428 of 9704 (Current vs CurrentLmr)
+Finished game 427 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 165 - 178 - 84  [0.485] 427
+Started game 429 of 9704 (CurrentLmr vs Current)
+Finished game 428 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 165 - 178 - 85  [0.485] 428
+Started game 430 of 9704 (Current vs CurrentLmr)
+Finished game 429 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 166 - 178 - 85  [0.486] 429
+Started game 431 of 9704 (CurrentLmr vs Current)
+Finished game 430 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 167 - 178 - 85  [0.487] 430
+Started game 432 of 9704 (Current vs CurrentLmr)
+Finished game 431 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 167 - 179 - 85  [0.486] 431
+Started game 433 of 9704 (CurrentLmr vs Current)
+Finished game 432 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 167 - 179 - 86  [0.486] 432
+Started game 434 of 9704 (Current vs CurrentLmr)
+Finished game 433 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 167 - 180 - 86  [0.485] 433
+Started game 435 of 9704 (CurrentLmr vs Current)
+Finished game 434 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 168 - 180 - 86  [0.486] 434
+Started game 436 of 9704 (Current vs CurrentLmr)
+Finished game 436 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 169 - 180 - 86  [0.487] 435
+Started game 437 of 9704 (CurrentLmr vs Current)
+Finished game 435 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 169 - 181 - 86  [0.486] 436
+Started game 438 of 9704 (Current vs CurrentLmr)
+Finished game 438 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 170 - 181 - 86  [0.487] 437
+Started game 439 of 9704 (CurrentLmr vs Current)
+Finished game 437 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 171 - 181 - 86  [0.489] 438
+Started game 440 of 9704 (Current vs CurrentLmr)
+Finished game 440 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 172 - 181 - 86  [0.490] 439
+Started game 441 of 9704 (CurrentLmr vs Current)
+Finished game 439 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 172 - 182 - 86  [0.489] 440
+Started game 442 of 9704 (Current vs CurrentLmr)
+Finished game 442 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 173 - 182 - 86  [0.490] 441
+Started game 443 of 9704 (CurrentLmr vs Current)
+Finished game 441 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 173 - 183 - 86  [0.489] 442
+Started game 444 of 9704 (Current vs CurrentLmr)
+Finished game 443 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 173 - 184 - 86  [0.488] 443
+Started game 445 of 9704 (CurrentLmr vs Current)
+Finished game 444 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 174 - 184 - 86  [0.489] 444
+Started game 446 of 9704 (Current vs CurrentLmr)
+Finished game 445 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 175 - 184 - 86  [0.490] 445
+Started game 447 of 9704 (CurrentLmr vs Current)
+Finished game 447 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 175 - 185 - 86  [0.489] 446
+Started game 448 of 9704 (Current vs CurrentLmr)
+Finished game 446 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 175 - 186 - 86  [0.488] 447
+Started game 449 of 9704 (CurrentLmr vs Current)
+Finished game 448 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 176 - 186 - 86  [0.489] 448
+Started game 450 of 9704 (Current vs CurrentLmr)
+Finished game 449 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 177 - 186 - 86  [0.490] 449
+Started game 451 of 9704 (CurrentLmr vs Current)
+Finished game 450 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 177 - 187 - 86  [0.489] 450
+Started game 452 of 9704 (Current vs CurrentLmr)
+Finished game 451 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 178 - 187 - 86  [0.490] 451
+Started game 453 of 9704 (CurrentLmr vs Current)
+Finished game 452 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 178 - 188 - 86  [0.489] 452
+Started game 454 of 9704 (Current vs CurrentLmr)
+Finished game 453 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 178 - 188 - 87  [0.489] 453
+Started game 455 of 9704 (CurrentLmr vs Current)
+Finished game 454 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 179 - 188 - 87  [0.490] 454
+Started game 456 of 9704 (Current vs CurrentLmr)
+Finished game 455 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 180 - 188 - 87  [0.491] 455
+Started game 457 of 9704 (CurrentLmr vs Current)
+Finished game 456 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 180 - 189 - 87  [0.490] 456
+Started game 458 of 9704 (Current vs CurrentLmr)
+Finished game 457 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 181 - 189 - 87  [0.491] 457
+Started game 459 of 9704 (CurrentLmr vs Current)
+Finished game 458 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 181 - 190 - 87  [0.490] 458
+Started game 460 of 9704 (Current vs CurrentLmr)
+Finished game 459 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 182 - 190 - 87  [0.491] 459
+Started game 461 of 9704 (CurrentLmr vs Current)
+Finished game 461 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 182 - 191 - 87  [0.490] 460
+Started game 462 of 9704 (Current vs CurrentLmr)
+Finished game 462 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 183 - 191 - 87  [0.491] 461
+Started game 463 of 9704 (CurrentLmr vs Current)
+Finished game 460 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 183 - 191 - 88  [0.491] 462
+Started game 464 of 9704 (Current vs CurrentLmr)
+Finished game 463 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 183 - 192 - 88  [0.490] 463
+Started game 465 of 9704 (CurrentLmr vs Current)
+Finished game 465 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 184 - 192 - 88  [0.491] 464
+Started game 466 of 9704 (Current vs CurrentLmr)
+Finished game 464 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 184 - 193 - 88  [0.490] 465
+Started game 467 of 9704 (CurrentLmr vs Current)
+Finished game 466 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 184 - 194 - 88  [0.489] 466
+Started game 468 of 9704 (Current vs CurrentLmr)
+Finished game 467 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 184 - 194 - 89  [0.489] 467
+Started game 469 of 9704 (CurrentLmr vs Current)
+Finished game 468 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 184 - 195 - 89  [0.488] 468
+Started game 470 of 9704 (Current vs CurrentLmr)
+Finished game 469 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 184 - 196 - 89  [0.487] 469
+Started game 471 of 9704 (CurrentLmr vs Current)
+Finished game 470 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 185 - 196 - 89  [0.488] 470
+Started game 472 of 9704 (Current vs CurrentLmr)
+Finished game 471 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 186 - 196 - 89  [0.489] 471
+Started game 473 of 9704 (CurrentLmr vs Current)
+Finished game 472 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 186 - 197 - 89  [0.488] 472
+Started game 474 of 9704 (Current vs CurrentLmr)
+Finished game 473 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 186 - 198 - 89  [0.487] 473
+Started game 475 of 9704 (CurrentLmr vs Current)
+Finished game 475 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 187 - 198 - 89  [0.488] 474
+Started game 476 of 9704 (Current vs CurrentLmr)
+Finished game 474 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 188 - 198 - 89  [0.489] 475
+Started game 477 of 9704 (CurrentLmr vs Current)
+Finished game 476 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 189 - 198 - 89  [0.491] 476
+Started game 478 of 9704 (Current vs CurrentLmr)
+Finished game 477 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 189 - 199 - 89  [0.490] 477
+Started game 479 of 9704 (CurrentLmr vs Current)
+Finished game 478 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 190 - 199 - 89  [0.491] 478
+Started game 480 of 9704 (Current vs CurrentLmr)
+Finished game 479 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 191 - 199 - 89  [0.492] 479
+Started game 481 of 9704 (CurrentLmr vs Current)
+Finished game 480 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 191 - 199 - 90  [0.492] 480
+Started game 482 of 9704 (Current vs CurrentLmr)
+Finished game 481 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 191 - 200 - 90  [0.491] 481
+Started game 483 of 9704 (CurrentLmr vs Current)
+Finished game 482 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 192 - 200 - 90  [0.492] 482
+Started game 484 of 9704 (Current vs CurrentLmr)
+Finished game 483 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 193 - 200 - 90  [0.493] 483
+Started game 485 of 9704 (CurrentLmr vs Current)
+Finished game 484 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 193 - 201 - 90  [0.492] 484
+Started game 486 of 9704 (Current vs CurrentLmr)
+Finished game 486 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 193 - 202 - 90  [0.491] 485
+Started game 487 of 9704 (CurrentLmr vs Current)
+Finished game 485 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 194 - 202 - 90  [0.492] 486
+Started game 488 of 9704 (Current vs CurrentLmr)
+Finished game 487 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 194 - 202 - 91  [0.492] 487
+Started game 489 of 9704 (CurrentLmr vs Current)
+Finished game 488 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 194 - 202 - 92  [0.492] 488
+Started game 490 of 9704 (Current vs CurrentLmr)
+Finished game 489 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 195 - 202 - 92  [0.493] 489
+Started game 491 of 9704 (CurrentLmr vs Current)
+Finished game 490 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 195 - 203 - 92  [0.492] 490
+Started game 492 of 9704 (Current vs CurrentLmr)
+Finished game 491 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 195 - 204 - 92  [0.491] 491
+Started game 493 of 9704 (CurrentLmr vs Current)
+Finished game 492 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 195 - 204 - 93  [0.491] 492
+Started game 494 of 9704 (Current vs CurrentLmr)
+Finished game 493 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 195 - 205 - 93  [0.490] 493
+Started game 495 of 9704 (CurrentLmr vs Current)
+Finished game 494 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 195 - 205 - 94  [0.490] 494
+Started game 496 of 9704 (Current vs CurrentLmr)
+Finished game 495 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 195 - 206 - 94  [0.489] 495
+Started game 497 of 9704 (CurrentLmr vs Current)
+Finished game 496 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 196 - 206 - 94  [0.490] 496
+Started game 498 of 9704 (Current vs CurrentLmr)
+Finished game 497 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 196 - 206 - 95  [0.490] 497
+Started game 499 of 9704 (CurrentLmr vs Current)
+Finished game 498 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 197 - 206 - 95  [0.491] 498
+Started game 500 of 9704 (Current vs CurrentLmr)
+Finished game 499 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 197 - 207 - 95  [0.490] 499
+Started game 501 of 9704 (CurrentLmr vs Current)
+Finished game 500 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 197 - 208 - 95  [0.489] 500
+Started game 502 of 9704 (Current vs CurrentLmr)
+Finished game 501 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 197 - 209 - 95  [0.488] 501
+Started game 503 of 9704 (CurrentLmr vs Current)
+Finished game 502 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 197 - 210 - 95  [0.487] 502
+Started game 504 of 9704 (Current vs CurrentLmr)
+Finished game 504 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 198 - 210 - 95  [0.488] 503
+Started game 505 of 9704 (CurrentLmr vs Current)
+Finished game 503 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 198 - 210 - 96  [0.488] 504
+Started game 506 of 9704 (Current vs CurrentLmr)
+Finished game 505 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 199 - 210 - 96  [0.489] 505
+Started game 507 of 9704 (CurrentLmr vs Current)
+Finished game 506 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 199 - 211 - 96  [0.488] 506
+Started game 508 of 9704 (Current vs CurrentLmr)
+Finished game 507 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 199 - 211 - 97  [0.488] 507
+Started game 509 of 9704 (CurrentLmr vs Current)
+Finished game 508 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 199 - 211 - 98  [0.488] 508
+Started game 510 of 9704 (Current vs CurrentLmr)
+Finished game 509 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 200 - 211 - 98  [0.489] 509
+Started game 511 of 9704 (CurrentLmr vs Current)
+Finished game 511 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 200 - 212 - 98  [0.488] 510
+Started game 512 of 9704 (Current vs CurrentLmr)
+Finished game 510 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 201 - 212 - 98  [0.489] 511
+Started game 513 of 9704 (CurrentLmr vs Current)
+Finished game 512 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 201 - 213 - 98  [0.488] 512
+Started game 514 of 9704 (Current vs CurrentLmr)
+Finished game 513 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 202 - 213 - 98  [0.489] 513
+Started game 515 of 9704 (CurrentLmr vs Current)
+Finished game 514 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 203 - 213 - 98  [0.490] 514
+Started game 516 of 9704 (Current vs CurrentLmr)
+Finished game 515 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 204 - 213 - 98  [0.491] 515
+Started game 517 of 9704 (CurrentLmr vs Current)
+Finished game 516 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 205 - 213 - 98  [0.492] 516
+Started game 518 of 9704 (Current vs CurrentLmr)
+Finished game 517 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 205 - 214 - 98  [0.491] 517
+Started game 519 of 9704 (CurrentLmr vs Current)
+Finished game 519 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 206 - 214 - 98  [0.492] 518
+Started game 520 of 9704 (Current vs CurrentLmr)
+Finished game 518 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 207 - 214 - 98  [0.493] 519
+Started game 521 of 9704 (CurrentLmr vs Current)
+Finished game 520 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 207 - 215 - 98  [0.492] 520
+Started game 522 of 9704 (Current vs CurrentLmr)
+Finished game 521 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 207 - 216 - 98  [0.491] 521
+Started game 523 of 9704 (CurrentLmr vs Current)
+Finished game 522 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 208 - 216 - 98  [0.492] 522
+Started game 524 of 9704 (Current vs CurrentLmr)
+Finished game 523 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 209 - 216 - 98  [0.493] 523
+Started game 525 of 9704 (CurrentLmr vs Current)
+Finished game 524 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 209 - 216 - 99  [0.493] 524
+Started game 526 of 9704 (Current vs CurrentLmr)
+Finished game 525 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 210 - 216 - 99  [0.494] 525
+Started game 527 of 9704 (CurrentLmr vs Current)
+Finished game 526 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 210 - 216 - 100  [0.494] 526
+Started game 528 of 9704 (Current vs CurrentLmr)
+Finished game 527 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 211 - 216 - 100  [0.495] 527
+Started game 529 of 9704 (CurrentLmr vs Current)
+Finished game 528 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 212 - 216 - 100  [0.496] 528
+Started game 530 of 9704 (Current vs CurrentLmr)
+Finished game 529 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 213 - 216 - 100  [0.497] 529
+Started game 531 of 9704 (CurrentLmr vs Current)
+Finished game 530 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 214 - 216 - 100  [0.498] 530
+Started game 532 of 9704 (Current vs CurrentLmr)
+Finished game 531 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 214 - 217 - 100  [0.497] 531
+Started game 533 of 9704 (CurrentLmr vs Current)
+Finished game 532 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 214 - 218 - 100  [0.496] 532
+Started game 534 of 9704 (Current vs CurrentLmr)
+Finished game 533 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 215 - 218 - 100  [0.497] 533
+Started game 535 of 9704 (CurrentLmr vs Current)
+Finished game 535 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 215 - 218 - 101  [0.497] 534
+Started game 536 of 9704 (Current vs CurrentLmr)
+Finished game 534 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 215 - 218 - 102  [0.497] 535
+Started game 537 of 9704 (CurrentLmr vs Current)
+Finished game 536 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 216 - 218 - 102  [0.498] 536
+Started game 538 of 9704 (Current vs CurrentLmr)
+Finished game 537 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 217 - 218 - 102  [0.499] 537
+Started game 539 of 9704 (CurrentLmr vs Current)
+Finished game 538 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 217 - 219 - 102  [0.498] 538
+Started game 540 of 9704 (Current vs CurrentLmr)
+Finished game 539 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 218 - 219 - 102  [0.499] 539
+Started game 541 of 9704 (CurrentLmr vs Current)
+Finished game 541 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 218 - 220 - 102  [0.498] 540
+Started game 542 of 9704 (Current vs CurrentLmr)
+Finished game 540 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 218 - 221 - 102  [0.497] 541
+Started game 543 of 9704 (CurrentLmr vs Current)
+Finished game 542 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 219 - 221 - 102  [0.498] 542
+Started game 544 of 9704 (Current vs CurrentLmr)
+Finished game 544 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 219 - 221 - 103  [0.498] 543
+Started game 545 of 9704 (CurrentLmr vs Current)
+Finished game 543 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 219 - 222 - 103  [0.497] 544
+Started game 546 of 9704 (Current vs CurrentLmr)
+Finished game 545 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 220 - 222 - 103  [0.498] 545
+Started game 547 of 9704 (CurrentLmr vs Current)
+Finished game 546 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 220 - 223 - 103  [0.497] 546
+Started game 548 of 9704 (Current vs CurrentLmr)
+Finished game 547 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 220 - 224 - 103  [0.496] 547
+Started game 549 of 9704 (CurrentLmr vs Current)
+Finished game 548 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 221 - 224 - 103  [0.497] 548
+Started game 550 of 9704 (Current vs CurrentLmr)
+Finished game 549 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 221 - 225 - 103  [0.496] 549
+Started game 551 of 9704 (CurrentLmr vs Current)
+Finished game 550 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 221 - 225 - 104  [0.496] 550
+Started game 552 of 9704 (Current vs CurrentLmr)
+Finished game 551 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 221 - 226 - 104  [0.495] 551
+Started game 553 of 9704 (CurrentLmr vs Current)
+Finished game 552 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 222 - 226 - 104  [0.496] 552
+Started game 554 of 9704 (Current vs CurrentLmr)
+Finished game 553 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 222 - 226 - 105  [0.496] 553
+Started game 555 of 9704 (CurrentLmr vs Current)
+Finished game 554 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 223 - 226 - 105  [0.497] 554
+Started game 556 of 9704 (Current vs CurrentLmr)
+Finished game 555 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 224 - 226 - 105  [0.498] 555
+Started game 557 of 9704 (CurrentLmr vs Current)
+Finished game 556 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 224 - 227 - 105  [0.497] 556
+Started game 558 of 9704 (Current vs CurrentLmr)
+Finished game 557 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 225 - 227 - 105  [0.498] 557
+Started game 559 of 9704 (CurrentLmr vs Current)
+Finished game 559 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 226 - 227 - 105  [0.499] 558
+Started game 560 of 9704 (Current vs CurrentLmr)
+Finished game 558 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 226 - 228 - 105  [0.498] 559
+Started game 561 of 9704 (CurrentLmr vs Current)
+Finished game 560 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 226 - 229 - 105  [0.497] 560
+Started game 562 of 9704 (Current vs CurrentLmr)
+Finished game 561 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 226 - 230 - 105  [0.496] 561
+Started game 563 of 9704 (CurrentLmr vs Current)
+Finished game 562 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 226 - 231 - 105  [0.496] 562
+Started game 564 of 9704 (Current vs CurrentLmr)
+Finished game 563 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 226 - 232 - 105  [0.495] 563
+Started game 565 of 9704 (CurrentLmr vs Current)
+Finished game 564 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 227 - 232 - 105  [0.496] 564
+Started game 566 of 9704 (Current vs CurrentLmr)
+Finished game 565 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 227 - 233 - 105  [0.495] 565
+Started game 567 of 9704 (CurrentLmr vs Current)
+Finished game 566 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 228 - 233 - 105  [0.496] 566
+Started game 568 of 9704 (Current vs CurrentLmr)
+Finished game 567 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 228 - 234 - 105  [0.495] 567
+Started game 569 of 9704 (CurrentLmr vs Current)
+Finished game 568 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 229 - 234 - 105  [0.496] 568
+Started game 570 of 9704 (Current vs CurrentLmr)
+Finished game 569 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 230 - 234 - 105  [0.496] 569
+Started game 571 of 9704 (CurrentLmr vs Current)
+Finished game 570 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 230 - 234 - 106  [0.496] 570
+Started game 572 of 9704 (Current vs CurrentLmr)
+Finished game 571 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 230 - 234 - 107  [0.496] 571
+Started game 573 of 9704 (CurrentLmr vs Current)
+Finished game 572 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 231 - 234 - 107  [0.497] 572
+Started game 574 of 9704 (Current vs CurrentLmr)
+Finished game 573 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 231 - 235 - 107  [0.497] 573
+Started game 575 of 9704 (CurrentLmr vs Current)
+Finished game 575 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 231 - 235 - 108  [0.497] 574
+Started game 576 of 9704 (Current vs CurrentLmr)
+Finished game 574 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 231 - 235 - 109  [0.497] 575
+Started game 577 of 9704 (CurrentLmr vs Current)
+Finished game 576 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 231 - 236 - 109  [0.496] 576
+Started game 578 of 9704 (Current vs CurrentLmr)
+Finished game 577 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 231 - 237 - 109  [0.495] 577
+Started game 579 of 9704 (CurrentLmr vs Current)
+Finished game 578 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 231 - 238 - 109  [0.494] 578
+Started game 580 of 9704 (Current vs CurrentLmr)
+Finished game 579 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 232 - 238 - 109  [0.495] 579
+Started game 581 of 9704 (CurrentLmr vs Current)
+Finished game 580 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 232 - 239 - 109  [0.494] 580
+Started game 582 of 9704 (Current vs CurrentLmr)
+Finished game 581 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 232 - 240 - 109  [0.493] 581
+Started game 583 of 9704 (CurrentLmr vs Current)
+Finished game 583 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 233 - 240 - 109  [0.494] 582
+Started game 584 of 9704 (Current vs CurrentLmr)
+Finished game 582 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 234 - 240 - 109  [0.495] 583
+Started game 585 of 9704 (CurrentLmr vs Current)
+Finished game 585 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 234 - 241 - 109  [0.494] 584
+Started game 586 of 9704 (Current vs CurrentLmr)
+Finished game 584 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 234 - 242 - 109  [0.493] 585
+Started game 587 of 9704 (CurrentLmr vs Current)
+Finished game 586 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 234 - 243 - 109  [0.492] 586
+Started game 588 of 9704 (Current vs CurrentLmr)
+Finished game 588 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 234 - 243 - 110  [0.492] 587
+Started game 589 of 9704 (CurrentLmr vs Current)
+Finished game 587 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 234 - 244 - 110  [0.491] 588
+Started game 590 of 9704 (Current vs CurrentLmr)
+Finished game 589 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 235 - 244 - 110  [0.492] 589
+Started game 591 of 9704 (CurrentLmr vs Current)
+Finished game 590 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 235 - 245 - 110  [0.492] 590
+Started game 592 of 9704 (Current vs CurrentLmr)
+Finished game 591 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 236 - 245 - 110  [0.492] 591
+Started game 593 of 9704 (CurrentLmr vs Current)
+Finished game 592 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 236 - 246 - 110  [0.492] 592
+Started game 594 of 9704 (Current vs CurrentLmr)
+Finished game 593 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 236 - 246 - 111  [0.492] 593
+Started game 595 of 9704 (CurrentLmr vs Current)
+Finished game 594 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 236 - 247 - 111  [0.491] 594
+Started game 596 of 9704 (Current vs CurrentLmr)
+Finished game 595 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 236 - 248 - 111  [0.490] 595
+Started game 597 of 9704 (CurrentLmr vs Current)
+Finished game 596 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 237 - 248 - 111  [0.491] 596
+Started game 598 of 9704 (Current vs CurrentLmr)
+Finished game 597 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 238 - 248 - 111  [0.492] 597
+Started game 599 of 9704 (CurrentLmr vs Current)
+Finished game 598 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 238 - 248 - 112  [0.492] 598
+Started game 600 of 9704 (Current vs CurrentLmr)
+Finished game 599 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 238 - 248 - 113  [0.492] 599
+Started game 601 of 9704 (CurrentLmr vs Current)
+Finished game 601 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 238 - 248 - 114  [0.492] 600
+Started game 602 of 9704 (Current vs CurrentLmr)
+Finished game 600 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 238 - 249 - 114  [0.491] 601
+Started game 603 of 9704 (CurrentLmr vs Current)
+Finished game 603 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 239 - 249 - 114  [0.492] 602
+Started game 604 of 9704 (Current vs CurrentLmr)
+Finished game 602 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 239 - 250 - 114  [0.491] 603
+Started game 605 of 9704 (CurrentLmr vs Current)
+Finished game 604 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 239 - 251 - 114  [0.490] 604
+Started game 606 of 9704 (Current vs CurrentLmr)
+Finished game 605 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 239 - 252 - 114  [0.489] 605
+Started game 607 of 9704 (CurrentLmr vs Current)
+Finished game 606 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 240 - 252 - 114  [0.490] 606
+Started game 608 of 9704 (Current vs CurrentLmr)
+Finished game 607 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 241 - 252 - 114  [0.491] 607
+Started game 609 of 9704 (CurrentLmr vs Current)
+Finished game 609 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 242 - 252 - 114  [0.492] 608
+Started game 610 of 9704 (Current vs CurrentLmr)
+Finished game 608 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 242 - 253 - 114  [0.491] 609
+Started game 611 of 9704 (CurrentLmr vs Current)
+Finished game 611 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 242 - 254 - 114  [0.490] 610
+Started game 612 of 9704 (Current vs CurrentLmr)
+Finished game 610 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 242 - 255 - 114  [0.489] 611
+Started game 613 of 9704 (CurrentLmr vs Current)
+Finished game 613 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 243 - 255 - 114  [0.490] 612
+Started game 614 of 9704 (Current vs CurrentLmr)
+Finished game 612 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 243 - 256 - 114  [0.489] 613
+Started game 615 of 9704 (CurrentLmr vs Current)
+Finished game 614 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 244 - 256 - 114  [0.490] 614
+Started game 616 of 9704 (Current vs CurrentLmr)
+Finished game 615 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 245 - 256 - 114  [0.491] 615
+Started game 617 of 9704 (CurrentLmr vs Current)
+Finished game 616 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 245 - 257 - 114  [0.490] 616
+Started game 618 of 9704 (Current vs CurrentLmr)
+Finished game 617 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 245 - 257 - 115  [0.490] 617
+Started game 619 of 9704 (CurrentLmr vs Current)
+Finished game 618 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 246 - 257 - 115  [0.491] 618
+Started game 620 of 9704 (Current vs CurrentLmr)
+Finished game 619 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 247 - 257 - 115  [0.492] 619
+Started game 621 of 9704 (CurrentLmr vs Current)
+Finished game 621 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 248 - 257 - 115  [0.493] 620
+Started game 622 of 9704 (Current vs CurrentLmr)
+Finished game 622 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 248 - 258 - 115  [0.492] 621
+Started game 623 of 9704 (CurrentLmr vs Current)
+Finished game 620 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 248 - 258 - 116  [0.492] 622
+Started game 624 of 9704 (Current vs CurrentLmr)
+Finished game 623 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 249 - 258 - 116  [0.493] 623
+Started game 625 of 9704 (CurrentLmr vs Current)
+Finished game 624 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 249 - 259 - 116  [0.492] 624
+Started game 626 of 9704 (Current vs CurrentLmr)
+Finished game 625 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 249 - 260 - 116  [0.491] 625
+Started game 627 of 9704 (CurrentLmr vs Current)
+Finished game 626 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 249 - 261 - 116  [0.490] 626
+Started game 628 of 9704 (Current vs CurrentLmr)
+Finished game 627 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 249 - 261 - 117  [0.490] 627
+Started game 629 of 9704 (CurrentLmr vs Current)
+Finished game 628 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 249 - 262 - 117  [0.490] 628
+Started game 630 of 9704 (Current vs CurrentLmr)
+Finished game 629 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 250 - 262 - 117  [0.490] 629
+Started game 631 of 9704 (CurrentLmr vs Current)
+Finished game 630 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 250 - 263 - 117  [0.490] 630
+Started game 632 of 9704 (Current vs CurrentLmr)
+Finished game 631 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 250 - 264 - 117  [0.489] 631
+Started game 633 of 9704 (CurrentLmr vs Current)
+Finished game 632 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 251 - 264 - 117  [0.490] 632
+Started game 634 of 9704 (Current vs CurrentLmr)
+Finished game 634 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 252 - 264 - 117  [0.491] 633
+Started game 635 of 9704 (CurrentLmr vs Current)
+Finished game 635 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 253 - 264 - 117  [0.491] 634
+Started game 636 of 9704 (Current vs CurrentLmr)
+Finished game 633 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 253 - 264 - 118  [0.491] 635
+Started game 637 of 9704 (CurrentLmr vs Current)
+Finished game 637 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 254 - 264 - 118  [0.492] 636
+Started game 638 of 9704 (Current vs CurrentLmr)
+Finished game 636 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 254 - 265 - 118  [0.491] 637
+Started game 639 of 9704 (CurrentLmr vs Current)
+Finished game 638 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 255 - 265 - 118  [0.492] 638
+Started game 640 of 9704 (Current vs CurrentLmr)
+Finished game 639 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 256 - 265 - 118  [0.493] 639
+Started game 641 of 9704 (CurrentLmr vs Current)
+Finished game 641 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 257 - 265 - 118  [0.494] 640
+Started game 642 of 9704 (Current vs CurrentLmr)
+Finished game 640 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 257 - 266 - 118  [0.493] 641
+Started game 643 of 9704 (CurrentLmr vs Current)
+Finished game 642 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 257 - 267 - 118  [0.492] 642
+Started game 644 of 9704 (Current vs CurrentLmr)
+Finished game 644 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 257 - 268 - 118  [0.491] 643
+Started game 645 of 9704 (CurrentLmr vs Current)
+Finished game 643 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 258 - 268 - 118  [0.492] 644
+Started game 646 of 9704 (Current vs CurrentLmr)
+Finished game 646 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 259 - 268 - 118  [0.493] 645
+Started game 647 of 9704 (CurrentLmr vs Current)
+Finished game 645 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 259 - 269 - 118  [0.492] 646
+Started game 648 of 9704 (Current vs CurrentLmr)
+Finished game 648 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 260 - 269 - 118  [0.493] 647
+Started game 649 of 9704 (CurrentLmr vs Current)
+Finished game 647 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 260 - 270 - 118  [0.492] 648
+Started game 650 of 9704 (Current vs CurrentLmr)
+Finished game 649 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 260 - 271 - 118  [0.492] 649
+Started game 651 of 9704 (CurrentLmr vs Current)
+Finished game 650 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 261 - 271 - 118  [0.492] 650
+Started game 652 of 9704 (Current vs CurrentLmr)
+Finished game 652 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 262 - 271 - 118  [0.493] 651
+Started game 653 of 9704 (CurrentLmr vs Current)
+Finished game 651 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 262 - 272 - 118  [0.492] 652
+Started game 654 of 9704 (Current vs CurrentLmr)
+Finished game 653 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 262 - 272 - 119  [0.492] 653
+Started game 655 of 9704 (CurrentLmr vs Current)
+Finished game 654 (Current vs CurrentLmr): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 262 - 272 - 120  [0.492] 654
+Started game 656 of 9704 (Current vs CurrentLmr)
+Finished game 655 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 262 - 273 - 120  [0.492] 655
+Started game 657 of 9704 (CurrentLmr vs Current)
+Finished game 656 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 263 - 273 - 120  [0.492] 656
+Started game 658 of 9704 (Current vs CurrentLmr)
+Finished game 657 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 263 - 273 - 121  [0.492] 657
+Started game 659 of 9704 (CurrentLmr vs Current)
+Finished game 658 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 264 - 273 - 121  [0.493] 658
+Started game 660 of 9704 (Current vs CurrentLmr)
+Finished game 659 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 265 - 273 - 121  [0.494] 659
+Started game 661 of 9704 (CurrentLmr vs Current)
+Finished game 660 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 265 - 274 - 121  [0.493] 660
+Started game 662 of 9704 (Current vs CurrentLmr)
+Finished game 661 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 265 - 275 - 121  [0.492] 661
+Started game 663 of 9704 (CurrentLmr vs Current)
+Finished game 662 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 266 - 275 - 121  [0.493] 662
+Started game 664 of 9704 (Current vs CurrentLmr)
+Finished game 663 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 266 - 275 - 122  [0.493] 663
+Started game 665 of 9704 (CurrentLmr vs Current)
+Finished game 664 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 266 - 275 - 123  [0.493] 664
+Started game 666 of 9704 (Current vs CurrentLmr)
+Finished game 665 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 267 - 275 - 123  [0.494] 665
+Started game 667 of 9704 (CurrentLmr vs Current)
+Finished game 666 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 268 - 275 - 123  [0.495] 666
+Started game 668 of 9704 (Current vs CurrentLmr)
+Finished game 667 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 268 - 276 - 123  [0.494] 667
+Started game 669 of 9704 (CurrentLmr vs Current)
+Finished game 668 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 268 - 276 - 124  [0.494] 668
+Started game 670 of 9704 (Current vs CurrentLmr)
+Finished game 670 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 268 - 277 - 124  [0.493] 669
+Started game 671 of 9704 (CurrentLmr vs Current)
+Finished game 669 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 268 - 277 - 125  [0.493] 670
+Started game 672 of 9704 (Current vs CurrentLmr)
+Finished game 672 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 268 - 278 - 125  [0.493] 671
+Started game 673 of 9704 (CurrentLmr vs Current)
+Finished game 671 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 268 - 278 - 126  [0.493] 672
+Started game 674 of 9704 (Current vs CurrentLmr)
+Finished game 673 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 268 - 279 - 126  [0.492] 673
+Started game 675 of 9704 (CurrentLmr vs Current)
+Finished game 674 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 269 - 279 - 126  [0.493] 674
+Started game 676 of 9704 (Current vs CurrentLmr)
+Finished game 675 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 270 - 279 - 126  [0.493] 675
+Started game 677 of 9704 (CurrentLmr vs Current)
+Finished game 677 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 270 - 280 - 126  [0.493] 676
+Started game 678 of 9704 (Current vs CurrentLmr)
+Finished game 676 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 271 - 280 - 126  [0.493] 677
+Started game 679 of 9704 (CurrentLmr vs Current)
+Finished game 679 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 271 - 281 - 126  [0.493] 678
+Started game 680 of 9704 (Current vs CurrentLmr)
+Finished game 678 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 272 - 281 - 126  [0.493] 679
+Started game 681 of 9704 (CurrentLmr vs Current)
+Finished game 680 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 273 - 281 - 126  [0.494] 680
+Started game 682 of 9704 (Current vs CurrentLmr)
+Finished game 681 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 274 - 281 - 126  [0.495] 681
+Started game 683 of 9704 (CurrentLmr vs Current)
+Finished game 682 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 274 - 281 - 127  [0.495] 682
+Started game 684 of 9704 (Current vs CurrentLmr)
+Finished game 683 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 275 - 281 - 127  [0.496] 683
+Started game 685 of 9704 (CurrentLmr vs Current)
+Finished game 684 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 275 - 282 - 127  [0.495] 684
+Started game 686 of 9704 (Current vs CurrentLmr)
+Finished game 685 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 275 - 283 - 127  [0.494] 685
+Started game 687 of 9704 (CurrentLmr vs Current)
+Finished game 686 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 275 - 284 - 127  [0.493] 686
+Started game 688 of 9704 (Current vs CurrentLmr)
+Finished game 687 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 276 - 284 - 127  [0.494] 687
+Started game 689 of 9704 (CurrentLmr vs Current)
+Finished game 688 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 276 - 285 - 127  [0.493] 688
+Started game 690 of 9704 (Current vs CurrentLmr)
+Finished game 689 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 276 - 286 - 127  [0.493] 689
+Started game 691 of 9704 (CurrentLmr vs Current)
+Finished game 690 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 277 - 286 - 127  [0.493] 690
+Started game 692 of 9704 (Current vs CurrentLmr)
+Finished game 691 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 277 - 286 - 128  [0.493] 691
+Started game 693 of 9704 (CurrentLmr vs Current)
+Finished game 692 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 278 - 286 - 128  [0.494] 692
+Started game 694 of 9704 (Current vs CurrentLmr)
+Finished game 693 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 278 - 287 - 128  [0.494] 693
+Started game 695 of 9704 (CurrentLmr vs Current)
+Finished game 694 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 279 - 287 - 128  [0.494] 694
+Started game 696 of 9704 (Current vs CurrentLmr)
+Finished game 695 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 279 - 288 - 128  [0.494] 695
+Started game 697 of 9704 (CurrentLmr vs Current)
+Finished game 696 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 279 - 289 - 128  [0.493] 696
+Started game 698 of 9704 (Current vs CurrentLmr)
+Finished game 697 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 279 - 290 - 128  [0.492] 697
+Started game 699 of 9704 (CurrentLmr vs Current)
+Finished game 698 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 279 - 291 - 128  [0.491] 698
+Started game 700 of 9704 (Current vs CurrentLmr)
+Finished game 699 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 279 - 292 - 128  [0.491] 699
+Started game 701 of 9704 (CurrentLmr vs Current)
+Finished game 700 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 280 - 292 - 128  [0.491] 700
+Started game 702 of 9704 (Current vs CurrentLmr)
+Finished game 702 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 281 - 292 - 128  [0.492] 701
+Started game 703 of 9704 (CurrentLmr vs Current)
+Finished game 701 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 282 - 292 - 128  [0.493] 702
+Started game 704 of 9704 (Current vs CurrentLmr)
+Finished game 703 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 282 - 293 - 128  [0.492] 703
+Started game 705 of 9704 (CurrentLmr vs Current)
+Finished game 704 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 282 - 294 - 128  [0.491] 704
+Started game 706 of 9704 (Current vs CurrentLmr)
+Finished game 705 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 282 - 295 - 128  [0.491] 705
+Started game 707 of 9704 (CurrentLmr vs Current)
+Finished game 706 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 282 - 296 - 128  [0.490] 706
+Started game 708 of 9704 (Current vs CurrentLmr)
+Finished game 707 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 282 - 296 - 129  [0.490] 707
+Started game 709 of 9704 (CurrentLmr vs Current)
+Finished game 708 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 283 - 296 - 129  [0.491] 708
+Started game 710 of 9704 (Current vs CurrentLmr)
+Finished game 709 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 284 - 296 - 129  [0.492] 709
+Started game 711 of 9704 (CurrentLmr vs Current)
+Finished game 710 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 285 - 296 - 129  [0.492] 710
+Started game 712 of 9704 (Current vs CurrentLmr)
+Finished game 712 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 285 - 297 - 129  [0.492] 711
+Started game 713 of 9704 (CurrentLmr vs Current)
+Finished game 711 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 286 - 297 - 129  [0.492] 712
+Started game 714 of 9704 (Current vs CurrentLmr)
+Finished game 714 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 287 - 297 - 129  [0.493] 713
+Started game 715 of 9704 (CurrentLmr vs Current)
+Finished game 713 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 287 - 297 - 130  [0.493] 714
+Started game 716 of 9704 (Current vs CurrentLmr)
+Finished game 715 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 288 - 297 - 130  [0.494] 715
+Started game 717 of 9704 (CurrentLmr vs Current)
+Finished game 716 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 288 - 298 - 130  [0.493] 716
+Started game 718 of 9704 (Current vs CurrentLmr)
+Finished game 717 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 288 - 298 - 131  [0.493] 717
+Started game 719 of 9704 (CurrentLmr vs Current)
+Finished game 719 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 289 - 298 - 131  [0.494] 718
+Started game 720 of 9704 (Current vs CurrentLmr)
+Finished game 718 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 289 - 299 - 131  [0.493] 719
+Started game 721 of 9704 (CurrentLmr vs Current)
+Finished game 720 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 290 - 299 - 131  [0.494] 720
+Started game 722 of 9704 (Current vs CurrentLmr)
+Finished game 721 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 290 - 299 - 132  [0.494] 721
+Started game 723 of 9704 (CurrentLmr vs Current)
+Finished game 723 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 291 - 299 - 132  [0.494] 722
+Started game 724 of 9704 (Current vs CurrentLmr)
+Finished game 722 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 292 - 299 - 132  [0.495] 723
+Started game 725 of 9704 (CurrentLmr vs Current)
+Finished game 725 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 292 - 299 - 133  [0.495] 724
+Started game 726 of 9704 (Current vs CurrentLmr)
+Finished game 724 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 292 - 300 - 133  [0.494] 725
+Started game 727 of 9704 (CurrentLmr vs Current)
+Finished game 726 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 292 - 300 - 134  [0.494] 726
+Started game 728 of 9704 (Current vs CurrentLmr)
+Finished game 727 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 292 - 301 - 134  [0.494] 727
+Started game 729 of 9704 (CurrentLmr vs Current)
+Finished game 728 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 293 - 301 - 134  [0.495] 728
+Started game 730 of 9704 (Current vs CurrentLmr)
+Finished game 729 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 293 - 301 - 135  [0.495] 729
+Started game 731 of 9704 (CurrentLmr vs Current)
+Finished game 730 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 293 - 302 - 135  [0.494] 730
+Started game 732 of 9704 (Current vs CurrentLmr)
+Finished game 731 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 294 - 302 - 135  [0.495] 731
+Started game 733 of 9704 (CurrentLmr vs Current)
+Finished game 732 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 295 - 302 - 135  [0.495] 732
+Started game 734 of 9704 (Current vs CurrentLmr)
+Finished game 733 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 295 - 302 - 136  [0.495] 733
+Started game 735 of 9704 (CurrentLmr vs Current)
+Finished game 734 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 295 - 302 - 137  [0.495] 734
+Started game 736 of 9704 (Current vs CurrentLmr)
+Finished game 735 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 296 - 302 - 137  [0.496] 735
+Started game 737 of 9704 (CurrentLmr vs Current)
+Finished game 736 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 296 - 303 - 137  [0.495] 736
+Started game 738 of 9704 (Current vs CurrentLmr)
+Finished game 737 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 296 - 303 - 138  [0.495] 737
+Started game 739 of 9704 (CurrentLmr vs Current)
+Finished game 738 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 296 - 303 - 139  [0.495] 738
+Started game 740 of 9704 (Current vs CurrentLmr)
+Finished game 739 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 296 - 303 - 140  [0.495] 739
+Started game 741 of 9704 (CurrentLmr vs Current)
+Finished game 740 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 296 - 303 - 141  [0.495] 740
+Started game 742 of 9704 (Current vs CurrentLmr)
+Finished game 741 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 297 - 303 - 141  [0.496] 741
+Started game 743 of 9704 (CurrentLmr vs Current)
+Finished game 742 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 297 - 304 - 141  [0.495] 742
+Started game 744 of 9704 (Current vs CurrentLmr)
+Finished game 743 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 298 - 304 - 141  [0.496] 743
+Started game 745 of 9704 (CurrentLmr vs Current)
+Finished game 744 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 298 - 305 - 141  [0.495] 744
+Started game 746 of 9704 (Current vs CurrentLmr)
+Finished game 745 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 299 - 305 - 141  [0.496] 745
+Started game 747 of 9704 (CurrentLmr vs Current)
+Finished game 747 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 299 - 306 - 141  [0.495] 746
+Started game 748 of 9704 (Current vs CurrentLmr)
+Finished game 746 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 299 - 307 - 141  [0.495] 747
+Started game 749 of 9704 (CurrentLmr vs Current)
+Finished game 748 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 300 - 307 - 141  [0.495] 748
+Started game 750 of 9704 (Current vs CurrentLmr)
+Finished game 749 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 301 - 307 - 141  [0.496] 749
+Started game 751 of 9704 (CurrentLmr vs Current)
+Finished game 750 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 302 - 307 - 141  [0.497] 750
+Started game 752 of 9704 (Current vs CurrentLmr)
+Finished game 751 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 302 - 308 - 141  [0.496] 751
+Started game 753 of 9704 (CurrentLmr vs Current)
+Finished game 752 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 302 - 309 - 141  [0.495] 752
+Started game 754 of 9704 (Current vs CurrentLmr)
+Finished game 753 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 303 - 309 - 141  [0.496] 753
+Started game 755 of 9704 (CurrentLmr vs Current)
+Finished game 754 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 304 - 309 - 141  [0.497] 754
+Started game 756 of 9704 (Current vs CurrentLmr)
+Finished game 755 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 305 - 309 - 141  [0.497] 755
+Started game 757 of 9704 (CurrentLmr vs Current)
+Finished game 756 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 305 - 309 - 142  [0.497] 756
+Started game 758 of 9704 (Current vs CurrentLmr)
+Finished game 757 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 306 - 309 - 142  [0.498] 757
+Started game 759 of 9704 (CurrentLmr vs Current)
+Finished game 758 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 306 - 310 - 142  [0.497] 758
+Started game 760 of 9704 (Current vs CurrentLmr)
+Finished game 760 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 306 - 310 - 143  [0.497] 759
+Started game 761 of 9704 (CurrentLmr vs Current)
+Finished game 759 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 306 - 311 - 143  [0.497] 760
+Started game 762 of 9704 (Current vs CurrentLmr)
+Finished game 761 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 306 - 312 - 143  [0.496] 761
+Started game 763 of 9704 (CurrentLmr vs Current)
+Finished game 762 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 306 - 312 - 144  [0.496] 762
+Started game 764 of 9704 (Current vs CurrentLmr)
+Finished game 763 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 306 - 313 - 144  [0.495] 763
+Started game 765 of 9704 (CurrentLmr vs Current)
+Finished game 764 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 306 - 314 - 144  [0.495] 764
+Started game 766 of 9704 (Current vs CurrentLmr)
+Finished game 766 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 307 - 314 - 144  [0.495] 765
+Started game 767 of 9704 (CurrentLmr vs Current)
+Finished game 765 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 307 - 315 - 144  [0.495] 766
+Started game 768 of 9704 (Current vs CurrentLmr)
+Finished game 768 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 308 - 315 - 144  [0.495] 767
+Started game 769 of 9704 (CurrentLmr vs Current)
+Finished game 769 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 308 - 315 - 145  [0.495] 768
+Started game 770 of 9704 (Current vs CurrentLmr)
+Finished game 767 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 308 - 315 - 146  [0.495] 769
+Started game 771 of 9704 (CurrentLmr vs Current)
+Finished game 771 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 309 - 315 - 146  [0.496] 770
+Started game 772 of 9704 (Current vs CurrentLmr)
+Finished game 772 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 310 - 315 - 146  [0.497] 771
+Started game 773 of 9704 (CurrentLmr vs Current)
+Finished game 770 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 310 - 316 - 146  [0.496] 772
+Started game 774 of 9704 (Current vs CurrentLmr)
+Finished game 773 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 310 - 317 - 146  [0.495] 773
+Started game 775 of 9704 (CurrentLmr vs Current)
+Finished game 774 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 311 - 317 - 146  [0.496] 774
+Started game 776 of 9704 (Current vs CurrentLmr)
+Finished game 775 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 312 - 317 - 146  [0.497] 775
+Started game 777 of 9704 (CurrentLmr vs Current)
+Finished game 776 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 312 - 318 - 146  [0.496] 776
+Started game 778 of 9704 (Current vs CurrentLmr)
+Finished game 777 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 313 - 318 - 146  [0.497] 777
+Started game 779 of 9704 (CurrentLmr vs Current)
+Finished game 778 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 314 - 318 - 146  [0.497] 778
+Started game 780 of 9704 (Current vs CurrentLmr)
+Finished game 779 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 315 - 318 - 146  [0.498] 779
+Started game 781 of 9704 (CurrentLmr vs Current)
+Finished game 780 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 315 - 319 - 146  [0.497] 780
+Started game 782 of 9704 (Current vs CurrentLmr)
+Finished game 781 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 316 - 319 - 146  [0.498] 781
+Started game 783 of 9704 (CurrentLmr vs Current)
+Finished game 782 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 317 - 319 - 146  [0.499] 782
+Started game 784 of 9704 (Current vs CurrentLmr)
+Finished game 783 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 317 - 319 - 147  [0.499] 783
+Started game 785 of 9704 (CurrentLmr vs Current)
+Finished game 784 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 318 - 319 - 147  [0.499] 784
+Started game 786 of 9704 (Current vs CurrentLmr)
+Finished game 785 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 318 - 319 - 148  [0.499] 785
+Started game 787 of 9704 (CurrentLmr vs Current)
+Finished game 786 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 319 - 319 - 148  [0.500] 786
+Started game 788 of 9704 (Current vs CurrentLmr)
+Finished game 787 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 319 - 320 - 148  [0.499] 787
+Started game 789 of 9704 (CurrentLmr vs Current)
+Finished game 788 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 319 - 320 - 149  [0.499] 788
+Started game 790 of 9704 (Current vs CurrentLmr)
+Finished game 789 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 320 - 320 - 149  [0.500] 789
+Started game 791 of 9704 (CurrentLmr vs Current)
+Finished game 790 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 320 - 321 - 149  [0.499] 790
+Started game 792 of 9704 (Current vs CurrentLmr)
+Finished game 791 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 320 - 321 - 150  [0.499] 791
+Started game 793 of 9704 (CurrentLmr vs Current)
+Finished game 792 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 320 - 321 - 151  [0.499] 792
+Started game 794 of 9704 (Current vs CurrentLmr)
+Finished game 793 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 320 - 322 - 151  [0.499] 793
+Started game 795 of 9704 (CurrentLmr vs Current)
+Finished game 794 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 320 - 323 - 151  [0.498] 794
+Started game 796 of 9704 (Current vs CurrentLmr)
+Finished game 795 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 321 - 323 - 151  [0.499] 795
+Started game 797 of 9704 (CurrentLmr vs Current)
+Finished game 796 (Current vs CurrentLmr): 1/2-1/2 {Draw by stalemate}
+Score of CurrentLmr vs Current: 321 - 323 - 152  [0.499] 796
+Started game 798 of 9704 (Current vs CurrentLmr)
+Finished game 797 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 321 - 324 - 152  [0.498] 797
+Started game 799 of 9704 (CurrentLmr vs Current)
+Finished game 798 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 322 - 324 - 152  [0.499] 798
+Started game 800 of 9704 (Current vs CurrentLmr)
+Finished game 800 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 323 - 324 - 152  [0.499] 799
+Started game 801 of 9704 (CurrentLmr vs Current)
+Finished game 799 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 323 - 325 - 152  [0.499] 800
+Started game 802 of 9704 (Current vs CurrentLmr)
+Finished game 802 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 324 - 325 - 152  [0.499] 801
+Started game 803 of 9704 (CurrentLmr vs Current)
+Finished game 801 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 325 - 325 - 152  [0.500] 802
+Started game 804 of 9704 (Current vs CurrentLmr)
+Finished game 804 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 325 - 325 - 153  [0.500] 803
+Started game 805 of 9704 (CurrentLmr vs Current)
+Finished game 803 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 326 - 325 - 153  [0.501] 804
+Started game 806 of 9704 (Current vs CurrentLmr)
+Finished game 806 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 326 - 326 - 153  [0.500] 805
+Started game 807 of 9704 (CurrentLmr vs Current)
+Finished game 805 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 327 - 326 - 153  [0.501] 806
+Started game 808 of 9704 (Current vs CurrentLmr)
+Finished game 807 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 328 - 326 - 153  [0.501] 807
+Started game 809 of 9704 (CurrentLmr vs Current)
+Finished game 808 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 328 - 326 - 154  [0.501] 808
+Started game 810 of 9704 (Current vs CurrentLmr)
+Finished game 810 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 328 - 327 - 154  [0.501] 809
+Started game 811 of 9704 (CurrentLmr vs Current)
+Finished game 809 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 329 - 327 - 154  [0.501] 810
+Started game 812 of 9704 (Current vs CurrentLmr)
+Finished game 811 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 330 - 327 - 154  [0.502] 811
+Started game 813 of 9704 (CurrentLmr vs Current)
+Finished game 812 (Current vs CurrentLmr): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 330 - 327 - 155  [0.502] 812
+Started game 814 of 9704 (Current vs CurrentLmr)
+Finished game 814 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 331 - 327 - 155  [0.502] 813
+Started game 815 of 9704 (CurrentLmr vs Current)
+Finished game 813 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 331 - 328 - 155  [0.502] 814
+Started game 816 of 9704 (Current vs CurrentLmr)
+Finished game 815 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 332 - 328 - 155  [0.502] 815
+Started game 817 of 9704 (CurrentLmr vs Current)
+Finished game 816 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 333 - 328 - 155  [0.503] 816
+Started game 818 of 9704 (Current vs CurrentLmr)
+Finished game 817 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 334 - 328 - 155  [0.504] 817
+Started game 819 of 9704 (CurrentLmr vs Current)
+Finished game 819 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 334 - 329 - 155  [0.503] 818
+Started game 820 of 9704 (Current vs CurrentLmr)
+Finished game 818 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 334 - 330 - 155  [0.502] 819
+Started game 821 of 9704 (CurrentLmr vs Current)
+Finished game 820 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 335 - 330 - 155  [0.503] 820
+Started game 822 of 9704 (Current vs CurrentLmr)
+Finished game 821 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 336 - 330 - 155  [0.504] 821
+Started game 823 of 9704 (CurrentLmr vs Current)
+Finished game 822 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 336 - 331 - 155  [0.503] 822
+Started game 824 of 9704 (Current vs CurrentLmr)
+Finished game 823 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 337 - 331 - 155  [0.504] 823
+Started game 825 of 9704 (CurrentLmr vs Current)
+Finished game 824 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 337 - 332 - 155  [0.503] 824
+Started game 826 of 9704 (Current vs CurrentLmr)
+Finished game 825 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 338 - 332 - 155  [0.504] 825
+Started game 827 of 9704 (CurrentLmr vs Current)
+Finished game 826 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 338 - 333 - 155  [0.503] 826
+Started game 828 of 9704 (Current vs CurrentLmr)
+Finished game 827 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 338 - 334 - 155  [0.502] 827
+Started game 829 of 9704 (CurrentLmr vs Current)
