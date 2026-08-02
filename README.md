@@ -217,6 +217,10 @@ bestmove b1c3
   D1.4 fast SEE 正确性通过但性能门禁失败，二者均未进入 Current。见
   [`d1.3-qsearch-see-pruning.md`](docs/benchmarks/d1.3-qsearch-see-pruning.md) 和
   [`d1.4-fast-pruning-see.md`](docs/benchmarks/d1.4-fast-pruning-see.md)。
+- **D1.14 Current vs CurrentLmr**：已完成 Cutechess 进程、opening provenance、
+  PGN/pair 完整性和 candidate-first 统计方向的 40 局 smoke；正式 9,704 局
+  SPRT 尚未启动。`Current` 保持不变，smoke 结果不代表 Elo 或生产晋级。见
+  [`d1.14-current-vs-current-lmr.md`](docs/benchmarks/d1.14-current-vs-current-lmr.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
   仅保留文档与 Git lineage。见

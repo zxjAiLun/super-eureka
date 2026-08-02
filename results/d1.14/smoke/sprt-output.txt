@@ -1,0 +1,143 @@
+Started game 1 of 40 (CurrentLmr vs Current)
+Finished game 1 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 1 - 0 - 0  [1.000] 1
+Started game 2 of 40 (Current vs CurrentLmr)
+Finished game 2 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 1 - 1 - 0  [0.500] 2
+Started game 3 of 40 (CurrentLmr vs Current)
+Finished game 3 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 1 - 2 - 0  [0.333] 3
+Started game 4 of 40 (Current vs CurrentLmr)
+Finished game 4 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 2 - 2 - 0  [0.500] 4
+Started game 5 of 40 (CurrentLmr vs Current)
+Finished game 5 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 3 - 2 - 0  [0.600] 5
+Started game 6 of 40 (Current vs CurrentLmr)
+Finished game 6 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 3 - 3 - 0  [0.500] 6
+Started game 7 of 40 (CurrentLmr vs Current)
+Finished game 7 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 3 - 3 - 1  [0.500] 7
+Started game 8 of 40 (Current vs CurrentLmr)
+Finished game 8 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 4 - 3 - 1  [0.563] 8
+Started game 9 of 40 (CurrentLmr vs Current)
+Finished game 9 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 5 - 3 - 1  [0.611] 9
+Started game 10 of 40 (Current vs CurrentLmr)
+Finished game 10 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 6 - 3 - 1  [0.650] 10
+Started game 11 of 40 (CurrentLmr vs Current)
+Finished game 11 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 7 - 3 - 1  [0.682] 11
+Started game 12 of 40 (Current vs CurrentLmr)
+Finished game 12 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 8 - 3 - 1  [0.708] 12
+Started game 13 of 40 (CurrentLmr vs Current)
+Finished game 13 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 8 - 4 - 1  [0.654] 13
+Started game 14 of 40 (Current vs CurrentLmr)
+Finished game 14 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 9 - 4 - 1  [0.679] 14
+Started game 15 of 40 (CurrentLmr vs Current)
+Finished game 15 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 9 - 5 - 1  [0.633] 15
+Started game 16 of 40 (Current vs CurrentLmr)
+Finished game 16 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 9 - 6 - 1  [0.594] 16
+Started game 17 of 40 (CurrentLmr vs Current)
+Finished game 17 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 10 - 6 - 1  [0.618] 17
+Started game 18 of 40 (Current vs CurrentLmr)
+Finished game 18 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 10 - 7 - 1  [0.583] 18
+Started game 19 of 40 (CurrentLmr vs Current)
+Finished game 19 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 10 - 7 - 2  [0.579] 19
+Started game 20 of 40 (Current vs CurrentLmr)
+Finished game 20 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 11 - 7 - 2  [0.600] 20
+Started game 21 of 40 (CurrentLmr vs Current)
+Finished game 21 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 12 - 7 - 2  [0.619] 21
+Started game 22 of 40 (Current vs CurrentLmr)
+Finished game 22 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 13 - 7 - 2  [0.636] 22
+Started game 23 of 40 (CurrentLmr vs Current)
+Finished game 23 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 13 - 8 - 2  [0.609] 23
+Started game 24 of 40 (Current vs CurrentLmr)
+Finished game 24 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 14 - 8 - 2  [0.625] 24
+Started game 25 of 40 (CurrentLmr vs Current)
+Finished game 25 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 15 - 8 - 2  [0.640] 25
+Started game 26 of 40 (Current vs CurrentLmr)
+Finished game 26 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 15 - 9 - 2  [0.615] 26
+Started game 27 of 40 (CurrentLmr vs Current)
+Finished game 27 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 15 - 9 - 3  [0.611] 27
+Started game 28 of 40 (Current vs CurrentLmr)
+Finished game 28 (Current vs CurrentLmr): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 15 - 9 - 4  [0.607] 28
+Started game 29 of 40 (CurrentLmr vs Current)
+Finished game 29 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 16 - 9 - 4  [0.621] 29
+Started game 30 of 40 (Current vs CurrentLmr)
+Finished game 30 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 17 - 9 - 4  [0.633] 30
+Started game 31 of 40 (CurrentLmr vs Current)
+Finished game 31 (CurrentLmr vs Current): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 17 - 10 - 4  [0.613] 31
+Started game 32 of 40 (Current vs CurrentLmr)
+Finished game 32 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 18 - 10 - 4  [0.625] 32
+Started game 33 of 40 (CurrentLmr vs Current)
+Finished game 33 (CurrentLmr vs Current): 1/2-1/2 {Draw by 3-fold repetition}
+Score of CurrentLmr vs Current: 18 - 10 - 5  [0.621] 33
+Started game 34 of 40 (Current vs CurrentLmr)
+Finished game 34 (Current vs CurrentLmr): 1-0 {White mates}
+Score of CurrentLmr vs Current: 18 - 11 - 5  [0.603] 34
+Started game 35 of 40 (CurrentLmr vs Current)
+Finished game 35 (CurrentLmr vs Current): 1-0 {White mates}
+Score of CurrentLmr vs Current: 19 - 11 - 5  [0.614] 35
+Started game 36 of 40 (Current vs CurrentLmr)
+Finished game 36 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 20 - 11 - 5  [0.625] 36
+Started game 37 of 40 (CurrentLmr vs Current)
+Finished game 37 (CurrentLmr vs Current): 1/2-1/2 {Draw by fifty moves rule}
+Score of CurrentLmr vs Current: 20 - 11 - 6  [0.622] 37
+Started game 38 of 40 (Current vs CurrentLmr)
+Finished game 38 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 21 - 11 - 6  [0.632] 38
+Started game 39 of 40 (CurrentLmr vs Current)
+Finished game 39 (CurrentLmr vs Current): 1/2-1/2 {Draw by insufficient mating material}
+Score of CurrentLmr vs Current: 21 - 11 - 7  [0.628] 39
+Started game 40 of 40 (Current vs CurrentLmr)
+Finished game 40 (Current vs CurrentLmr): 0-1 {Black mates}
+Score of CurrentLmr vs Current: 22 - 11 - 7  [0.637] 40
+...      CurrentLmr playing White: 9 - 5 - 6  [0.600] 20
+...      CurrentLmr playing Black: 13 - 6 - 1  [0.675] 20
+...      White vs Black: 15 - 18 - 7  [0.463] 40
+Elo difference: 98.1 +/- 104.4, LOS: 97.2 %, DrawRatio: 17.5 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Player: CurrentLmr
+   "Draw by 3-fold repetition": 3
+   "Draw by fifty moves rule": 1
+   "Draw by insufficient mating material": 3
+   "Loss: Black mates": 5
+   "Loss: White mates": 6
+   "Win: Black mates": 13
+   "Win: White mates": 9
+Player: Current
+   "Draw by 3-fold repetition": 3
+   "Draw by fifty moves rule": 1
+   "Draw by insufficient mating material": 3
+   "Loss: Black mates": 13
+   "Loss: White mates": 9
+   "Win: Black mates": 5
+   "Win: White mates": 6
+Finished match

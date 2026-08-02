@@ -1,0 +1,27 @@
+{
+  "baseline": "Current",
+  "candidate": "CurrentLmr",
+  "candidate_losses": 11,
+  "candidate_score": 0.6375,
+  "candidate_wins": 22,
+  "decision": "NOT_APPLICABLE",
+  "descriptive_elo": 98.06887127959209,
+  "descriptive_elo_error_95": 111.98923508508325,
+  "descriptive_only": true,
+  "draws": 7,
+  "games": 40,
+  "integrity_status": "PASS",
+  "mode": "Smoke",
+  "opening_pair_status": "PASS",
+  "pairs": 20,
+  "pentanomial_candidate_points_0_to_2": [
+    1,
+    1,
+    9,
+    4,
+    5
+  ],
+  "pgn_status": "PASS",
+  "profile_status": "PASS",
+  "time_forfeit_games": 0
+}
