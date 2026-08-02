@@ -18,7 +18,7 @@ class DepthUpliftTests(unittest.TestCase):
                 import sys
 
                 profile = sys.argv[sys.argv.index('--profile') + 1]
-                depth = 4 if profile == 'current-qsearch-pruning' else 3
+                depth = 4 if profile in {'current-qsearch-pruning', 'current-lmr'} else 3
 
                 for raw in sys.stdin:
                     line = raw.strip()
@@ -36,6 +36,13 @@ class DepthUpliftTests(unittest.TestCase):
                                 f'time {current} nps {current * 100} pv e2e4',
                                 flush=True,
                             )
+                        reductions = 0 if profile == 'current' else 10
+                        researches = 0 if profile == 'current' else 2
+                        print(
+                            'info string search stats '
+                            f'lmr_reductions={reductions} lmr_researches={researches}',
+                            flush=True,
+                        )
                         print('bestmove e2e4', flush=True)
                     elif line == 'quit':
                         break
@@ -69,8 +76,12 @@ class DepthUpliftTests(unittest.TestCase):
         ])
         summary = report["fixture_summary"][0]
         self.assertEqual(summary["candidate_minus_baseline_depth_median"], 1)
+        self.assertEqual(summary["equal_depth_paired_samples"], 0)
         self.assertIsNone(report["rows"][0]["qsearch_nodes"])
         self.assertEqual(report["rows"][0]["time_to_depth_ms"], 3)
+        self.assertEqual(report["rows"][0]["lmr_reductions"], 0)
+        self.assertEqual(report["rows"][1]["lmr_researches"], 2)
+        self.assertEqual(report["rows"][1]["lmr_research_rate"], 0.2)
         self.assertTrue(report["resources"]["fresh_process_per_search"])
 
     def test_unknown_fixture_is_rejected(self):
@@ -82,6 +93,33 @@ class DepthUpliftTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(ValueError):
                 run_depth_uplift(Path(temp) / "missing.exe", fixture_ids={"startpos"}, gate_decision="maybe")
+
+    def test_profiles_are_explicit_and_recorded(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report = run_depth_uplift(
+                self._fake_engine(Path(temp)),
+                movetime_ms=10,
+                repeats=1,
+                timeout_s=1.0,
+                fixture_ids={"startpos"},
+                baseline_profile="current",
+                candidate_profile="current-lmr",
+            )
+        self.assertEqual(
+            report["profiles"],
+            {"baseline": "current", "candidate": "current-lmr"},
+        )
+        self.assertEqual(report["fixture_summary"][0]["candidate_minus_baseline_depth_median"], 1)
+
+    def test_equal_profiles_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(ValueError):
+                run_depth_uplift(
+                    Path(temp) / "missing.exe",
+                    fixture_ids={"startpos"},
+                    baseline_profile="current",
+                    candidate_profile="current",
+                )
 
     def test_fixture_summaries_do_not_mix_positions(self):
         with tempfile.TemporaryDirectory() as temp:

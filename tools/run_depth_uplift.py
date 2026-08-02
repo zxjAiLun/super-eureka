@@ -1,4 +1,4 @@
-"""Compare Current and D1.3 at equal fixed time budgets.
+"""Compare two UCI profiles at equal fixed time budgets.
 
 This is a measurement tool, not an Elo runner.  Every search uses a fresh UCI
 process, the same FEN and Hash setting, and a deterministic interleaving:
@@ -68,6 +68,28 @@ def _case(fixture: Fixture) -> Case:
     return Case(fixture.fixture_id, "depth-uplift", fixture.fen, "bench", 0, 1)
 
 
+def parse_search_stats(line: str) -> Optional[dict[str, int]]:
+    """Parse the post-search diagnostic counters without inferring them."""
+
+    tokens = line.split()
+    if tokens[:4] != ["info", "string", "search", "stats"]:
+        return None
+    values: dict[str, int] = {}
+    for token in tokens[4:]:
+        if "=" not in token:
+            continue
+        name, raw_value = token.split("=", 1)
+        if name not in {"lmr_reductions", "lmr_researches"}:
+            continue
+        try:
+            values[name] = int(raw_value)
+        except ValueError:
+            return None
+    if set(values) != {"lmr_reductions", "lmr_researches"}:
+        return None
+    return values
+
+
 def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> dict[str, Any]:
     """Use the existing D1.11 session lifecycle for a fixed-time search."""
 
@@ -81,8 +103,14 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
     highest = None
     latest_nodes: Optional[int] = None
     time_to_depth_ms: Optional[int] = None
+    lmr_reductions: Optional[int] = None
+    lmr_researches: Optional[int] = None
     while True:
         line = session._readline(deadline)
+        stats = parse_search_stats(line)
+        if stats is not None:
+            lmr_reductions = stats["lmr_reductions"]
+            lmr_researches = stats["lmr_researches"]
         if line.startswith("info "):
             info = parse_info(line)
             if info is not None:
@@ -113,6 +141,11 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
         raise EngineFailure(f"{session.profile}: no scored info line; {session._context()}")
     result = SearchResult(bestmove, highest[0], highest[1], highest[2])
     session._validate_result(board, result)
+    lmr_research_rate = None
+    if lmr_reductions is not None and lmr_researches is not None:
+        lmr_research_rate = (
+            round(lmr_researches / lmr_reductions, 6) if lmr_reductions else 0.0
+        )
     return {
         "bestmove": result.bestmove,
         "completed_depth": result.completed_depth,
@@ -121,6 +154,9 @@ def _search_movetime(session: EngineSession, case: Case, movetime_ms: int) -> di
         "nodes": latest_nodes,
         "qsearch_nodes": None,
         "time_to_depth_ms": time_to_depth_ms,
+        "lmr_reductions": lmr_reductions,
+        "lmr_researches": lmr_researches,
+        "lmr_research_rate": lmr_research_rate,
         "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
     }
 
@@ -173,6 +209,9 @@ def _aggregate_fixture(rows: list[dict[str, Any]], fixture_id: str) -> dict[str,
     time_ratios: list[float] = []
     baseline_depths: list[int] = []
     candidate_depths: list[int] = []
+    candidate_lmr_reductions: list[float] = []
+    candidate_lmr_researches: list[float] = []
+    candidate_lmr_rates: list[float] = []
     for pair in by_pair.values():
         baseline = pair.get("baseline")
         candidate = pair.get("candidate")
@@ -181,6 +220,12 @@ def _aggregate_fixture(rows: list[dict[str, Any]], fixture_id: str) -> dict[str,
         baseline_depths.append(baseline["completed_depth"])
         candidate_depths.append(candidate["completed_depth"])
         deltas.append(candidate["completed_depth"] - baseline["completed_depth"])
+        if candidate.get("lmr_reductions") is not None:
+            candidate_lmr_reductions.append(float(candidate["lmr_reductions"]))
+        if candidate.get("lmr_researches") is not None:
+            candidate_lmr_researches.append(float(candidate["lmr_researches"]))
+        if candidate.get("lmr_research_rate") is not None:
+            candidate_lmr_rates.append(float(candidate["lmr_research_rate"]))
         baseline_time = baseline.get("time_to_depth_ms")
         candidate_time = candidate.get("time_to_depth_ms")
         if (
@@ -197,6 +242,10 @@ def _aggregate_fixture(rows: list[dict[str, Any]], fixture_id: str) -> dict[str,
         "candidate_depth_median": _median([float(value) for value in candidate_depths]),
         "candidate_minus_baseline_depth_median": _median(deltas),
         "equal_depth_candidate_over_baseline_time_median": _median(time_ratios),
+        "equal_depth_paired_samples": len(time_ratios),
+        "candidate_lmr_reductions_median": _median(candidate_lmr_reductions),
+        "candidate_lmr_researches_median": _median(candidate_lmr_researches),
+        "candidate_lmr_research_rate_median": _median(candidate_lmr_rates),
         "qsearch_nodes": None,
     }
 
@@ -210,17 +259,23 @@ def run_depth_uplift(
     fixture_ids: Optional[set[str]] = None,
     report_path: Optional[Path] = None,
     gate_decision: str = "UNDECIDED",
+    baseline_profile: str = "current",
+    candidate_profile: str = "current-qsearch-pruning",
 ) -> dict[str, Any]:
     if movetime_ms <= 0 or repeats <= 0 or hash_mb <= 0 or timeout_s <= 0:
         raise ValueError("movetime, repeats, hash, and timeout must be positive")
     if gate_decision not in {"PASS", "FAIL", "UNDECIDED"}:
         raise ValueError("gate_decision must be PASS, FAIL, or UNDECIDED")
+    if not baseline_profile or not candidate_profile:
+        raise ValueError("baseline and candidate profiles must be non-empty")
+    if baseline_profile == candidate_profile:
+        raise ValueError("baseline and candidate profiles must differ")
     fixtures = tuple(f for f in FIXTURES if fixture_ids is None or f.fixture_id in fixture_ids)
     if not fixtures:
         raise ValueError("fixture filter selected no known fixtures")
     rows: list[dict[str, Any]] = []
     errors: list[str] = []
-    profiles = {"baseline": "current", "candidate": "current-qsearch-pruning"}
+    profiles = {"baseline": baseline_profile, "candidate": candidate_profile}
     for fixture in fixtures:
         for pair in range(1, repeats + 1):
             order = ("baseline", "candidate") if pair % 2 else ("candidate", "baseline")
@@ -240,7 +295,7 @@ def run_depth_uplift(
                 if row["status"] != "PASS":
                     errors.append(f"{fixture.fixture_id} pair {pair} {role}: {row['error']}")
     report: dict[str, Any] = {
-        "tool": "d1.12-depth-uplift",
+        "tool": "depth-uplift",
         "measurement_status": "FAIL" if errors else "PASS",
         "gate_decision": gate_decision,
         "profiles": profiles,
@@ -278,6 +333,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hash-mb", type=int, default=DEFAULT_HASH_MB)
     parser.add_argument("--timeout-s", type=float, default=DEFAULT_TIMEOUT_S)
     parser.add_argument("--fixture", action="append", dest="fixtures")
+    parser.add_argument("--baseline-profile", default="current")
+    parser.add_argument("--candidate-profile", default="current-qsearch-pruning")
     parser.add_argument("--gate-decision", choices=("PASS", "FAIL", "UNDECIDED"), default="UNDECIDED")
     parser.add_argument("--report", type=Path, default=None)
     return parser
@@ -295,6 +352,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             fixture_ids=set(args.fixtures) if args.fixtures else None,
             report_path=args.report,
             gate_decision=args.gate_decision,
+            baseline_profile=args.baseline_profile,
+            candidate_profile=args.candidate_profile,
         )
     except (OSError, ValueError) as exc:
         print(json.dumps({"measurement_status": "FAIL", "error": str(exc)}, indent=2))

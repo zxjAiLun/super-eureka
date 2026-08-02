@@ -250,6 +250,12 @@ bestmove b1c3
   或固定时间样本直接解释成 Elo；结果显示没有稳定的跨局面 depth uplift，因此 D1.3
   关闭且未进入 `Current` 或 Elo/SPRT。当前 UCI 未暴露 qsearch counter，因此报告明确记为 null。
   见 [`d1.12-depth-uplift-gate.md`](docs/benchmarks/d1.12-depth-uplift-gate.md)。
+- **D1.13 isolated Current + LMR（PASS，Current 未改变）**：新增独立的
+  `current-lmr` 启动 profile，只继承 Current 的 PVS、排序和 D1.2 qsearch movegen，
+  额外开启既有保守 LMR；aspiration、null、futility、SEE pruning 和 fast SEE 均关闭。
+  D1.10 depth 7 与 D1.11 depth 6 差分无回归，1s/3s 固定时间矩阵全部完成，3s
+  等深耗时总体中位数达到门槛，因此候选具备单独 Elo/SPRT 资格，但没有自动晋级 Current。
+  见 [`d1.13-current-lmr-depth-gate.md`](docs/benchmarks/d1.13-current-lmr-depth-gate.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
   和浅层 futility；批准的 `current` 仍关闭这些开关。见
