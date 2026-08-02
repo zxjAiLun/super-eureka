@@ -211,8 +211,10 @@ bestmove b1c3
 - **D1.2 qsearch movegen（已合入 Current）**：非将军 qsearch 使用 specialized
   tactical generation；规则、搜索树和 PV 保持等价，降低节点内 movegen 成本。见
   [`d1.2-qsearch-movegen.md`](docs/benchmarks/d1.2-qsearch-movegen.md)。
-- **D1.3/D1.4 qsearch pruning（bench-only）**：保守 SEE pruning 正确性通过但仍
-  等待外部战术验证；fast SEE 正确性通过但性能门禁失败，均未进入 Current。见
+- **D1.3/D1.4 qsearch pruning（D1.3 已关闭）**：D1.3 保守 SEE pruning 的正确性与
+  安全门禁通过，但 D1.12 固定时间深度门禁未形成稳定收益，最终
+  `PERFORMANCE REJECTED / CLOSED`；保留 profile 仅用于历史复现，不再调参或晋级。
+  D1.4 fast SEE 正确性通过但性能门禁失败，二者均未进入 Current。见
   [`d1.3-qsearch-see-pruning.md`](docs/benchmarks/d1.3-qsearch-see-pruning.md) 和
   [`d1.4-fast-pruning-see.md`](docs/benchmarks/d1.4-fast-pruning-see.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
@@ -242,11 +244,11 @@ bestmove b1c3
   case 分开统计；不代表 tactical/mate/promotion/endgame motif 已验证，不改变 `Current`，
   不代表 Elo，也不授权 D1.3 SEE pruning 晋级。见
   [`d1.11-external-validation-corpus.md`](docs/benchmarks/d1.11-external-validation-corpus.md)。
-- **D1.12 D1.3 depth-uplift gate（FAIL，Current 未改变）**：复用 D1.10/D1.11 corpus，
+- **D1.12 D1.3 depth-uplift gate（FAIL，D1.3 已关闭，Current 未改变）**：复用 D1.10/D1.11 corpus，
   增加 depth override 以及十个标准局面的固定时间 `A/B` 交错对照；记录 completed depth、
   nodes、耗时、score、bestmove 和 PV。它不修改搜索实现或 `Current`，不把 protocol smoke
   或固定时间样本直接解释成 Elo；结果显示没有稳定的跨局面 depth uplift，因此 D1.3
-  仍未进入 `Current` 或 Elo/SPRT。当前 UCI 未暴露 qsearch counter，因此报告明确记为 null。
+  关闭且未进入 `Current` 或 Elo/SPRT。当前 UCI 未暴露 qsearch counter，因此报告明确记为 null。
   见 [`d1.12-depth-uplift-gate.md`](docs/benchmarks/d1.12-depth-uplift-gate.md)。
 - **SEARCH 1（本地候选，未接受）**：独立 profile 与累计
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
