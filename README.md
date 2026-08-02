@@ -59,8 +59,9 @@ cargo run --release -- bench profile --nodes 100000
   M4.1 排序 + PVS + 已批准的 specialized qsearch movegen 生产路径；SEE pruning、
   fast SEE、aspiration、LMR、null 和 futility 仍关闭。`current-aspiration-*` 是
   累计 tournament candidate profile；没有现有 profile 同时包含 null 与全部累计功能。
-  `current-threat-aware` 是 S2.1 的候选评估 profile，只增加有界 king-danger 评价，
-  不改变 `Current`，也不打开 LMR、null、futility 或 SEE pruning。
+  `current-threat-aware` 是 S2.1 的候选 profile，增加有界 king-danger 评价、检查/单一
+  应将扩展、前两层 qsearch 检查和威胁感知排序；不改变 `Current`，也不打开 LMR、null、
+  futility 或 SEE pruning。
   M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
   lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
 

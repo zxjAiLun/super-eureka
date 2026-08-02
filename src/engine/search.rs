@@ -81,10 +81,10 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
 /// * `CurrentLmr` preserves the `Current` PVS, ordering, and specialized
 ///   qsearch movegen path, adding only the existing conservative LMR rules.
-/// * `CurrentThreatAware` preserves the `Current` PVS, ordering, and
-///   specialized qsearch movegen path, replacing only the leaf evaluation
-///   with the candidate-only king-danger signal. It does not enable LMR,
-///   aspiration, null move, futility, or SEE pruning.
+/// * `CurrentThreatAware` preserves the `Current` PVS and specialized qsearch
+///   movegen path, adding only the candidate-only king-danger evaluation,
+///   bounded forcing extensions/checks, and threat-aware ordering. It does
+///   not enable LMR, aspiration, null move, futility, or SEE pruning.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -208,6 +208,11 @@ impl SearchProfile {
     pub(crate) const fn uses_threat_aware_eval(self) -> bool {
         matches!(self, Self::CurrentThreatAware)
     }
+
+    #[inline]
+    pub(crate) const fn uses_forcing_search(self) -> bool {
+        matches!(self, Self::CurrentThreatAware)
+    }
 }
 
 pub const MATE: i32 = 1_000_000;
@@ -221,6 +226,15 @@ pub const MATE: i32 = 1_000_000;
 /// stalemate first, then fall back to the static evaluation without
 /// recursing further.
 pub const MAX_QPLY: u32 = 32;
+
+/// Maximum number of main-search forcing extensions allowed on one root
+/// line. The budget makes repeated checking sequences finite even when no
+/// repetition is reached during the extension window.
+const MAX_FORCING_EXTENSIONS: u8 = 4;
+
+/// A threat-aware qsearch may add quiet checking moves only for the first two
+/// qsearch plies. Captures and promotions retain the existing qsearch rules.
+const MAX_FORCING_QPLY: u32 = 2;
 
 /// What the caller wants the search to do.
 ///
@@ -274,6 +288,11 @@ pub struct SearchContext {
     pub qsearch_checking_captures_kept: AtomicU64,
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
+    pub check_extensions: AtomicU64,
+    pub single_evasion_extensions: AtomicU64,
+    pub qsearch_check_moves: AtomicU64,
+    pub threat_ordered_moves: AtomicU64,
+    pub root_reorders: AtomicU64,
     see_enabled: AtomicBool,
     /// Diagnostic counters are opt-in so ordinary searches do not pay for
     /// an atomic increment on every hot-path event.
@@ -319,6 +338,11 @@ pub struct SearchStats {
     pub qsearch_checking_captures_kept: u64,
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
+    pub check_extensions: u64,
+    pub single_evasion_extensions: u64,
+    pub qsearch_check_moves: u64,
+    pub threat_ordered_moves: u64,
+    pub root_reorders: u64,
     pub aspiration_retries: u64,
     pub aspiration_fail_low: u64,
     pub aspiration_fail_high: u64,
@@ -367,6 +391,11 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            check_extensions: AtomicU64::new(0),
+            single_evasion_extensions: AtomicU64::new(0),
+            qsearch_check_moves: AtomicU64::new(0),
+            threat_ordered_moves: AtomicU64::new(0),
+            root_reorders: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             profiling_enabled: false,
             aspiration_retries: AtomicU64::new(0),
@@ -425,6 +454,11 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            check_extensions: AtomicU64::new(0),
+            single_evasion_extensions: AtomicU64::new(0),
+            qsearch_check_moves: AtomicU64::new(0),
+            threat_ordered_moves: AtomicU64::new(0),
+            root_reorders: AtomicU64::new(0),
             see_enabled: AtomicBool::new(false),
             profiling_enabled,
             aspiration_retries: AtomicU64::new(0),
@@ -473,6 +507,11 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
             qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
+            check_extensions: self.check_extensions.load(Ordering::Relaxed),
+            single_evasion_extensions: self.single_evasion_extensions.load(Ordering::Relaxed),
+            qsearch_check_moves: self.qsearch_check_moves.load(Ordering::Relaxed),
+            threat_ordered_moves: self.threat_ordered_moves.load(Ordering::Relaxed),
+            root_reorders: self.root_reorders.load(Ordering::Relaxed),
             aspiration_retries: self.aspiration_retries.load(Ordering::Relaxed),
             aspiration_fail_low: self.aspiration_fail_low.load(Ordering::Relaxed),
             aspiration_fail_high: self.aspiration_fail_high.load(Ordering::Relaxed),
@@ -1697,6 +1736,10 @@ struct RootIteration {
     /// outcome and would panic on a `.unwrap()`).
     best_move: Move,
     pv: Vec<Move>,
+    /// Root move scores observed during this completed iteration. Scores are
+    /// used only for the next iteration's candidate-only root ordering; the
+    /// minimax result remains `score`/`pv` above.
+    move_scores: Vec<(Move, i32)>,
 }
 
 /// Negamax with alpha-beta. Returns `None` if the search was asked to
@@ -1808,6 +1851,45 @@ fn negamax_entered_impl_with_null(
     pos: &mut Position,
     depth: u32,
     ply: u32,
+    alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    profile: SearchProfile,
+    pv: &mut PvTable,
+    path: &mut SearchPath,
+    tt: &mut TranspositionTable,
+    heur: &mut Option<SearchHeuristics>,
+    allow_null: bool,
+) -> Option<i32> {
+    let extension_budget = if profile.uses_forcing_search() {
+        MAX_FORCING_EXTENSIONS
+    } else {
+        0
+    };
+    negamax_entered_impl_with_null_and_extensions(
+        pos,
+        depth,
+        ply,
+        alpha,
+        beta,
+        ctx,
+        limits,
+        profile,
+        pv,
+        path,
+        tt,
+        heur,
+        allow_null,
+        extension_budget,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn negamax_entered_impl_with_null_and_extensions(
+    pos: &mut Position,
+    depth: u32,
+    ply: u32,
     mut alpha: i32,
     beta: i32,
     ctx: &SearchContext,
@@ -1821,6 +1903,7 @@ fn negamax_entered_impl_with_null(
     // PVS on top). `M4Reference` passes `None` and is never read/written.
     heur: &mut Option<SearchHeuristics>,
     allow_null: bool,
+    extension_budget: u8,
 ) -> Option<i32> {
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
@@ -1895,7 +1978,7 @@ fn negamax_entered_impl_with_null(
         let null_beta = null_alpha.saturating_add(1);
         // The null-probe child must not launch another null probe. This is an
         // immediate-child guard; ordinary descendants are eligible again.
-        let null_result = negamax_entered_impl_with_null(
+        let null_result = negamax_entered_impl_with_null_and_extensions(
             &mut null_pos,
             depth.saturating_sub(1 + null_move_reduction(depth)),
             ply + 1,
@@ -1909,6 +1992,7 @@ fn negamax_entered_impl_with_null(
             tt,
             heur,
             false,
+            extension_budget,
         );
         path.pop();
         let null_score = match null_result {
@@ -1920,8 +2004,21 @@ fn negamax_entered_impl_with_null(
             // depth before returning its score.
             ctx.add_profile_counter(&ctx.null_move_fail_highs, 1);
             ctx.add_profile_counter(&ctx.null_move_researches, 1);
-            return negamax_entered_impl_with_null(
-                pos, depth, ply, alpha, beta, ctx, limits, _profile, pv, path, tt, heur, false,
+            return negamax_entered_impl_with_null_and_extensions(
+                pos,
+                depth,
+                ply,
+                alpha,
+                beta,
+                ctx,
+                limits,
+                _profile,
+                pv,
+                path,
+                tt,
+                heur,
+                false,
+                extension_budget,
             );
         }
     }
@@ -1974,6 +2071,8 @@ fn negamax_entered_impl_with_null(
         None
     };
 
+    let single_evasion_node = node_in_check && moves.len() == 1;
+
     // M4.1: for non-M4Reference profiles (`M41Reference` and `Current`),
     // apply the seven-level ordering (§5) at this non-root ordinary negamax
     // node — TT hash lift, promotions, MVV-LVA captures/ep, killer slot 0,
@@ -1983,7 +2082,16 @@ fn negamax_entered_impl_with_null(
     // Killers are read from this `ply` (grown lazily; empty until a quiet
     // cutoff records one in a prior iteration); history is the per-search
     // table carried in `heur`.
-    if _profile != SearchProfile::M4Reference {
+    if _profile.uses_forcing_search() {
+        order_moves_with_threats(
+            pos,
+            &mut moves,
+            tt_probe.hash_move,
+            heur.as_ref(),
+            ply as usize,
+            ctx,
+        );
+    } else if _profile != SearchProfile::M4Reference {
         order_moves_with_hash_and_killers(
             pos,
             &mut moves,
@@ -2025,6 +2133,16 @@ fn negamax_entered_impl_with_null(
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
+        let (child_depth, child_extension_budget) = forcing_child_params(
+            pos,
+            depth,
+            _profile,
+            extension_budget,
+            node_in_check,
+            single_evasion_node,
+            ctx,
+        );
+
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(pos, path.keys(), ply + 1, ply, ctx, limits, pv) {
             Some(p) => p,
@@ -2060,9 +2178,9 @@ fn negamax_entered_impl_with_null(
                         // probe already spent the single node for this child.
                         // Handle a deeper abort EXPLICITLY: pop + unmake THIS
                         // edge before propagating None (no `?` before cleanup).
-                        match negamax_entered_impl(
+                        match negamax_entered_impl_with_null_and_extensions(
                             pos,
-                            depth - 1,
+                            child_depth,
                             ply + 1,
                             -beta,
                             -alpha_before_move,
@@ -2073,6 +2191,8 @@ fn negamax_entered_impl_with_null(
                             path,
                             tt,
                             heur,
+                            true,
+                            child_extension_budget,
                         ) {
                             Some(s) => MoveOutcome::Candidate(-s),
                             None => {
@@ -2091,9 +2211,14 @@ fn negamax_entered_impl_with_null(
                         // probe already spent the single node for this child.
                         #[cfg(test)]
                         pvs_counters::mark_scout();
-                        let scout_score = match negamax_entered_impl(
+                        let scout_depth = if reduction > 0 {
+                            depth.saturating_sub(1 + reduction)
+                        } else {
+                            child_depth
+                        };
+                        let scout_score = match negamax_entered_impl_with_null_and_extensions(
                             pos,
-                            depth.saturating_sub(1 + reduction),
+                            scout_depth,
                             ply + 1,
                             -scout_beta,
                             -alpha_before_move,
@@ -2104,6 +2229,8 @@ fn negamax_entered_impl_with_null(
                             path,
                             tt,
                             heur,
+                            true,
+                            child_extension_budget,
                         ) {
                             Some(s) => -s,
                             None => {
@@ -2152,9 +2279,9 @@ fn negamax_entered_impl_with_null(
                             }
                             #[cfg(test)]
                             pvs_counters::mark_research_entered();
-                            match negamax_entered_impl(
+                            match negamax_entered_impl_with_null_and_extensions(
                                 pos,
-                                depth - 1,
+                                child_depth,
                                 ply + 1,
                                 -beta,
                                 -alpha_before_move,
@@ -2165,6 +2292,8 @@ fn negamax_entered_impl_with_null(
                                 path,
                                 tt,
                                 heur,
+                                true,
+                                child_extension_budget,
                             ) {
                                 Some(s) => {
                                     // P2: pair the scout's stale child row
@@ -2932,6 +3061,220 @@ fn move_gives_check(pos: &mut Position, m: Move) -> bool {
     gives_check
 }
 
+/// Compute the depth/budget passed across one legal move edge. Extensions are
+/// deliberately bounded per root line and are only active for the isolated
+/// threat-aware candidate. A check extension and a single-evasion extension
+/// share one unit so the two rules cannot stack on the same edge.
+fn forcing_child_params(
+    child: &Position,
+    depth: u32,
+    profile: SearchProfile,
+    extension_budget: u8,
+    parent_in_check: bool,
+    parent_has_single_evasion: bool,
+    ctx: &SearchContext,
+) -> (u32, u8) {
+    let ordinary_depth = depth.saturating_sub(1);
+    if !profile.uses_forcing_search() || extension_budget == 0 || depth == 0 {
+        return (ordinary_depth, extension_budget);
+    }
+
+    let child_gives_check = child.is_in_check(child.side);
+    let single_evasion = parent_in_check && parent_has_single_evasion;
+    if child_gives_check || single_evasion {
+        if child_gives_check {
+            ctx.add_profile_counter(&ctx.check_extensions, 1);
+        }
+        if single_evasion {
+            ctx.add_profile_counter(&ctx.single_evasion_extensions, 1);
+        }
+        (depth, extension_budget - 1)
+    } else {
+        (ordinary_depth, extension_budget)
+    }
+}
+
+fn king_zone_attack_count(pos: &Position, king: Square, by: Color) -> i32 {
+    let file = file_of(king) as i32;
+    let rank = rank_of(king) as i32;
+    let mut count = 0;
+    for df in -1..=1 {
+        for dr in -1..=1 {
+            if on_board(file + df, rank + dr)
+                && pos.is_square_attacked(make_square((file + df) as u8, (rank + dr) as u8), by)
+            {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Cheap, candidate-only move signal used to put forcing and defensive moves
+/// ahead of otherwise equal killer/history moves. It deliberately does not
+/// reject or mutate a move: the legal move loop remains the authority.
+fn threat_move_signal(pos: &mut Position, m: Move) -> (bool, i32) {
+    let mover = pos.side;
+    let enemy = mover.opposite();
+    let own_king = pos.king_sq[mover as usize];
+    let enemy_king = pos.king_sq[enemy as usize];
+    let own_before = king_zone_attack_count(pos, own_king, mover);
+    let enemy_before = king_zone_attack_count(pos, enemy_king, mover);
+    let moving_piece = pos.board[m.from as usize];
+    let mut score = 0;
+
+    if let Some(piece) = moving_piece {
+        if piece.piece_type == PieceType::Pawn {
+            let from_rank = rank_of(m.from);
+            let to_rank = rank_of(m.to);
+            let advances = if mover == Color::White {
+                to_rank > from_rank
+            } else {
+                to_rank < from_rank
+            };
+            if advances && (2..=5).contains(&to_rank) {
+                score += 24;
+            }
+            if matches!(m.flag, MoveFlag::DoublePawnPush) {
+                score += 16;
+            }
+            if pos.board[m.to as usize].is_some() {
+                score += 20;
+            }
+        }
+    }
+
+    let to_file = file_of(m.to) as i32;
+    let to_rank = rank_of(m.to) as i32;
+    let own_file = file_of(own_king) as i32;
+    let own_rank = rank_of(own_king) as i32;
+    let enemy_file = file_of(enemy_king) as i32;
+    let enemy_rank = rank_of(enemy_king) as i32;
+    if (to_file - enemy_file).abs() <= 1 && (to_rank - enemy_rank).abs() <= 1 {
+        score += 80;
+    }
+    if (to_file - own_file).abs() <= 1 && (to_rank - own_rank).abs() <= 1 {
+        score += 24;
+    }
+
+    let undo = pos.make_move(m);
+    let gives_check = pos.is_in_check(pos.side);
+    let own_after = king_zone_attack_count(pos, own_king, mover);
+    let enemy_after = king_zone_attack_count(pos, enemy_king, mover);
+    pos.unmake_move(undo);
+
+    if gives_check {
+        score += 10_000;
+    }
+    score += (enemy_after - enemy_before).max(0) * 40;
+    score += (own_after - own_before).max(0) * 18;
+    (gives_check, score)
+}
+
+type ThreatOrderKey = (i32, i32, (u8, i32, i32), i64, usize, Move);
+
+/// Candidate-only extension of the approved killer/history ordering. Hash
+/// moves remain first, then checking moves, promotions, captures, killers,
+/// and remaining quiets. Within each band, the bounded threat signal breaks
+/// ties before the existing MVV/history ordering.
+fn order_moves_with_threats(
+    pos: &mut Position,
+    moves: &mut [Move],
+    hash_move: Option<Move>,
+    h: Option<&SearchHeuristics>,
+    ply: usize,
+    ctx: &SearchContext,
+) {
+    ctx.add_profile_counter(&ctx.threat_ordered_moves, moves.len() as u64);
+    let killers = if let Some(hh) = h {
+        if hh.killers.len() > ply {
+            hh.killers[ply]
+        } else {
+            [None, None]
+        }
+    } else {
+        [None, None]
+    };
+    let mut keyed: Vec<ThreatOrderKey> = moves
+        .iter()
+        .enumerate()
+        .map(|(index, &m)| {
+            let (gives_check, threat_score) = threat_move_signal(pos, m);
+            let bucket = if Some(m) == hash_move {
+                0
+            } else if gives_check {
+                1
+            } else if matches!(m.flag, MoveFlag::Promotion(_)) {
+                2
+            } else if pos.board[m.to as usize].is_some() || matches!(m.flag, MoveFlag::EnPassant) {
+                3
+            } else if Some(m) == killers[0] {
+                4
+            } else if Some(m) == killers[1] {
+                5
+            } else {
+                6
+            };
+            let history_rank = if bucket == 6 {
+                let history = h
+                    .map(|hh| hh.history[pos.side as usize][m.from as usize][m.to as usize])
+                    .unwrap_or(0);
+                i64::from(history) * 4096 - i64::from(m.from) * 64 - i64::from(m.to)
+            } else {
+                0
+            };
+            (
+                bucket,
+                threat_score,
+                move_order_key(pos, m),
+                history_rank,
+                index,
+                m,
+            )
+        })
+        .collect();
+
+    keyed.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| b.1.cmp(&a.1))
+            .then_with(|| b.2.cmp(&a.2))
+            .then_with(|| b.3.cmp(&a.3))
+            .then_with(|| a.4.cmp(&b.4))
+    });
+    for (index, (_, _, _, _, _, m)) in keyed.into_iter().enumerate() {
+        moves[index] = m;
+    }
+}
+
+fn reorder_root_moves_by_previous_scores(
+    root_moves: &mut [Move],
+    previous_scores: &[(Move, i32)],
+    ctx: &SearchContext,
+) {
+    if previous_scores.is_empty() {
+        return;
+    }
+    let mut indexed: Vec<(Option<i32>, usize, Move)> = root_moves
+        .iter()
+        .enumerate()
+        .map(|(index, &m)| {
+            (
+                previous_scores
+                    .iter()
+                    .find(|(scored_move, _)| *scored_move == m)
+                    .map(|(_, score)| *score),
+                index,
+                m,
+            )
+        })
+        .collect();
+    indexed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    for (index, (_, _, m)) in indexed.into_iter().enumerate() {
+        root_moves[index] = m;
+    }
+    ctx.add_profile_counter(&ctx.root_reorders, 1);
+}
+
 /// Lexicographic move-ordering key for alpha-beta: higher key = searched
 /// first. The tuple components are compared in order, so the key *is* a
 /// strict MVV-LVA ranking.
@@ -3144,6 +3487,23 @@ fn quiescence_entered_impl_with_profile(
     let mut legal = if qsearch_movegen {
         if in_check {
             generate_legal_evasions_profiled(pos, ctx)
+        } else if profile.uses_forcing_search() && qply < MAX_FORCING_QPLY {
+            // The threat-aware candidate extends qsearch's tactical set with
+            // quiet checks for a small, explicit number of qsearch plies.
+            // Legal generation remains exhaustive here; only the returned
+            // vector is filtered, so stalemate handling below is unchanged.
+            let all_legal = generate_legal_moves_profiled(pos, ctx);
+            let mut forcing = Vec::with_capacity(all_legal.len());
+            for m in all_legal {
+                let gives_check = move_gives_check(pos, m);
+                if gives_check {
+                    ctx.add_profile_counter(&ctx.qsearch_check_moves, 1);
+                }
+                if is_tactical(pos, m) || gives_check {
+                    forcing.push(m);
+                }
+            }
+            forcing
         } else {
             generate_legal_tactical_moves_profiled(pos, ctx)
         }
@@ -3178,7 +3538,11 @@ fn quiescence_entered_impl_with_profile(
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
-    order_moves(pos, &mut legal);
+    if profile.uses_forcing_search() {
+        order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
+    } else {
+        order_moves(pos, &mut legal);
+    }
 
     // Termination cap.
     if qply >= MAX_QPLY {
@@ -3465,8 +3829,9 @@ enum RootMoveOutcome {
     Candidate(i32),
     /// A later `Current` root scout that failed low
     /// (`scout_score <= alpha_before_move`). Not committable and not
-    /// re-searched; the root retains no numeric bound from it.
-    ScoutFailLow,
+    /// re-searched; its bound is retained only as a next-iteration ordering
+    /// hint, never as an exact root result.
+    ScoutFailLow(i32),
 }
 
 /// Search one root ply to `depth`, returning the completed iteration (its
@@ -3544,10 +3909,18 @@ fn root_search_with_window(
     let (window_alpha, beta) = window.unwrap_or((i32::MIN + 1000, i32::MAX - 1000));
     let mut best_score = if root_claimable { 0 } else { i32::MIN + 1000 };
     let mut best_move: Option<Move> = None;
+    let mut move_scores = Vec::with_capacity(root_moves.len());
     let mut alpha = if root_claimable {
         window_alpha.max(0)
     } else {
         window_alpha
+    };
+    let root_in_check = pos.is_in_check(pos.side);
+    let root_single_evasion = root_in_check && root_moves.len() == 1;
+    let root_extension_budget = if profile.uses_forcing_search() {
+        MAX_FORCING_EXTENSIONS
+    } else {
+        0
     };
 
     let mut pv = PvTable::default();
@@ -3601,6 +3974,16 @@ fn root_search_with_window(
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
+        let (child_depth, child_extension_budget) = forcing_child_params(
+            pos,
+            depth,
+            profile,
+            root_extension_budget,
+            root_in_check,
+            root_single_evasion,
+            ctx,
+        );
+
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(pos, path.keys(), 1, 0, ctx, limits, &mut pv) {
             Some(p) => p,
@@ -3640,9 +4023,9 @@ fn root_search_with_window(
                         // Full-window search. Recurse into the ENTERED body —
                         // NEVER negamax_impl (double count). Handle a deeper
                         // abort EXPLICITLY before cleanup.
-                        match negamax_entered_impl(
+                        match negamax_entered_impl_with_null_and_extensions(
                             pos,
-                            depth - 1,
+                            child_depth,
                             1,
                             -beta,
                             -alpha_before_move,
@@ -3653,6 +4036,8 @@ fn root_search_with_window(
                             path,
                             tt,
                             heur,
+                            true,
+                            child_extension_budget,
                         ) {
                             Some(s) => RootMoveOutcome::Candidate(-s),
                             None => {
@@ -3668,9 +4053,9 @@ fn root_search_with_window(
                         // the probe already spent this child's single node.
                         #[cfg(test)]
                         pvs_counters::mark_root_scout();
-                        let scout_score = match negamax_entered_impl(
+                        let scout_score = match negamax_entered_impl_with_null_and_extensions(
                             pos,
-                            depth - 1,
+                            child_depth,
                             1,
                             -scout_beta,
                             -alpha_before_move,
@@ -3681,6 +4066,8 @@ fn root_search_with_window(
                             path,
                             tt,
                             heur,
+                            true,
+                            child_extension_budget,
                         ) {
                             Some(s) => -s,
                             None => {
@@ -3720,9 +4107,9 @@ fn root_search_with_window(
                             }
                             #[cfg(test)]
                             pvs_counters::mark_root_research_entered();
-                            match negamax_entered_impl(
+                            match negamax_entered_impl_with_null_and_extensions(
                                 pos,
-                                depth - 1,
+                                child_depth,
                                 1,
                                 -beta,
                                 -alpha_before_move,
@@ -3733,6 +4120,8 @@ fn root_search_with_window(
                                 path,
                                 tt,
                                 heur,
+                                true,
+                                child_extension_budget,
                             ) {
                                 Some(s) => {
                                     #[cfg(test)]
@@ -3764,7 +4153,7 @@ fn root_search_with_window(
                             // upper bound, so nothing is lost.
                             #[cfg(test)]
                             pvs_counters::mark_root_fail_low();
-                            RootMoveOutcome::ScoutFailLow
+                            RootMoveOutcome::ScoutFailLow(scout_score)
                         }
                     }
                 }
@@ -3780,9 +4169,13 @@ fn root_search_with_window(
         // scout never updates best / best_move / root PV / alpha. Every other
         // outcome carries a real candidate.
         let score = match outcome {
-            RootMoveOutcome::ScoutFailLow => continue,
+            RootMoveOutcome::ScoutFailLow(s) => {
+                move_scores.push((m, s));
+                continue;
+            }
             RootMoveOutcome::Candidate(s) => s,
         };
+        move_scores.push((m, score));
 
         if score > best_score {
             best_score = score;
@@ -3822,6 +4215,7 @@ fn root_search_with_window(
             score: 0,
             best_move: claim_fallback,
             pv: Vec::new(),
+            move_scores,
         };
         if store_result {
             store_root_iteration(tt, pos, path, depth, &iteration, ctx);
@@ -3834,6 +4228,7 @@ fn root_search_with_window(
             score: best_score,
             best_move: bm,
             pv: std::mem::take(&mut pv.lines[0]),
+            move_scores,
         };
         if store_result {
             store_root_iteration(tt, pos, path, depth, &iteration, ctx);
@@ -4235,6 +4630,7 @@ fn search_best_move_impl(
                     score,
                     best_move,
                     pv,
+                    move_scores,
                 } = iter;
                 completed_depth = depth;
                 if let Some(start) = iteration_started {
@@ -4248,10 +4644,12 @@ fn search_best_move_impl(
                         Ordering::Relaxed,
                     );
                 }
-                // Move-ordering hook for the next iteration (cheap; real
-                // ordering heuristics land in Milestone 2). Driven by the
-                // explicit `best_move` field, never by `pv[0]`.
-                if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
+                // The threat-aware candidate reuses all scores observed in
+                // the completed iteration to seed the next root order. The
+                // approved profiles retain the historical best-move lift.
+                if _profile.uses_forcing_search() {
+                    reorder_root_moves_by_previous_scores(&mut root_moves, &move_scores, ctx);
+                } else if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
                     root_moves.swap(0, idx);
                 }
                 // Standard UCI info: nodes from the atomic counter, time
@@ -4299,6 +4697,7 @@ fn search_best_move_impl(
                     score,
                     best_move,
                     pv,
+                    move_scores,
                 });
 
                 // soft deadline: checked only between completed iterations.
@@ -5118,6 +5517,73 @@ mod tests {
             current_stats.qsearch_nodes, 0,
             "candidate isolation fixture must reach qsearch"
         );
+    }
+
+    #[test]
+    fn threat_aware_forcing_extensions_and_qsearch_checks_are_bounded() {
+        let parent = parse_fen("4k3/8/8/8/8/8/4Q3/K7 w - - 0 1").unwrap();
+        let check = find_move(&parent, "e2e7");
+        let mut child = parent;
+        child.make_move(check);
+        let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        let (child_depth, child_budget) = forcing_child_params(
+            &child,
+            4,
+            SearchProfile::CurrentThreatAware,
+            MAX_FORCING_EXTENSIONS,
+            false,
+            false,
+            &ctx,
+        );
+        assert_eq!(child_depth, 4, "a checking move must receive one extension");
+        assert_eq!(child_budget, MAX_FORCING_EXTENSIONS - 1);
+        assert_eq!(ctx.check_extensions.load(Ordering::Relaxed), 1);
+        let (single_depth, single_budget) = forcing_child_params(
+            &parent,
+            4,
+            SearchProfile::CurrentThreatAware,
+            child_budget,
+            true,
+            true,
+            &ctx,
+        );
+        assert_eq!(single_depth, 4, "a lone evasion must receive one extension");
+        assert_eq!(single_budget, child_budget - 1);
+        assert_eq!(ctx.single_evasion_extensions.load(Ordering::Relaxed), 1);
+
+        let limits = SearchLimits::default();
+        let mut pv = PvTable::default();
+        let mut path = SearchPath::new(vec![parent.zobrist_key()]);
+        assert!(try_enter_node(&ctx, &limits));
+        let _ = quiescence_entered_impl_with_profile(
+            &mut parent.clone(),
+            0,
+            0,
+            i32::MIN + 1000,
+            i32::MAX - 1000,
+            &ctx,
+            &limits,
+            &mut pv,
+            &mut path,
+            SearchProfile::CurrentThreatAware,
+            true,
+            false,
+            false,
+        );
+        assert!(
+            ctx.qsearch_check_moves.load(Ordering::Relaxed) > 0,
+            "bounded qsearch must observe checking moves"
+        );
+
+        let (_, stats) = run_profile_candidate_with_nodes(
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
+            SearchProfile::CurrentThreatAware,
+            12_000,
+        );
+        assert!(stats.threat_ordered_moves > 0);
+        assert!(stats.root_reorders > 0);
+        assert!(stats.check_extensions > 0);
+        assert!(stats.single_evasion_extensions <= stats.check_extensions + 32);
     }
 
     #[test]
