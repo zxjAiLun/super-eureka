@@ -141,6 +141,7 @@ fn lock_tt_recover(tt: &Mutex<TranspositionTable>) -> MutexGuard<'_, Transpositi
 fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
     match profile {
         search::SearchProfile::Current => "current",
+        search::SearchProfile::CurrentLmr => "current-lmr",
         search::SearchProfile::CurrentAspiration => "current-aspiration",
         search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -380,11 +381,10 @@ fn handle_setoption(
 }
 
 /// Parse the optional command-line profile used when launching a tournament
-/// candidate. Only the cumulative S1 profiles are exposed through the UCI
-/// executable; the default remains `Current`, and dormant null/standalone
-/// search candidates are intentionally not selectable here. The conservative
-/// qsearch-pruning profile is exposed only for the external validation harness
-/// and remains separate from `Current`.
+/// candidate. The default remains `Current`; only explicitly approved
+/// candidate profiles are selectable here. Dormant null/standalone search
+/// candidates and the closed D1.3 qsearch-pruning profile remain separate
+/// from `Current`.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     let mut profile = search::SearchProfile::Current;
     let mut profile_seen = false;
@@ -407,6 +407,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     .ok_or_else(|| "--profile requires a value".to_string())?;
                 profile = match name.as_str() {
                     "current" => search::SearchProfile::Current,
+                    "current-lmr" => search::SearchProfile::CurrentLmr,
                     "current-aspiration" => search::SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => search::SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -418,7 +419,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -448,6 +449,7 @@ fn print_startup_help() {
     println!("Usage: chess-engine-demo [--profile <cumulative-profile>]");
     println!("Profiles:");
     println!("  current");
+    println!("  current-lmr");
     println!("  current-aspiration");
     println!("  current-aspiration-lmr");
     println!("  current-aspiration-lmr-futility");

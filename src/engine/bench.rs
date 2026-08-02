@@ -144,6 +144,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::NullMoveCandidate => "null",
         SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
+        SearchProfile::CurrentLmr => "current-lmr",
         SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
         SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         SearchProfile::CurrentQsearchFastPruning => "current-qsearch-fast-pruning",
@@ -352,6 +353,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "null" => SearchProfile::NullMoveCandidate,
                     "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
+                    "current-lmr" => SearchProfile::CurrentLmr,
                     "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
                     "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
                     "current-qsearch-fast-pruning" => SearchProfile::CurrentQsearchFastPruning,
@@ -365,7 +367,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }

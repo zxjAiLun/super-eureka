@@ -79,6 +79,8 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * `CurrentQsearchFastPruning` preserves the `CurrentQsearchPruning` search
 ///   tree and replaces only its pruning SEE attacker scan with a direct
 ///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
+/// * `CurrentLmr` preserves the `Current` PVS, ordering, and specialized
+///   qsearch movegen path, adding only the existing conservative LMR rules.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -104,6 +106,7 @@ pub(crate) enum SearchProfile {
     NullMoveCandidate,
     FutilityCandidate,
     Current,
+    CurrentLmr,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
@@ -144,6 +147,7 @@ impl SearchProfile {
         matches!(
             self,
             Self::LmrCandidate
+                | Self::CurrentLmr
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
@@ -170,6 +174,7 @@ impl SearchProfile {
         matches!(
             self,
             Self::Current
+                | Self::CurrentLmr
                 | Self::CurrentAspiration
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
