@@ -10,6 +10,7 @@ from run_d114_sprt import (
     CANDIDATE_PROFILE,
     D114Error,
     build_command,
+    manager_failure_diagnostics,
     probe_engine_identity,
     refuse_reused_output,
 )
@@ -101,6 +102,13 @@ class D114LauncherTests(unittest.TestCase):
             (output / "existing.txt").write_text("do not overwrite", encoding="utf-8")
             with self.assertRaises(D114Error):
                 refuse_reused_output(output)
+
+    def test_manager_failure_diagnostics_are_fail_closed(self):
+        self.assertEqual(
+            manager_failure_diagnostics("Finished game 2: 1-0 {Black disconnects}", ""),
+            ["Finished game 2: 1-0 {Black disconnects}"],
+        )
+        self.assertEqual(manager_failure_diagnostics("Finished match", ""), [])
 
 
 if __name__ == "__main__":

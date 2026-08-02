@@ -352,6 +352,22 @@ def _drain(stream, destination: Path, echo: bool) -> None:
                 print(line, end="", flush=True)
 
 
+def manager_failure_diagnostics(stdout: str, stderr: str) -> list[str]:
+    markers = (
+        "disconnects",
+        "crash",
+        "illegal move",
+        "no result",
+        "aborted",
+        "engine error",
+    )
+    diagnostics = []
+    for line in (stdout + "\n" + stderr).splitlines():
+        if any(marker in line.lower() for marker in markers):
+            diagnostics.append(line.strip())
+    return diagnostics
+
+
 def run_manager(command: list[str], output_dir: Path) -> int:
     stdout_path = output_dir / "sprt-output.txt"
     stderr_path = output_dir / "manager.stderr.txt"
@@ -376,14 +392,22 @@ def run_manager(command: list[str], output_dir: Path) -> int:
     stderr_thread.join(timeout=10)
     if not (output_dir / "match.pgn").is_file():
         raise D114Error("cutechess exited without producing match.pgn")
+    stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
+    stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
+    failure_diagnostics = manager_failure_diagnostics(stdout_text, stderr_text)
     gzip_file(output_dir / "match.pgn", output_dir / "match.pgn.gz")
     with gzip.open(output_dir / "manager.log.gz", "wt", encoding="utf-8") as log:
         log.write("=== stdout ===\n")
-        log.write(stdout_path.read_text(encoding="utf-8", errors="replace"))
+        log.write(stdout_text)
         log.write("\n=== stderr ===\n")
-        log.write(stderr_path.read_text(encoding="utf-8", errors="replace"))
+        log.write(stderr_text)
     (output_dir / "manager.stderr.txt").unlink(missing_ok=True)
     (output_dir / "match.pgn").unlink(missing_ok=True)
+    if failure_diagnostics:
+        raise D114Error(
+            "cutechess reported a game/process failure: "
+            + " | ".join(failure_diagnostics[:5])
+        )
     if return_code != 0:
         raise D114Error(f"cutechess exited with code {return_code}")
     return return_code
