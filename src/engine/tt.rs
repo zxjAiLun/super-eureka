@@ -60,20 +60,34 @@ pub fn score_from_tt(stored: i32, ply: u32) -> Option<i32> {
 // ---------------------------------------------------------------------------
 
 /// Key used to index and verify a TT entry. Must capture all context that
-/// distinguishes otherwise-identical board positions.
+/// distinguishes otherwise-identical board positions and search states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TtKey {
     pub position: ZobristKey,
     pub halfmove_clock: u32,
     pub repetition_signature: u64,
+    /// Remaining bounded threat-aware forcing extensions. Ordinary profiles
+    /// always use zero. This is explicit TT context rather than part of the
+    /// board Zobrist key because it describes search state, not position state.
+    pub forcing_budget: u8,
 }
 
 impl TtKey {
     pub const fn new(position: ZobristKey, halfmove_clock: u32, repetition_signature: u64) -> Self {
+        Self::new_with_forcing_budget(position, halfmove_clock, repetition_signature, 0)
+    }
+
+    pub const fn new_with_forcing_budget(
+        position: ZobristKey,
+        halfmove_clock: u32,
+        repetition_signature: u64,
+        forcing_budget: u8,
+    ) -> Self {
         TtKey {
             position,
             halfmove_clock,
             repetition_signature,
+            forcing_budget,
         }
     }
 }
@@ -129,21 +143,24 @@ impl std::error::Error for TtAllocError {}
 // Index mixing
 // ---------------------------------------------------------------------------
 
-/// Fixed deterministic 64-bit mixer that reads all three fields of `TtKey`.
-/// Based on SplitMix64 over a single u64 assembled from the three fields,
+/// Fixed deterministic 64-bit mixer that reads all four fields of `TtKey`.
+/// Based on SplitMix64 over a single u64 assembled from the four fields,
 /// then folded to the table capacity.
 fn tt_index(key: TtKey, capacity: usize) -> usize {
     if capacity == 0 {
         return 0;
     }
 
-    // Mix position, halfmove_clock, and repetition_signature into one u64.
+    // Mix position, halfmove_clock, repetition_signature, and forcing budget
+    // into one u64. The full key equality check remains authoritative when
+    // different contexts land in the same bucket.
     let h = key.position;
     let c = key.halfmove_clock as u64;
     let r = key.repetition_signature;
+    let b = (key.forcing_budget as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
 
-    // w = h ^ c ^ r  (XOR combine, then a SplitMix64 finalisation pass).
-    let mut z = h ^ c ^ r;
+    // w = h ^ c ^ r ^ b (XOR combine, then a SplitMix64 finalisation pass).
+    let mut z = h ^ c ^ r ^ b;
     z ^= z >> 30;
     z = z.wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z ^= z >> 27;
@@ -443,6 +460,7 @@ mod tests {
         assert_eq!(k.position, 42);
         assert_eq!(k.halfmove_clock, 0);
         assert_eq!(k.repetition_signature, 0xdead);
+        assert_eq!(k.forcing_budget, 0);
     }
 
     // ---- Index mixing ----
@@ -483,6 +501,16 @@ mod tests {
             idx(cap, 100, 0, 0),
             idx(cap, 100, 0, 555_555),
             "changing repetition_signature must change the index"
+        );
+    }
+
+    #[test]
+    fn index_depends_on_forcing_budget() {
+        let cap = 4096;
+        assert_ne!(
+            tt_index(TtKey::new_with_forcing_budget(100, 0, 0, 0), cap),
+            tt_index(TtKey::new_with_forcing_budget(100, 0, 0, 4), cap),
+            "changing forcing_budget must change the index"
         );
     }
 
@@ -726,6 +754,21 @@ mod tests {
         let mut tt = TranspositionTable::new_mb(1).unwrap();
         let k1 = TtKey::new(42, 3, 0xabc);
         let k2 = TtKey::new(42, 3, 0xdef);
+        tt.store(TTEntry {
+            key: k1,
+            depth: 5,
+            score: 100,
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        assert!(tt.probe(k2).is_none());
+    }
+
+    #[test]
+    fn miss_on_forcing_budget_diff() {
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        let k1 = TtKey::new_with_forcing_budget(42, 3, 0xabc, 0);
+        let k2 = TtKey::new_with_forcing_budget(42, 3, 0xabc, 4);
         tt.store(TTEntry {
             key: k1,
             depth: 5,

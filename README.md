@@ -204,9 +204,9 @@ bestmove b1c3
   - **M3.1 和棋规则 ✅**：insufficient material 自动和棋；fifty-move 与 threefold 为
     claimable 0 分选项（支持 current claim 与 intended-move claim，terminal 优先）。
   - **M3.2 置换表（TT）✅**：context-safe `TtKey`（board Zobrist + halfmove clock +
-    repetition signature）；Exact / Lower / Upper；depth-preferred direct-mapped 替换；
-    mate score 的 ply 编解码；legal hash move 排序；持久 `Arc<Mutex<TT>>` UCI 生命周期
-    （`ucinewgame` 清空但保留容量，`position` 不清空）。
+    repetition signature；Threat-Aware candidate 另显式携带 forcing budget）；Exact / Lower /
+    Upper；depth-preferred direct-mapped 替换；mate score 的 ply 编解码；legal hash move
+    排序；持久 `Arc<Mutex<TT>>` UCI 生命周期（`ucinewgame` 清空但保留容量，`position` 不清空）。
 - **EVAL 1（本地实现，等待独立复核）**：
   - ✅ [EVAL 1A：tapered evaluation + King PST](docs/specs/eval-1a-tapered-king.md)；
   - ✅ [EVAL 1B：exact KQK/KRK mop-up](docs/specs/eval-1b-kqk-krk.md)；
@@ -227,9 +227,11 @@ bestmove b1c3
   `CurrentLmr` 仍为 candidate-only，`Current` 保持不变。见
   [`d1.14-current-vs-current-lmr.md`](docs/benchmarks/d1.14-current-vs-current-lmr.md)。
 - **S2.1 Threat-Aware Search（候选开发中）**：新增显式
-  `current-threat-aware` 启动 profile，当前只实现候选 king-danger 评价与固定诊断
-  局面；强制线路扩展、bounded checking qsearch 和 threat-aware ordering 尚未接入。
-  `Current`、LMR/null/futility/SEE pruning 均保持原边界。见
+  `current-threat-aware` 启动 profile，包含候选 king-danger 评价、最多四个共享预算的
+  check/single-evasion 主搜索扩展、qply 0/1 的 bounded checking qsearch、threat-aware
+  ordering 和上一完整迭代的 root score ordering。候选 TT key 显式区分剩余 forcing
+  budget，并对候选 score cutoff 使用精确 nominal-depth 门禁；`Current`、
+  LMR/null/futility/SEE pruning 均保持原边界。见
   [`s2.1-threat-aware-search.md`](docs/specs/s2.1-threat-aware-search.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。

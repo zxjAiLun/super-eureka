@@ -1187,15 +1187,28 @@ enum TtRejectReason {
     Decode,
 }
 
-/// Build the context-safe TT key for the CURRENT position. The repetition
-/// signature comes from the full [`SearchPath`], so two identical boards with
-/// different repetition context get different keys.
+/// Build the context-safe TT key for the CURRENT position using the ordinary
+/// (zero forcing-budget) context. This preserves the historical key contract
+/// for `Current` and all non-threat-aware profiles.
 fn current_tt_key(pos: &Position, path: &SearchPath) -> TtKey {
+    current_tt_key_with_forcing_budget(pos, path, 0)
+}
+
+/// Build the TT key for a position plus the bounded threat-aware search
+/// context. The repetition signature comes from the full [`SearchPath`], so
+/// two identical boards with different repetition context get different keys;
+/// the remaining forcing budget is likewise part of the search identity.
+fn current_tt_key_with_forcing_budget(
+    pos: &Position,
+    path: &SearchPath,
+    forcing_budget: u8,
+) -> TtKey {
     debug_assert_eq!(path.last(), Some(&pos.zobrist_key()));
-    TtKey::new(
+    TtKey::new_with_forcing_budget(
         pos.zobrist_key(),
         pos.halfmove_clock(),
         path.repetition_signature(),
+        forcing_budget,
     )
 }
 
@@ -1212,6 +1225,34 @@ fn probe_tt_for_search(
     ply: u32,
     effective_alpha: i32,
     beta: i32,
+) -> SearchTtProbe {
+    probe_tt_for_search_with_policy(tt, key, requested_depth, ply, effective_alpha, beta, false)
+}
+
+/// Threat-aware searches use an exact nominal-depth TT policy. A result from
+/// a deeper standalone descendant search can otherwise be reused as an exact
+/// answer for a shallower parent child, changing a fixed-depth root result
+/// after forward/backtracking. Hash moves remain usable; only score cutoffs
+/// require the exact requested depth.
+fn probe_tt_for_search_exact_depth(
+    tt: &TranspositionTable,
+    key: TtKey,
+    requested_depth: u32,
+    ply: u32,
+    effective_alpha: i32,
+    beta: i32,
+) -> SearchTtProbe {
+    probe_tt_for_search_with_policy(tt, key, requested_depth, ply, effective_alpha, beta, true)
+}
+
+fn probe_tt_for_search_with_policy(
+    tt: &TranspositionTable,
+    key: TtKey,
+    requested_depth: u32,
+    ply: u32,
+    effective_alpha: i32,
+    beta: i32,
+    exact_depth: bool,
 ) -> SearchTtProbe {
     let Some(entry) = tt.probe(key) else {
         return SearchTtProbe {
@@ -1234,9 +1275,10 @@ fn probe_tt_for_search(
         };
     };
 
-    // Shallower entry: a real miss for cut-off purposes, but its stored move
-    // (if any) is still useful for ordering.
-    if entry.depth < requested_depth {
+    // A non-matching nominal depth is a miss for score cut-off purposes, but
+    // its stored move (if any) is still useful for ordering. Ordinary profiles
+    // accept deeper entries; the threat-aware policy deliberately does not.
+    if entry.depth < requested_depth || (exact_depth && entry.depth != requested_depth) {
         return SearchTtProbe {
             hit: true,
             cutoff: None,
@@ -1947,9 +1989,17 @@ fn negamax_entered_impl_with_null_and_extensions(
     // draw precedence — so every TT hit or cut-off still consumes exactly
     // one real node. On a cut-off we return the decoded score and leave
     // the (already-cleared) PV row empty.
-    let key = current_tt_key(pos, path);
+    let key = if _profile.uses_forcing_search() && depth != 0 {
+        current_tt_key_with_forcing_budget(pos, path, extension_budget)
+    } else {
+        current_tt_key(pos, path)
+    };
     ctx.add_profile_counter(&ctx.tt_probes, 1);
-    let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
+    let tt_probe = if _profile.uses_forcing_search() {
+        probe_tt_for_search_exact_depth(tt, key, depth, ply, alpha, beta)
+    } else {
+        probe_tt_for_search(tt, key, depth, ply, alpha, beta)
+    };
     if tt_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
@@ -3942,9 +3992,17 @@ fn root_search_with_window(
     // of the pre-TT search, and MVV-LVA reordering at the root would
     // change both. So this is a pure hash-move lift, identical to
     // `order_moves_with_hash` minus its `order_moves` pre-pass.
-    let root_key = current_tt_key(pos, path);
+    let root_key = if root_extension_budget == 0 {
+        current_tt_key(pos, path)
+    } else {
+        current_tt_key_with_forcing_budget(pos, path, root_extension_budget)
+    };
     ctx.add_profile_counter(&ctx.tt_probes, 1);
-    let root_probe = probe_tt_for_search(tt, root_key, depth, 0, alpha, beta);
+    let root_probe = if profile.uses_forcing_search() {
+        probe_tt_for_search_exact_depth(tt, root_key, depth, 0, alpha, beta)
+    } else {
+        probe_tt_for_search(tt, root_key, depth, 0, alpha, beta)
+    };
     if root_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
@@ -4218,7 +4276,7 @@ fn root_search_with_window(
             move_scores,
         };
         if store_result {
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
         }
         return Some(iteration);
     }
@@ -4231,7 +4289,7 @@ fn root_search_with_window(
             move_scores,
         };
         if store_result {
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
         }
         iteration
     })
@@ -4244,8 +4302,13 @@ fn store_root_iteration(
     depth: u32,
     iteration: &RootIteration,
     ctx: &SearchContext,
+    forcing_budget: u8,
 ) {
-    let root_key = current_tt_key(pos, path);
+    let root_key = if forcing_budget == 0 {
+        current_tt_key(pos, path)
+    } else {
+        current_tt_key_with_forcing_budget(pos, path, forcing_budget)
+    };
     let store_move = if iteration.pv.is_empty() {
         None
     } else {
@@ -4326,7 +4389,12 @@ fn root_search_with_aspiration(
             false,
         )?;
         if full_window || (iteration.score > alpha && iteration.score < beta) {
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx);
+            let root_extension_budget = if profile.uses_forcing_search() {
+                MAX_FORCING_EXTENSIONS
+            } else {
+                0
+            };
+            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
             return Some(iteration);
         }
 
@@ -8148,6 +8216,132 @@ mod tests {
             miss_rep.cutoff, None,
             "different repetition_signature must miss"
         );
+    }
+
+    #[test]
+    fn tt_context_isolates_forcing_budget_and_preserves_current_key() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let path = SearchPath::new(vec![pos.zobrist_key()]);
+        let historical = TtKey::new(
+            pos.zobrist_key(),
+            pos.halfmove_clock(),
+            path.repetition_signature(),
+        );
+        let current = current_tt_key(&pos, &path);
+        assert_eq!(current, historical, "Current keeps the zero-budget key");
+
+        let budget_zero = current_tt_key_with_forcing_budget(&pos, &path, 0);
+        let budget_four = current_tt_key_with_forcing_budget(&pos, &path, 4);
+        assert_eq!(budget_zero, current);
+        assert_ne!(budget_zero, budget_four);
+        assert_eq!(budget_zero.forcing_budget, 0);
+        assert_eq!(budget_four.forcing_budget, 4);
+
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key: budget_zero,
+            depth: 5,
+            score: score_to_tt(220, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        let budget_four_probe =
+            probe_tt_for_search(&tt, budget_four, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(
+            budget_four_probe.cutoff, None,
+            "zero-budget Exact entries must not cut off an extended search"
+        );
+        assert_eq!(budget_four_probe.hash_move, None);
+
+        let mut tt = TranspositionTable::new_mb(1).unwrap();
+        tt.store(TTEntry {
+            key: budget_four,
+            depth: 5,
+            score: score_to_tt(-410, 0).unwrap(),
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        let budget_zero_probe =
+            probe_tt_for_search(&tt, budget_zero, 3, 0, i32::MIN + 1000, i32::MAX - 1000);
+        assert_eq!(
+            budget_zero_probe.cutoff, None,
+            "extended Exact entries must not cut off an ordinary search"
+        );
+        assert_eq!(budget_zero_probe.hash_move, None);
+    }
+
+    #[test]
+    fn threat_aware_persistent_tt_is_stable_across_cold_warm_and_backtracking() {
+        const FEN: &str = "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1";
+        const DEPTH: u32 = 3;
+        let limits = SearchLimits {
+            depth: Some(DEPTH),
+            ..Default::default()
+        };
+        let root = parse_fen(FEN).unwrap();
+        let root_key = root.zobrist_key();
+
+        let search = |pos: &mut Position,
+                      history: &[ZobristKey],
+                      tt: &mut TranspositionTable|
+         -> SearchOutcome {
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            search_best_move_with_history_tt_and_profile(
+                pos,
+                history,
+                &limits,
+                &ctx,
+                tt,
+                SearchProfile::CurrentThreatAware,
+            )
+            .expect("threat-aware fixture must be non-terminal")
+        };
+
+        // Cold reference result.
+        let mut cold_pos = root;
+        let mut cold_tt = TranspositionTable::new_mb(2).unwrap();
+        let cold = search(&mut cold_pos, &[root_key], &mut cold_tt);
+
+        // First search populates the persistent candidate TT. The root entry
+        // must use the full four-unit root context, not the historical zero
+        // budget key.
+        let mut reused_pos = root;
+        let mut reused_tt = TranspositionTable::new_mb(2).unwrap();
+        let warm = search(&mut reused_pos, &[root_key], &mut reused_tt);
+        let root_path = SearchPath::new(vec![root_key]);
+        let candidate_root_key =
+            current_tt_key_with_forcing_budget(&reused_pos, &root_path, MAX_FORCING_EXTENSIONS);
+        assert!(
+            reused_tt.probe(candidate_root_key).is_some(),
+            "candidate root result must be stored under its forcing context"
+        );
+
+        // Move forward using the completed candidate PV, search the
+        // descendant in the same TT, then undo exactly that edge and search
+        // the original root again. The result must not depend on the warm TT
+        // or on the intervening descendant search.
+        let undo = reused_pos.make_move(warm.best_move);
+        let descendant_key = reused_pos.zobrist_key();
+        let _descendant = search(&mut reused_pos, &[root_key, descendant_key], &mut reused_tt);
+        reused_pos.unmake_move(undo);
+        let back = search(&mut reused_pos, &[root_key], &mut reused_tt);
+
+        for (label, outcome) in [("warm", warm), ("back", back)] {
+            assert_eq!(
+                outcome.completed_depth, cold.completed_depth,
+                "{label} completed depth must match cold search"
+            );
+            assert_eq!(
+                outcome.score, cold.score,
+                "{label} score must match cold search"
+            );
+            assert_eq!(
+                outcome.best_move, cold.best_move,
+                "{label} bestmove must match cold search"
+            );
+            assert_eq!(outcome.pv, cold.pv, "{label} PV must match cold search");
+            assert!(!outcome.stopped, "{label} search must complete");
+        }
     }
 
     // ---- §14: hash-move ordering ----------------------------------------------

@@ -452,6 +452,7 @@ fn print_startup_help() {
     println!("Profiles:");
     println!("  current");
     println!("  current-lmr");
+    println!("  current-threat-aware");
     println!("  current-aspiration");
     println!("  current-aspiration-lmr");
     println!("  current-aspiration-lmr-futility");
