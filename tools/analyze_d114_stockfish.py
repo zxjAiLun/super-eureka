@@ -128,25 +128,23 @@ def mate_category(best: ParsedScore, played: ParsedScore) -> Optional[str]:
         return None
     if score_is_positive_mate(best):
         if not score_is_positive_mate(played):
-            return "missed_mate"
+            return "winning_mate_delayed"
         if played.value > best.value:
-            return "mate_distance_increase"
+            return "winning_mate_delayed"
         if played.value < best.value:
-            return "mate_distance_decrease"
+            return "winning_mate_accelerated"
         return "allowed_mate"
     if score_is_negative_mate(best):
-        if score_is_positive_mate(played):
-            return "mate_reversal"
-        if played.kind != "mate":
-            return "escaped_losing_mate"
+        if played.kind != "mate" or score_is_positive_mate(played):
+            return "losing_mate_delayed"
         if played.value > best.value:
-            return "mate_distance_decrease"
+            return "losing_mate_accelerated"
         if played.value < best.value:
-            return "mate_distance_increase"
+            return "losing_mate_delayed"
         return "allowed_mate"
     if score_is_positive_mate(played):
-        return "unexpected_mate"
-    return "catastrophic_mate_swing"
+        return "winning_mate_accelerated"
+    return "losing_mate_accelerated"
 
 
 def centipawn_loss(best: ParsedScore, played: ParsedScore) -> Optional[int]:
@@ -544,9 +542,8 @@ def score_metrics(best: SearchResult, played: SearchResult, played_move: str) ->
     loss = centipawn_loss(best.score, played.score)
     mate_event = mate_category(best.score, played.score)
     harmful_mate_categories = {
-        "missed_mate",
-        "mate_distance_increase",
-        "catastrophic_mate_swing",
+        "winning_mate_delayed",
+        "losing_mate_accelerated",
     }
     mate_loss = mate_event in harmful_mate_categories
     return {
@@ -578,9 +575,8 @@ def _severity(record: dict[str, Any]) -> tuple[int, int]:
     if record.get("mate_swing"):
         category = record.get("mate_category")
         category_weight = {
-            "catastrophic_mate_swing": 4,
-            "missed_mate": 3,
-            "mate_distance_increase": 2,
+            "losing_mate_accelerated": 4,
+            "winning_mate_delayed": 3,
         }.get(category, 1)
         return (category_weight, 100_000)
     return (0, int(record.get("centipawn_loss") or 0))
@@ -627,6 +623,34 @@ def analyze_selected_records(
     return analyzed
 
 
+def reclassify_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Recompute score-derived fields without starting Stockfish.
+
+    The canonical JSONL stores both score kinds/values and the original search
+    metadata.  Keeping this operation separate from ``analyze_selected_records``
+    makes post-processing fixes auditable and guarantees that a classification
+    correction cannot silently rerun or change the teacher search.
+    """
+    reclassified: list[dict[str, Any]] = []
+    for record in records:
+        best = SearchResult(
+            best_move=str(record["best_move"]),
+            score=ParsedScore(str(record["best_score_kind"]), int(record["best_score_value"])),
+            depth=int(record["best_depth"]),
+            pv=tuple(str(move) for move in record.get("best_pv", [])),
+        )
+        played = SearchResult(
+            best_move=str(record["played_move"]),
+            score=ParsedScore(str(record["played_score_kind"]), int(record["played_score_value"])),
+            depth=int(record["played_depth"]),
+            pv=tuple(str(move) for move in record.get("played_pv", [])),
+        )
+        updated = dict(record)
+        updated.update(score_metrics(best, played, str(record["played_move"])))
+        reclassified.append(updated)
+    return reclassified
+
+
 def profile_statistics(records: list[dict[str, Any]]) -> dict[str, Any]:
     cpls = [int(record["centipawn_loss"]) for record in records if record.get("centipawn_loss") is not None]
     scored = len(cpls)
@@ -650,6 +674,14 @@ def profile_statistics(records: list[dict[str, Any]]) -> dict[str, Any]:
         name: sum(record.get("stage") == name for record in records)
         for name in ("opening", "middlegame", "endgame")
     }
+    mate_categories = {
+        category: sum(record.get("mate_category") == category for record in records)
+        for category in sorted({
+            record["mate_category"]
+            for record in records
+            if record.get("mate_category") is not None
+        })
+    }
     return {
         **counts,
         "mean_cpl": statistics.mean(cpls) if cpls else None,
@@ -662,6 +694,7 @@ def profile_statistics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "mistake_rate": counts["mistake"] / scored if scored else None,
         "blunder_rate": counts["blunder"] / scored if scored else None,
         "stage": stage,
+        "mate_categories": mate_categories,
     }
 
 
@@ -671,28 +704,51 @@ def common_position_comparison(records: list[dict[str, Any]]) -> dict[str, Any]:
         if record.get("common_in_pair"):
             grouped[(int(record["pair"]), record["fen"])][record["profile"]] = record
     candidate_better = baseline_better = tied = comparable = 0
+    same_move_groups = different_move_groups = 0
+    different_move_candidate_better = different_move_baseline_better = 0
+    different_move_tied = different_move_comparable = 0
     for values in grouped.values():
         candidate = values.get(CANDIDATE_LABEL)
         baseline = values.get(BASELINE_LABEL)
         if candidate is None or baseline is None:
             continue
+        if candidate.get("played_move") == baseline.get("played_move"):
+            same_move_groups += 1
+        else:
+            different_move_groups += 1
         candidate_loss = candidate.get("centipawn_loss")
         baseline_loss = baseline.get("centipawn_loss")
         if candidate_loss is None or baseline_loss is None:
             continue
         comparable += 1
+        moves_differ = candidate.get("played_move") != baseline.get("played_move")
+        if moves_differ:
+            different_move_comparable += 1
         if candidate_loss < baseline_loss:
             candidate_better += 1
+            if moves_differ:
+                different_move_candidate_better += 1
         elif candidate_loss > baseline_loss:
             baseline_better += 1
+            if moves_differ:
+                different_move_baseline_better += 1
         else:
             tied += 1
+            if moves_differ:
+                different_move_tied += 1
     return {
         "common_fen_groups": len(grouped),
+        "paired_common_position_groups": same_move_groups + different_move_groups,
+        "same_move_groups": same_move_groups,
+        "different_move_groups": different_move_groups,
         "comparable_cp_groups": comparable,
         "candidate_lower_cpl": candidate_better,
         "baseline_lower_cpl": baseline_better,
         "equal_cpl": tied,
+        "different_move_comparable_cp_groups": different_move_comparable,
+        "different_move_candidate_lower_cpl": different_move_candidate_better,
+        "different_move_baseline_lower_cpl": different_move_baseline_better,
+        "different_move_equal_cpl": different_move_tied,
     }
 
 
@@ -786,12 +842,31 @@ def write_outputs(output_dir: Path, records: list[dict[str, Any]], summary: dict
         "",
     ]
     for profile, stats in summary["profiles"].items():
+        mate_categories = ", ".join(
+            f"{category}={count}" for category, count in stats["mate_categories"].items()
+        ) or "none"
         report_lines.append(
             f"- `{profile}`: moves `{stats['moves']}`, mean/median CPL "
             f"`{stats['mean_cpl']}` / `{stats['median_cpl']}`, "
             f"blunders `{stats['blunder']}`, mate swings `{stats['mate_swing']}`, "
-            f"best-move match `{stats['best_move_match_rate']}`"
+            f"best-move match `{stats['best_move_match_rate']}`, "
+            f"mate categories `{mate_categories}`"
         )
+    comparison = summary["common_position_comparison"]
+    report_lines.extend(
+        [
+            "",
+            "## Common-position move agreement",
+            "",
+            f"- Paired common positions: `{comparison['paired_common_position_groups']}` "
+            f"(same move `{comparison['same_move_groups']}`, "
+            f"different move `{comparison['different_move_groups']}`)",
+            f"- Different-move comparable CP groups: `{comparison['different_move_comparable_cp_groups']}`; "
+            f"candidate lower CPL `{comparison['different_move_candidate_lower_cpl']}`, "
+            f"baseline lower CPL `{comparison['different_move_baseline_lower_cpl']}`, "
+            f"equal `{comparison['different_move_equal_cpl']}`",
+        ]
+    )
     report_lines.extend(
         [
             "",
@@ -819,6 +894,12 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--stockfish", type=Path, required=True)
     command.add_argument("--output-dir", type=Path, required=True)
     command.add_argument("--review-jsonl", type=Path, default=None)
+    command.add_argument(
+        "--reclassify-jsonl",
+        type=Path,
+        default=None,
+        help="recompute score-derived fields from saved JSONL without running Stockfish",
+    )
     command.add_argument("--nodes", type=int, default=25_000)
     command.add_argument("--top", type=int, default=50)
     command.add_argument("--deep-top", type=int, default=150)
@@ -839,9 +920,41 @@ def main() -> int:
     if args.nodes <= 0 or args.hash_mb <= 0 or args.threads <= 0:
         print("nodes, hash, and threads must be positive", file=sys.stderr)
         return 2
+    if args.review_jsonl is not None and args.reclassify_jsonl is not None:
+        print("--review-jsonl and --reclassify-jsonl are mutually exclusive", file=sys.stderr)
+        return 2
     try:
         manifest, games, partial_summary = load_complete_games(args.run_dir)
         all_records = build_move_records(games)
+        if args.reclassify_jsonl is not None:
+            source_records = read_records_jsonl(args.reclassify_jsonl)
+            parent_summary = read_json(args.reclassify_jsonl.parent / "summary.json")
+            phase = str(parent_summary.get("phase", "reclassified"))
+            selection = dict(parent_summary.get("selection", {}))
+            selection["postprocess"] = "negative-mate-classification-fix-forward"
+            selection["reclassified_from"] = str(args.reclassify_jsonl.resolve())
+            selected = source_records
+            analyzed = reclassify_records(selected)
+            selection["stockfish_identity"] = parent_summary.get("stockfish", {}).get("identity", [])
+            summary = summary_for_records(
+                analyzed,
+                manifest,
+                partial_summary,
+                args.stockfish,
+                int(parent_summary.get("stockfish", {}).get("nodes_per_search", args.nodes)),
+                int(parent_summary.get("stockfish", {}).get("hash_mb", args.hash_mb)),
+                int(parent_summary.get("stockfish", {}).get("threads", args.threads)),
+                phase,
+                selection,
+            )
+            summary["postprocess"] = {
+                "kind": "score-reclassification",
+                "reclassified_from": str(args.reclassify_jsonl.resolve()),
+                "stockfish_searches_reused": True,
+            }
+            write_outputs(args.output_dir, analyzed, summary, args.top)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            return 0
         if args.review_jsonl is not None:
             source_records = read_records_jsonl(args.review_jsonl)
             source_records.sort(key=_severity, reverse=True)
