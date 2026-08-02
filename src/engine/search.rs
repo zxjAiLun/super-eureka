@@ -39,7 +39,7 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::evaluate;
+use crate::engine::eval::{evaluate, evaluate_threat_aware};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
@@ -81,6 +81,10 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
 /// * `CurrentLmr` preserves the `Current` PVS, ordering, and specialized
 ///   qsearch movegen path, adding only the existing conservative LMR rules.
+/// * `CurrentThreatAware` preserves the `Current` PVS, ordering, and
+///   specialized qsearch movegen path, replacing only the leaf evaluation
+///   with the candidate-only king-danger signal. It does not enable LMR,
+///   aspiration, null move, futility, or SEE pruning.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -107,6 +111,7 @@ pub(crate) enum SearchProfile {
     FutilityCandidate,
     Current,
     CurrentLmr,
+    CurrentThreatAware,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
@@ -175,6 +180,7 @@ impl SearchProfile {
             self,
             Self::Current
                 | Self::CurrentLmr
+                | Self::CurrentThreatAware
                 | Self::CurrentAspiration
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
@@ -196,6 +202,11 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_qsearch_fast_pruning(self) -> bool {
         matches!(self, Self::CurrentQsearchFastPruning)
+    }
+
+    #[inline]
+    pub(crate) const fn uses_threat_aware_eval(self) -> bool {
+        matches!(self, Self::CurrentThreatAware)
     }
 }
 
@@ -534,9 +545,13 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
 }
 
 #[inline]
-fn evaluate_profiled(pos: &Position, ctx: &SearchContext) -> i32 {
+fn evaluate_profiled(pos: &Position, ctx: &SearchContext, profile: SearchProfile) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
-    evaluate(pos)
+    if profile.uses_threat_aware_eval() {
+        evaluate_threat_aware(pos)
+    } else {
+        evaluate(pos)
+    }
 }
 
 #[inline]
@@ -1915,7 +1930,7 @@ fn negamax_entered_impl_with_null(
         // Leaf: hand off to quiescence (already counted). On a real return,
         // store a depth-0 entry under the caller window; on abort propagate
         // None WITHOUT storing (the partial node must not be cached).
-        return match quiescence_entered_impl(
+        return match quiescence_entered_impl_with_profile(
             pos,
             ply,
             0,
@@ -1925,6 +1940,7 @@ fn negamax_entered_impl_with_null(
             limits,
             pv,
             path,
+            _profile,
             _profile.uses_qsearch_movegen(),
             _profile.uses_qsearch_pruning(),
             _profile.uses_qsearch_fast_pruning(),
@@ -1953,7 +1969,7 @@ fn negamax_entered_impl_with_null(
         && alpha > -(MATE - 1000)
         && non_pawn_material_count(pos) >= 4
     {
-        Some(evaluate_profiled(pos, ctx))
+        Some(evaluate_profiled(pos, ctx, _profile))
     } else {
         None
     };
@@ -3072,12 +3088,45 @@ fn quiescence_entered_impl(
     pos: &mut Position,
     ply: u32,
     qply: u32,
+    alpha: i32,
+    beta: i32,
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+    path: &mut SearchPath,
+    qsearch_movegen: bool,
+    qsearch_pruning: bool,
+    qsearch_fast_pruning: bool,
+) -> Option<i32> {
+    quiescence_entered_impl_with_profile(
+        pos,
+        ply,
+        qply,
+        alpha,
+        beta,
+        ctx,
+        limits,
+        pv,
+        path,
+        SearchProfile::M4Reference,
+        qsearch_movegen,
+        qsearch_pruning,
+        qsearch_fast_pruning,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn quiescence_entered_impl_with_profile(
+    pos: &mut Position,
+    ply: u32,
+    qply: u32,
     mut alpha: i32,
     beta: i32,
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
     path: &mut SearchPath,
+    profile: SearchProfile,
     qsearch_movegen: bool,
     qsearch_pruning: bool,
     qsearch_fast_pruning: bool,
@@ -3134,13 +3183,15 @@ fn quiescence_entered_impl(
     // Termination cap.
     if qply >= MAX_QPLY {
         if !in_check {
-            let stand_pat = evaluate_profiled(pos, ctx);
+            let stand_pat = evaluate_profiled(pos, ctx, profile);
             if stand_pat >= beta {
                 return Some(beta);
             }
             return Some(alpha.max(stand_pat));
         }
-        return search_final_evasion_ply(pos, ply, alpha, beta, &legal, ctx, limits, pv, path);
+        return search_final_evasion_ply_with_profile(
+            pos, ply, alpha, beta, &legal, ctx, limits, pv, path, profile,
+        );
     }
 
     // Decide which moves to search.
@@ -3150,7 +3201,7 @@ fn quiescence_entered_impl(
     } else {
         // Rule 2 (stalemate) already handled. Stand-pat is the lower bound:
         // the side to move is never forced to make a capture.
-        let stand_pat = evaluate_profiled(pos, ctx);
+        let stand_pat = evaluate_profiled(pos, ctx, profile);
         if stand_pat >= beta {
             return Some(beta);
         }
@@ -3210,7 +3261,7 @@ fn quiescence_entered_impl(
                 // Manual probe already spent the single node. Recurse into the
                 // ENTERED qsearch variant — NEVER quiescence_impl (double count).
                 // Handle a deeper abort EXPLICITLY before cleanup.
-                match quiescence_entered_impl(
+                match quiescence_entered_impl_with_profile(
                     pos,
                     ply + 1,
                     qply + 1,
@@ -3220,6 +3271,7 @@ fn quiescence_entered_impl(
                     limits,
                     pv,
                     path,
+                    profile,
                     qsearch_movegen,
                     qsearch_pruning,
                     qsearch_fast_pruning,
@@ -3286,7 +3338,34 @@ fn quiescence_entered_impl(
 /// pre-generated `legal` slice and the live [`PvTable`]; kept explicit (see
 /// [`negamax_impl`] for the rationale).
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 fn search_final_evasion_ply(
+    pos: &mut Position,
+    ply: u32,
+    alpha: i32,
+    beta: i32,
+    legal: &[Move],
+    ctx: &SearchContext,
+    limits: &SearchLimits,
+    pv: &mut PvTable,
+    path: &mut SearchPath,
+) -> Option<i32> {
+    search_final_evasion_ply_with_profile(
+        pos,
+        ply,
+        alpha,
+        beta,
+        legal,
+        ctx,
+        limits,
+        pv,
+        path,
+        SearchProfile::M4Reference,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_final_evasion_ply_with_profile(
     pos: &mut Position,
     ply: u32,
     mut alpha: i32,
@@ -3296,6 +3375,7 @@ fn search_final_evasion_ply(
     limits: &SearchLimits,
     pv: &mut PvTable,
     path: &mut SearchPath,
+    profile: SearchProfile,
 ) -> Option<i32> {
     // Automatic insufficient-material draw for the in-check node at the qply
     // cap: a single ply cannot add material, so the position stays a draw; we
@@ -3337,7 +3417,7 @@ fn search_final_evasion_ply(
             // or threefold claim on this evasion — both secure 0 (no real win).
             0
         } else {
-            -evaluate_profiled(pos, ctx)
+            -evaluate_profiled(pos, ctx, profile)
         };
 
         path.pop();
@@ -4563,6 +4643,16 @@ mod tests {
         assert!(!SearchProfile::CurrentLmr.uses_null_move());
         assert!(!SearchProfile::CurrentLmr.uses_futility());
         assert!(!SearchProfile::CurrentLmr.uses_qsearch_pruning());
+        assert!(SearchProfile::CurrentThreatAware.uses_pvs());
+        assert!(SearchProfile::CurrentThreatAware.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentThreatAware.uses_threat_aware_eval());
+        assert!(!SearchProfile::CurrentThreatAware.uses_see());
+        assert!(!SearchProfile::CurrentThreatAware.uses_aspiration());
+        assert!(!SearchProfile::CurrentThreatAware.uses_lmr());
+        assert!(!SearchProfile::CurrentThreatAware.uses_null_move());
+        assert!(!SearchProfile::CurrentThreatAware.uses_futility());
+        assert!(!SearchProfile::CurrentThreatAware.uses_qsearch_pruning());
+        assert!(!SearchProfile::Current.uses_threat_aware_eval());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
@@ -4912,12 +5002,20 @@ mod tests {
     }
 
     fn run_profile_candidate(fen: &str, profile: SearchProfile) -> (SearchOutcome, SearchStats) {
+        run_profile_candidate_with_nodes(fen, profile, 60_000)
+    }
+
+    fn run_profile_candidate_with_nodes(
+        fen: &str,
+        profile: SearchProfile,
+        nodes: u64,
+    ) -> (SearchOutcome, SearchStats) {
         let mut pos = parse_fen(fen).unwrap();
         let before = to_fen(&pos);
         let key = pos.zobrist_key();
         let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
         let limits = SearchLimits {
-            nodes: Some(60_000),
+            nodes: Some(nodes),
             ..Default::default()
         };
         let mut tt = TranspositionTable::disabled();
@@ -4997,6 +5095,29 @@ mod tests {
         assert_eq!(lmr_stats.null_move_attempts, 0);
         assert_eq!(lmr_stats.futility_pruned, 0);
         assert_eq!(lmr_stats.qsearch_see_tests, 0);
+    }
+
+    #[test]
+    fn current_threat_aware_isolated_from_search_candidates() {
+        const KING_DANGER: &str = "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1";
+
+        let (_, current_stats) =
+            run_profile_candidate_with_nodes(KING_DANGER, SearchProfile::Current, 8_000);
+        let (threat, threat_stats) =
+            run_profile_candidate_with_nodes(KING_DANGER, SearchProfile::CurrentThreatAware, 8_000);
+
+        assert!(threat.score.is_some());
+        assert!(!threat.pv.is_empty());
+        assert_eq!(current_stats.lmr_reductions, 0);
+        assert_eq!(threat_stats.lmr_reductions, 0);
+        assert_eq!(threat_stats.aspiration_retries, 0);
+        assert_eq!(threat_stats.null_move_attempts, 0);
+        assert_eq!(threat_stats.futility_pruned, 0);
+        assert_eq!(threat_stats.qsearch_see_tests, 0);
+        assert_ne!(
+            current_stats.qsearch_nodes, 0,
+            "candidate isolation fixture must reach qsearch"
+        );
     }
 
     #[test]

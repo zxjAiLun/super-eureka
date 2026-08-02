@@ -115,6 +115,11 @@ fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
     run_profile_process(&["--profile", "current"], "current", false);
     run_profile_process(&["--profile", "current-lmr"], "current-lmr", true);
     run_profile_process(
+        &["--profile", "current-threat-aware"],
+        "current-threat-aware",
+        true,
+    );
+    run_profile_process(
         &["--profile", "current-aspiration"],
         "current-aspiration",
         true,

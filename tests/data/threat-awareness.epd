@@ -1,0 +1,16 @@
+# S2.1 threat-awareness candidate fixtures.
+#
+# Format: id|category|full FEN|role
+# These are direct-evaluation/search fixtures, not an oracle suite. A role may
+# be used by the unit tests to compare paired positions without requiring a
+# unique best move.
+king-danger-safe|king-danger|r4rk1/qpp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1|paired-baseline
+king-danger-exposed|king-danger|r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1|paired-danger
+king-danger-exposed-black|king-danger|r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1|side-to-move-mirror
+queen-defense|king-defense|r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R2Q2K1 w - - 0 1|defender-available
+rook-defense|king-defense|r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R4RK1 w - - 0 1|defender-available
+development-undeveloped|development|r4rk1/ppp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1|opening
+development-developed|development|r4rk1/ppp2ppp/4N3/3B4/3P4/8/PPP2PPP/R3Q1K1 w - - 0 1|opening
+pawn-break-closed|pawn-break|r4rk1/ppp2ppp/8/2p5/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1|closed
+pawn-break-open|pawn-break|r4rk1/ppp2ppp/8/8/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1|break
+queen-rook-pressure|king-danger|r4rk1/ppp2ppp/8/8/8/5q2/PPPP1PPP/R3Q1K1 w - - 0 1|heavy-piece-pressure

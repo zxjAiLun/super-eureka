@@ -51,7 +51,7 @@ cargo run --release -- bench profile --nodes 100000
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`，以及
   `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
-  `current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
+  `current-lmr|current-threat-aware|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
   或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
 - `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
   M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
@@ -59,6 +59,8 @@ cargo run --release -- bench profile --nodes 100000
   M4.1 排序 + PVS + 已批准的 specialized qsearch movegen 生产路径；SEE pruning、
   fast SEE、aspiration、LMR、null 和 futility 仍关闭。`current-aspiration-*` 是
   累计 tournament candidate profile；没有现有 profile 同时包含 null 与全部累计功能。
+  `current-threat-aware` 是 S2.1 的候选评估 profile，只增加有界 king-danger 评价，
+  不改变 `Current`，也不打开 LMR、null、futility 或 SEE pruning。
   M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
   lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
 
@@ -223,6 +225,11 @@ bestmove b1c3
   对可用于 paired statistics。CP-only Stockfish 赛后筛查结果混合，未授权短赛，
   `CurrentLmr` 仍为 candidate-only，`Current` 保持不变。见
   [`d1.14-current-vs-current-lmr.md`](docs/benchmarks/d1.14-current-vs-current-lmr.md)。
+- **S2.1 Threat-Aware Search（候选开发中）**：新增显式
+  `current-threat-aware` 启动 profile，当前只实现候选 king-danger 评价与固定诊断
+  局面；强制线路扩展、bounded checking qsearch 和 threat-aware ordering 尚未接入。
+  `Current`、LMR/null/futility/SEE pruning 均保持原边界。见
+  [`s2.1-threat-aware-search.md`](docs/specs/s2.1-threat-aware-search.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
   仅保留文档与 Git lineage。见

@@ -145,6 +145,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
         SearchProfile::CurrentLmr => "current-lmr",
+        SearchProfile::CurrentThreatAware => "current-threat-aware",
         SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
         SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         SearchProfile::CurrentQsearchFastPruning => "current-qsearch-fast-pruning",
@@ -354,6 +355,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "futility" => SearchProfile::FutilityCandidate,
                     "current" => SearchProfile::Current,
                     "current-lmr" => SearchProfile::CurrentLmr,
+                    "current-threat-aware" => SearchProfile::CurrentThreatAware,
                     "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
                     "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
                     "current-qsearch-fast-pruning" => SearchProfile::CurrentQsearchFastPruning,
@@ -367,7 +369,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1255,7 +1257,7 @@ fn print_help() {
     println!("  --movetime <MS>                   ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1576,6 +1578,10 @@ mod tests {
         assert_eq!(profile_str(SearchProfile::NullMoveCandidate), "null");
         assert_eq!(profile_str(SearchProfile::FutilityCandidate), "futility");
         assert_eq!(profile_str(SearchProfile::Current), "current");
+        assert_eq!(
+            profile_str(SearchProfile::CurrentThreatAware),
+            "current-threat-aware"
+        );
         assert_eq!(
             profile_str(SearchProfile::CurrentQsearchMovegen),
             "current-qsearch-movegen"

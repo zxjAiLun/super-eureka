@@ -142,6 +142,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
     match profile {
         search::SearchProfile::Current => "current",
         search::SearchProfile::CurrentLmr => "current-lmr",
+        search::SearchProfile::CurrentThreatAware => "current-threat-aware",
         search::SearchProfile::CurrentAspiration => "current-aspiration",
         search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -408,6 +409,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 profile = match name.as_str() {
                     "current" => search::SearchProfile::Current,
                     "current-lmr" => search::SearchProfile::CurrentLmr,
+                    "current-threat-aware" => search::SearchProfile::CurrentThreatAware,
                     "current-aspiration" => search::SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => search::SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -419,7 +421,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -874,6 +876,10 @@ mod tests {
         assert_eq!(
             startup_profile(&["--profile", "current-lmr"]),
             search::SearchProfile::CurrentLmr
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-threat-aware"]),
+            search::SearchProfile::CurrentThreatAware
         );
         assert_eq!(
             startup_profile(&["--profile", "current-aspiration"]),
