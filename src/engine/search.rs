@@ -4555,6 +4555,14 @@ mod tests {
         assert!(!SearchProfile::Current.uses_futility());
         assert!(SearchProfile::Current.uses_qsearch_movegen());
         assert!(!SearchProfile::Current.uses_qsearch_pruning());
+        assert!(SearchProfile::CurrentLmr.uses_pvs());
+        assert!(SearchProfile::CurrentLmr.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentLmr.uses_lmr());
+        assert!(!SearchProfile::CurrentLmr.uses_see());
+        assert!(!SearchProfile::CurrentLmr.uses_aspiration());
+        assert!(!SearchProfile::CurrentLmr.uses_null_move());
+        assert!(!SearchProfile::CurrentLmr.uses_futility());
+        assert!(!SearchProfile::CurrentLmr.uses_qsearch_pruning());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
@@ -4652,6 +4660,16 @@ mod tests {
                 false
             ) > 0
         );
+        assert!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                false
+            ) > 0
+        );
         assert_eq!(
             late_move_reduction(
                 &mut pos.clone(),
@@ -4668,6 +4686,18 @@ mod tests {
             late_move_reduction(
                 &mut pos.clone(),
                 quiet,
+                SearchProfile::CurrentLmr,
+                5,
+                0,
+                false
+            ),
+            0,
+            "CurrentLmr PV move must never be reduced"
+        );
+        assert_eq!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
                 SearchProfile::LmrCandidate,
                 5,
                 3,
@@ -4675,6 +4705,18 @@ mod tests {
             ),
             0,
             "in-check node must never be reduced"
+        );
+        assert_eq!(
+            late_move_reduction(
+                &mut pos.clone(),
+                quiet,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                true
+            ),
+            0,
+            "CurrentLmr in-check node must never be reduced"
         );
         assert_eq!(
             late_move_reduction(
@@ -4702,6 +4744,66 @@ mod tests {
             ),
             0,
             "low-material endgames must not be reduced"
+        );
+
+        let cap_pos = parse_fen("7k/8/8/8/8/8/K7/Rr6 w - - 0 1").unwrap();
+        let capture = find_move(&cap_pos, "a1b1");
+        assert_eq!(
+            late_move_reduction(
+                &mut cap_pos.clone(),
+                capture,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                false
+            ),
+            0,
+            "captures must never be reduced"
+        );
+
+        let promo_pos = parse_fen("8/P7/8/8/8/8/8/k6K w - - 0 1").unwrap();
+        let promotion = find_move(&promo_pos, "a7a8q");
+        assert_eq!(
+            late_move_reduction(
+                &mut promo_pos.clone(),
+                promotion,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                false
+            ),
+            0,
+            "promotions must never be reduced"
+        );
+
+        let ep_pos = parse_fen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1").unwrap();
+        let en_passant = find_move(&ep_pos, "e5d6");
+        assert_eq!(
+            late_move_reduction(
+                &mut ep_pos.clone(),
+                en_passant,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                false
+            ),
+            0,
+            "en-passant captures must never be reduced"
+        );
+
+        let checking_pos = parse_fen("4k3/8/8/8/8/8/4Q3/K6R w - - 0 1").unwrap();
+        let checking_quiet = find_move(&checking_pos, "e2e7");
+        assert_eq!(
+            late_move_reduction(
+                &mut checking_pos.clone(),
+                checking_quiet,
+                SearchProfile::CurrentLmr,
+                5,
+                3,
+                false
+            ),
+            0,
+            "checking quiet moves must never be reduced"
         );
     }
 
@@ -4875,6 +4977,26 @@ mod tests {
         comparable_first.last_completed_iteration_ms = 0;
         comparable_second.last_completed_iteration_ms = 0;
         assert_eq!(comparable_second, comparable_first);
+    }
+
+    #[test]
+    fn current_lmr_isolated_from_current_and_other_candidates() {
+        const OPEN_TACTICAL: &str =
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
+
+        let (_, current_stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::Current);
+        let (lmr, lmr_stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::CurrentLmr);
+
+        assert!(lmr.score.is_some());
+        assert!(!lmr.pv.is_empty());
+        assert_eq!(current_stats.lmr_reductions, 0);
+        assert_eq!(current_stats.lmr_researches, 0);
+        assert!(lmr_stats.lmr_reductions > 0);
+        assert!(lmr_stats.lmr_researches > 0);
+        assert_eq!(lmr_stats.aspiration_retries, 0);
+        assert_eq!(lmr_stats.null_move_attempts, 0);
+        assert_eq!(lmr_stats.futility_pruned, 0);
+        assert_eq!(lmr_stats.qsearch_see_tests, 0);
     }
 
     #[test]

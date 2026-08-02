@@ -872,6 +872,10 @@ mod tests {
             search::SearchProfile::Current
         );
         assert_eq!(
+            startup_profile(&["--profile", "current-lmr"]),
+            search::SearchProfile::CurrentLmr
+        );
+        assert_eq!(
             startup_profile(&["--profile", "current-aspiration"]),
             search::SearchProfile::CurrentAspiration
         );
