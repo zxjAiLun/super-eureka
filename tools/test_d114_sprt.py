@@ -49,6 +49,7 @@ class D114LauncherTests(unittest.TestCase):
         self.assertEqual(command[command.index("-rounds") + 1], "40")
         self.assertEqual(command[command.index("-repeat") + 1], "2")
         self.assertEqual(command[command.index("-concurrency") + 1], "1")
+        self.assertEqual(command[command.index("policy=default")], "policy=default")
         self.assertNotIn("-sprt", command)
         self.assertNotIn("-recover", command)
 

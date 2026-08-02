@@ -258,7 +258,7 @@ def build_command(
         f"file={opening_path.resolve()}",
         "format=epd",
         "order=sequential",
-        "policy=encounter",
+        "policy=default",
         "-each",
         f"tc={time_control}",
         "option.Hash=16",
@@ -296,14 +296,20 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def write_opening_hash(path: Path, opening: dict[str, Any]) -> None:
+def write_opening_hash(
+    path: Path,
+    opening: dict[str, Any],
+    runtime_path: Path,
+    runtime_count: int,
+    runtime_sha256: str,
+) -> None:
     path.write_text(
         json.dumps(
             {
                 "suite": opening["metadata"],
-                "runtime_path": opening["path"],
-                "runtime_sha256": opening["sha256"],
-                "runtime_count": opening["count"],
+                "runtime_path": str(runtime_path.resolve()),
+                "runtime_sha256": runtime_sha256,
+                "runtime_count": runtime_count,
             },
             indent=2,
             sort_keys=True,
@@ -544,7 +550,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         git_sha,
     )
     (output_dir / "command.txt").write_text(command_text(command) + "\n", encoding="utf-8")
-    write_opening_hash(output_dir / "openings.sha256", opening)
+    write_opening_hash(
+        output_dir / "openings.sha256",
+        opening,
+        runtime_opening,
+        runtime_count,
+        runtime_hash,
+    )
     write_binary_hash(output_dir / "binary.sha256", engine, identities)
     write_json(output_dir / "manifest.json", manifest)
     if args.dry_run:
