@@ -145,6 +145,8 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentThreatAware => "current-threat-aware",
         search::SearchProfile::CurrentThreatAwareNoQchecks => "current-threat-aware-no-qchecks",
         search::SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
+        search::SearchProfile::CurrentThreatAwareEvalOnly => "current-threat-aware-eval-only",
+        search::SearchProfile::CurrentThreatAwareOrderOnly => "current-threat-aware-order-only",
         search::SearchProfile::CurrentAspiration => "current-aspiration",
         search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -910,6 +912,15 @@ mod tests {
         let unsupported =
             parse_startup_profile(&["--profile".to_string(), "null".to_string()]).unwrap_err();
         assert!(unsupported.contains("invalid --profile"));
+
+        for profile in [
+            "current-threat-aware-eval-only",
+            "current-threat-aware-order-only",
+        ] {
+            let bench_only =
+                parse_startup_profile(&["--profile".to_string(), profile.to_string()]).unwrap_err();
+            assert!(bench_only.contains("invalid --profile"));
+        }
 
         let duplicate = parse_startup_profile(&[
             "--profile".to_string(),

@@ -152,6 +152,8 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentThreatAware => "current-threat-aware",
         SearchProfile::CurrentThreatAwareNoQchecks => "current-threat-aware-no-qchecks",
         SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
+        SearchProfile::CurrentThreatAwareEvalOnly => "current-threat-aware-eval-only",
+        SearchProfile::CurrentThreatAwareOrderOnly => "current-threat-aware-order-only",
         SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
         SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         SearchProfile::CurrentQsearchFastPruning => "current-qsearch-fast-pruning",
@@ -378,6 +380,8 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-threat-aware" => SearchProfile::CurrentThreatAware,
                     "current-threat-aware-no-qchecks" => SearchProfile::CurrentThreatAwareNoQchecks,
                     "current-threat-aware-eval-order" => SearchProfile::CurrentThreatAwareEvalOrder,
+                    "current-threat-aware-eval-only" => SearchProfile::CurrentThreatAwareEvalOnly,
+                    "current-threat-aware-order-only" => SearchProfile::CurrentThreatAwareOrderOnly,
                     "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
                     "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
                     "current-qsearch-fast-pruning" => SearchProfile::CurrentQsearchFastPruning,
@@ -391,7 +395,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -1320,7 +1324,7 @@ fn print_help() {
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1637,6 +1641,25 @@ mod tests {
         assert_eq!(p.profile, SearchProfile::CurrentQsearchFastPruning);
 
         for (name, expected) in [
+            (
+                "current-threat-aware-eval-only",
+                SearchProfile::CurrentThreatAwareEvalOnly,
+            ),
+            (
+                "current-threat-aware-order-only",
+                SearchProfile::CurrentThreatAwareOrderOnly,
+            ),
+        ] {
+            let parsed = parse_args(&[
+                "profile".to_string(),
+                "--profile".to_string(),
+                name.to_string(),
+            ])
+            .unwrap();
+            assert_eq!(parsed.profile, expected);
+        }
+
+        for (name, expected) in [
             ("current-aspiration", SearchProfile::CurrentAspiration),
             (
                 "current-aspiration-lmr",
@@ -1689,6 +1712,14 @@ mod tests {
         assert_eq!(
             profile_str(SearchProfile::CurrentThreatAwareEvalOrder),
             "current-threat-aware-eval-order"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentThreatAwareEvalOnly),
+            "current-threat-aware-eval-only"
+        );
+        assert_eq!(
+            profile_str(SearchProfile::CurrentThreatAwareOrderOnly),
+            "current-threat-aware-order-only"
         );
         assert_eq!(
             profile_str(SearchProfile::CurrentQsearchMovegen),

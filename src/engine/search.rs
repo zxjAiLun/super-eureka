@@ -92,6 +92,14 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   keeps the candidate king-danger evaluation, threat ordering, and root
 ///   score ordering, but disables forcing extensions and quiet qsearch checks.
 ///   It is bench-only and never changes `Current`.
+/// * `CurrentThreatAwareEvalOnly` is the S2.1c shared-core attribution variant:
+///   it keeps only the candidate king-danger evaluation. It deliberately uses
+///   Current's ordinary move and root ordering, with no forcing extensions or
+///   quiet qsearch checks. It is bench-only and never changes `Current`.
+/// * `CurrentThreatAwareOrderOnly` is the S2.1c shared-core attribution
+///   variant: it keeps only threat-aware move/root ordering and Current's
+///   ordinary evaluation, with no forcing extensions or quiet qsearch checks.
+///   It is bench-only and never changes `Current`.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -121,6 +129,8 @@ pub(crate) enum SearchProfile {
     CurrentThreatAware,
     CurrentThreatAwareNoQchecks,
     CurrentThreatAwareEvalOrder,
+    CurrentThreatAwareEvalOnly,
+    CurrentThreatAwareOrderOnly,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
@@ -192,6 +202,8 @@ impl SearchProfile {
                 | Self::CurrentThreatAware
                 | Self::CurrentThreatAwareNoQchecks
                 | Self::CurrentThreatAwareEvalOrder
+                | Self::CurrentThreatAwareEvalOnly
+                | Self::CurrentThreatAwareOrderOnly
                 | Self::CurrentAspiration
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
@@ -222,6 +234,7 @@ impl SearchProfile {
             Self::CurrentThreatAware
                 | Self::CurrentThreatAwareNoQchecks
                 | Self::CurrentThreatAwareEvalOrder
+                | Self::CurrentThreatAwareEvalOnly
         )
     }
 
@@ -240,6 +253,7 @@ impl SearchProfile {
             Self::CurrentThreatAware
                 | Self::CurrentThreatAwareNoQchecks
                 | Self::CurrentThreatAwareEvalOrder
+                | Self::CurrentThreatAwareOrderOnly
         )
     }
 
@@ -5159,6 +5173,8 @@ mod tests {
         for profile in [
             SearchProfile::CurrentThreatAwareNoQchecks,
             SearchProfile::CurrentThreatAwareEvalOrder,
+            SearchProfile::CurrentThreatAwareEvalOnly,
+            SearchProfile::CurrentThreatAwareOrderOnly,
         ] {
             assert!(profile.uses_pvs());
             assert!(profile.uses_qsearch_movegen());
@@ -5175,6 +5191,14 @@ mod tests {
         assert!(!SearchProfile::CurrentThreatAwareNoQchecks.uses_threat_aware_qsearch());
         assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_forcing_search());
         assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_threat_aware_qsearch());
+        assert!(SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_aware_eval());
+        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_ordering());
+        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_forcing_search());
+        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_aware_qsearch());
+        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_aware_eval());
+        assert!(SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_ordering());
+        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_forcing_search());
+        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_aware_qsearch());
         assert!(!SearchProfile::Current.uses_threat_aware_eval());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());

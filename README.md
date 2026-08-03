@@ -52,7 +52,7 @@ cargo run --release -- bench profile --nodes 100000
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--depth N`、
   `--movetime MS` 和 profile 专用的 `--fen FEN`，以及
   `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
-  `current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
+  `current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
   或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
 - `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
   M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
@@ -63,7 +63,8 @@ cargo run --release -- bench profile --nodes 100000
   `current-threat-aware` 是 S2.1 的候选 profile，增加有界 king-danger 评价、检查/单一
   应将扩展、前两层 qsearch 检查和威胁感知排序；不改变 `Current`，也不打开 LMR、null、
   futility 或 SEE pruning。`current-threat-aware-no-qchecks` 与
-  `current-threat-aware-eval-order` 是 S2.1b 仅供 `bench profile` 的成本归因变体，不能作为
+  `current-threat-aware-eval-order`、`current-threat-aware-eval-only` 与
+  `current-threat-aware-order-only` 是 S2.1b/S2.1c 仅供 `bench profile` 的成本归因变体，不能作为
   UCI 启动 profile。
   M4.1 的历史 A/B 对照见 `docs/benchmarks/m4.1-quiet-move-ordering.md`，M4.2 的批准
   lineage 见 `docs/benchmarks/m4.2-principal-variation-search.md`。
