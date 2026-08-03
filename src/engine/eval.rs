@@ -170,8 +170,8 @@ const KING_EG_PST: [i32; 64] = [
 const MAX_PHASE: i32 = 24;
 const STALEMATE_BONUS: i32 = -900;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Score {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Score {
     mg: i32,
     eg: i32,
 }
@@ -181,6 +181,119 @@ impl Score {
         Score {
             mg: value,
             eg: value,
+        }
+    }
+}
+
+/// All score lanes produced while walking one position. The later E2
+/// candidate fills the positional lanes; the production evaluator currently
+/// leaves them at zero so this refactor is behavior-preserving.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct EvalTerms {
+    pub(crate) material_pst: Score,
+    pub(crate) pawn_structure: Score,
+    pub(crate) mobility: Score,
+    pub(crate) piece_activity: Score,
+    pub(crate) rook_activity: Score,
+    pub(crate) development_space: Score,
+    pub(crate) king_safety: Score,
+}
+
+/// Fixed-storage facts collected from a position in one board walk.
+///
+/// The attack maps are intentionally lazy in this first framework commit:
+/// `Current` does not pay to construct them, while the E2 candidate can build
+/// them once and share them across its terms. No field uses a heap-allocated
+/// collection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EvalContext {
+    pub(crate) phase: i32,
+    pub(crate) piece_counts: [[u8; 6]; 2],
+    pub(crate) piece_squares: [[u64; 6]; 2],
+    pub(crate) pawn_files: [[u8; 8]; 2],
+    pub(crate) pawn_attacks: [u64; 2],
+    pub(crate) occupancy: u64,
+    pub(crate) king_squares: [u8; 2],
+    pub(crate) attack_maps: [u64; 2],
+    pub(crate) attack_maps_ready: bool,
+    pub(crate) terms: EvalTerms,
+}
+
+impl EvalContext {
+    fn from_position(pos: &Position) -> Self {
+        let mut context = Self {
+            phase: 0,
+            piece_counts: [[0; 6]; 2],
+            piece_squares: [[0; 6]; 2],
+            pawn_files: [[0; 8]; 2],
+            pawn_attacks: [0; 2],
+            occupancy: 0,
+            king_squares: pos.king_sq,
+            attack_maps: [0; 2],
+            attack_maps_ready: false,
+            terms: EvalTerms::default(),
+        };
+
+        for (sq, piece) in pos.board.iter().enumerate() {
+            let Some(piece) = piece else { continue };
+            let color = piece.color as usize;
+            let piece_type = piece_type_index(piece.piece_type);
+            let square_bit = 1_u64 << sq;
+            context.occupancy |= square_bit;
+            context.piece_counts[color][piece_type] =
+                context.piece_counts[color][piece_type].saturating_add(1);
+            context.piece_squares[color][piece_type] |= square_bit;
+            context.phase += phase_weight(piece.piece_type);
+
+            if piece.piece_type == PieceType::Pawn {
+                context.pawn_files[color][file_of(sq as u8) as usize] =
+                    context.pawn_files[color][file_of(sq as u8) as usize].saturating_add(1);
+                add_pawn_attacks(&mut context.pawn_attacks[color], sq as u8, piece.color);
+            }
+
+            let sign = if piece.color == pos.side { 1 } else { -1 };
+            let material = material_score(piece.piece_type);
+            let positional = pst_score(piece.piece_type, pst_idx(sq, piece.color));
+            context.terms.material_pst.mg += sign * (material.mg + positional.mg);
+            context.terms.material_pst.eg += sign * (material.eg + positional.eg);
+        }
+        context.phase = context.phase.min(MAX_PHASE);
+        context
+    }
+}
+
+#[inline]
+fn piece_type_index(piece_type: PieceType) -> usize {
+    match piece_type {
+        PieceType::Pawn => 0,
+        PieceType::Knight => 1,
+        PieceType::Bishop => 2,
+        PieceType::Rook => 3,
+        PieceType::Queen => 4,
+        PieceType::King => 5,
+    }
+}
+
+#[inline]
+fn add_pawn_attacks(attacks: &mut u64, square: u8, color: Color) {
+    let file = file_of(square);
+    let rank = rank_of(square);
+    match color {
+        Color::White => {
+            if file > 0 && rank < 7 {
+                *attacks |= 1_u64 << (square + 7);
+            }
+            if file < 7 && rank < 7 {
+                *attacks |= 1_u64 << (square + 9);
+            }
+        }
+        Color::Black => {
+            if file > 0 && rank > 0 {
+                *attacks |= 1_u64 << (square - 9);
+            }
+            if file < 7 && rank > 0 {
+                *attacks |= 1_u64 << (square - 7);
+            }
         }
     }
 }
@@ -220,13 +333,7 @@ fn phase_weight(pt: PieceType) -> i32 {
 /// pure king/pawn ending. Promotions are clamped so the interpolation range
 /// remains stable even when a position contains extra heavy pieces.
 pub(crate) fn game_phase(pos: &Position) -> i32 {
-    let phase: i32 = pos
-        .board
-        .iter()
-        .filter_map(|piece| *piece)
-        .map(|piece| phase_weight(piece.piece_type))
-        .sum();
-    phase.min(MAX_PHASE)
+    EvalContext::from_position(pos).phase
 }
 
 #[inline]
@@ -404,18 +511,32 @@ fn pst_idx(sq: usize, color: Color) -> usize {
 /// Static evaluation from the side-to-move's perspective: material plus
 /// piece-square-table bonuses. Read-only — it never mutates `pos`.
 pub fn evaluate(pos: &Position) -> i32 {
-    let mut mg = 0;
-    let mut eg = 0;
-    for sq in 0..64usize {
-        if let Some(p) = pos.board[sq] {
-            let sign = if p.color == pos.side { 1 } else { -1 };
-            let material = material_score(p.piece_type);
-            let positional = pst_score(p.piece_type, pst_idx(sq, p.color));
-            mg += sign * (material.mg + positional.mg);
-            eg += sign * (material.eg + positional.eg);
-        }
+    evaluate_breakdown(pos).final_score
+}
+
+/// Behavior-preserving base evaluation breakdown. It is crate-visible so the
+/// E2 candidate and bench/tests can inspect terms without exposing a GUI or
+/// UCI option.
+pub(crate) fn evaluate_breakdown(pos: &Position) -> EvalBreakdown {
+    let context = EvalContext::from_position(pos);
+    let base = context.terms.material_pst;
+    let final_score = finish_evaluation(pos, base.mg, base.eg, context.phase);
+    EvalBreakdown {
+        terms: context.terms,
+        phase: context.phase,
+        total_mg: base.mg,
+        total_eg: base.eg,
+        final_score,
     }
-    finish_evaluation(pos, mg, eg, game_phase(pos))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EvalBreakdown {
+    pub(crate) terms: EvalTerms,
+    pub(crate) phase: i32,
+    pub(crate) total_mg: i32,
+    pub(crate) total_eg: i32,
+    pub(crate) final_score: i32,
 }
 
 /// Return whether a concrete piece attacks a target square in the current
@@ -605,8 +726,8 @@ pub fn evaluate_threat_aware(pos: &Position) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate, evaluate_threat_aware, exact_mop_up, game_phase, interpolate, KING_EG_PST,
-        KING_MG_PST, MAX_PHASE,
+        evaluate, evaluate_breakdown, evaluate_threat_aware, exact_mop_up, game_phase, interpolate,
+        EvalContext, Score, KING_EG_PST, KING_MG_PST, MAX_PHASE,
     };
     use crate::chess::fen::parse_fen;
     use crate::chess::fen::to_fen;
@@ -627,6 +748,24 @@ mod tests {
         assert_eq!(interpolate(100, 200, MAX_PHASE), 100);
         assert_eq!(interpolate(100, 200, 0), 200);
         assert_eq!(interpolate(100, 200, MAX_PHASE / 2), 150);
+    }
+
+    #[test]
+    fn eval_context_preserves_base_evaluation_and_uses_fixed_storage() {
+        let position =
+            parse_fen("r1bq1rk1/ppp2ppp/2n1pn2/8/2BPP3/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 1").unwrap();
+        let context = EvalContext::from_position(&position);
+        let breakdown = evaluate_breakdown(&position);
+
+        assert_eq!(breakdown.final_score, evaluate(&position));
+        assert_eq!(breakdown.phase, context.phase);
+        assert_eq!(breakdown.total_mg, context.terms.material_pst.mg);
+        assert_eq!(breakdown.total_eg, context.terms.material_pst.eg);
+        assert_eq!(context.occupancy.count_ones(), 30);
+        assert!(!context.attack_maps_ready);
+        assert_eq!(context.terms.pawn_structure, Score::default());
+        assert_eq!(context.terms.mobility, Score::default());
+        assert!(std::mem::size_of::<EvalContext>() > 0);
     }
 
     #[test]
