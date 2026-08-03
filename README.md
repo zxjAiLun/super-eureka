@@ -253,6 +253,11 @@ bestmove b1c3
   `eval+order` 仍为 6 局较浅，故只保留 `current-threat-aware-eval-only` 进入下一轮
   1/3/10 秒门禁，仍不运行比赛、不改变 Current。见
   [`s2.1c-shared-core-attribution.md`](docs/benchmarks/s2.1c-shared-core-attribution.md)。
+  S2.1d 的 1/3/10 秒 54 次固定时间门禁中，三档中位深度均未低于 Current、
+  所有候选污染计数均为零，但 27 对仅有 2 次 EvalOnly 更深、6 次 Current 更深，且
+  `control-237` 在 1 秒仍走出有害 `g8h8`，故门禁 FAIL。EvalOnly 不进入 Current，
+  不进行 Stockfish 重评分或比赛。见
+  [`s2.1d-king-danger-eval-fixed-time.md`](docs/benchmarks/s2.1d-king-danger-eval-fixed-time.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
   仅保留文档与 Git lineage。见
