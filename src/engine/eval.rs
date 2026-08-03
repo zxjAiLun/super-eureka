@@ -172,8 +172,8 @@ const STALEMATE_BONUS: i32 = -900;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Score {
-    mg: i32,
-    eg: i32,
+    pub(crate) mg: i32,
+    pub(crate) eg: i32,
 }
 
 impl Score {
@@ -214,6 +214,9 @@ pub(crate) struct EvalContext {
     pub(crate) pawn_attacks: [u64; 2],
     pub(crate) occupancy: u64,
     pub(crate) king_squares: [u8; 2],
+    /// Pseudo-attacks for the piece currently occupying each square. The
+    /// fixed array lets all E2 terms share one attack calculation.
+    pub(crate) piece_attacks: [u64; 64],
     pub(crate) attack_maps: [u64; 2],
     pub(crate) attack_maps_ready: bool,
     pub(crate) terms: EvalTerms,
@@ -229,6 +232,7 @@ impl EvalContext {
             pawn_attacks: [0; 2],
             occupancy: 0,
             king_squares: pos.king_sq,
+            piece_attacks: [0; 64],
             attack_maps: [0; 2],
             attack_maps_ready: false,
             terms: EvalTerms::default(),
@@ -269,10 +273,13 @@ impl EvalContext {
             return;
         }
 
+        self.piece_attacks = [0; 64];
         self.attack_maps = [0; 2];
         for (sq, piece) in pos.board.iter().enumerate() {
             let Some(piece) = piece else { continue };
-            self.attack_maps[piece.color as usize] |= piece_attack_mask(pos, sq as u8, *piece);
+            let attacks = piece_attack_mask(pos, sq as u8, *piece);
+            self.piece_attacks[sq] = attacks;
+            self.attack_maps[piece.color as usize] |= attacks;
         }
         self.attack_maps_ready = true;
     }
@@ -666,7 +673,7 @@ fn pawn_is_connected(context: &EvalContext, square: u8, color: Color) -> bool {
     while pawns != 0 {
         let other = pawns.trailing_zeros() as u8;
         pawns &= pawns - 1;
-        if (file_of(other) as i32 - file).abs() <= 1 && (rank_of(other) as i32 - rank).abs() <= 1 {
+        if (file_of(other) as i32 - file).abs() == 1 && (rank_of(other) as i32 - rank).abs() <= 1 {
             return true;
         }
     }
@@ -746,7 +753,7 @@ fn pawn_structure_for_color(context: &EvalContext, color: Color) -> Score {
         let square = pawns.trailing_zeros() as u8;
         pawns &= pawns - 1;
         let rank = rank_of(square);
-        if (color == Color::White && rank >= 3) || (color == Color::Black && rank <= 4) {
+        if (color == Color::White && rank >= 4) || (color == Color::Black && rank <= 3) {
             space += 1;
         }
     }
@@ -754,6 +761,30 @@ fn pawn_structure_for_color(context: &EvalContext, color: Color) -> Score {
     eg += space;
 
     Score { mg, eg }
+}
+
+fn undeveloped_minor_count(pos: &Position, color: Color) -> i32 {
+    let home = if color == Color::White {
+        [
+            (make_square(1, 0), PieceType::Knight),
+            (make_square(6, 0), PieceType::Knight),
+            (make_square(2, 0), PieceType::Bishop),
+            (make_square(5, 0), PieceType::Bishop),
+        ]
+    } else {
+        [
+            (make_square(1, 7), PieceType::Knight),
+            (make_square(6, 7), PieceType::Knight),
+            (make_square(2, 7), PieceType::Bishop),
+            (make_square(5, 7), PieceType::Bishop),
+        ]
+    };
+    home.iter()
+        .filter(|&&(square, expected)| {
+            pos.board[square as usize]
+                .is_some_and(|piece| piece.color == color && piece.piece_type == expected)
+        })
+        .count() as i32
 }
 
 fn mobility_for_color(pos: &Position, context: &EvalContext, color: Color) -> i32 {
@@ -764,7 +795,7 @@ fn mobility_for_color(pos: &Position, context: &EvalContext, color: Color) -> i3
         if piece.color != color || piece.piece_type == PieceType::Pawn {
             continue;
         }
-        let moves = piece_attack_mask(pos, square as u8, *piece) & !own_occupied;
+        let moves = context.piece_attacks[square] & !own_occupied;
         let weight = match piece.piece_type {
             PieceType::Knight => 4,
             PieceType::Bishop => 4,
@@ -791,20 +822,16 @@ fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color)
             continue;
         }
         let square = square as u8;
-        let attacks = piece_attack_mask(pos, square, *piece);
+        let attacks = context.piece_attacks[square as usize];
         let mobility = (attacks & !own_occupied).count_ones() as i32;
         match piece.piece_type {
             PieceType::Bishop => {
                 bishops += 1;
-                mg += mobility * 2;
-                eg += mobility * 2;
             }
             PieceType::Knight => {
-                mg += mobility * 2;
-                eg += mobility;
                 let rank = rank_of(square);
                 let in_opponent_half =
-                    (color == Color::White && rank >= 3) || (color == Color::Black && rank <= 4);
+                    (color == Color::White && rank >= 4) || (color == Color::Black && rank <= 3);
                 let is_outpost = in_opponent_half
                     && context.pawn_attacks[color as usize] & bit(square) != 0
                     && enemy_pawn_attacks & bit(square) == 0;
@@ -813,10 +840,7 @@ fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color)
                     eg += 10;
                 }
             }
-            PieceType::Rook | PieceType::Queen => {
-                mg += mobility;
-                eg += mobility;
-            }
+            PieceType::Rook | PieceType::Queen => {}
             PieceType::King | PieceType::Pawn => {}
         }
         if matches!(piece.piece_type, PieceType::Knight | PieceType::Bishop) && mobility <= 2 {
@@ -833,27 +857,7 @@ fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color)
 
 fn development_space_for_color(pos: &Position, context: &EvalContext, color: Color) -> Score {
     let side = color as usize;
-    let home = if color == Color::White {
-        [
-            make_square(1, 0),
-            make_square(6, 0),
-            make_square(2, 0),
-            make_square(5, 0),
-        ]
-    } else {
-        [
-            make_square(1, 7),
-            make_square(6, 7),
-            make_square(2, 7),
-            make_square(5, 7),
-        ]
-    };
-    let mut undeveloped = 0;
-    for &square in &home {
-        if pos.board[square as usize].is_some_and(|piece| piece.color == color) {
-            undeveloped += 1;
-        }
-    }
+    let undeveloped = undeveloped_minor_count(pos, color);
 
     let center = bit(make_square(3, 3))
         | bit(make_square(4, 3))
@@ -945,7 +949,7 @@ fn rook_activity_for_color(pos: &Position, context: &EvalContext, color: Color) 
         let square = rooks.trailing_zeros() as u8;
         rooks &= rooks - 1;
         let file = file_of(square) as usize;
-        let attacks = piece_attack_mask(pos, square, Piece::new(color, PieceType::Rook));
+        let attacks = context.piece_attacks[square as usize];
         let mobility = (attacks & !own_occupied).count_ones() as i32;
         let own_pawns = context.pawn_files[side][file];
         let enemy_pawns = context.pawn_files[enemy as usize][file];
@@ -961,9 +965,6 @@ fn rook_activity_for_color(pos: &Position, context: &EvalContext, color: Color) 
         if mobility <= 3 {
             mg -= 10;
         }
-        mg += mobility * 2;
-        eg += mobility * 2;
-
         let rank = rank_of(square);
         if (color == Color::White && rank == 6) || (color == Color::Black && rank == 1) {
             mg += 16;
@@ -979,17 +980,15 @@ fn rook_activity_for_color(pos: &Position, context: &EvalContext, color: Color) 
             mg += 4;
         }
 
-        for (other_square, other_piece) in pos.board.iter().enumerate() {
-            if other_square == square as usize {
-                continue;
-            }
-            if other_piece.is_some_and(|piece| {
-                piece.color == color
-                    && piece.piece_type == PieceType::Rook
-                    && (file_of(other_square as u8) == file_of(square)
-                        || rank_of(other_square as u8) == rank_of(square))
-                    && line_clear(pos, square, other_square as u8)
-            }) {
+        let mut connected_rooks =
+            context.piece_squares[side][piece_type_index(PieceType::Rook)] & !bit(square);
+        while connected_rooks != 0 {
+            let other_square = connected_rooks.trailing_zeros() as u8;
+            connected_rooks &= connected_rooks - 1;
+            if (file_of(other_square) == file_of(square)
+                || rank_of(other_square) == rank_of(square))
+                && line_clear(pos, square, other_square)
+            {
                 mg += 7;
                 eg += 7;
                 break;
@@ -1008,7 +1007,7 @@ fn king_danger_e2(context: &EvalContext, pos: &Position, victim: Color) -> i32 {
     let mut attackers = 0;
     for (square, piece) in pos.board.iter().enumerate() {
         let Some(piece) = piece else { continue };
-        if piece.color == enemy && piece_attack_mask(pos, square as u8, *piece) & zone != 0 {
+        if piece.color == enemy && context.piece_attacks[square] & zone != 0 {
             attackers += 1;
             attack_units += match piece.piece_type {
                 PieceType::Pawn | PieceType::King => 1,
@@ -1114,17 +1113,43 @@ fn integrated_positional_terms(pos: &Position, context: &mut EvalContext) -> Eva
     }
 }
 
-/// Integrated E2 candidate evaluation. Every new term is produced from one
-/// shared fixed-storage context and is enabled only for `current-eval2`.
-/// `Current` continues to call the behavior-preserving base evaluator.
-pub(crate) fn evaluate_integrated_positional(pos: &Position) -> i32 {
+#[inline]
+fn total_terms(terms: EvalTerms) -> (i32, i32) {
+    let mg = terms.material_pst.mg
+        + terms.pawn_structure.mg
+        + terms.mobility.mg
+        + terms.piece_activity.mg
+        + terms.rook_activity.mg
+        + terms.development_space.mg
+        + terms.king_safety.mg;
+    let eg = terms.material_pst.eg
+        + terms.pawn_structure.eg
+        + terms.mobility.eg
+        + terms.piece_activity.eg
+        + terms.rook_activity.eg
+        + terms.development_space.eg
+        + terms.king_safety.eg;
+    (mg, eg)
+}
+
+/// Full breakdown for the integrated E2 candidate. Every new term is
+/// produced from one shared fixed-storage context and is enabled only for
+/// `current-eval2`; the term lanes use the same side-to-move perspective as
+/// the existing base lane.
+pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
     let mut context = EvalContext::from_position(pos);
     let base = context.terms.material_pst;
 
     // Preserve the exact KQK/KRK path while the candidate is being evaluated;
     // no positional term is allowed to dilute the dedicated mop-up logic.
     if exact_mop_up(pos).is_some() {
-        return finish_evaluation(pos, base.mg, base.eg, context.phase);
+        return EvalBreakdown {
+            terms: context.terms,
+            phase: context.phase,
+            total_mg: base.mg,
+            total_eg: base.eg,
+            final_score: finish_evaluation(pos, base.mg, base.eg, context.phase),
+        };
     }
 
     let white_terms = integrated_positional_terms(pos, &mut context);
@@ -1139,21 +1164,20 @@ pub(crate) fn evaluate_integrated_positional(pos: &Position) -> i32 {
     };
     context.terms = side_terms;
 
-    let mg = side_terms.material_pst.mg
-        + side_terms.pawn_structure.mg
-        + side_terms.mobility.mg
-        + side_terms.piece_activity.mg
-        + side_terms.rook_activity.mg
-        + side_terms.development_space.mg
-        + side_terms.king_safety.mg;
-    let eg = side_terms.material_pst.eg
-        + side_terms.pawn_structure.eg
-        + side_terms.mobility.eg
-        + side_terms.piece_activity.eg
-        + side_terms.rook_activity.eg
-        + side_terms.development_space.eg
-        + side_terms.king_safety.eg;
-    finish_evaluation(pos, mg, eg, context.phase)
+    let (total_mg, total_eg) = total_terms(context.terms);
+    EvalBreakdown {
+        terms: context.terms,
+        phase: context.phase,
+        total_mg,
+        total_eg,
+        final_score: finish_evaluation(pos, total_mg, total_eg, context.phase),
+    }
+}
+
+/// Integrated E2 candidate evaluation. `Current` continues to call the
+/// behavior-preserving base evaluator.
+pub(crate) fn evaluate_integrated_positional(pos: &Position) -> i32 {
+    evaluate_integrated_breakdown(pos).final_score
 }
 
 /// Return whether a concrete piece attacks a target square in the current
@@ -1343,12 +1367,14 @@ pub fn evaluate_threat_aware(pos: &Position) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate, evaluate_breakdown, evaluate_integrated_positional, evaluate_threat_aware,
-        exact_mop_up, game_phase, interpolate, EvalContext, Score, KING_EG_PST, KING_MG_PST,
-        MAX_PHASE,
+        evaluate, evaluate_breakdown, evaluate_integrated_breakdown,
+        evaluate_integrated_positional, evaluate_threat_aware, exact_mop_up, game_phase,
+        interpolate, pawn_is_connected, undeveloped_minor_count, EvalContext, Score, KING_EG_PST,
+        KING_MG_PST, MAX_PHASE,
     };
     use crate::chess::fen::parse_fen;
     use crate::chess::fen::to_fen;
+    use crate::chess::types::{make_square, Color};
 
     #[test]
     fn phase_counts_non_pawn_material_only() {
@@ -1384,6 +1410,19 @@ mod tests {
         assert_eq!(context.terms.pawn_structure, Score::default());
         assert_eq!(context.terms.mobility, Score::default());
         assert!(std::mem::size_of::<EvalContext>() > 0);
+
+        let mut attacked = context;
+        attacked.ensure_attack_maps(&position);
+        assert!(attacked.attack_maps_ready);
+        assert_eq!(
+            attacked
+                .piece_attacks
+                .iter()
+                .filter(|&&attacks| attacks != 0)
+                .count(),
+            30,
+            "one cached attack mask per occupied square"
+        );
     }
 
     #[test]
@@ -1445,6 +1484,59 @@ mod tests {
             evaluate_integrated_positional(&kqk),
             evaluate(&kqk),
             "E2 must leave the exact KQK mop-up path unchanged"
+        );
+    }
+
+    #[test]
+    fn connected_pawns_exclude_same_file_doubled_pawns() {
+        let adjacent = parse_fen("4k3/8/8/3PP3/8/8/8/4K3 w - - 0 1").unwrap();
+        let offset = parse_fen("4k3/8/8/3P4/4P3/8/8/4K3 w - - 0 1").unwrap();
+        let doubled = parse_fen("4k3/8/3P4/3P4/8/8/8/4K3 w - - 0 1").unwrap();
+
+        assert!(pawn_is_connected(
+            &EvalContext::from_position(&adjacent),
+            make_square(3, 4),
+            Color::White
+        ));
+        assert!(pawn_is_connected(
+            &EvalContext::from_position(&offset),
+            make_square(3, 4),
+            Color::White
+        ));
+        assert!(!pawn_is_connected(
+            &EvalContext::from_position(&doubled),
+            make_square(3, 4),
+            Color::White
+        ));
+    }
+
+    #[test]
+    fn development_counts_exact_minor_piece_identity() {
+        let correct = parse_fen("4k3/8/8/8/8/8/8/1N1B2NK w - - 0 1").unwrap();
+        let wrong_piece = parse_fen("4k3/8/8/8/8/8/8/1R1B2NK w - - 0 1").unwrap();
+
+        assert_eq!(undeveloped_minor_count(&correct, Color::White), 2);
+        assert_eq!(undeveloped_minor_count(&wrong_piece, Color::White), 1);
+    }
+
+    #[test]
+    fn integrated_breakdown_exposes_positional_lanes() {
+        let position =
+            parse_fen("r3k2r/ppp2ppp/2n5/3q4/3P4/2N5/PPP2PPP/R3K2R w KQkq - 0 1").unwrap();
+        let breakdown = evaluate_integrated_breakdown(&position);
+        let terms = breakdown.terms;
+        assert!(
+            terms.pawn_structure != Score::default()
+                || terms.mobility != Score::default()
+                || terms.piece_activity != Score::default()
+                || terms.rook_activity != Score::default()
+                || terms.development_space != Score::default()
+                || terms.king_safety != Score::default(),
+            "integrated breakdown must expose at least one non-base lane"
+        );
+        assert_eq!(
+            breakdown.final_score,
+            evaluate_integrated_positional(&position)
         );
     }
 
