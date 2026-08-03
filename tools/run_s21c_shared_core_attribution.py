@@ -288,7 +288,7 @@ def main() -> int:
             "tt": {"mode": "cold", "hash_mb": 16, "threads": 1},
             "profiles": {
                 PROFILE_CURRENT: "approved Current reference",
-                PROFILE_EVAL_ORDER: "S2.1b ordering-only candidate reference",
+                PROFILE_EVAL_ORDER: "S2.1b eval+order candidate reference",
                 PROFILE_EVAL_ONLY: "threat-aware evaluation only",
                 PROFILE_ORDER_ONLY: "threat-aware move/root ordering only",
             },
