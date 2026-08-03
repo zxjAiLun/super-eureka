@@ -242,6 +242,11 @@ bestmove b1c3
   组初步偏向候选，但 control 组有回归风险，因此总体为 MIXED、只授权窄范围 redesign；
   `current-threat-aware` 仍为 candidate-only，详见
   [`s2.1-practical-position-gate.md`](docs/benchmarks/s2.1-practical-position-gate.md)。
+  S2.1b 在相同 9 个局面的 3 秒四路归因中发现 quiet qsearch checks 和 forcing
+  extensions 的成本会压低完成深度；只保留 threat evaluation/order/root reorder 的
+  bench-only 变体恢复了 Current 的中位深度，但仍有逐局回退，故只允许它进入下一轮
+  1/3/10 秒固定时间门禁，不运行比赛、不改变 Current。见
+  [`s2.1b-threat-aware-cost-attribution.md`](docs/benchmarks/s2.1b-threat-aware-cost-attribution.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
   仅保留文档与 Git lineage。见

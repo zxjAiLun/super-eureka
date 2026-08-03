@@ -1,0 +1,6004 @@
+{
+  "schema_version": 1,
+  "status": "DIAGNOSTIC_ONLY_NO_DECISION",
+  "analysis": "S2.1b threat-aware cost attribution",
+  "git_sha": "69e947da0176a39083e4da3621472f624c8cba57",
+  "manifest": {
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\tests\\data\\s2.1-practical-positions.json",
+    "sha256": "136ab6e45af0d46cfc66222362e6ef35b65e096fdc0924d05e1b2ab86491e319",
+    "position_count": 9,
+    "groups": {
+      "king-danger": 3,
+      "defensive-resource": 3,
+      "control": 3
+    }
+  },
+  "engine": {
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+    "sha256": "2b5ebfeb4198ca2b8d672d173b69438ee4420ab3e85389fb02bcef3fc6b89004",
+    "uci_identity": {
+      "current": {
+        "argv": [
+          "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+          "--profile",
+          "current"
+        ],
+        "returncode": 0,
+        "reported_profile": "current",
+        "id_name": "ChessEngineDemo",
+        "id_author": " Rust-learner",
+        "stderr": ""
+      },
+      "current-threat-aware": {
+        "argv": [
+          "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+          "--profile",
+          "current-threat-aware"
+        ],
+        "returncode": 0,
+        "reported_profile": "current-threat-aware",
+        "id_name": "ChessEngineDemo",
+        "id_author": " Rust-learner",
+        "stderr": ""
+      }
+    },
+    "interface": "bench profile; attribution variants are not UCI startup profiles"
+  },
+  "time_limit_ms": 3000,
+  "tt": {
+    "mode": "cold",
+    "hash_mb": 16,
+    "threads": 1
+  },
+  "profiles": {
+    "current": "approved Current reference",
+    "current-threat-aware": "full S2.1 reference",
+    "current-threat-aware-no-qchecks": "Full S2.1 without quiet-check qsearch",
+    "current-threat-aware-eval-order": "threat-aware evaluation/order/root reorder only"
+  },
+  "rows": [
+    {
+      "position_id": "s21-attack-345-78",
+      "group": "king-danger",
+      "fen": "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -1053
+      },
+      "bestmove": "b6b4",
+      "source_played_move": "a4a3",
+      "source_teacher_move": "b6b4",
+      "source_teacher_agreement": true,
+      "completed_depth": 7,
+      "nodes": 559128,
+      "elapsed_ms": 2940,
+      "nps": 190179,
+      "pv": [
+        "b6b4",
+        "h4b4",
+        "a4a3",
+        "g5f6",
+        "a3a2",
+        "b4b8",
+        "g8h7",
+        "f6f7",
+        "h7h6"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -57
+          },
+          "nodes": 105,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "a4a3"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -62
+          },
+          "nodes": 1074,
+          "time_ms": 4,
+          "nps": 268500,
+          "pv": [
+            "b6f2",
+            "e1a1"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -57
+          },
+          "nodes": 4629,
+          "time_ms": 22,
+          "nps": 210409,
+          "pv": [
+            "a4a3",
+            "g5d2",
+            "c3b3"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -960
+          },
+          "nodes": 26822,
+          "time_ms": 162,
+          "nps": 165567,
+          "pv": [
+            "b6d6",
+            "e5d6",
+            "c7d6",
+            "h4a4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -954
+          },
+          "nodes": 45660,
+          "time_ms": 250,
+          "nps": 182640,
+          "pv": [
+            "b6d6",
+            "e5d6",
+            "c7d6",
+            "g5d8",
+            "g8g7",
+            "d8d6"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": -1053
+          },
+          "nodes": 184592,
+          "time_ms": 1028,
+          "nps": 179564,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "a4a3",
+            "g5f6",
+            "a3a2",
+            "b4b8",
+            "g8h7",
+            "f6f7",
+            "h7h6"
+          ]
+        },
+        {
+          "depth": 7,
+          "score": {
+            "kind": "cp",
+            "value": -1053
+          },
+          "nodes": 333704,
+          "time_ms": 1765,
+          "nps": 189067,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "a4a3",
+            "g5f6",
+            "a3a2",
+            "b4b8",
+            "g8h7",
+            "f6f7",
+            "h7h6"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:-1053 bestmove=b6b4 completed_depth=7 stopped=true nodes=559128 elapsed_us=2940004 nps=190179 pv=\"b6b4 h4b4 a4a3 g5f6 a3a2 b4b8 g8h7 f6f7 h7h6\" elapsed_ms=2940 total_nodes=559128 completed_iterations=7 nodes_per_completed_depth=79875 qsearch_ratio=0.893620 effective_branching_factor=6.623279 last_completed_iteration_ms=736 last_completed_iteration_nodes=149112 aborted_iteration_depth=8 aborted_iteration_nodes=225424 qsearch_nodes=499648 eval_calls=454773 legal_move_generations=1472139 pseudo_moves=33181911 legal_moves=27670642 make_moves=32892202 unmake_moves=32892202 tt_probes=371969 tt_hits=77098 tt_cutoffs=160 tt_rejected_depth=34450 tt_rejected_bound=42488 tt_rejected_decode=0 tt_stores=371801 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 499648,
+      "total_nodes": 559128,
+      "completed_iterations": 7,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-attack-345-78",
+      "group": "king-danger",
+      "fen": "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2953.0,
+      "score": {
+        "kind": "cp",
+        "value": -1375
+      },
+      "bestmove": "b6b4",
+      "source_played_move": "a4a3",
+      "source_teacher_move": "b6b4",
+      "source_teacher_agreement": true,
+      "completed_depth": 6,
+      "nodes": 208647,
+      "elapsed_ms": 2929,
+      "nps": 71214,
+      "pv": [
+        "b6b4",
+        "h4b4",
+        "c3b3",
+        "g5d8",
+        "g8g7",
+        "b4f4",
+        "b3c3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -64
+          },
+          "nodes": 419,
+          "time_ms": 3,
+          "nps": 139666,
+          "pv": [
+            "c7c6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -380
+          },
+          "nodes": 2547,
+          "time_ms": 26,
+          "nps": 97961,
+          "pv": [
+            "c7c6",
+            "g5f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -1193
+          },
+          "nodes": 12087,
+          "time_ms": 156,
+          "nps": 77480,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3b3",
+            "g5d8",
+            "g8h7",
+            "b4a4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1257
+          },
+          "nodes": 27625,
+          "time_ms": 449,
+          "nps": 61525,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3b3",
+            "g5d8",
+            "g8g7",
+            "b4a4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1319
+          },
+          "nodes": 60435,
+          "time_ms": 1005,
+          "nps": 60134,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3c4",
+            "b4b8",
+            "g8h7",
+            "g5f6"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": -1375
+          },
+          "nodes": 208647,
+          "time_ms": 2929,
+          "nps": 71234,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3b3",
+            "g5d8",
+            "g8g7",
+            "b4f4",
+            "b3c3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 16914,
+        "single_evasion_extensions": 1966,
+        "qsearch_check_moves": 122918
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:-1375 bestmove=b6b4 completed_depth=6 stopped=true nodes=208647 elapsed_us=2929836 nps=71214 pv=\"b6b4 h4b4 c3b3 g5d8 g8g7 b4f4 b3c3\" elapsed_ms=2929 total_nodes=208647 completed_iterations=6 nodes_per_completed_depth=34774 qsearch_ratio=0.820568 effective_branching_factor=7.701382 last_completed_iteration_ms=1923 last_completed_iteration_nodes=148212 aborted_iteration_depth=0 aborted_iteration_nodes=0 qsearch_nodes=171209 eval_calls=146886 legal_move_generations=505911 pseudo_moves=13359840 legal_moves=10371283 make_moves=13359331 unmake_moves=13359331 tt_probes=113292 tt_hits=12502 tt_cutoffs=14 tt_rejected_depth=6834 tt_rejected_bound=5654 tt_rejected_decode=0 tt_stores=113278 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=16914 single_evasion_extensions=1966 qsearch_check_moves=122918 threat_ordered_moves=1095807 root_reorders=6 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 171209,
+      "total_nodes": 208647,
+      "completed_iterations": 6,
+      "component_counters": {
+        "check_extensions": 16914,
+        "single_evasion_extensions": 1966,
+        "qsearch_check_moves": 122918,
+        "threat_ordered_moves": 1095807,
+        "root_reorders": 6
+      }
+    },
+    {
+      "position_id": "s21-attack-345-78",
+      "group": "king-danger",
+      "fen": "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": -1369
+      },
+      "bestmove": "b6b4",
+      "source_played_move": "a4a3",
+      "source_teacher_move": "b6b4",
+      "source_teacher_agreement": true,
+      "completed_depth": 6,
+      "nodes": 267936,
+      "elapsed_ms": 2940,
+      "nps": 91134,
+      "pv": [
+        "b6b4",
+        "h4b4",
+        "d5f3",
+        "b4b8",
+        "g8h7",
+        "g2f3",
+        "c3f3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 209
+          },
+          "nodes": 84,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "c3c2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -380
+          },
+          "nodes": 3062,
+          "time_ms": 32,
+          "nps": 95687,
+          "pv": [
+            "c7c6",
+            "g5f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -127
+          },
+          "nodes": 5307,
+          "time_ms": 55,
+          "nps": 96490,
+          "pv": [
+            "c7c6",
+            "g5f6",
+            "c3c2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1193
+          },
+          "nodes": 36813,
+          "time_ms": 414,
+          "nps": 88920,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3b3",
+            "g5d8",
+            "g8h7",
+            "b4a4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1318
+          },
+          "nodes": 65309,
+          "time_ms": 736,
+          "nps": 88735,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3c2",
+            "b4b8",
+            "g8g7",
+            "g5f4"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": -1369
+          },
+          "nodes": 200253,
+          "time_ms": 2240,
+          "nps": 89398,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "d5f3",
+            "b4b8",
+            "g8h7",
+            "g2f3",
+            "c3f3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 25552,
+        "single_evasion_extensions": 3096,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:-1369 bestmove=b6b4 completed_depth=6 stopped=true nodes=267936 elapsed_us=2940007 nps=91134 pv=\"b6b4 h4b4 d5f3 b4b8 g8h7 g2f3 c3f3\" elapsed_ms=2940 total_nodes=267936 completed_iterations=6 nodes_per_completed_depth=44656 qsearch_ratio=0.794720 effective_branching_factor=8.029192 last_completed_iteration_ms=1504 last_completed_iteration_nodes=134944 aborted_iteration_depth=7 aborted_iteration_nodes=67683 qsearch_nodes=212934 eval_calls=198596 legal_move_generations=697564 pseudo_moves=14743292 legal_moves=11454218 make_moves=14582501 unmake_moves=14582501 tt_probes=192411 tt_hits=22811 tt_cutoffs=169 tt_rejected_depth=8005 tt_rejected_bound=14637 tt_rejected_decode=0 tt_stores=192230 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=25552 single_evasion_extensions=3096 qsearch_check_moves=0 threat_ordered_moves=1358872 root_reorders=6 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 212934,
+      "total_nodes": 267936,
+      "completed_iterations": 6,
+      "component_counters": {
+        "check_extensions": 25552,
+        "single_evasion_extensions": 3096,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1358872,
+        "root_reorders": 6
+      }
+    },
+    {
+      "position_id": "s21-attack-345-78",
+      "group": "king-danger",
+      "fen": "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -1314
+      },
+      "bestmove": "b6b4",
+      "source_played_move": "a4a3",
+      "source_teacher_move": "b6b4",
+      "source_teacher_agreement": true,
+      "completed_depth": 7,
+      "nodes": 244978,
+      "elapsed_ms": 2940,
+      "nps": 83325,
+      "pv": [
+        "b6b4",
+        "h4b4",
+        "c3c4",
+        "b4b8",
+        "g8g7",
+        "g5e3",
+        "g7h7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 209
+          },
+          "nodes": 84,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "c3c2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -167
+          },
+          "nodes": 637,
+          "time_ms": 5,
+          "nps": 127400,
+          "pv": [
+            "c3c2",
+            "g5d8",
+            "g8g7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -127
+          },
+          "nodes": 3331,
+          "time_ms": 31,
+          "nps": 107451,
+          "pv": [
+            "c7c6",
+            "g5f6",
+            "c3c2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1193
+          },
+          "nodes": 13494,
+          "time_ms": 144,
+          "nps": 93708,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3b3",
+            "g5d8",
+            "g8h7",
+            "b4a4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1099
+          },
+          "nodes": 25725,
+          "time_ms": 296,
+          "nps": 86908,
+          "pv": [
+            "d5c6",
+            "g5f6",
+            "b6g1",
+            "h2g1",
+            "g8f8"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": -1315
+          },
+          "nodes": 65931,
+          "time_ms": 844,
+          "nps": 78117,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3c2",
+            "g5h6",
+            "f7f5",
+            "b4b8",
+            "g8f7"
+          ]
+        },
+        {
+          "depth": 7,
+          "score": {
+            "kind": "cp",
+            "value": -1314
+          },
+          "nodes": 180208,
+          "time_ms": 2170,
+          "nps": 83045,
+          "pv": [
+            "b6b4",
+            "h4b4",
+            "c3c4",
+            "b4b8",
+            "g8g7",
+            "g5e3",
+            "g7h7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:-1314 bestmove=b6b4 completed_depth=7 stopped=true nodes=244978 elapsed_us=2940008 nps=83325 pv=\"b6b4 h4b4 c3c4 b4b8 g8g7 g5e3 g7h7\" elapsed_ms=2940 total_nodes=244978 completed_iterations=7 nodes_per_completed_depth=34996 qsearch_ratio=0.866490 effective_branching_factor=5.886746 last_completed_iteration_ms=1325 last_completed_iteration_nodes=114277 aborted_iteration_depth=8 aborted_iteration_nodes=64770 qsearch_nodes=212271 eval_calls=181689 legal_move_generations=609015 pseudo_moves=12783756 legal_moves=9366468 make_moves=12580361 unmake_moves=12580361 tt_probes=126947 tt_hits=40912 tt_cutoffs=188 tt_rejected_depth=18062 tt_rejected_bound=22662 tt_rejected_decode=0 tt_stores=126751 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=1238044 root_reorders=7 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 212271,
+      "total_nodes": 244978,
+      "completed_iterations": 7,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1238044,
+        "root_reorders": 7
+      }
+    },
+    {
+      "position_id": "s21-attack-616-31",
+      "group": "king-danger",
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -186
+      },
+      "bestmove": "f5g4",
+      "source_played_move": "a2c4",
+      "source_teacher_move": "f7f6",
+      "source_teacher_agreement": false,
+      "completed_depth": 5,
+      "nodes": 456360,
+      "elapsed_ms": 2940,
+      "nps": 155224,
+      "pv": [
+        "f5g4",
+        "h3g4",
+        "c8b8",
+        "h6h7",
+        "f7f6",
+        "h7c7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -30
+          },
+          "nodes": 272,
+          "time_ms": 1,
+          "nps": 272000,
+          "pv": [
+            "a2c4"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -41
+          },
+          "nodes": 4049,
+          "time_ms": 21,
+          "nps": 192809,
+          "pv": [
+            "a2c4",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -41
+          },
+          "nodes": 7668,
+          "time_ms": 41,
+          "nps": 187024,
+          "pv": [
+            "a2c4",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -186
+          },
+          "nodes": 52398,
+          "time_ms": 309,
+          "nps": 169572,
+          "pv": [
+            "f5g4",
+            "h3g4",
+            "c8b8",
+            "h6h7",
+            "f7f6",
+            "h7c7"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -186
+          },
+          "nodes": 75978,
+          "time_ms": 451,
+          "nps": 168465,
+          "pv": [
+            "f5g4",
+            "h3g4",
+            "c8b8",
+            "h6h7",
+            "f7f6",
+            "h7c7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:-186 bestmove=f5g4 completed_depth=5 stopped=true nodes=456360 elapsed_us=2940006 nps=155224 pv=\"f5g4 h3g4 c8b8 h6h7 f7f6 h7c7\" elapsed_ms=2940 total_nodes=456360 completed_iterations=5 nodes_per_completed_depth=91272 qsearch_ratio=0.956940 effective_branching_factor=13.547573 last_completed_iteration_ms=141 last_completed_iteration_nodes=23580 aborted_iteration_depth=6 aborted_iteration_nodes=380382 qsearch_nodes=436709 eval_calls=364070 legal_move_generations=1063122 pseudo_moves=26235334 legal_moves=19066182 make_moves=26350673 unmake_moves=26350673 tt_probes=156112 tt_hits=38445 tt_cutoffs=192 tt_rejected_depth=8834 tt_rejected_bound=29419 tt_rejected_decode=0 tt_stores=155914 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 436709,
+      "total_nodes": 456360,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-attack-616-31",
+      "group": "king-danger",
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -735
+      },
+      "bestmove": "c6e5",
+      "source_played_move": "a2c4",
+      "source_teacher_move": "f7f6",
+      "source_teacher_agreement": false,
+      "completed_depth": 3,
+      "nodes": 206140,
+      "elapsed_ms": 2940,
+      "nps": 70115,
+      "pv": [
+        "c6e5",
+        "e6g5",
+        "f7e8",
+        "d4e5"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -487
+          },
+          "nodes": 3474,
+          "time_ms": 41,
+          "nps": 84731,
+          "pv": [
+            "a2c4",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -662
+          },
+          "nodes": 16217,
+          "time_ms": 210,
+          "nps": 77223,
+          "pv": [
+            "f5g4",
+            "h6h7",
+            "f7f6",
+            "h3g4"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -735
+          },
+          "nodes": 43967,
+          "time_ms": 610,
+          "nps": 72077,
+          "pv": [
+            "c6e5",
+            "e6g5",
+            "f7e8",
+            "d4e5"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 3311,
+        "single_evasion_extensions": 250,
+        "qsearch_check_moves": 33503
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:-735 bestmove=c6e5 completed_depth=3 stopped=true nodes=206140 elapsed_us=2940007 nps=70115 pv=\"c6e5 e6g5 f7e8 d4e5\" elapsed_ms=2940 total_nodes=206140 completed_iterations=3 nodes_per_completed_depth=68713 qsearch_ratio=0.964611 effective_branching_factor=59.072782 last_completed_iteration_ms=399 last_completed_iteration_nodes=27750 aborted_iteration_depth=4 aborted_iteration_nodes=162173 qsearch_nodes=198845 eval_calls=157161 legal_move_generations=438781 pseudo_moves=10925100 legal_moves=7402774 make_moves=10971124 unmake_moves=10971124 tt_probes=26742 tt_hits=5818 tt_cutoffs=69 tt_rejected_depth=456 tt_rejected_bound=5293 tt_rejected_decode=0 tt_stores=26667 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=3311 single_evasion_extensions=250 qsearch_check_moves=33503 threat_ordered_moves=794293 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 198845,
+      "total_nodes": 206140,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 3311,
+        "single_evasion_extensions": 250,
+        "qsearch_check_moves": 33503,
+        "threat_ordered_moves": 794293,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-attack-616-31",
+      "group": "king-danger",
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2765.0,
+      "score": {
+        "kind": "cp",
+        "value": -691
+      },
+      "bestmove": "f7e7",
+      "source_played_move": "a2c4",
+      "source_teacher_move": "f7f6",
+      "source_teacher_agreement": false,
+      "completed_depth": 4,
+      "nodes": 180101,
+      "elapsed_ms": 2744,
+      "nps": 65617,
+      "pv": [
+        "f7e7",
+        "e6c5",
+        "e7f7",
+        "c5b7",
+        "a2c4"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -332
+          },
+          "nodes": 285,
+          "time_ms": 3,
+          "nps": 95000,
+          "pv": [
+            "a2b1",
+            "e1b1",
+            "f7e6",
+            "g4f5",
+            "e6d6",
+            "f5g6",
+            "c6d4",
+            "h3c8",
+            "g8c8"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -660
+          },
+          "nodes": 6972,
+          "time_ms": 108,
+          "nps": 64555,
+          "pv": [
+            "c8e8",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -662
+          },
+          "nodes": 30441,
+          "time_ms": 463,
+          "nps": 65747,
+          "pv": [
+            "f5g4",
+            "h6h7",
+            "f7f6",
+            "h3g4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -691
+          },
+          "nodes": 180101,
+          "time_ms": 2744,
+          "nps": 65634,
+          "pv": [
+            "f7e7",
+            "e6c5",
+            "e7f7",
+            "c5b7",
+            "a2c4"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 6485,
+        "single_evasion_extensions": 528,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:-691 bestmove=f7e7 completed_depth=4 stopped=true nodes=180101 elapsed_us=2744713 nps=65617 pv=\"f7e7 e6c5 e7f7 c5b7 a2c4\" elapsed_ms=2744 total_nodes=180101 completed_iterations=4 nodes_per_completed_depth=45025 qsearch_ratio=0.922660 effective_branching_factor=20.600560 last_completed_iteration_ms=2280 last_completed_iteration_nodes=149660 aborted_iteration_depth=0 aborted_iteration_nodes=0 qsearch_nodes=166172 eval_calls=139931 legal_move_generations=410273 pseudo_moves=9844815 legal_moves=7049751 make_moves=9871618 unmake_moves=9871618 tt_probes=57403 tt_hits=12917 tt_cutoffs=219 tt_rejected_depth=885 tt_rejected_bound=11813 tt_rejected_decode=0 tt_stores=57184 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=6485 single_evasion_extensions=528 qsearch_check_moves=0 threat_ordered_moves=813363 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 166172,
+      "total_nodes": 180101,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 6485,
+        "single_evasion_extensions": 528,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 813363,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-attack-616-31",
+      "group": "king-danger",
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -656
+      },
+      "bestmove": "f5g4",
+      "source_played_move": "a2c4",
+      "source_teacher_move": "f7f6",
+      "source_teacher_agreement": false,
+      "completed_depth": 5,
+      "nodes": 201938,
+      "elapsed_ms": 2940,
+      "nps": 68686,
+      "pv": [
+        "f5g4",
+        "h6h7",
+        "f7f6",
+        "h7h4",
+        "f6f7",
+        "h3g4"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -332
+          },
+          "nodes": 285,
+          "time_ms": 3,
+          "nps": 95000,
+          "pv": [
+            "a2b1",
+            "e1b1",
+            "f7e6",
+            "g4f5",
+            "e6d6",
+            "f5g6",
+            "c6d4",
+            "h3c8",
+            "g8c8"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -487
+          },
+          "nodes": 5610,
+          "time_ms": 79,
+          "nps": 71012,
+          "pv": [
+            "a2c4",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -487
+          },
+          "nodes": 7454,
+          "time_ms": 107,
+          "nps": 69663,
+          "pv": [
+            "a2c4",
+            "h6h7",
+            "f7f6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -662
+          },
+          "nodes": 27051,
+          "time_ms": 447,
+          "nps": 60516,
+          "pv": [
+            "f5g4",
+            "h6h7",
+            "f7f6",
+            "h3g4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -656
+          },
+          "nodes": 47954,
+          "time_ms": 808,
+          "nps": 59349,
+          "pv": [
+            "f5g4",
+            "h6h7",
+            "f7f6",
+            "h7h4",
+            "f6f7",
+            "h3g4"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:-656 bestmove=f5g4 completed_depth=5 stopped=true nodes=201938 elapsed_us=2940007 nps=68686 pv=\"f5g4 h6h7 f7f6 h7h4 f6f7 h3g4\" elapsed_ms=2940 total_nodes=201938 completed_iterations=5 nodes_per_completed_depth=40387 qsearch_ratio=0.957274 effective_branching_factor=11.509160 last_completed_iteration_ms=361 last_completed_iteration_nodes=20903 aborted_iteration_depth=6 aborted_iteration_nodes=153984 qsearch_nodes=193310 eval_calls=156314 legal_move_generations=473450 pseudo_moves=11603320 legal_moves=8000505 make_moves=11635425 unmake_moves=11635425 tt_probes=70565 tt_hits=15016 tt_cutoffs=11 tt_rejected_depth=4810 tt_rejected_bound=10195 tt_rejected_decode=0 tt_stores=70547 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=846415 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 193310,
+      "total_nodes": 201938,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 846415,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-attack-621-38",
+      "group": "king-danger",
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2922.0,
+      "score": {
+        "kind": "mate",
+        "value": -8
+      },
+      "bestmove": "c8e6",
+      "source_played_move": "h2e5",
+      "source_teacher_move": "c8e6",
+      "source_teacher_agreement": true,
+      "completed_depth": 7,
+      "nodes": 474997,
+      "elapsed_ms": 2892,
+      "nps": 164207,
+      "pv": [
+        "c8e6",
+        "e1e6",
+        "e7f7",
+        "d4d7",
+        "f7g8",
+        "e6h6",
+        "f8f7",
+        "d7f7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -295
+          },
+          "nodes": 55,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "e7d7"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -295
+          },
+          "nodes": 230,
+          "time_ms": 1,
+          "nps": 230000,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "e7d7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -295
+          },
+          "nodes": 549,
+          "time_ms": 2,
+          "nps": 274500,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "e7d7"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1108
+          },
+          "nodes": 2774,
+          "time_ms": 14,
+          "nps": 198142,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "c8e6",
+            "e5g7",
+            "f8f7",
+            "e1e6",
+            "e7d8",
+            "g7f7"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1108
+          },
+          "nodes": 7166,
+          "time_ms": 44,
+          "nps": 162863,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "c8e6",
+            "e5g7",
+            "f8f7",
+            "e1e6",
+            "e7d8",
+            "g7f7"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 212897,
+          "time_ms": 1361,
+          "nps": 156426,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        },
+        {
+          "depth": 7,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 474997,
+          "time_ms": 2892,
+          "nps": 164245,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=mate:-8 bestmove=c8e6 completed_depth=7 stopped=true nodes=474997 elapsed_us=2892659 nps=164207 pv=\"c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7\" elapsed_ms=2892 total_nodes=474997 completed_iterations=7 nodes_per_completed_depth=67856 qsearch_ratio=0.892799 effective_branching_factor=6.470768 last_completed_iteration_ms=1531 last_completed_iteration_nodes=262100 aborted_iteration_depth=0 aborted_iteration_nodes=0 qsearch_nodes=424077 eval_calls=342062 legal_move_generations=1120892 pseudo_moves=29314472 legal_moves=19933580 make_moves=28644370 unmake_moves=28644370 tt_probes=174431 tt_hits=73577 tt_cutoffs=9 tt_rejected_depth=37436 tt_rejected_bound=36132 tt_rejected_decode=0 tt_stores=174422 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 424077,
+      "total_nodes": 474997,
+      "completed_iterations": 7,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-attack-621-38",
+      "group": "king-danger",
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "mate",
+        "value": -8
+      },
+      "bestmove": "c8e6",
+      "source_played_move": "h2e5",
+      "source_teacher_move": "c8e6",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 206812,
+      "elapsed_ms": 2940,
+      "nps": 70344,
+      "pv": [
+        "c8e6",
+        "e1e6",
+        "e7f7",
+        "d4d7",
+        "f7g8",
+        "e6h6",
+        "f8f7",
+        "d7f7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 224,
+          "time_ms": 2,
+          "nps": 112000,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -1315
+          },
+          "nodes": 2010,
+          "time_ms": 23,
+          "nps": 87391,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "c8e6",
+            "e5g7",
+            "f8f7",
+            "e1e6",
+            "e7d7",
+            "g7f7",
+            "d7c8",
+            "e6h6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 34521,
+          "time_ms": 456,
+          "nps": 75703,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 132453,
+          "time_ms": 1806,
+          "nps": 73340,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 2323,
+        "single_evasion_extensions": 141,
+        "qsearch_check_moves": 133348
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=mate:-8 bestmove=c8e6 completed_depth=4 stopped=true nodes=206812 elapsed_us=2940004 nps=70344 pv=\"c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7\" elapsed_ms=2940 total_nodes=206812 completed_iterations=4 nodes_per_completed_depth=51703 qsearch_ratio=0.933336 effective_branching_factor=21.325240 last_completed_iteration_ms=1349 last_completed_iteration_nodes=97932 aborted_iteration_depth=5 aborted_iteration_nodes=74359 qsearch_nodes=193025 eval_calls=147833 legal_move_generations=455714 pseudo_moves=12552835 legal_moves=8031508 make_moves=12373667 unmake_moves=12373667 tt_probes=39191 tt_hits=10566 tt_cutoffs=1 tt_rejected_depth=8766 tt_rejected_bound=1799 tt_rejected_decode=0 tt_stores=39180 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=2323 single_evasion_extensions=141 qsearch_check_moves=133348 threat_ordered_moves=896585 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 193025,
+      "total_nodes": 206812,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 2323,
+        "single_evasion_extensions": 141,
+        "qsearch_check_moves": 133348,
+        "threat_ordered_moves": 896585,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-attack-621-38",
+      "group": "king-danger",
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "mate",
+        "value": -8
+      },
+      "bestmove": "c8e6",
+      "source_played_move": "h2e5",
+      "source_teacher_move": "c8e6",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 213959,
+      "elapsed_ms": 2940,
+      "nps": 72774,
+      "pv": [
+        "c8e6",
+        "e1e6",
+        "e7f7",
+        "d4d7",
+        "f7g8",
+        "e6h6",
+        "f8f7",
+        "d7f7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 31,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 719,
+          "time_ms": 6,
+          "nps": 119833,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 13212,
+          "time_ms": 152,
+          "nps": 86921,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 48807,
+          "time_ms": 619,
+          "nps": 78848,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 189887,
+          "time_ms": 2625,
+          "nps": 72337,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 8485,
+        "single_evasion_extensions": 1635,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=mate:-8 bestmove=c8e6 completed_depth=5 stopped=true nodes=213959 elapsed_us=2940014 nps=72774 pv=\"c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7\" elapsed_ms=2940 total_nodes=213959 completed_iterations=5 nodes_per_completed_depth=42791 qsearch_ratio=0.841082 effective_branching_factor=11.643033 last_completed_iteration_ms=2006 last_completed_iteration_nodes=141080 aborted_iteration_depth=6 aborted_iteration_nodes=24072 qsearch_nodes=179957 eval_calls=152719 legal_move_generations=514139 pseudo_moves=13471271 legal_moves=9167745 make_moves=13254694 unmake_moves=13254694 tt_probes=103821 tt_hits=20713 tt_cutoffs=57 tt_rejected_depth=18691 tt_rejected_bound=1965 tt_rejected_decode=0 tt_stores=103755 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=8485 single_evasion_extensions=1635 qsearch_check_moves=0 threat_ordered_moves=1145973 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 179957,
+      "total_nodes": 213959,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 8485,
+        "single_evasion_extensions": 1635,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1145973,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-attack-621-38",
+      "group": "king-danger",
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2954.0,
+      "score": {
+        "kind": "mate",
+        "value": -8
+      },
+      "bestmove": "c8e6",
+      "source_played_move": "h2e5",
+      "source_teacher_move": "c8e6",
+      "source_teacher_agreement": true,
+      "completed_depth": 7,
+      "nodes": 196386,
+      "elapsed_ms": 2940,
+      "nps": 66797,
+      "pv": [
+        "c8e6",
+        "e1e6",
+        "e7f7",
+        "d4d7",
+        "f7g8",
+        "e6h6",
+        "f8f7",
+        "d7f7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 31,
+          "time_ms": 0,
+          "nps": 0,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 261,
+          "time_ms": 2,
+          "nps": 130500,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -709
+          },
+          "nodes": 720,
+          "time_ms": 8,
+          "nps": 90000,
+          "pv": [
+            "h2e5",
+            "e1e5",
+            "e7f6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1315
+          },
+          "nodes": 2091,
+          "time_ms": 24,
+          "nps": 87125,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "c8e6",
+            "e5g7",
+            "f8f7",
+            "e1e6",
+            "e7d7",
+            "g7f7",
+            "d7c8",
+            "e6h6"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1315
+          },
+          "nodes": 5928,
+          "time_ms": 80,
+          "nps": 74100,
+          "pv": [
+            "h2e5",
+            "d4e5",
+            "c8e6",
+            "e5g7",
+            "f8f7",
+            "e1e6",
+            "e7d7",
+            "g7f7",
+            "d7c8",
+            "e6h6"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 79017,
+          "time_ms": 1106,
+          "nps": 71443,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        },
+        {
+          "depth": 7,
+          "score": {
+            "kind": "mate",
+            "value": -4
+          },
+          "nodes": 158005,
+          "time_ms": 2402,
+          "nps": 65780,
+          "pv": [
+            "c8e6",
+            "e1e6",
+            "e7f7",
+            "d4d7",
+            "f7g8",
+            "e6h6",
+            "f8f7",
+            "d7f7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=mate:-8 bestmove=c8e6 completed_depth=7 stopped=true nodes=196386 elapsed_us=2940004 nps=66797 pv=\"c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7\" elapsed_ms=2940 total_nodes=196386 completed_iterations=7 nodes_per_completed_depth=28055 qsearch_ratio=0.850203 effective_branching_factor=5.703726 last_completed_iteration_ms=1295 last_completed_iteration_nodes=78988 aborted_iteration_depth=8 aborted_iteration_nodes=38381 qsearch_nodes=166968 eval_calls=135802 legal_move_generations=475379 pseudo_moves=13024504 legal_moves=8661133 make_moves=12785579 unmake_moves=12785579 tt_probes=96145 tt_hits=37242 tt_cutoffs=8 tt_rejected_depth=21843 tt_rejected_bound=15391 tt_rejected_decode=0 tt_stores=96129 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=1203816 root_reorders=7 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 166968,
+      "total_nodes": 196386,
+      "completed_iterations": 7,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1203816,
+        "root_reorders": 7
+      }
+    },
+    {
+      "position_id": "s21-defense-607-19",
+      "group": "defensive-resource",
+      "fen": "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2953.0,
+      "score": {
+        "kind": "cp",
+        "value": -45
+      },
+      "bestmove": "c6e7",
+      "source_played_move": "g4f6",
+      "source_teacher_move": "d8e7",
+      "source_teacher_agreement": false,
+      "completed_depth": 5,
+      "nodes": 492961,
+      "elapsed_ms": 2940,
+      "nps": 167673,
+      "pv": [
+        "c6e7",
+        "d4e5",
+        "g7e5",
+        "e1c1",
+        "e7f5"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -30
+          },
+          "nodes": 786,
+          "time_ms": 3,
+          "nps": 262000,
+          "pv": [
+            "c8d7"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -35
+          },
+          "nodes": 9078,
+          "time_ms": 44,
+          "nps": 206318,
+          "pv": [
+            "g4f6",
+            "e4e3"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -30
+          },
+          "nodes": 17736,
+          "time_ms": 95,
+          "nps": 186694,
+          "pv": [
+            "g4f6",
+            "e4e3",
+            "e5e4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -40
+          },
+          "nodes": 87373,
+          "time_ms": 496,
+          "nps": 176155,
+          "pv": [
+            "c6e7",
+            "f4g3",
+            "g4f6",
+            "e4d3"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -45
+          },
+          "nodes": 231068,
+          "time_ms": 1398,
+          "nps": 165284,
+          "pv": [
+            "c6e7",
+            "d4e5",
+            "g7e5",
+            "e1c1",
+            "e7f5"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:-45 bestmove=c6e7 completed_depth=5 stopped=true nodes=492961 elapsed_us=2940007 nps=167673 pv=\"c6e7 d4e5 g7e5 e1c1 e7f5\" elapsed_ms=2940 total_nodes=492961 completed_iterations=5 nodes_per_completed_depth=98592 qsearch_ratio=0.972038 effective_branching_factor=13.758228 last_completed_iteration_ms=901 last_completed_iteration_nodes=143695 aborted_iteration_depth=6 aborted_iteration_nodes=261893 qsearch_nodes=479177 eval_calls=410624 legal_move_generations=1159248 pseudo_moves=29747879 legal_moves=22377356 make_moves=29218225 unmake_moves=29218225 tt_probes=153777 tt_hits=14810 tt_cutoffs=77 tt_rejected_depth=10416 tt_rejected_bound=4317 tt_rejected_decode=0 tt_stores=153693 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 479177,
+      "total_nodes": 492961,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-defense-607-19",
+      "group": "defensive-resource",
+      "fen": "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2953.0,
+      "score": {
+        "kind": "cp",
+        "value": -159
+      },
+      "bestmove": "d6d5",
+      "source_played_move": "g4f6",
+      "source_teacher_move": "d8e7",
+      "source_teacher_agreement": false,
+      "completed_depth": 2,
+      "nodes": 228957,
+      "elapsed_ms": 2940,
+      "nps": 77876,
+      "pv": [
+        "d6d5",
+        "e4g6",
+        "e8f8"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -49
+          },
+          "nodes": 34278,
+          "time_ms": 428,
+          "nps": 80088,
+          "pv": [
+            "c6e7"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -159
+          },
+          "nodes": 131842,
+          "time_ms": 1773,
+          "nps": 74360,
+          "pv": [
+            "d6d5",
+            "e4g6",
+            "e8f8"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 163,
+        "single_evasion_extensions": 3,
+        "qsearch_check_moves": 4097
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:-159 bestmove=d6d5 completed_depth=2 stopped=true nodes=228957 elapsed_us=2940016 nps=77876 pv=\"d6d5 e4g6 e8f8\" elapsed_ms=2940 total_nodes=228957 completed_iterations=2 nodes_per_completed_depth=114478 qsearch_ratio=0.998672 effective_branching_factor=478.494514 last_completed_iteration_ms=1344 last_completed_iteration_nodes=97564 aborted_iteration_depth=3 aborted_iteration_nodes=97115 qsearch_nodes=228653 eval_calls=197835 legal_move_generations=475453 pseudo_moves=10945335 legal_moves=7983614 make_moves=10729068 unmake_moves=10729068 tt_probes=1029 tt_hits=92 tt_cutoffs=4 tt_rejected_depth=8 tt_rejected_bound=80 tt_rejected_decode=0 tt_stores=1021 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=163 single_evasion_extensions=3 qsearch_check_moves=4097 threat_ordered_moves=727948 root_reorders=2 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 228653,
+      "total_nodes": 228957,
+      "completed_iterations": 2,
+      "component_counters": {
+        "check_extensions": 163,
+        "single_evasion_extensions": 3,
+        "qsearch_check_moves": 4097,
+        "threat_ordered_moves": 727948,
+        "root_reorders": 2
+      }
+    },
+    {
+      "position_id": "s21-defense-607-19",
+      "group": "defensive-resource",
+      "fen": "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -134
+      },
+      "bestmove": "c6e7",
+      "source_played_move": "g4f6",
+      "source_teacher_move": "d8e7",
+      "source_teacher_agreement": false,
+      "completed_depth": 3,
+      "nodes": 246068,
+      "elapsed_ms": 2940,
+      "nps": 83696,
+      "pv": [
+        "c6e7",
+        "e1c1",
+        "d6d5",
+        "c4d5",
+        "e7d5",
+        "e4d5",
+        "d8d5",
+        "b5c7",
+        "e8f8",
+        "c7d5",
+        "e5f4",
+        "e2f4"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -21
+          },
+          "nodes": 6948,
+          "time_ms": 83,
+          "nps": 83710,
+          "pv": [
+            "g7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -159
+          },
+          "nodes": 66411,
+          "time_ms": 798,
+          "nps": 83221,
+          "pv": [
+            "d6d5",
+            "e4g6",
+            "e8f8"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -134
+          },
+          "nodes": 213708,
+          "time_ms": 2577,
+          "nps": 82928,
+          "pv": [
+            "c6e7",
+            "e1c1",
+            "d6d5",
+            "c4d5",
+            "e7d5",
+            "e4d5",
+            "d8d5",
+            "b5c7",
+            "e8f8",
+            "c7d5",
+            "e5f4",
+            "e2f4"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 597,
+        "single_evasion_extensions": 15,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:-134 bestmove=c6e7 completed_depth=3 stopped=true nodes=246068 elapsed_us=2940019 nps=83696 pv=\"c6e7 e1c1 d6d5 c4d5 e7d5 e4d5 d8d5 b5c7 e8f8 c7d5 e5f4 e2f4\" elapsed_ms=2940 total_nodes=246068 completed_iterations=3 nodes_per_completed_depth=82022 qsearch_ratio=0.995509 effective_branching_factor=62.664038 last_completed_iteration_ms=1779 last_completed_iteration_nodes=147297 aborted_iteration_depth=4 aborted_iteration_nodes=32360 qsearch_nodes=244963 eval_calls=212663 legal_move_generations=512918 pseudo_moves=11795080 legal_moves=8663174 make_moves=11560926 unmake_moves=11560926 tt_probes=4180 tt_hits=820 tt_cutoffs=12 tt_rejected_depth=76 tt_rejected_bound=732 tt_rejected_decode=0 tt_stores=4162 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=597 single_evasion_extensions=15 qsearch_check_moves=0 threat_ordered_moves=780490 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 244963,
+      "total_nodes": 246068,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 597,
+        "single_evasion_extensions": 15,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 780490,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-defense-607-19",
+      "group": "defensive-resource",
+      "fen": "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -134
+      },
+      "bestmove": "c6e7",
+      "source_played_move": "g4f6",
+      "source_teacher_move": "d8e7",
+      "source_teacher_agreement": false,
+      "completed_depth": 3,
+      "nodes": 236413,
+      "elapsed_ms": 2940,
+      "nps": 80412,
+      "pv": [
+        "c6e7",
+        "e1c1",
+        "d6d5",
+        "c4d5",
+        "e7d5",
+        "e4d5",
+        "d8d5",
+        "b5c7",
+        "e8f8",
+        "c7d5",
+        "e5f4",
+        "e2f4"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -21
+          },
+          "nodes": 6948,
+          "time_ms": 78,
+          "nps": 89076,
+          "pv": [
+            "g7f6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -159
+          },
+          "nodes": 51101,
+          "time_ms": 602,
+          "nps": 84885,
+          "pv": [
+            "d6d5",
+            "e4g6",
+            "e8f8"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -134
+          },
+          "nodes": 108219,
+          "time_ms": 1216,
+          "nps": 88995,
+          "pv": [
+            "c6e7",
+            "e1c1",
+            "d6d5",
+            "c4d5",
+            "e7d5",
+            "e4d5",
+            "d8d5",
+            "b5c7",
+            "e8f8",
+            "c7d5",
+            "e5f4",
+            "e2f4"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:-134 bestmove=c6e7 completed_depth=3 stopped=true nodes=236413 elapsed_us=2940012 nps=80412 pv=\"c6e7 e1c1 d6d5 c4d5 e7d5 e4d5 d8d5 b5c7 e8f8 c7d5 e5f4 e2f4\" elapsed_ms=2940 total_nodes=236413 completed_iterations=3 nodes_per_completed_depth=78804 qsearch_ratio=0.996379 effective_branching_factor=61.833494 last_completed_iteration_ms=613 last_completed_iteration_nodes=57118 aborted_iteration_depth=4 aborted_iteration_nodes=128194 qsearch_nodes=235557 eval_calls=203416 legal_move_generations=494348 pseudo_moves=11520643 legal_moves=8451089 make_moves=11297614 unmake_moves=11297614 tt_probes=5925 tt_hits=1021 tt_cutoffs=62 tt_rejected_depth=492 tt_rejected_bound=467 tt_rejected_decode=0 tt_stores=5858 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=759057 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 235557,
+      "total_nodes": 236413,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 759057,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-defense-293-39",
+      "group": "defensive-resource",
+      "fen": "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2953.0,
+      "score": {
+        "kind": "cp",
+        "value": 135
+      },
+      "bestmove": "c3e4",
+      "source_played_move": "e1e2",
+      "source_teacher_move": "h2h1",
+      "source_teacher_agreement": false,
+      "completed_depth": 5,
+      "nodes": 460744,
+      "elapsed_ms": 2940,
+      "nps": 156715,
+      "pv": [
+        "c3e4",
+        "d6g3",
+        "e4g3",
+        "d4f6",
+        "g3f5",
+        "e6f5"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 196
+          },
+          "nodes": 2019,
+          "time_ms": 9,
+          "nps": 224333,
+          "pv": [
+            "e1e2",
+            "d6g3",
+            "h2g3",
+            "d4f6",
+            "e2a6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 196
+          },
+          "nodes": 3438,
+          "time_ms": 16,
+          "nps": 214875,
+          "pv": [
+            "e1e2",
+            "d6g3",
+            "h2g3",
+            "d4f6",
+            "e2a6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 143
+          },
+          "nodes": 11655,
+          "time_ms": 60,
+          "nps": 194250,
+          "pv": [
+            "e1e2",
+            "a6a5",
+            "c3e4",
+            "f5e4",
+            "c6e4",
+            "d6g3",
+            "h2g3",
+            "d4b2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 135
+          },
+          "nodes": 57660,
+          "time_ms": 341,
+          "nps": 169090,
+          "pv": [
+            "c3e4",
+            "d6g3",
+            "e4g3",
+            "d4f6",
+            "g3f5",
+            "e6f5"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 135
+          },
+          "nodes": 107933,
+          "time_ms": 704,
+          "nps": 153313,
+          "pv": [
+            "c3e4",
+            "d6g3",
+            "e4g3",
+            "d4f6",
+            "g3f5",
+            "e6f5"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:135 bestmove=c3e4 completed_depth=5 stopped=true nodes=460744 elapsed_us=2940005 nps=156715 pv=\"c3e4 d6g3 e4g3 d4f6 g3f5 e6f5\" elapsed_ms=2940 total_nodes=460744 completed_iterations=5 nodes_per_completed_depth=92148 qsearch_ratio=0.901427 effective_branching_factor=13.573503 last_completed_iteration_ms=362 last_completed_iteration_nodes=50273 aborted_iteration_depth=6 aborted_iteration_nodes=352811 qsearch_nodes=415327 eval_calls=383064 legal_move_generations=1129024 pseudo_moves=32733366 legal_moves=28237068 make_moves=32780850 unmake_moves=32780850 tt_probes=237033 tt_hits=42289 tt_cutoffs=300 tt_rejected_depth=28209 tt_rejected_bound=13780 tt_rejected_decode=0 tt_stores=236726 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 415327,
+      "total_nodes": 460744,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-defense-293-39",
+      "group": "defensive-resource",
+      "fen": "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": 43
+      },
+      "bestmove": "h2h1",
+      "source_played_move": "e1e2",
+      "source_teacher_move": "h2h1",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 261050,
+      "elapsed_ms": 2940,
+      "nps": 88792,
+      "pv": [
+        "h2h1",
+        "d4c5",
+        "c6a4",
+        "g8h7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 473,
+          "time_ms": 4,
+          "nps": 118250,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 1549,
+          "time_ms": 17,
+          "nps": 91117,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 88
+          },
+          "nodes": 41764,
+          "time_ms": 431,
+          "nps": 96900,
+          "pv": [
+            "c3e4",
+            "g8h7",
+            "e1f2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "nodes": 178011,
+          "time_ms": 2070,
+          "nps": 85995,
+          "pv": [
+            "h2h1",
+            "d4c5",
+            "c6a4",
+            "g8h7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 4767,
+        "single_evasion_extensions": 115,
+        "qsearch_check_moves": 52251
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:43 bestmove=h2h1 completed_depth=4 stopped=true nodes=261050 elapsed_us=2940007 nps=88792 pv=\"h2h1 d4c5 c6a4 g8h7\" elapsed_ms=2940 total_nodes=261050 completed_iterations=4 nodes_per_completed_depth=65262 qsearch_ratio=0.956296 effective_branching_factor=22.603772 last_completed_iteration_ms=1639 last_completed_iteration_nodes=136247 aborted_iteration_depth=5 aborted_iteration_nodes=83039 qsearch_nodes=249641 eval_calls=219789 legal_move_generations=571994 pseudo_moves=16679260 legal_moves=13171541 make_moves=16512863 unmake_moves=16512863 tt_probes=44683 tt_hits=6019 tt_cutoffs=52 tt_rejected_depth=688 tt_rejected_bound=5279 tt_rejected_decode=0 tt_stores=44624 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=4767 single_evasion_extensions=115 qsearch_check_moves=52251 threat_ordered_moves=1090664 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 249641,
+      "total_nodes": 261050,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 4767,
+        "single_evasion_extensions": 115,
+        "qsearch_check_moves": 52251,
+        "threat_ordered_moves": 1090664,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-defense-293-39",
+      "group": "defensive-resource",
+      "fen": "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2954.0,
+      "score": {
+        "kind": "cp",
+        "value": 43
+      },
+      "bestmove": "h2h1",
+      "source_played_move": "e1e2",
+      "source_teacher_move": "h2h1",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 264060,
+      "elapsed_ms": 2940,
+      "nps": 89816,
+      "pv": [
+        "h2h1",
+        "d4c5",
+        "c6a4",
+        "g8h7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 423,
+          "time_ms": 4,
+          "nps": 105750,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 1193,
+          "time_ms": 12,
+          "nps": 99416,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 88
+          },
+          "nodes": 36051,
+          "time_ms": 356,
+          "nps": 101266,
+          "pv": [
+            "c3e4",
+            "g8h7",
+            "e1f2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "nodes": 142942,
+          "time_ms": 1554,
+          "nps": 91983,
+          "pv": [
+            "h2h1",
+            "d4c5",
+            "c6a4",
+            "g8h7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 7384,
+        "single_evasion_extensions": 200,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:43 bestmove=h2h1 completed_depth=4 stopped=true nodes=264060 elapsed_us=2940005 nps=89816 pv=\"h2h1 d4c5 c6a4 g8h7\" elapsed_ms=2940 total_nodes=264060 completed_iterations=4 nodes_per_completed_depth=66015 qsearch_ratio=0.934386 effective_branching_factor=22.668650 last_completed_iteration_ms=1197 last_completed_iteration_nodes=106891 aborted_iteration_depth=5 aborted_iteration_nodes=121118 qsearch_nodes=246734 eval_calls=222857 legal_move_generations=593134 pseudo_moves=15164657 legal_moves=12020781 make_moves=15010916 unmake_moves=15010916 tt_probes=65969 tt_hits=9337 tt_cutoffs=78 tt_rejected_depth=1169 tt_rejected_bound=8090 tt_rejected_decode=0 tt_stores=65885 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=7384 single_evasion_extensions=200 qsearch_check_moves=0 threat_ordered_moves=1187288 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 246734,
+      "total_nodes": 264060,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 7384,
+        "single_evasion_extensions": 200,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1187288,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-defense-293-39",
+      "group": "defensive-resource",
+      "fen": "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": 43
+      },
+      "bestmove": "h2h1",
+      "source_played_move": "e1e2",
+      "source_teacher_move": "h2h1",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 263215,
+      "elapsed_ms": 2940,
+      "nps": 89528,
+      "pv": [
+        "h2h1",
+        "d4c5",
+        "c6a4",
+        "g8h7"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 423,
+          "time_ms": 4,
+          "nps": 105750,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -12
+          },
+          "nodes": 1056,
+          "time_ms": 12,
+          "nps": 88000,
+          "pv": [
+            "h2h1",
+            "f5c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 63
+          },
+          "nodes": 10851,
+          "time_ms": 113,
+          "nps": 96026,
+          "pv": [
+            "h2h1",
+            "g8h7",
+            "c6e4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "nodes": 56030,
+          "time_ms": 590,
+          "nps": 94966,
+          "pv": [
+            "h2h1",
+            "d4c5",
+            "c6a4",
+            "g8h7"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:43 bestmove=h2h1 completed_depth=4 stopped=true nodes=263215 elapsed_us=2940012 nps=89528 pv=\"h2h1 d4c5 c6a4 g8h7\" elapsed_ms=2940 total_nodes=263215 completed_iterations=4 nodes_per_completed_depth=65803 qsearch_ratio=0.972938 effective_branching_factor=22.650493 last_completed_iteration_ms=476 last_completed_iteration_nodes=45179 aborted_iteration_depth=5 aborted_iteration_nodes=207185 qsearch_nodes=256092 eval_calls=227599 legal_move_generations=560427 pseudo_moves=13657964 legal_moves=10623262 make_moves=13521082 unmake_moves=13521082 tt_probes=25885 tt_hits=5277 tt_cutoffs=188 tt_rejected_depth=3197 tt_rejected_bound=1892 tt_rejected_decode=0 tt_stores=25691 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=1099279 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 256092,
+      "total_nodes": 263215,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1099279,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-defense-143-7",
+      "group": "defensive-resource",
+      "fen": "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 101
+      },
+      "bestmove": "h5g6",
+      "source_played_move": "d5d4",
+      "source_teacher_move": "a7a6",
+      "source_teacher_agreement": false,
+      "completed_depth": 5,
+      "nodes": 402850,
+      "elapsed_ms": 2940,
+      "nps": 137023,
+      "pv": [
+        "h5g6",
+        "d3g6",
+        "h7g6",
+        "c3b5",
+        "d8a5"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 93
+          },
+          "nodes": 512,
+          "time_ms": 4,
+          "nps": 128000,
+          "pv": [
+            "d8d6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 95
+          },
+          "nodes": 2470,
+          "time_ms": 15,
+          "nps": 164666,
+          "pv": [
+            "d5d4",
+            "d3b5",
+            "e8e7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 95
+          },
+          "nodes": 11765,
+          "time_ms": 80,
+          "nps": 147062,
+          "pv": [
+            "d5d4",
+            "d3b5",
+            "e8e7"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 88
+          },
+          "nodes": 51055,
+          "time_ms": 356,
+          "nps": 143412,
+          "pv": [
+            "d5d4",
+            "a1d1",
+            "d8d7",
+            "d3c4"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 101
+          },
+          "nodes": 150942,
+          "time_ms": 1065,
+          "nps": 141729,
+          "pv": [
+            "h5g6",
+            "d3g6",
+            "h7g6",
+            "c3b5",
+            "d8a5"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:101 bestmove=h5g6 completed_depth=5 stopped=true nodes=402850 elapsed_us=2940001 nps=137023 pv=\"h5g6 d3g6 h7g6 c3b5 d8a5\" elapsed_ms=2940 total_nodes=402850 completed_iterations=5 nodes_per_completed_depth=80570 qsearch_ratio=0.930773 effective_branching_factor=13.213829 last_completed_iteration_ms=709 last_completed_iteration_nodes=99887 aborted_iteration_depth=6 aborted_iteration_nodes=251908 qsearch_nodes=374962 eval_calls=344900 legal_move_generations=1000707 pseudo_moves=28385950 legal_moves=24275895 make_moves=27881235 unmake_moves=27881235 tt_probes=195358 tt_hits=19866 tt_cutoffs=171 tt_rejected_depth=14524 tt_rejected_bound=5171 tt_rejected_decode=0 tt_stores=195181 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 374962,
+      "total_nodes": 402850,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-defense-143-7",
+      "group": "defensive-resource",
+      "fen": "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 99
+      },
+      "bestmove": "a7a6",
+      "source_played_move": "d5d4",
+      "source_teacher_move": "a7a6",
+      "source_teacher_agreement": true,
+      "completed_depth": 3,
+      "nodes": 165141,
+      "elapsed_ms": 2940,
+      "nps": 56170,
+      "pv": [
+        "a7a6",
+        "e2f1",
+        "d8d6"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 133
+          },
+          "nodes": 4561,
+          "time_ms": 75,
+          "nps": 60813,
+          "pv": [
+            "d8d7"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 93
+          },
+          "nodes": 14268,
+          "time_ms": 228,
+          "nps": 62578,
+          "pv": [
+            "d8d6",
+            "d3b5",
+            "f6d7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "nodes": 102211,
+          "time_ms": 1930,
+          "nps": 52959,
+          "pv": [
+            "a7a6",
+            "e2f1",
+            "d8d6"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 710,
+        "single_evasion_extensions": 20,
+        "qsearch_check_moves": 10305
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:99 bestmove=a7a6 completed_depth=3 stopped=true nodes=165141 elapsed_us=2940017 nps=56170 pv=\"a7a6 e2f1 d8d6\" elapsed_ms=2940 total_nodes=165141 completed_iterations=3 nodes_per_completed_depth=55047 qsearch_ratio=0.991498 effective_branching_factor=54.863684 last_completed_iteration_ms=1701 last_completed_iteration_nodes=87943 aborted_iteration_depth=4 aborted_iteration_nodes=62930 qsearch_nodes=163737 eval_calls=139881 legal_move_generations=346807 pseudo_moves=8816730 legal_moves=6393248 make_moves=8641143 unmake_moves=8641143 tt_probes=6098 tt_hits=550 tt_cutoffs=5 tt_rejected_depth=126 tt_rejected_bound=419 tt_rejected_decode=0 tt_stores=6088 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=710 single_evasion_extensions=20 qsearch_check_moves=10305 threat_ordered_moves=513563 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 163737,
+      "total_nodes": 165141,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 710,
+        "single_evasion_extensions": 20,
+        "qsearch_check_moves": 10305,
+        "threat_ordered_moves": 513563,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-defense-143-7",
+      "group": "defensive-resource",
+      "fen": "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 99
+      },
+      "bestmove": "a7a6",
+      "source_played_move": "d5d4",
+      "source_teacher_move": "a7a6",
+      "source_teacher_agreement": true,
+      "completed_depth": 3,
+      "nodes": 195029,
+      "elapsed_ms": 2940,
+      "nps": 66336,
+      "pv": [
+        "a7a6",
+        "e2f1",
+        "d8d6"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 266
+          },
+          "nodes": 1313,
+          "time_ms": 17,
+          "nps": 77235,
+          "pv": [
+            "f6e4"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 93
+          },
+          "nodes": 18060,
+          "time_ms": 301,
+          "nps": 60000,
+          "pv": [
+            "d8d6",
+            "d3b5",
+            "f6d7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "nodes": 79764,
+          "time_ms": 1332,
+          "nps": 59882,
+          "pv": [
+            "a7a6",
+            "e2f1",
+            "d8d6"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 790,
+        "single_evasion_extensions": 23,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:99 bestmove=a7a6 completed_depth=3 stopped=true nodes=195029 elapsed_us=2940005 nps=66336 pv=\"a7a6 e2f1 d8d6\" elapsed_ms=2940 total_nodes=195029 completed_iterations=3 nodes_per_completed_depth=65009 qsearch_ratio=0.991801 effective_branching_factor=57.991774 last_completed_iteration_ms=1031 last_completed_iteration_nodes=61704 aborted_iteration_depth=4 aborted_iteration_nodes=115265 qsearch_nodes=193430 eval_calls=167822 legal_move_generations=410879 pseudo_moves=9821101 legal_moves=7169514 make_moves=9621259 unmake_moves=9621259 tt_probes=8046 tt_hits=979 tt_cutoffs=18 tt_rejected_depth=143 tt_rejected_bound=818 tt_rejected_decode=0 tt_stores=8023 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=790 single_evasion_extensions=23 qsearch_check_moves=0 threat_ordered_moves=597480 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 193430,
+      "total_nodes": 195029,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 790,
+        "single_evasion_extensions": 23,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 597480,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-defense-143-7",
+      "group": "defensive-resource",
+      "fen": "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2984.0,
+      "score": {
+        "kind": "cp",
+        "value": 99
+      },
+      "bestmove": "a7a6",
+      "source_played_move": "d5d4",
+      "source_teacher_move": "a7a6",
+      "source_teacher_agreement": true,
+      "completed_depth": 3,
+      "nodes": 205389,
+      "elapsed_ms": 2940,
+      "nps": 69859,
+      "pv": [
+        "a7a6",
+        "e2f1",
+        "d8d6"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 266
+          },
+          "nodes": 1313,
+          "time_ms": 19,
+          "nps": 69105,
+          "pv": [
+            "f6e4"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 93
+          },
+          "nodes": 17892,
+          "time_ms": 270,
+          "nps": 66266,
+          "pv": [
+            "d8d6",
+            "d3b5",
+            "f6d7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "nodes": 59277,
+          "time_ms": 894,
+          "nps": 66305,
+          "pv": [
+            "a7a6",
+            "e2f1",
+            "d8d6"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:99 bestmove=a7a6 completed_depth=3 stopped=true nodes=205389 elapsed_us=2940031 nps=69859 pv=\"a7a6 e2f1 d8d6\" elapsed_ms=2940 total_nodes=205389 completed_iterations=3 nodes_per_completed_depth=68463 qsearch_ratio=0.995545 effective_branching_factor=59.000958 last_completed_iteration_ms=623 last_completed_iteration_nodes=41385 aborted_iteration_depth=4 aborted_iteration_nodes=146112 qsearch_nodes=204474 eval_calls=178027 legal_move_generations=432223 pseudo_moves=10373638 legal_moves=7601822 make_moves=10137855 unmake_moves=10137855 tt_probes=6469 tt_hits=1357 tt_cutoffs=97 tt_rejected_depth=526 tt_rejected_bound=734 tt_rejected_decode=0 tt_stores=6367 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=645132 root_reorders=3 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 204474,
+      "total_nodes": 205389,
+      "completed_iterations": 3,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 645132,
+        "root_reorders": 3
+      }
+    },
+    {
+      "position_id": "s21-control-559-9",
+      "group": "control",
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 390
+      },
+      "bestmove": "f1b5",
+      "source_played_move": "f1b5",
+      "source_teacher_move": "f1b5",
+      "source_teacher_agreement": true,
+      "completed_depth": 6,
+      "nodes": 320140,
+      "elapsed_ms": 2940,
+      "nps": 108889,
+      "pv": [
+        "f1b5",
+        "b4c2",
+        "d1c2",
+        "f8b4",
+        "e1e2",
+        "e4g3",
+        "h2g3",
+        "c6b5",
+        "a3b5",
+        "f5c2",
+        "b5c7",
+        "e8d7",
+        "c7a8",
+        "h8a8"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -145
+          },
+          "nodes": 1154,
+          "time_ms": 6,
+          "nps": 192333,
+          "pv": [
+            "f1b5"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 80
+          },
+          "nodes": 2347,
+          "time_ms": 12,
+          "nps": 195583,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 80
+          },
+          "nodes": 3611,
+          "time_ms": 26,
+          "nps": 138884,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 84
+          },
+          "nodes": 10279,
+          "time_ms": 64,
+          "nps": 160609,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "g5e3"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 84
+          },
+          "nodes": 26046,
+          "time_ms": 210,
+          "nps": 124028,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "g5e3"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": 390
+          },
+          "nodes": 99810,
+          "time_ms": 709,
+          "nps": 140775,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2",
+            "f8b4",
+            "e1e2",
+            "e4g3",
+            "h2g3",
+            "c6b5",
+            "a3b5",
+            "f5c2",
+            "b5c7",
+            "e8d7",
+            "c7a8",
+            "h8a8"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:390 bestmove=f1b5 completed_depth=6 stopped=true nodes=320140 elapsed_us=2940040 nps=108889 pv=\"f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8\" elapsed_ms=2940 total_nodes=320140 completed_iterations=6 nodes_per_completed_depth=53356 qsearch_ratio=0.870491 effective_branching_factor=8.270974 last_completed_iteration_ms=499 last_completed_iteration_nodes=73764 aborted_iteration_depth=7 aborted_iteration_nodes=220330 qsearch_nodes=278679 eval_calls=267684 legal_move_generations=835840 pseudo_moves=24493430 legal_moves=22915981 make_moves=24628258 unmake_moves=24628258 tt_probes=230726 tt_hits=37986 tt_cutoffs=1 tt_rejected_depth=37629 tt_rejected_bound=356 tt_rejected_decode=0 tt_stores=230719 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 278679,
+      "total_nodes": 320140,
+      "completed_iterations": 6,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-control-559-9",
+      "group": "control",
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": 382
+      },
+      "bestmove": "f1b5",
+      "source_played_move": "f1b5",
+      "source_teacher_move": "f1b5",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 214796,
+      "elapsed_ms": 2940,
+      "nps": 73059,
+      "pv": [
+        "f1b5",
+        "c6b5",
+        "a3b5",
+        "e4g5",
+        "b5c7",
+        "e8d7",
+        "c7a8",
+        "g5f3",
+        "g2f3",
+        "b4c2",
+        "e1f1",
+        "c2a1",
+        "d1a1"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -10
+          },
+          "nodes": 4222,
+          "time_ms": 50,
+          "nps": 84440,
+          "pv": [
+            "f3e5"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -34
+          },
+          "nodes": 10456,
+          "time_ms": 129,
+          "nps": 81054,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2",
+            "f8b4",
+            "e1f1"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 98
+          },
+          "nodes": 16607,
+          "time_ms": 219,
+          "nps": 75831,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "f2e3"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 382
+          },
+          "nodes": 85639,
+          "time_ms": 1094,
+          "nps": 78280,
+          "pv": [
+            "f1b5",
+            "c6b5",
+            "a3b5",
+            "e4g5",
+            "b5c7",
+            "e8d7",
+            "c7a8",
+            "g5f3",
+            "g2f3",
+            "b4c2",
+            "e1f1",
+            "c2a1",
+            "d1a1"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 3408,
+        "single_evasion_extensions": 269,
+        "qsearch_check_moves": 35028
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:382 bestmove=f1b5 completed_depth=4 stopped=true nodes=214796 elapsed_us=2940004 nps=73059 pv=\"f1b5 c6b5 a3b5 e4g5 b5c7 e8d7 c7a8 g5f3 g2f3 b4c2 e1f1 c2a1 d1a1\" elapsed_ms=2940 total_nodes=214796 completed_iterations=4 nodes_per_completed_depth=53699 qsearch_ratio=0.966880 effective_branching_factor=21.528142 last_completed_iteration_ms=875 last_completed_iteration_nodes=69032 aborted_iteration_depth=5 aborted_iteration_nodes=129157 qsearch_nodes=207682 eval_calls=181158 legal_move_generations=463762 pseudo_moves=11385261 legal_moves=8646738 make_moves=11120858 unmake_moves=11120858 tt_probes=23142 tt_hits=4368 tt_cutoffs=209 tt_rejected_depth=879 tt_rejected_bound=3280 tt_rejected_decode=0 tt_stores=22925 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=3408 single_evasion_extensions=269 qsearch_check_moves=35028 threat_ordered_moves=765359 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 207682,
+      "total_nodes": 214796,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 3408,
+        "single_evasion_extensions": 269,
+        "qsearch_check_moves": 35028,
+        "threat_ordered_moves": 765359,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-control-559-9",
+      "group": "control",
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 382
+      },
+      "bestmove": "f1b5",
+      "source_played_move": "f1b5",
+      "source_teacher_move": "f1b5",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 180103,
+      "elapsed_ms": 2940,
+      "nps": 61259,
+      "pv": [
+        "f1b5",
+        "c6b5",
+        "a3b5",
+        "e4g5",
+        "b5c7",
+        "e8d7",
+        "c7a8",
+        "g5f3",
+        "g2f3",
+        "b4c2",
+        "e1f1",
+        "c2a1",
+        "d1a1"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -10
+          },
+          "nodes": 3258,
+          "time_ms": 37,
+          "nps": 88054,
+          "pv": [
+            "f3e5"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 101
+          },
+          "nodes": 6607,
+          "time_ms": 76,
+          "nps": 86934,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 98
+          },
+          "nodes": 10998,
+          "time_ms": 139,
+          "nps": 79122,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "f2e3"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 382
+          },
+          "nodes": 50296,
+          "time_ms": 697,
+          "nps": 72160,
+          "pv": [
+            "f1b5",
+            "c6b5",
+            "a3b5",
+            "e4g5",
+            "b5c7",
+            "e8d7",
+            "c7a8",
+            "g5f3",
+            "g2f3",
+            "b4c2",
+            "e1f1",
+            "c2a1",
+            "d1a1"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 6687,
+        "single_evasion_extensions": 398,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:382 bestmove=f1b5 completed_depth=4 stopped=true nodes=180103 elapsed_us=2940013 nps=61259 pv=\"f1b5 c6b5 a3b5 e4g5 b5c7 e8d7 c7a8 g5f3 g2f3 b4c2 e1f1 c2a1 d1a1\" elapsed_ms=2940 total_nodes=180103 completed_iterations=4 nodes_per_completed_depth=45025 qsearch_ratio=0.925326 effective_branching_factor=20.600617 last_completed_iteration_ms=558 last_completed_iteration_nodes=39298 aborted_iteration_depth=5 aborted_iteration_nodes=129807 qsearch_nodes=166654 eval_calls=150145 legal_move_generations=401784 pseudo_moves=9683682 legal_moves=7487849 make_moves=9458596 unmake_moves=9458596 tt_probes=40010 tt_hits=5453 tt_cutoffs=138 tt_rejected_depth=2104 tt_rejected_bound=3211 tt_rejected_decode=0 tt_stores=39869 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=6687 single_evasion_extensions=398 qsearch_check_moves=0 threat_ordered_moves=778648 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 166654,
+      "total_nodes": 180103,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 6687,
+        "single_evasion_extensions": 398,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 778648,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-control-559-9",
+      "group": "control",
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 98
+      },
+      "bestmove": "f1b5",
+      "source_played_move": "f1b5",
+      "source_teacher_move": "f1b5",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 171781,
+      "elapsed_ms": 2940,
+      "nps": 58428,
+      "pv": [
+        "f1b5",
+        "b4c2",
+        "e1f1",
+        "c2e3",
+        "f2e3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -10
+          },
+          "nodes": 3258,
+          "time_ms": 37,
+          "nps": 88054,
+          "pv": [
+            "f3e5"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 101
+          },
+          "nodes": 6598,
+          "time_ms": 74,
+          "nps": 89162,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 101
+          },
+          "nodes": 8727,
+          "time_ms": 105,
+          "nps": 83114,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "d1c2"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 98
+          },
+          "nodes": 22815,
+          "time_ms": 307,
+          "nps": 74315,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "f2e3"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 98
+          },
+          "nodes": 40835,
+          "time_ms": 578,
+          "nps": 70648,
+          "pv": [
+            "f1b5",
+            "b4c2",
+            "e1f1",
+            "c2e3",
+            "f2e3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:98 bestmove=f1b5 completed_depth=5 stopped=true nodes=171781 elapsed_us=2940025 nps=58428 pv=\"f1b5 b4c2 e1f1 c2e3 f2e3\" elapsed_ms=2940 total_nodes=171781 completed_iterations=5 nodes_per_completed_depth=34356 qsearch_ratio=0.951013 effective_branching_factor=11.142818 last_completed_iteration_ms=270 last_completed_iteration_nodes=18020 aborted_iteration_depth=6 aborted_iteration_nodes=130946 qsearch_nodes=163366 eval_calls=142886 legal_move_generations=371153 pseudo_moves=8804564 legal_moves=6617348 make_moves=8622717 unmake_moves=8622717 tt_probes=22878 tt_hits=7864 tt_cutoffs=108 tt_rejected_depth=5505 tt_rejected_bound=2251 tt_rejected_decode=0 tt_stores=22764 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=788921 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 163366,
+      "total_nodes": 171781,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 788921,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-control-237-32",
+      "group": "control",
+      "fen": "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 3000.0,
+      "score": {
+        "kind": "cp",
+        "value": -721
+      },
+      "bestmove": "g8f8",
+      "source_played_move": "g8h8",
+      "source_teacher_move": "g8h8",
+      "source_teacher_agreement": false,
+      "completed_depth": 6,
+      "nodes": 381563,
+      "elapsed_ms": 2940,
+      "nps": 129783,
+      "pv": [
+        "g8f8",
+        "e4d5",
+        "f7f6",
+        "f3h5",
+        "c8e6",
+        "e1e6",
+        "f6g5",
+        "h5g5",
+        "b2a2"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -502
+          },
+          "nodes": 261,
+          "time_ms": 1,
+          "nps": 261000,
+          "pv": [
+            "g8f8"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -502
+          },
+          "nodes": 720,
+          "time_ms": 5,
+          "nps": 144000,
+          "pv": [
+            "g8f8",
+            "a2a3"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -600
+          },
+          "nodes": 8279,
+          "time_ms": 62,
+          "nps": 133532,
+          "pv": [
+            "g8h8",
+            "f3h5",
+            "h7h6",
+            "e7c8",
+            "a8c8",
+            "g5h6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -610
+          },
+          "nodes": 12895,
+          "time_ms": 92,
+          "nps": 140163,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "e7d5"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -705
+          },
+          "nodes": 82870,
+          "time_ms": 556,
+          "nps": 149046,
+          "pv": [
+            "g8f8",
+            "e4h7",
+            "g7h8",
+            "h7g8",
+            "f7f6",
+            "g5f6",
+            "b2a2",
+            "e7c8",
+            "f8g8",
+            "f3b7"
+          ]
+        },
+        {
+          "depth": 6,
+          "score": {
+            "kind": "cp",
+            "value": -721
+          },
+          "nodes": 204788,
+          "time_ms": 1510,
+          "nps": 135621,
+          "pv": [
+            "g8f8",
+            "e4d5",
+            "f7f6",
+            "f3h5",
+            "c8e6",
+            "e1e6",
+            "f6g5",
+            "h5g5",
+            "b2a2"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:-721 bestmove=g8f8 completed_depth=6 stopped=true nodes=381563 elapsed_us=2940002 nps=129783 pv=\"g8f8 e4d5 f7f6 f3h5 c8e6 e1e6 f6g5 h5g5 b2a2\" elapsed_ms=2940 total_nodes=381563 completed_iterations=6 nodes_per_completed_depth=63593 qsearch_ratio=0.899000 effective_branching_factor=8.516498 last_completed_iteration_ms=954 last_completed_iteration_nodes=121918 aborted_iteration_depth=7 aborted_iteration_nodes=176775 qsearch_nodes=343025 eval_calls=301355 legal_move_generations=907066 pseudo_moves=22314365 legal_moves=17915227 make_moves=22125727 unmake_moves=22125727 tt_probes=156439 tt_hits=33600 tt_cutoffs=432 tt_rejected_depth=26235 tt_rejected_bound=6933 tt_rejected_decode=0 tt_stores=156001 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 343025,
+      "total_nodes": 381563,
+      "completed_iterations": 6,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-control-237-32",
+      "group": "control",
+      "fen": "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": -1091
+      },
+      "bestmove": "g8h8",
+      "source_played_move": "g8h8",
+      "source_teacher_move": "g8h8",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 218932,
+      "elapsed_ms": 2940,
+      "nps": 74466,
+      "pv": [
+        "g8h8",
+        "e7c8",
+        "a8b8",
+        "f3f5",
+        "h8g8",
+        "f5h7",
+        "g8f8"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -883
+          },
+          "nodes": 242,
+          "time_ms": 2,
+          "nps": 121000,
+          "pv": [
+            "g8f8",
+            "e4h7",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -978
+          },
+          "nodes": 708,
+          "time_ms": 11,
+          "nps": 64363,
+          "pv": [
+            "g8f8",
+            "e4h7"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -993
+          },
+          "nodes": 12339,
+          "time_ms": 161,
+          "nps": 76639,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "nodes": 19088,
+          "time_ms": 249,
+          "nps": 76658,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "g1h1",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1091
+          },
+          "nodes": 83235,
+          "time_ms": 978,
+          "nps": 85107,
+          "pv": [
+            "g8h8",
+            "e7c8",
+            "a8b8",
+            "f3f5",
+            "h8g8",
+            "f5h7",
+            "g8f8"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 9704,
+        "single_evasion_extensions": 1378,
+        "qsearch_check_moves": 114622
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:-1091 bestmove=g8h8 completed_depth=5 stopped=true nodes=218932 elapsed_us=2940005 nps=74466 pv=\"g8h8 e7c8 a8b8 f3f5 h8g8 f5h7 g8f8\" elapsed_ms=2940 total_nodes=218932 completed_iterations=5 nodes_per_completed_depth=43786 qsearch_ratio=0.891852 effective_branching_factor=11.696660 last_completed_iteration_ms=728 last_completed_iteration_nodes=64147 aborted_iteration_depth=6 aborted_iteration_nodes=135697 qsearch_nodes=195255 eval_calls=173048 legal_move_generations=533330 pseudo_moves=15213989 legal_moves=12520764 make_moves=15102263 unmake_moves=15102263 tt_probes=103066 tt_hits=4230 tt_cutoffs=98 tt_rejected_depth=2759 tt_rejected_bound=1373 tt_rejected_decode=0 tt_stores=102962 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=9704 single_evasion_extensions=1378 qsearch_check_moves=114622 threat_ordered_moves=996144 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 195255,
+      "total_nodes": 218932,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 9704,
+        "single_evasion_extensions": 1378,
+        "qsearch_check_moves": 114622,
+        "threat_ordered_moves": 996144,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-control-237-32",
+      "group": "control",
+      "fen": "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2953.0,
+      "score": {
+        "kind": "cp",
+        "value": -1019
+      },
+      "bestmove": "g8h8",
+      "source_played_move": "g8h8",
+      "source_teacher_move": "g8h8",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 261140,
+      "elapsed_ms": 2940,
+      "nps": 88822,
+      "pv": [
+        "g8h8",
+        "f3f7",
+        "c8g4",
+        "g1h1",
+        "b2a2"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -883
+          },
+          "nodes": 220,
+          "time_ms": 2,
+          "nps": 110000,
+          "pv": [
+            "g8f8",
+            "e4h7",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -905
+          },
+          "nodes": 605,
+          "time_ms": 5,
+          "nps": 121000,
+          "pv": [
+            "g8f8",
+            "e4d5"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -980
+          },
+          "nodes": 5556,
+          "time_ms": 65,
+          "nps": 85476,
+          "pv": [
+            "g8h8",
+            "e1e2",
+            "c8g4",
+            "f3g4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "nodes": 11084,
+          "time_ms": 130,
+          "nps": 85261,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "g1h1",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "nodes": 38658,
+          "time_ms": 432,
+          "nps": 89486,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "g1h1",
+            "b2a2"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 15830,
+        "single_evasion_extensions": 3271,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:-1019 bestmove=g8h8 completed_depth=5 stopped=true nodes=261140 elapsed_us=2940008 nps=88822 pv=\"g8h8 f3f7 c8g4 g1h1 b2a2\" elapsed_ms=2940 total_nodes=261140 completed_iterations=5 nodes_per_completed_depth=52228 qsearch_ratio=0.866711 effective_branching_factor=12.116430 last_completed_iteration_ms=301 last_completed_iteration_nodes=27574 aborted_iteration_depth=6 aborted_iteration_nodes=222482 qsearch_nodes=226333 eval_calls=213468 legal_move_generations=673660 pseudo_moves=15988440 legal_moves=13339500 make_moves=15851309 unmake_moves=15851309 tt_probes=167597 tt_hits=11053 tt_cutoffs=954 tt_rejected_depth=2530 tt_rejected_bound=7569 tt_rejected_decode=0 tt_stores=166635 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=15830 single_evasion_extensions=3271 qsearch_check_moves=0 threat_ordered_moves=1261231 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 226333,
+      "total_nodes": 261140,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 15830,
+        "single_evasion_extensions": 3271,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1261231,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-control-237-32",
+      "group": "control",
+      "fen": "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": -1019
+      },
+      "bestmove": "g8h8",
+      "source_played_move": "g8h8",
+      "source_teacher_move": "g8h8",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 242386,
+      "elapsed_ms": 2940,
+      "nps": 82442,
+      "pv": [
+        "g8h8",
+        "f3f7",
+        "c8g4",
+        "g1h1",
+        "b2a2"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": -883
+          },
+          "nodes": 220,
+          "time_ms": 3,
+          "nps": 73333,
+          "pv": [
+            "g8f8",
+            "e4h7",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": -905
+          },
+          "nodes": 447,
+          "time_ms": 5,
+          "nps": 89400,
+          "pv": [
+            "g8f8",
+            "e4d5"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": -980
+          },
+          "nodes": 4603,
+          "time_ms": 46,
+          "nps": 100065,
+          "pv": [
+            "g8h8",
+            "e1e2",
+            "c8g4",
+            "f3g4"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "nodes": 7470,
+          "time_ms": 75,
+          "nps": 99600,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "g1h1",
+            "b2a2"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "nodes": 27374,
+          "time_ms": 276,
+          "nps": 99181,
+          "pv": [
+            "g8h8",
+            "f3f7",
+            "c8g4",
+            "g1h1",
+            "b2a2"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:-1019 bestmove=g8h8 completed_depth=5 stopped=true nodes=242386 elapsed_us=2940050 nps=82442 pv=\"g8h8 f3f7 c8g4 g1h1 b2a2\" elapsed_ms=2940 total_nodes=242386 completed_iterations=5 nodes_per_completed_depth=48477 qsearch_ratio=0.937505 effective_branching_factor=11.937174 last_completed_iteration_ms=200 last_completed_iteration_nodes=19904 aborted_iteration_depth=6 aborted_iteration_nodes=215012 qsearch_nodes=227238 eval_calls=196317 legal_move_generations=589227 pseudo_moves=13986523 legal_moves=10711098 make_moves=13868106 unmake_moves=13868106 tt_probes=103068 tt_hits=12122 tt_cutoffs=618 tt_rejected_depth=5641 tt_rejected_bound=5863 tt_rejected_decode=0 tt_stores=102444 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=1031862 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 227238,
+      "total_nodes": 242386,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1031862,
+        "root_reorders": 5
+      }
+    },
+    {
+      "position_id": "s21-control-467-16",
+      "group": "control",
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "time_limit_ms": 3000,
+      "engine_profile": "current",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current",
+        "--fen",
+        "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 215
+      },
+      "bestmove": "e3d4",
+      "source_played_move": "e3d4",
+      "source_teacher_move": "e3d4",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 500366,
+      "elapsed_ms": 2940,
+      "nps": 170192,
+      "pv": [
+        "e3d4",
+        "e5d4",
+        "d5e6",
+        "d7c5",
+        "e6e7",
+        "c5b3",
+        "e7d8q",
+        "f8d8",
+        "d2b3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 45
+          },
+          "nodes": 1045,
+          "time_ms": 7,
+          "nps": 149285,
+          "pv": [
+            "f3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 45
+          },
+          "nodes": 1398,
+          "time_ms": 9,
+          "nps": 155333,
+          "pv": [
+            "f3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 35
+          },
+          "nodes": 5374,
+          "time_ms": 33,
+          "nps": 162848,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 25
+          },
+          "nodes": 18911,
+          "time_ms": 102,
+          "nps": 185401,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7c5"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 215
+          },
+          "nodes": 91377,
+          "time_ms": 519,
+          "nps": 176063,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7c5",
+            "e6e7",
+            "c5b3",
+            "e7d8q",
+            "f8d8",
+            "d2b3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current repeat=1 limit=movetime_ms:3000 score=cp:215 bestmove=e3d4 completed_depth=5 stopped=true nodes=500366 elapsed_us=2940004 nps=170192 pv=\"e3d4 e5d4 d5e6 d7c5 e6e7 c5b3 e7d8q f8d8 d2b3\" elapsed_ms=2940 total_nodes=500366 completed_iterations=5 nodes_per_completed_depth=100073 qsearch_ratio=0.851914 effective_branching_factor=13.799316 last_completed_iteration_ms=416 last_completed_iteration_nodes=72466 aborted_iteration_depth=6 aborted_iteration_nodes=408989 qsearch_nodes=426269 eval_calls=417219 legal_move_generations=1159220 pseudo_moves=28917251 legal_moves=27456036 make_moves=28932596 unmake_moves=28932596 tt_probes=216834 tt_hits=59884 tt_cutoffs=3 tt_rejected_depth=55737 tt_rejected_bound=4144 tt_rejected_decode=0 tt_stores=216824 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=0 root_reorders=0 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 426269,
+      "total_nodes": 500366,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 0,
+        "root_reorders": 0
+      }
+    },
+    {
+      "position_id": "s21-control-467-16",
+      "group": "control",
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware",
+        "--fen",
+        "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 226
+      },
+      "bestmove": "e3d4",
+      "source_played_move": "e3d4",
+      "source_teacher_move": "e3d4",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 186828,
+      "elapsed_ms": 2940,
+      "nps": 63546,
+      "pv": [
+        "e3d4",
+        "e5d4",
+        "d5e6",
+        "d7c5",
+        "e6e7",
+        "c5b3",
+        "e7d8q",
+        "f8d8",
+        "d2b3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 5553,
+          "time_ms": 68,
+          "nps": 81661,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 6044,
+          "time_ms": 77,
+          "nps": 78493,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 17726,
+          "time_ms": 258,
+          "nps": 68705,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 226
+          },
+          "nodes": 40708,
+          "time_ms": 592,
+          "nps": 68763,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7c5",
+            "e6e7",
+            "c5b3",
+            "e7d8q",
+            "f8d8",
+            "d2b3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 3310,
+        "single_evasion_extensions": 257,
+        "qsearch_check_moves": 40102
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware repeat=1 limit=movetime_ms:3000 score=cp:226 bestmove=e3d4 completed_depth=4 stopped=true nodes=186828 elapsed_us=2940007 nps=63546 pv=\"e3d4 e5d4 d5e6 d7c5 e6e7 c5b3 e7d8q f8d8 d2b3\" elapsed_ms=2940 total_nodes=186828 completed_iterations=4 nodes_per_completed_depth=46707 qsearch_ratio=0.940287 effective_branching_factor=20.790287 last_completed_iteration_ms=333 last_completed_iteration_nodes=22982 aborted_iteration_depth=5 aborted_iteration_nodes=146120 qsearch_nodes=175672 eval_calls=156847 legal_move_generations=416706 pseudo_moves=12243097 legal_moves=10248694 make_moves=12144443 unmake_moves=12144443 tt_probes=43662 tt_hits=1131 tt_cutoffs=3 tt_rejected_depth=1121 tt_rejected_bound=7 tt_rejected_decode=0 tt_stores=43652 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=3310 single_evasion_extensions=257 qsearch_check_moves=40102 threat_ordered_moves=877200 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 175672,
+      "total_nodes": 186828,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 3310,
+        "single_evasion_extensions": 257,
+        "qsearch_check_moves": 40102,
+        "threat_ordered_moves": 877200,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-control-467-16",
+      "group": "control",
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-no-qchecks",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-no-qchecks",
+        "--fen",
+        "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2968.0,
+      "score": {
+        "kind": "cp",
+        "value": 87
+      },
+      "bestmove": "e3d4",
+      "source_played_move": "e3d4",
+      "source_teacher_move": "e3d4",
+      "source_teacher_agreement": true,
+      "completed_depth": 4,
+      "nodes": 226427,
+      "elapsed_ms": 2940,
+      "nps": 77015,
+      "pv": [
+        "e3d4",
+        "e5d4",
+        "d5e6",
+        "d7e5"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 5499,
+          "time_ms": 54,
+          "nps": 101833,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 5969,
+          "time_ms": 60,
+          "nps": 99483,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 16953,
+          "time_ms": 205,
+          "nps": 82697,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 87
+          },
+          "nodes": 54114,
+          "time_ms": 678,
+          "nps": 79814,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7e5"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 4286,
+        "single_evasion_extensions": 391,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-no-qchecks repeat=1 limit=movetime_ms:3000 score=cp:87 bestmove=e3d4 completed_depth=4 stopped=true nodes=226427 elapsed_us=2940032 nps=77015 pv=\"e3d4 e5d4 d5e6 d7e5\" elapsed_ms=2940 total_nodes=226427 completed_iterations=4 nodes_per_completed_depth=56606 qsearch_ratio=0.938329 effective_branching_factor=21.813836 last_completed_iteration_ms=472 last_completed_iteration_nodes=37161 aborted_iteration_depth=5 aborted_iteration_nodes=172313 qsearch_nodes=212463 eval_calls=190923 legal_move_generations=505363 pseudo_moves=12636001 legal_moves=10239969 make_moves=12504612 unmake_moves=12504612 tt_probes=53353 tt_hits=1518 tt_cutoffs=3 tt_rejected_depth=1412 tt_rejected_bound=103 tt_rejected_decode=0 tt_stores=53344 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=4286 single_evasion_extensions=391 qsearch_check_moves=0 threat_ordered_moves=1052994 root_reorders=4 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 212463,
+      "total_nodes": 226427,
+      "completed_iterations": 4,
+      "component_counters": {
+        "check_extensions": 4286,
+        "single_evasion_extensions": 391,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1052994,
+        "root_reorders": 4
+      }
+    },
+    {
+      "position_id": "s21-control-467-16",
+      "group": "control",
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "time_limit_ms": 3000,
+      "engine_profile": "current-threat-aware-eval-order",
+      "engine_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+      "argv": [
+        "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\SuperEureka-s21b-69e947d.exe",
+        "bench",
+        "profile",
+        "--mode",
+        "cold",
+        "--movetime",
+        "3000",
+        "--profile",
+        "current-threat-aware-eval-order",
+        "--fen",
+        "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9"
+      ],
+      "returncode": 0,
+      "wall_time_ms": 2969.0,
+      "score": {
+        "kind": "cp",
+        "value": 226
+      },
+      "bestmove": "e3d4",
+      "source_played_move": "e3d4",
+      "source_teacher_move": "e3d4",
+      "source_teacher_agreement": true,
+      "completed_depth": 5,
+      "nodes": 245460,
+      "elapsed_ms": 2940,
+      "nps": 83489,
+      "pv": [
+        "e3d4",
+        "e5d4",
+        "d5e6",
+        "d7c5",
+        "e6e7",
+        "c5b3",
+        "e7d8q",
+        "f8d8",
+        "d2b3"
+      ],
+      "score_by_depth": [
+        {
+          "depth": 1,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 5499,
+          "time_ms": 50,
+          "nps": 109980,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 2,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 5844,
+          "time_ms": 54,
+          "nps": 108222,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 3,
+          "score": {
+            "kind": "cp",
+            "value": 102
+          },
+          "nodes": 8510,
+          "time_ms": 85,
+          "nps": 100117,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6"
+          ]
+        },
+        {
+          "depth": 4,
+          "score": {
+            "kind": "cp",
+            "value": 87
+          },
+          "nodes": 26865,
+          "time_ms": 317,
+          "nps": 84747,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7e5"
+          ]
+        },
+        {
+          "depth": 5,
+          "score": {
+            "kind": "cp",
+            "value": 226
+          },
+          "nodes": 117755,
+          "time_ms": 1553,
+          "nps": 75824,
+          "pv": [
+            "e3d4",
+            "e5d4",
+            "d5e6",
+            "d7c5",
+            "e6e7",
+            "c5b3",
+            "e7d8q",
+            "f8d8",
+            "d2b3"
+          ]
+        }
+      ],
+      "counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0
+      },
+      "raw_result": "bench_result suite=profile fixture=custom mode=cold profile=current-threat-aware-eval-order repeat=1 limit=movetime_ms:3000 score=cp:226 bestmove=e3d4 completed_depth=5 stopped=true nodes=245460 elapsed_us=2940009 nps=83489 pv=\"e3d4 e5d4 d5e6 d7c5 e6e7 c5b3 e7d8q f8d8 d2b3\" elapsed_ms=2940 total_nodes=245460 completed_iterations=5 nodes_per_completed_depth=49092 qsearch_ratio=0.967335 effective_branching_factor=11.967299 last_completed_iteration_ms=1236 last_completed_iteration_nodes=90890 aborted_iteration_depth=6 aborted_iteration_nodes=127705 qsearch_nodes=237442 eval_calls=210680 legal_move_generations=561629 pseudo_moves=14254810 legal_moves=11658950 make_moves=14074038 unmake_moves=14074038 tt_probes=62746 tt_hits=7616 tt_cutoffs=0 tt_rejected_depth=7421 tt_rejected_bound=195 tt_rejected_decode=0 tt_stores=62739 see_calls=0 see_pruned=0 qsearch_see_tests=0 qsearch_see_pruned=0 qsearch_see_fail_open_promotions=0 qsearch_checking_captures_kept=0 qsearch_promotions_kept=0 qsearch_en_passant_kept=0 check_extensions=0 single_evasion_extensions=0 qsearch_check_moves=0 threat_ordered_moves=1089455 root_reorders=5 aspiration_retries=0 aspiration_fail_low=0 aspiration_fail_high=0 lmr_reductions=0 lmr_researches=0 null_move_attempts=0 null_move_fail_highs=0 null_move_researches=0 futility_pruned=0",
+      "qsearch_nodes": 237442,
+      "total_nodes": 245460,
+      "completed_iterations": 5,
+      "component_counters": {
+        "check_extensions": 0,
+        "single_evasion_extensions": 0,
+        "qsearch_check_moves": 0,
+        "threat_ordered_moves": 1089455,
+        "root_reorders": 5
+      }
+    }
+  ],
+  "summary": {
+    "profiles": {
+      "current": {
+        "positions": 9,
+        "median_completed_depth": 5.0,
+        "median_nodes": 460744.0,
+        "median_qsearch_nodes": 424077.0,
+        "median_elapsed_ms": 2940.0,
+        "median_nps": 156715.0,
+        "sum_counters": {
+          "check_extensions": 0,
+          "single_evasion_extensions": 0,
+          "qsearch_check_moves": 0,
+          "threat_ordered_moves": 0,
+          "root_reorders": 0
+        },
+        "bestmoves": {
+          "s21-attack-345-78": "b6b4",
+          "s21-attack-616-31": "f5g4",
+          "s21-attack-621-38": "c8e6",
+          "s21-defense-607-19": "c6e7",
+          "s21-defense-293-39": "c3e4",
+          "s21-defense-143-7": "h5g6",
+          "s21-control-559-9": "f1b5",
+          "s21-control-237-32": "g8f8",
+          "s21-control-467-16": "e3d4"
+        },
+        "scores": {
+          "s21-attack-345-78": {
+            "kind": "cp",
+            "value": -1053
+          },
+          "s21-attack-616-31": {
+            "kind": "cp",
+            "value": -186
+          },
+          "s21-attack-621-38": {
+            "kind": "mate",
+            "value": -8
+          },
+          "s21-defense-607-19": {
+            "kind": "cp",
+            "value": -45
+          },
+          "s21-defense-293-39": {
+            "kind": "cp",
+            "value": 135
+          },
+          "s21-defense-143-7": {
+            "kind": "cp",
+            "value": 101
+          },
+          "s21-control-559-9": {
+            "kind": "cp",
+            "value": 390
+          },
+          "s21-control-237-32": {
+            "kind": "cp",
+            "value": -721
+          },
+          "s21-control-467-16": {
+            "kind": "cp",
+            "value": 215
+          }
+        }
+      },
+      "current-threat-aware": {
+        "positions": 9,
+        "median_completed_depth": 4.0,
+        "median_nodes": 208647.0,
+        "median_qsearch_nodes": 195255.0,
+        "median_elapsed_ms": 2940.0,
+        "median_nps": 71214.0,
+        "sum_counters": {
+          "check_extensions": 44610,
+          "single_evasion_extensions": 4399,
+          "qsearch_check_moves": 546174,
+          "threat_ordered_moves": 7757563,
+          "root_reorders": 35
+        },
+        "bestmoves": {
+          "s21-attack-345-78": "b6b4",
+          "s21-attack-616-31": "c6e5",
+          "s21-attack-621-38": "c8e6",
+          "s21-defense-607-19": "d6d5",
+          "s21-defense-293-39": "h2h1",
+          "s21-defense-143-7": "a7a6",
+          "s21-control-559-9": "f1b5",
+          "s21-control-237-32": "g8h8",
+          "s21-control-467-16": "e3d4"
+        },
+        "scores": {
+          "s21-attack-345-78": {
+            "kind": "cp",
+            "value": -1375
+          },
+          "s21-attack-616-31": {
+            "kind": "cp",
+            "value": -735
+          },
+          "s21-attack-621-38": {
+            "kind": "mate",
+            "value": -8
+          },
+          "s21-defense-607-19": {
+            "kind": "cp",
+            "value": -159
+          },
+          "s21-defense-293-39": {
+            "kind": "cp",
+            "value": 43
+          },
+          "s21-defense-143-7": {
+            "kind": "cp",
+            "value": 99
+          },
+          "s21-control-559-9": {
+            "kind": "cp",
+            "value": 382
+          },
+          "s21-control-237-32": {
+            "kind": "cp",
+            "value": -1091
+          },
+          "s21-control-467-16": {
+            "kind": "cp",
+            "value": 226
+          }
+        }
+      },
+      "current-threat-aware-no-qchecks": {
+        "positions": 9,
+        "median_completed_depth": 4.0,
+        "median_nodes": 226427.0,
+        "median_qsearch_nodes": 212463.0,
+        "median_elapsed_ms": 2940.0,
+        "median_nps": 77015.0,
+        "sum_counters": {
+          "check_extensions": 76096,
+          "single_evasion_extensions": 9557,
+          "qsearch_check_moves": 0,
+          "threat_ordered_moves": 8976339,
+          "root_reorders": 38
+        },
+        "bestmoves": {
+          "s21-attack-345-78": "b6b4",
+          "s21-attack-616-31": "f7e7",
+          "s21-attack-621-38": "c8e6",
+          "s21-defense-607-19": "c6e7",
+          "s21-defense-293-39": "h2h1",
+          "s21-defense-143-7": "a7a6",
+          "s21-control-559-9": "f1b5",
+          "s21-control-237-32": "g8h8",
+          "s21-control-467-16": "e3d4"
+        },
+        "scores": {
+          "s21-attack-345-78": {
+            "kind": "cp",
+            "value": -1369
+          },
+          "s21-attack-616-31": {
+            "kind": "cp",
+            "value": -691
+          },
+          "s21-attack-621-38": {
+            "kind": "mate",
+            "value": -8
+          },
+          "s21-defense-607-19": {
+            "kind": "cp",
+            "value": -134
+          },
+          "s21-defense-293-39": {
+            "kind": "cp",
+            "value": 43
+          },
+          "s21-defense-143-7": {
+            "kind": "cp",
+            "value": 99
+          },
+          "s21-control-559-9": {
+            "kind": "cp",
+            "value": 382
+          },
+          "s21-control-237-32": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "s21-control-467-16": {
+            "kind": "cp",
+            "value": 87
+          }
+        }
+      },
+      "current-threat-aware-eval-order": {
+        "positions": 9,
+        "median_completed_depth": 5.0,
+        "median_nodes": 236413.0,
+        "median_qsearch_nodes": 212271.0,
+        "median_elapsed_ms": 2940.0,
+        "median_nps": 80412.0,
+        "sum_counters": {
+          "check_extensions": 0,
+          "single_evasion_extensions": 0,
+          "qsearch_check_moves": 0,
+          "threat_ordered_moves": 8701981,
+          "root_reorders": 44
+        },
+        "bestmoves": {
+          "s21-attack-345-78": "b6b4",
+          "s21-attack-616-31": "f5g4",
+          "s21-attack-621-38": "c8e6",
+          "s21-defense-607-19": "c6e7",
+          "s21-defense-293-39": "h2h1",
+          "s21-defense-143-7": "a7a6",
+          "s21-control-559-9": "f1b5",
+          "s21-control-237-32": "g8h8",
+          "s21-control-467-16": "e3d4"
+        },
+        "scores": {
+          "s21-attack-345-78": {
+            "kind": "cp",
+            "value": -1314
+          },
+          "s21-attack-616-31": {
+            "kind": "cp",
+            "value": -656
+          },
+          "s21-attack-621-38": {
+            "kind": "mate",
+            "value": -8
+          },
+          "s21-defense-607-19": {
+            "kind": "cp",
+            "value": -134
+          },
+          "s21-defense-293-39": {
+            "kind": "cp",
+            "value": 43
+          },
+          "s21-defense-143-7": {
+            "kind": "cp",
+            "value": 99
+          },
+          "s21-control-559-9": {
+            "kind": "cp",
+            "value": 98
+          },
+          "s21-control-237-32": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "s21-control-467-16": {
+            "kind": "cp",
+            "value": 226
+          }
+        }
+      }
+    },
+    "positions": {
+      "s21-attack-345-78": {
+        "current": {
+          "bestmove": "b6b4",
+          "score": {
+            "kind": "cp",
+            "value": -1053
+          },
+          "completed_depth": 7,
+          "nodes": 559128,
+          "qsearch_nodes": 499648,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "b6b4",
+          "score": {
+            "kind": "cp",
+            "value": -1375
+          },
+          "completed_depth": 6,
+          "nodes": 208647,
+          "qsearch_nodes": 171209,
+          "counters": {
+            "check_extensions": 16914,
+            "single_evasion_extensions": 1966,
+            "qsearch_check_moves": 122918,
+            "threat_ordered_moves": 1095807,
+            "root_reorders": 6
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "b6b4",
+          "score": {
+            "kind": "cp",
+            "value": -1369
+          },
+          "completed_depth": 6,
+          "nodes": 267936,
+          "qsearch_nodes": 212934,
+          "counters": {
+            "check_extensions": 25552,
+            "single_evasion_extensions": 3096,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1358872,
+            "root_reorders": 6
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "b6b4",
+          "score": {
+            "kind": "cp",
+            "value": -1314
+          },
+          "completed_depth": 7,
+          "nodes": 244978,
+          "qsearch_nodes": 212271,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1238044,
+            "root_reorders": 7
+          }
+        }
+      },
+      "s21-attack-616-31": {
+        "current": {
+          "bestmove": "f5g4",
+          "score": {
+            "kind": "cp",
+            "value": -186
+          },
+          "completed_depth": 5,
+          "nodes": 456360,
+          "qsearch_nodes": 436709,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "c6e5",
+          "score": {
+            "kind": "cp",
+            "value": -735
+          },
+          "completed_depth": 3,
+          "nodes": 206140,
+          "qsearch_nodes": 198845,
+          "counters": {
+            "check_extensions": 3311,
+            "single_evasion_extensions": 250,
+            "qsearch_check_moves": 33503,
+            "threat_ordered_moves": 794293,
+            "root_reorders": 3
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "f7e7",
+          "score": {
+            "kind": "cp",
+            "value": -691
+          },
+          "completed_depth": 4,
+          "nodes": 180101,
+          "qsearch_nodes": 166172,
+          "counters": {
+            "check_extensions": 6485,
+            "single_evasion_extensions": 528,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 813363,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "f5g4",
+          "score": {
+            "kind": "cp",
+            "value": -656
+          },
+          "completed_depth": 5,
+          "nodes": 201938,
+          "qsearch_nodes": 193310,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 846415,
+            "root_reorders": 5
+          }
+        }
+      },
+      "s21-attack-621-38": {
+        "current": {
+          "bestmove": "c8e6",
+          "score": {
+            "kind": "mate",
+            "value": -8
+          },
+          "completed_depth": 7,
+          "nodes": 474997,
+          "qsearch_nodes": 424077,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "c8e6",
+          "score": {
+            "kind": "mate",
+            "value": -8
+          },
+          "completed_depth": 4,
+          "nodes": 206812,
+          "qsearch_nodes": 193025,
+          "counters": {
+            "check_extensions": 2323,
+            "single_evasion_extensions": 141,
+            "qsearch_check_moves": 133348,
+            "threat_ordered_moves": 896585,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "c8e6",
+          "score": {
+            "kind": "mate",
+            "value": -8
+          },
+          "completed_depth": 5,
+          "nodes": 213959,
+          "qsearch_nodes": 179957,
+          "counters": {
+            "check_extensions": 8485,
+            "single_evasion_extensions": 1635,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1145973,
+            "root_reorders": 5
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "c8e6",
+          "score": {
+            "kind": "mate",
+            "value": -8
+          },
+          "completed_depth": 7,
+          "nodes": 196386,
+          "qsearch_nodes": 166968,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1203816,
+            "root_reorders": 7
+          }
+        }
+      },
+      "s21-control-237-32": {
+        "current": {
+          "bestmove": "g8f8",
+          "score": {
+            "kind": "cp",
+            "value": -721
+          },
+          "completed_depth": 6,
+          "nodes": 381563,
+          "qsearch_nodes": 343025,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "g8h8",
+          "score": {
+            "kind": "cp",
+            "value": -1091
+          },
+          "completed_depth": 5,
+          "nodes": 218932,
+          "qsearch_nodes": 195255,
+          "counters": {
+            "check_extensions": 9704,
+            "single_evasion_extensions": 1378,
+            "qsearch_check_moves": 114622,
+            "threat_ordered_moves": 996144,
+            "root_reorders": 5
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "g8h8",
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "completed_depth": 5,
+          "nodes": 261140,
+          "qsearch_nodes": 226333,
+          "counters": {
+            "check_extensions": 15830,
+            "single_evasion_extensions": 3271,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1261231,
+            "root_reorders": 5
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "g8h8",
+          "score": {
+            "kind": "cp",
+            "value": -1019
+          },
+          "completed_depth": 5,
+          "nodes": 242386,
+          "qsearch_nodes": 227238,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1031862,
+            "root_reorders": 5
+          }
+        }
+      },
+      "s21-control-467-16": {
+        "current": {
+          "bestmove": "e3d4",
+          "score": {
+            "kind": "cp",
+            "value": 215
+          },
+          "completed_depth": 5,
+          "nodes": 500366,
+          "qsearch_nodes": 426269,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "e3d4",
+          "score": {
+            "kind": "cp",
+            "value": 226
+          },
+          "completed_depth": 4,
+          "nodes": 186828,
+          "qsearch_nodes": 175672,
+          "counters": {
+            "check_extensions": 3310,
+            "single_evasion_extensions": 257,
+            "qsearch_check_moves": 40102,
+            "threat_ordered_moves": 877200,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "e3d4",
+          "score": {
+            "kind": "cp",
+            "value": 87
+          },
+          "completed_depth": 4,
+          "nodes": 226427,
+          "qsearch_nodes": 212463,
+          "counters": {
+            "check_extensions": 4286,
+            "single_evasion_extensions": 391,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1052994,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "e3d4",
+          "score": {
+            "kind": "cp",
+            "value": 226
+          },
+          "completed_depth": 5,
+          "nodes": 245460,
+          "qsearch_nodes": 237442,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1089455,
+            "root_reorders": 5
+          }
+        }
+      },
+      "s21-control-559-9": {
+        "current": {
+          "bestmove": "f1b5",
+          "score": {
+            "kind": "cp",
+            "value": 390
+          },
+          "completed_depth": 6,
+          "nodes": 320140,
+          "qsearch_nodes": 278679,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "f1b5",
+          "score": {
+            "kind": "cp",
+            "value": 382
+          },
+          "completed_depth": 4,
+          "nodes": 214796,
+          "qsearch_nodes": 207682,
+          "counters": {
+            "check_extensions": 3408,
+            "single_evasion_extensions": 269,
+            "qsearch_check_moves": 35028,
+            "threat_ordered_moves": 765359,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "f1b5",
+          "score": {
+            "kind": "cp",
+            "value": 382
+          },
+          "completed_depth": 4,
+          "nodes": 180103,
+          "qsearch_nodes": 166654,
+          "counters": {
+            "check_extensions": 6687,
+            "single_evasion_extensions": 398,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 778648,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "f1b5",
+          "score": {
+            "kind": "cp",
+            "value": 98
+          },
+          "completed_depth": 5,
+          "nodes": 171781,
+          "qsearch_nodes": 163366,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 788921,
+            "root_reorders": 5
+          }
+        }
+      },
+      "s21-defense-143-7": {
+        "current": {
+          "bestmove": "h5g6",
+          "score": {
+            "kind": "cp",
+            "value": 101
+          },
+          "completed_depth": 5,
+          "nodes": 402850,
+          "qsearch_nodes": 374962,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "a7a6",
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "completed_depth": 3,
+          "nodes": 165141,
+          "qsearch_nodes": 163737,
+          "counters": {
+            "check_extensions": 710,
+            "single_evasion_extensions": 20,
+            "qsearch_check_moves": 10305,
+            "threat_ordered_moves": 513563,
+            "root_reorders": 3
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "a7a6",
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "completed_depth": 3,
+          "nodes": 195029,
+          "qsearch_nodes": 193430,
+          "counters": {
+            "check_extensions": 790,
+            "single_evasion_extensions": 23,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 597480,
+            "root_reorders": 3
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "a7a6",
+          "score": {
+            "kind": "cp",
+            "value": 99
+          },
+          "completed_depth": 3,
+          "nodes": 205389,
+          "qsearch_nodes": 204474,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 645132,
+            "root_reorders": 3
+          }
+        }
+      },
+      "s21-defense-293-39": {
+        "current": {
+          "bestmove": "c3e4",
+          "score": {
+            "kind": "cp",
+            "value": 135
+          },
+          "completed_depth": 5,
+          "nodes": 460744,
+          "qsearch_nodes": 415327,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "h2h1",
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "completed_depth": 4,
+          "nodes": 261050,
+          "qsearch_nodes": 249641,
+          "counters": {
+            "check_extensions": 4767,
+            "single_evasion_extensions": 115,
+            "qsearch_check_moves": 52251,
+            "threat_ordered_moves": 1090664,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "h2h1",
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "completed_depth": 4,
+          "nodes": 264060,
+          "qsearch_nodes": 246734,
+          "counters": {
+            "check_extensions": 7384,
+            "single_evasion_extensions": 200,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1187288,
+            "root_reorders": 4
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "h2h1",
+          "score": {
+            "kind": "cp",
+            "value": 43
+          },
+          "completed_depth": 4,
+          "nodes": 263215,
+          "qsearch_nodes": 256092,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 1099279,
+            "root_reorders": 4
+          }
+        }
+      },
+      "s21-defense-607-19": {
+        "current": {
+          "bestmove": "c6e7",
+          "score": {
+            "kind": "cp",
+            "value": -45
+          },
+          "completed_depth": 5,
+          "nodes": 492961,
+          "qsearch_nodes": 479177,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 0,
+            "root_reorders": 0
+          }
+        },
+        "current-threat-aware": {
+          "bestmove": "d6d5",
+          "score": {
+            "kind": "cp",
+            "value": -159
+          },
+          "completed_depth": 2,
+          "nodes": 228957,
+          "qsearch_nodes": 228653,
+          "counters": {
+            "check_extensions": 163,
+            "single_evasion_extensions": 3,
+            "qsearch_check_moves": 4097,
+            "threat_ordered_moves": 727948,
+            "root_reorders": 2
+          }
+        },
+        "current-threat-aware-no-qchecks": {
+          "bestmove": "c6e7",
+          "score": {
+            "kind": "cp",
+            "value": -134
+          },
+          "completed_depth": 3,
+          "nodes": 246068,
+          "qsearch_nodes": 244963,
+          "counters": {
+            "check_extensions": 597,
+            "single_evasion_extensions": 15,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 780490,
+            "root_reorders": 3
+          }
+        },
+        "current-threat-aware-eval-order": {
+          "bestmove": "c6e7",
+          "score": {
+            "kind": "cp",
+            "value": -134
+          },
+          "completed_depth": 3,
+          "nodes": 236413,
+          "qsearch_nodes": 235557,
+          "counters": {
+            "check_extensions": 0,
+            "single_evasion_extensions": 0,
+            "qsearch_check_moves": 0,
+            "threat_ordered_moves": 759057,
+            "root_reorders": 3
+          }
+        }
+      }
+    },
+    "focus": {
+      "control_regression_position": {
+        "position_id": "s21-control-237-32",
+        "bestmoves": {
+          "current": "g8f8",
+          "current-threat-aware": "g8h8",
+          "current-threat-aware-no-qchecks": "g8h8",
+          "current-threat-aware-eval-order": "g8h8"
+        }
+      },
+      "king_danger": {
+        "s21-attack-345-78": {
+          "current": "b6b4",
+          "current-threat-aware": "b6b4",
+          "current-threat-aware-no-qchecks": "b6b4",
+          "current-threat-aware-eval-order": "b6b4"
+        },
+        "s21-attack-616-31": {
+          "current": "f5g4",
+          "current-threat-aware": "c6e5",
+          "current-threat-aware-no-qchecks": "f7e7",
+          "current-threat-aware-eval-order": "f5g4"
+        },
+        "s21-attack-621-38": {
+          "current": "c8e6",
+          "current-threat-aware": "c8e6",
+          "current-threat-aware-no-qchecks": "c8e6",
+          "current-threat-aware-eval-order": "c8e6"
+        }
+      },
+      "defensive_resource": {
+        "s21-defense-143-7": {
+          "current": "h5g6",
+          "current-threat-aware": "a7a6",
+          "current-threat-aware-no-qchecks": "a7a6",
+          "current-threat-aware-eval-order": "a7a6"
+        },
+        "s21-defense-293-39": {
+          "current": "c3e4",
+          "current-threat-aware": "h2h1",
+          "current-threat-aware-no-qchecks": "h2h1",
+          "current-threat-aware-eval-order": "h2h1"
+        },
+        "s21-defense-607-19": {
+          "current": "c6e7",
+          "current-threat-aware": "d6d5",
+          "current-threat-aware-no-qchecks": "c6e7",
+          "current-threat-aware-eval-order": "c6e7"
+        }
+      }
+    }
+  },
+  "interpretation": [
+    "This is a 3-second cost-attribution diagnostic, not an Elo/SPRT result.",
+    "Current remains unchanged and all threat-aware variants remain bench-only.",
+    "No parameter retuning or additional pruning is part of this run."
+  ]
+}
