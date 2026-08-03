@@ -85,6 +85,13 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   movegen path, adding only the candidate-only king-danger evaluation,
 ///   bounded forcing extensions/checks, and threat-aware ordering. It does
 ///   not enable LMR, aspiration, null move, futility, or SEE pruning.
+/// * `CurrentThreatAwareNoQchecks` is the S2.1b cost-attribution variant: it
+///   is identical to `CurrentThreatAware` except that quiet checking moves are
+///   disabled in qsearch. It is bench-only and never changes `Current`.
+/// * `CurrentThreatAwareEvalOrder` is the S2.1b ordering-only variant: it
+///   keeps the candidate king-danger evaluation, threat ordering, and root
+///   score ordering, but disables forcing extensions and quiet qsearch checks.
+///   It is bench-only and never changes `Current`.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -112,6 +119,8 @@ pub(crate) enum SearchProfile {
     Current,
     CurrentLmr,
     CurrentThreatAware,
+    CurrentThreatAwareNoQchecks,
+    CurrentThreatAwareEvalOrder,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
@@ -181,6 +190,8 @@ impl SearchProfile {
             Self::Current
                 | Self::CurrentLmr
                 | Self::CurrentThreatAware
+                | Self::CurrentThreatAwareNoQchecks
+                | Self::CurrentThreatAwareEvalOrder
                 | Self::CurrentAspiration
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
@@ -206,11 +217,34 @@ impl SearchProfile {
 
     #[inline]
     pub(crate) const fn uses_threat_aware_eval(self) -> bool {
-        matches!(self, Self::CurrentThreatAware)
+        matches!(
+            self,
+            Self::CurrentThreatAware
+                | Self::CurrentThreatAwareNoQchecks
+                | Self::CurrentThreatAwareEvalOrder
+        )
     }
 
     #[inline]
     pub(crate) const fn uses_forcing_search(self) -> bool {
+        matches!(
+            self,
+            Self::CurrentThreatAware | Self::CurrentThreatAwareNoQchecks
+        )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_threat_ordering(self) -> bool {
+        matches!(
+            self,
+            Self::CurrentThreatAware
+                | Self::CurrentThreatAwareNoQchecks
+                | Self::CurrentThreatAwareEvalOrder
+        )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_threat_aware_qsearch(self) -> bool {
         matches!(self, Self::CurrentThreatAware)
     }
 }
@@ -2132,7 +2166,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // Killers are read from this `ply` (grown lazily; empty until a quiet
     // cutoff records one in a prior iteration); history is the per-search
     // table carried in `heur`.
-    if _profile.uses_forcing_search() {
+    if _profile.uses_threat_ordering() {
         order_moves_with_threats(
             pos,
             &mut moves,
@@ -3537,7 +3571,7 @@ fn quiescence_entered_impl_with_profile(
     let mut legal = if qsearch_movegen {
         if in_check {
             generate_legal_evasions_profiled(pos, ctx)
-        } else if profile.uses_forcing_search() && qply < MAX_FORCING_QPLY {
+        } else if profile.uses_threat_aware_qsearch() && qply < MAX_FORCING_QPLY {
             // The threat-aware candidate extends qsearch's tactical set with
             // quiet checks for a small, explicit number of qsearch plies.
             // Legal generation remains exhaustive here; only the returned
@@ -3588,7 +3622,7 @@ fn quiescence_entered_impl_with_profile(
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
-    if profile.uses_forcing_search() {
+    if profile.uses_threat_ordering() {
         order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
     } else {
         order_moves(pos, &mut legal);
@@ -4715,7 +4749,7 @@ fn search_best_move_impl(
                 // The threat-aware candidate reuses all scores observed in
                 // the completed iteration to seed the next root order. The
                 // approved profiles retain the historical best-move lift.
-                if _profile.uses_forcing_search() {
+                if _profile.uses_threat_ordering() {
                     reorder_root_moves_by_previous_scores(&mut root_moves, &move_scores, ctx);
                 } else if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
                     root_moves.swap(0, idx);
@@ -5113,12 +5147,34 @@ mod tests {
         assert!(SearchProfile::CurrentThreatAware.uses_pvs());
         assert!(SearchProfile::CurrentThreatAware.uses_qsearch_movegen());
         assert!(SearchProfile::CurrentThreatAware.uses_threat_aware_eval());
+        assert!(SearchProfile::CurrentThreatAware.uses_threat_ordering());
+        assert!(SearchProfile::CurrentThreatAware.uses_threat_aware_qsearch());
+        assert!(SearchProfile::CurrentThreatAware.uses_forcing_search());
         assert!(!SearchProfile::CurrentThreatAware.uses_see());
         assert!(!SearchProfile::CurrentThreatAware.uses_aspiration());
         assert!(!SearchProfile::CurrentThreatAware.uses_lmr());
         assert!(!SearchProfile::CurrentThreatAware.uses_null_move());
         assert!(!SearchProfile::CurrentThreatAware.uses_futility());
         assert!(!SearchProfile::CurrentThreatAware.uses_qsearch_pruning());
+        for profile in [
+            SearchProfile::CurrentThreatAwareNoQchecks,
+            SearchProfile::CurrentThreatAwareEvalOrder,
+        ] {
+            assert!(profile.uses_pvs());
+            assert!(profile.uses_qsearch_movegen());
+            assert!(profile.uses_threat_aware_eval());
+            assert!(profile.uses_threat_ordering());
+            assert!(!profile.uses_see());
+            assert!(!profile.uses_aspiration());
+            assert!(!profile.uses_lmr());
+            assert!(!profile.uses_null_move());
+            assert!(!profile.uses_futility());
+            assert!(!profile.uses_qsearch_pruning());
+        }
+        assert!(SearchProfile::CurrentThreatAwareNoQchecks.uses_forcing_search());
+        assert!(!SearchProfile::CurrentThreatAwareNoQchecks.uses_threat_aware_qsearch());
+        assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_forcing_search());
+        assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_threat_aware_qsearch());
         assert!(!SearchProfile::Current.uses_threat_aware_eval());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());

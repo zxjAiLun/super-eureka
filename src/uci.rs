@@ -143,6 +143,8 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::Current => "current",
         search::SearchProfile::CurrentLmr => "current-lmr",
         search::SearchProfile::CurrentThreatAware => "current-threat-aware",
+        search::SearchProfile::CurrentThreatAwareNoQchecks => "current-threat-aware-no-qchecks",
+        search::SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
         search::SearchProfile::CurrentAspiration => "current-aspiration",
         search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
