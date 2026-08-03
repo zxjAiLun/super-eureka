@@ -49,7 +49,8 @@ cargo run --release -- bench profile --nodes 100000
 - `profile`：固定 nodes 预算记录 qsearch、evaluation、movegen、make/unmake、
   TT 以及显式候选 profile 的 aspiration/SEE/LMR/null/futility 计数；结果只用于定位
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
-- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`，以及
+- 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--depth N`、
+  `--movetime MS` 和 profile 专用的 `--fen FEN`，以及
   `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
   `current-lmr|current-threat-aware|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
   或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
@@ -233,6 +234,9 @@ bestmove b1c3
   budget，并对候选 score cutoff 使用精确 nominal-depth 门禁；`Current`、
   LMR/null/futility/SEE pruning 均保持原边界。见
   [`s2.1-threat-aware-search.md`](docs/specs/s2.1-threat-aware-search.md)。
+  之后的 9 个实战保存局面、1/3/10 秒冷 TT gate 没有产生深度正收益；
+  `current-threat-aware` 仍为 candidate-only，详见
+  [`s2.1-practical-position-gate.md`](docs/benchmarks/s2.1-practical-position-gate.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
   MG/EG/phase；固定深度结果等价，但三路跨二进制性能门禁未通过，运行时代码已移除。
   仅保留文档与 Git lineage。见
