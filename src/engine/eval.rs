@@ -637,6 +637,22 @@ fn occupied_by(context: &EvalContext, color: Color) -> u64 {
         .fold(0_u64, |occupied, &squares| occupied | squares)
 }
 
+/// Return the mobility area used by the positional terms for one piece.
+///
+/// Minor pieces do not receive mobility credit for squares immediately
+/// controlled by an enemy pawn: those squares are tactical destinations that
+/// are likely to be challenged or exchanged, rather than stable activity.
+/// Keeping this rule in one helper prevents the base mobility and cramped
+/// minor terms from silently using different areas.
+fn mobility_mask_for_piece(context: &EvalContext, square: usize, piece: Piece) -> u64 {
+    let own_occupied = occupied_by(context, piece.color);
+    let mut moves = context.piece_attacks[square] & !own_occupied;
+    if matches!(piece.piece_type, PieceType::Knight | PieceType::Bishop) {
+        moves &= !context.pawn_attacks[piece.color.opposite() as usize];
+    }
+    moves
+}
+
 #[inline]
 fn bit(square: u8) -> u64 {
     1_u64 << square
@@ -788,14 +804,13 @@ fn undeveloped_minor_count(pos: &Position, color: Color) -> i32 {
 }
 
 fn mobility_for_color(pos: &Position, context: &EvalContext, color: Color) -> i32 {
-    let own_occupied = occupied_by(context, color);
     let mut mobility = 0;
     for (square, piece) in pos.board.iter().enumerate() {
         let Some(piece) = piece else { continue };
         if piece.color != color || piece.piece_type == PieceType::Pawn {
             continue;
         }
-        let moves = context.piece_attacks[square] & !own_occupied;
+        let moves = mobility_mask_for_piece(context, square, *piece);
         let weight = match piece.piece_type {
             PieceType::Knight => 4,
             PieceType::Bishop => 4,
@@ -810,7 +825,6 @@ fn mobility_for_color(pos: &Position, context: &EvalContext, color: Color) -> i3
 
 fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color) -> Score {
     let enemy = color.opposite();
-    let own_occupied = occupied_by(context, color);
     let enemy_pawn_attacks = context.pawn_attacks[enemy as usize];
     let mut mg = 0;
     let mut eg = 0;
@@ -822,8 +836,8 @@ fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color)
             continue;
         }
         let square = square as u8;
-        let attacks = context.piece_attacks[square as usize];
-        let mobility = (attacks & !own_occupied).count_ones() as i32;
+        let mobility =
+            mobility_mask_for_piece(context, square as usize, *piece).count_ones() as i32;
         match piece.piece_type {
             PieceType::Bishop => {
                 bishops += 1;
@@ -1369,7 +1383,8 @@ mod tests {
     use super::{
         evaluate, evaluate_breakdown, evaluate_integrated_breakdown,
         evaluate_integrated_positional, evaluate_threat_aware, exact_mop_up, game_phase,
-        interpolate, pawn_is_connected, undeveloped_minor_count, EvalContext, Score, KING_EG_PST,
+        interpolate, mobility_for_color, mobility_mask_for_piece, pawn_is_connected,
+        piece_activity_for_color, undeveloped_minor_count, EvalContext, Score, KING_EG_PST,
         KING_MG_PST, MAX_PHASE,
     };
     use crate::chess::fen::parse_fen;
@@ -1537,6 +1552,169 @@ mod tests {
         assert_eq!(
             breakdown.final_score,
             evaluate_integrated_positional(&position)
+        );
+    }
+
+    #[test]
+    fn minor_mobility_area_excludes_enemy_pawn_attacks_and_shares_cramped_rule() {
+        let open = parse_fen("4k3/8/8/8/8/8/8/1N2K3 w - - 0 1").unwrap();
+        let pawn_challenged = parse_fen("4k3/8/8/8/1p6/8/8/1N2K3 w - - 0 1").unwrap();
+
+        let mut open_context = EvalContext::from_position(&open);
+        open_context.ensure_attack_maps(&open);
+        let open_piece = open.board[make_square(1, 0) as usize].unwrap();
+        let open_safe =
+            mobility_mask_for_piece(&open_context, make_square(1, 0) as usize, open_piece);
+
+        let mut challenged_context = EvalContext::from_position(&pawn_challenged);
+        challenged_context.ensure_attack_maps(&pawn_challenged);
+        let challenged_piece = pawn_challenged.board[make_square(1, 0) as usize].unwrap();
+        let challenged_safe = mobility_mask_for_piece(
+            &challenged_context,
+            make_square(1, 0) as usize,
+            challenged_piece,
+        );
+
+        assert!(
+            challenged_safe.count_ones() < open_safe.count_ones(),
+            "enemy pawn attacks must reduce minor mobility area"
+        );
+        assert_eq!(
+            mobility_for_color(&open, &open_context, Color::White),
+            open_safe.count_ones() as i32 * 4
+        );
+        assert_eq!(
+            mobility_for_color(&pawn_challenged, &challenged_context, Color::White),
+            challenged_safe.count_ones() as i32 * 4
+        );
+
+        let open_activity = piece_activity_for_color(&open, &open_context, Color::White);
+        let challenged_activity =
+            piece_activity_for_color(&pawn_challenged, &challenged_context, Color::White);
+        assert!(
+            challenged_activity.mg < open_activity.mg,
+            "cramped minor activity must use the same safe mobility count"
+        );
+    }
+
+    #[test]
+    fn integrated_positional_terms_have_directional_relationships() {
+        let passed = parse_fen("4k3/8/8/4P3/3p4/8/3P4/4K3 w - - 0 1").unwrap();
+        let blocked = parse_fen("4k3/3p4/8/4P3/8/8/3P4/4K3 w - - 0 1").unwrap();
+        let passed_pawn_score = evaluate_integrated_breakdown(&passed)
+            .terms
+            .pawn_structure
+            .mg;
+        let blocked_pawn_score = evaluate_integrated_breakdown(&blocked)
+            .terms
+            .pawn_structure
+            .mg;
+        assert!(
+            passed_pawn_score > blocked_pawn_score,
+            "a passed pawn should score above a pawn stopped by an enemy pawn: {passed_pawn_score} > {blocked_pawn_score}"
+        );
+
+        let protected = parse_fen("4k3/p7/8/3pP3/3P4/8/8/4K3 w - - 0 1").unwrap();
+        let unsupported = parse_fen("4k3/p7/8/3pP3/8/8/P7/4K3 w - - 0 1").unwrap();
+        assert!(
+            evaluate_integrated_breakdown(&protected)
+                .terms
+                .pawn_structure
+                .mg
+                > evaluate_integrated_breakdown(&unsupported)
+                    .terms
+                    .pawn_structure
+                    .mg,
+            "a protected passer should score above an unsupported passer"
+        );
+
+        let open_file = parse_fen("r5k1/8/8/8/8/8/P7/4R1K1 w - - 0 1").unwrap();
+        let blocked_file = parse_fen("r5k1/8/8/8/8/8/4P3/4R1K1 w - - 0 1").unwrap();
+        assert!(
+            evaluate_integrated_breakdown(&open_file)
+                .terms
+                .rook_activity
+                .mg
+                > evaluate_integrated_breakdown(&blocked_file)
+                    .terms
+                    .rook_activity
+                    .mg,
+            "an open-file rook should score above a rook blocked by its pawn"
+        );
+
+        let connected_rooks = parse_fen("r5k1/8/8/8/8/8/8/R3R1K1 w - - 0 1").unwrap();
+        let separated_rooks = parse_fen("r5k1/8/8/8/8/8/R7/4R1K1 w - - 0 1").unwrap();
+        assert!(
+            evaluate_integrated_breakdown(&connected_rooks)
+                .terms
+                .rook_activity
+                .mg
+                > evaluate_integrated_breakdown(&separated_rooks)
+                    .terms
+                    .rook_activity
+                    .mg,
+            "connected rooks should score above separated rooks"
+        );
+
+        let bishop_pair = parse_fen("6k1/8/8/8/8/8/8/2B1B1K1 w - - 0 1").unwrap();
+        let single_bishop = parse_fen("6k1/8/8/8/8/8/8/2B3K1 w - - 0 1").unwrap();
+        assert!(
+            evaluate_integrated_breakdown(&bishop_pair)
+                .terms
+                .piece_activity
+                .mg
+                > evaluate_integrated_breakdown(&single_bishop)
+                    .terms
+                    .piece_activity
+                    .mg,
+            "the bishop pair should score above a single bishop"
+        );
+
+        let supported_outpost = parse_fen("6k1/8/8/4N3/3P4/8/8/6K1 w - - 0 1").unwrap();
+        let challenged_outpost = parse_fen("6k1/8/3p4/4N3/3P4/8/8/6K1 w - - 0 1").unwrap();
+        let supported_outpost_score = evaluate_integrated_breakdown(&supported_outpost)
+            .terms
+            .piece_activity
+            .mg;
+        let challenged_outpost_score = evaluate_integrated_breakdown(&challenged_outpost)
+            .terms
+            .piece_activity
+            .mg;
+        assert!(
+            supported_outpost_score > challenged_outpost_score,
+            "a supported outpost should score above a pawn-challenged square: {supported_outpost_score} > {challenged_outpost_score}"
+        );
+
+        let shielded_king = parse_fen("r5k1/8/8/8/8/6q1/5PPP/R5K1 w - - 0 1").unwrap();
+        let exposed_king = parse_fen("r5k1/8/8/8/8/6q1/8/R5K1 w - - 0 1").unwrap();
+        let shielded_terms = evaluate_integrated_breakdown(&shielded_king)
+            .terms
+            .king_safety
+            .mg;
+        let exposed_terms = evaluate_integrated_breakdown(&exposed_king)
+            .terms
+            .king_safety
+            .mg;
+        assert!(
+            shielded_terms > exposed_terms,
+            "a shielded king should score above an exposed king: {shielded_terms} > {exposed_terms}"
+        );
+
+        let no_queen = parse_fen("r5k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1").unwrap();
+        let with_queen = parse_fen("rq4k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1").unwrap();
+        let no_queen_term = evaluate_integrated_breakdown(&no_queen)
+            .terms
+            .king_safety
+            .mg
+            .abs();
+        let with_queen_term = evaluate_integrated_breakdown(&with_queen)
+            .terms
+            .king_safety
+            .mg
+            .abs();
+        assert!(
+            with_queen_term > no_queen_term,
+            "queen-on-board king safety should use a larger gate"
         );
     }
 
