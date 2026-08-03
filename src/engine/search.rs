@@ -39,7 +39,7 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::{evaluate, evaluate_threat_aware};
+use crate::engine::eval::{evaluate, evaluate_integrated_positional, evaluate_threat_aware};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
@@ -100,6 +100,11 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   variant: it keeps only threat-aware move/root ordering and Current's
 ///   ordinary evaluation, with no forcing extensions or quiet qsearch checks.
 ///   It is bench-only and never changes `Current`.
+/// * `CurrentEval2` is the single integrated S2.2 positional-evaluation
+///   candidate. It keeps Current's PVS, ordering, and specialized qsearch
+///   movegen while replacing only the evaluator; all threat-aware, forcing,
+///   aspiration, LMR, null, futility, SEE, and qsearch-pruning features stay
+///   disabled.
 /// * `Current` is the production configuration: M4.1 quiet move ordering plus
 ///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
 ///   with the D1.2 specialized non-check qsearch move generator integrated.
@@ -131,6 +136,9 @@ pub(crate) enum SearchProfile {
     CurrentThreatAwareEvalOrder,
     CurrentThreatAwareEvalOnly,
     CurrentThreatAwareOrderOnly,
+    /// Single integrated E2 evaluation candidate. It keeps all search and
+    /// qsearch candidates disabled while replacing only the evaluator.
+    CurrentEval2,
     CurrentQsearchMovegen,
     CurrentQsearchPruning,
     CurrentQsearchFastPruning,
@@ -204,6 +212,7 @@ impl SearchProfile {
                 | Self::CurrentThreatAwareEvalOrder
                 | Self::CurrentThreatAwareEvalOnly
                 | Self::CurrentThreatAwareOrderOnly
+                | Self::CurrentEval2
                 | Self::CurrentAspiration
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
@@ -236,6 +245,11 @@ impl SearchProfile {
                 | Self::CurrentThreatAwareEvalOrder
                 | Self::CurrentThreatAwareEvalOnly
         )
+    }
+
+    #[inline]
+    pub(crate) const fn uses_eval2(self) -> bool {
+        matches!(self, Self::CurrentEval2)
     }
 
     #[inline]
@@ -634,7 +648,9 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
 #[inline]
 fn evaluate_profiled(pos: &Position, ctx: &SearchContext, profile: SearchProfile) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
-    if profile.uses_threat_aware_eval() {
+    if profile.uses_eval2() {
+        evaluate_integrated_positional(pos)
+    } else if profile.uses_threat_aware_eval() {
         evaluate_threat_aware(pos)
     } else {
         evaluate(pos)
@@ -5214,6 +5230,20 @@ mod tests {
         assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_forcing_search());
         assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_aware_qsearch());
         assert!(!SearchProfile::Current.uses_threat_aware_eval());
+        assert!(!SearchProfile::Current.uses_eval2());
+        assert!(SearchProfile::CurrentEval2.uses_pvs());
+        assert!(SearchProfile::CurrentEval2.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentEval2.uses_eval2());
+        assert!(!SearchProfile::CurrentEval2.uses_threat_aware_eval());
+        assert!(!SearchProfile::CurrentEval2.uses_threat_ordering());
+        assert!(!SearchProfile::CurrentEval2.uses_forcing_search());
+        assert!(!SearchProfile::CurrentEval2.uses_threat_aware_qsearch());
+        assert!(!SearchProfile::CurrentEval2.uses_aspiration());
+        assert!(!SearchProfile::CurrentEval2.uses_lmr());
+        assert!(!SearchProfile::CurrentEval2.uses_null_move());
+        assert!(!SearchProfile::CurrentEval2.uses_futility());
+        assert!(!SearchProfile::CurrentEval2.uses_see());
+        assert!(!SearchProfile::CurrentEval2.uses_qsearch_pruning());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
         assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
         assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
@@ -5679,6 +5709,39 @@ mod tests {
             current_stats.qsearch_nodes, 0,
             "candidate isolation fixture must reach qsearch"
         );
+    }
+
+    #[test]
+    fn current_eval2_isolated_from_search_candidates() {
+        const POSITION: &str = "r3k2r/ppp2ppp/2n5/3q4/3P4/2N5/PPP2PPP/R3K2R w KQkq - 0 1";
+
+        let position = parse_fen(POSITION).unwrap();
+        assert_ne!(
+            evaluate(&position),
+            evaluate_integrated_positional(&position),
+            "the E2 fixture must exercise the candidate evaluator"
+        );
+
+        let (_, current_stats) =
+            run_profile_candidate_with_nodes(POSITION, SearchProfile::Current, 8_000);
+        let (eval2, eval2_stats) =
+            run_profile_candidate_with_nodes(POSITION, SearchProfile::CurrentEval2, 8_000);
+
+        assert!(eval2.score.is_some());
+        assert!(!eval2.pv.is_empty());
+        for stats in [current_stats, eval2_stats] {
+            assert_eq!(stats.aspiration_retries, 0);
+            assert_eq!(stats.lmr_reductions, 0);
+            assert_eq!(stats.null_move_attempts, 0);
+            assert_eq!(stats.futility_pruned, 0);
+            assert_eq!(stats.qsearch_see_tests, 0);
+            assert_eq!(stats.check_extensions, 0);
+            assert_eq!(stats.single_evasion_extensions, 0);
+            assert_eq!(stats.qsearch_check_moves, 0);
+            assert_eq!(stats.threat_ordered_moves, 0);
+            assert_eq!(stats.root_reorders, 0);
+        }
+        assert_ne!(eval2_stats.eval_calls, 0);
     }
 
     #[test]

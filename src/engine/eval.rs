@@ -260,6 +260,22 @@ impl EvalContext {
         context.phase = context.phase.min(MAX_PHASE);
         context
     }
+
+    /// Build one shared pseudo-attack map per side for the integrated E2
+    /// candidate. This is deliberately lazy: the approved evaluator never
+    /// asks for it, while all E2 terms reuse the same fixed-storage maps.
+    fn ensure_attack_maps(&mut self, pos: &Position) {
+        if self.attack_maps_ready {
+            return;
+        }
+
+        self.attack_maps = [0; 2];
+        for (sq, piece) in pos.board.iter().enumerate() {
+            let Some(piece) = piece else { continue };
+            self.attack_maps[piece.color as usize] |= piece_attack_mask(pos, sq as u8, *piece);
+        }
+        self.attack_maps_ready = true;
+    }
 }
 
 #[inline]
@@ -296,6 +312,54 @@ fn add_pawn_attacks(attacks: &mut u64, square: u8, color: Color) {
             }
         }
     }
+}
+
+#[inline]
+fn piece_attack_mask(pos: &Position, from: u8, piece: Piece) -> u64 {
+    let file = file_of(from) as i32;
+    let rank = rank_of(from) as i32;
+    let mut attacks = 0_u64;
+
+    match piece.piece_type {
+        PieceType::Pawn => add_pawn_attacks(&mut attacks, from, piece.color),
+        PieceType::Knight => {
+            for &(df, dr) in &KNIGHT_OFFSETS {
+                if on_board(file + df, rank + dr) {
+                    attacks |= 1_u64 << make_square((file + df) as u8, (rank + dr) as u8);
+                }
+            }
+        }
+        PieceType::King => {
+            for &(df, dr) in &KING_OFFSETS {
+                if on_board(file + df, rank + dr) {
+                    attacks |= 1_u64 << make_square((file + df) as u8, (rank + dr) as u8);
+                }
+            }
+        }
+        PieceType::Bishop | PieceType::Rook | PieceType::Queen => {
+            let directions: &[(i32, i32)] = match piece.piece_type {
+                PieceType::Bishop => &BISHOP_DIRS,
+                PieceType::Rook => &ROOK_DIRS,
+                PieceType::Queen => &QUEEN_DIRS,
+                _ => unreachable!(),
+            };
+            for &(df, dr) in directions {
+                let mut next_file = file + df;
+                let mut next_rank = rank + dr;
+                while on_board(next_file, next_rank) {
+                    let target = make_square(next_file as u8, next_rank as u8);
+                    attacks |= 1_u64 << target;
+                    if pos.board[target as usize].is_some() {
+                        break;
+                    }
+                    next_file += df;
+                    next_rank += dr;
+                }
+            }
+        }
+    }
+
+    attacks
 }
 
 /// Map a piece type to its piece-square table. An exhaustive `match` (not
@@ -539,6 +603,559 @@ pub(crate) struct EvalBreakdown {
     pub(crate) final_score: i32,
 }
 
+#[inline]
+fn white_difference(white: Score, black: Score) -> Score {
+    Score {
+        mg: white.mg - black.mg,
+        eg: white.eg - black.eg,
+    }
+}
+
+#[inline]
+fn from_white_perspective(score: Score, side: Color) -> Score {
+    if side == Color::White {
+        score
+    } else {
+        Score {
+            mg: -score.mg,
+            eg: -score.eg,
+        }
+    }
+}
+
+#[inline]
+fn occupied_by(context: &EvalContext, color: Color) -> u64 {
+    context.piece_squares[color as usize]
+        .iter()
+        .fold(0_u64, |occupied, &squares| occupied | squares)
+}
+
+#[inline]
+fn bit(square: u8) -> u64 {
+    1_u64 << square
+}
+
+fn pawn_is_passed(context: &EvalContext, square: u8, color: Color) -> bool {
+    let enemy_pawns =
+        context.piece_squares[color.opposite() as usize][piece_type_index(PieceType::Pawn)];
+    let file = file_of(square) as i32;
+    let rank = rank_of(square) as i32;
+    let mut pawns = enemy_pawns;
+
+    while pawns != 0 {
+        let enemy_square = pawns.trailing_zeros() as u8;
+        pawns &= pawns - 1;
+        let enemy_file = file_of(enemy_square) as i32;
+        let enemy_rank = rank_of(enemy_square) as i32;
+        if (enemy_file - file).abs() <= 1
+            && ((color == Color::White && enemy_rank > rank)
+                || (color == Color::Black && enemy_rank < rank))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn pawn_is_connected(context: &EvalContext, square: u8, color: Color) -> bool {
+    let own_pawns = context.piece_squares[color as usize][piece_type_index(PieceType::Pawn)];
+    let file = file_of(square) as i32;
+    let rank = rank_of(square) as i32;
+    let mut pawns = own_pawns & !bit(square);
+
+    while pawns != 0 {
+        let other = pawns.trailing_zeros() as u8;
+        pawns &= pawns - 1;
+        if (file_of(other) as i32 - file).abs() <= 1 && (rank_of(other) as i32 - rank).abs() <= 1 {
+            return true;
+        }
+    }
+    false
+}
+
+fn pawn_structure_for_color(context: &EvalContext, color: Color) -> Score {
+    let side = color as usize;
+    let enemy = color.opposite();
+    let pawn_index = piece_type_index(PieceType::Pawn);
+    let mut mg = 0;
+    let mut eg = 0;
+
+    let mut islands = 0;
+    let mut previous_file = false;
+    for file in 0..8 {
+        let count = context.pawn_files[side][file];
+        let present = count != 0;
+        if present && !previous_file {
+            islands += 1;
+        }
+        previous_file = present;
+
+        if count > 1 {
+            let extra = i32::from(count - 1);
+            mg -= 10 * extra;
+            eg -= 8 * extra;
+        }
+        if present
+            && (file == 0 || context.pawn_files[side][file - 1] == 0)
+            && (file == 7 || context.pawn_files[side][file + 1] == 0)
+        {
+            mg -= 10;
+            eg -= 12;
+        }
+    }
+    mg -= (islands - 2).max(0) * 3;
+    eg -= (islands - 2).max(0) * 4;
+
+    let own_pawns = context.piece_squares[side][pawn_index];
+    let enemy_pawns = context.piece_squares[enemy as usize][pawn_index];
+    let mut pawns = own_pawns;
+    while pawns != 0 {
+        let square = pawns.trailing_zeros() as u8;
+        pawns &= pawns - 1;
+        let rank = rank_of(square) as i32;
+        let advanced = if color == Color::White {
+            rank - 1
+        } else {
+            6 - rank
+        };
+        let advanced = advanced.clamp(0, 5);
+
+        if pawn_is_passed(context, square, color) {
+            mg += 12 + advanced * 3;
+            eg += 22 + advanced * 7;
+            if context.pawn_attacks[side] & bit(square) != 0 {
+                mg += 6;
+                eg += 10;
+            }
+            if pawn_is_connected(context, square, color) {
+                mg += 4;
+                eg += 7;
+            }
+        }
+    }
+
+    // A small lever term rewards contact with opposing pawns without
+    // pretending to solve the full pawn-break/search problem.
+    mg += (context.pawn_attacks[side] & enemy_pawns).count_ones() as i32 * 3;
+
+    // Space is deliberately small and symmetric: advanced pawns contribute
+    // only when they occupy the opponent's half of the board.
+    let mut space = 0;
+    let mut pawns = own_pawns;
+    while pawns != 0 {
+        let square = pawns.trailing_zeros() as u8;
+        pawns &= pawns - 1;
+        let rank = rank_of(square);
+        if (color == Color::White && rank >= 3) || (color == Color::Black && rank <= 4) {
+            space += 1;
+        }
+    }
+    mg += space * 2;
+    eg += space;
+
+    Score { mg, eg }
+}
+
+fn mobility_for_color(pos: &Position, context: &EvalContext, color: Color) -> i32 {
+    let own_occupied = occupied_by(context, color);
+    let mut mobility = 0;
+    for (square, piece) in pos.board.iter().enumerate() {
+        let Some(piece) = piece else { continue };
+        if piece.color != color || piece.piece_type == PieceType::Pawn {
+            continue;
+        }
+        let moves = piece_attack_mask(pos, square as u8, *piece) & !own_occupied;
+        let weight = match piece.piece_type {
+            PieceType::Knight => 4,
+            PieceType::Bishop => 4,
+            PieceType::Rook => 2,
+            PieceType::Queen => 1,
+            PieceType::King | PieceType::Pawn => 0,
+        };
+        mobility += moves.count_ones() as i32 * weight;
+    }
+    mobility
+}
+
+fn piece_activity_for_color(pos: &Position, context: &EvalContext, color: Color) -> Score {
+    let enemy = color.opposite();
+    let own_occupied = occupied_by(context, color);
+    let enemy_pawn_attacks = context.pawn_attacks[enemy as usize];
+    let mut mg = 0;
+    let mut eg = 0;
+    let mut bishops = 0;
+
+    for (square, piece) in pos.board.iter().enumerate() {
+        let Some(piece) = piece else { continue };
+        if piece.color != color {
+            continue;
+        }
+        let square = square as u8;
+        let attacks = piece_attack_mask(pos, square, *piece);
+        let mobility = (attacks & !own_occupied).count_ones() as i32;
+        match piece.piece_type {
+            PieceType::Bishop => {
+                bishops += 1;
+                mg += mobility * 2;
+                eg += mobility * 2;
+            }
+            PieceType::Knight => {
+                mg += mobility * 2;
+                eg += mobility;
+                let rank = rank_of(square);
+                let in_opponent_half =
+                    (color == Color::White && rank >= 3) || (color == Color::Black && rank <= 4);
+                let is_outpost = in_opponent_half
+                    && context.pawn_attacks[color as usize] & bit(square) != 0
+                    && enemy_pawn_attacks & bit(square) == 0;
+                if is_outpost {
+                    mg += 16;
+                    eg += 10;
+                }
+            }
+            PieceType::Rook | PieceType::Queen => {
+                mg += mobility;
+                eg += mobility;
+            }
+            PieceType::King | PieceType::Pawn => {}
+        }
+        if matches!(piece.piece_type, PieceType::Knight | PieceType::Bishop) && mobility <= 2 {
+            mg -= 6;
+        }
+    }
+
+    if bishops >= 2 {
+        mg += 24;
+        eg += 32;
+    }
+    Score { mg, eg }
+}
+
+fn development_space_for_color(pos: &Position, context: &EvalContext, color: Color) -> Score {
+    let side = color as usize;
+    let home = if color == Color::White {
+        [
+            make_square(1, 0),
+            make_square(6, 0),
+            make_square(2, 0),
+            make_square(5, 0),
+        ]
+    } else {
+        [
+            make_square(1, 7),
+            make_square(6, 7),
+            make_square(2, 7),
+            make_square(5, 7),
+        ]
+    };
+    let mut undeveloped = 0;
+    for &square in &home {
+        if pos.board[square as usize].is_some_and(|piece| piece.color == color) {
+            undeveloped += 1;
+        }
+    }
+
+    let center = bit(make_square(3, 3))
+        | bit(make_square(4, 3))
+        | bit(make_square(3, 4))
+        | bit(make_square(4, 4));
+    let extended_center = center
+        | bit(make_square(2, 2))
+        | bit(make_square(3, 2))
+        | bit(make_square(4, 2))
+        | bit(make_square(5, 2))
+        | bit(make_square(2, 3))
+        | bit(make_square(5, 3))
+        | bit(make_square(2, 4))
+        | bit(make_square(5, 4))
+        | bit(make_square(2, 5))
+        | bit(make_square(3, 5))
+        | bit(make_square(4, 5))
+        | bit(make_square(5, 5));
+    let own_attacks = context.attack_maps[side];
+    let enemy_attacks = context.attack_maps[color.opposite() as usize];
+    let center_control = (own_attacks & center).count_ones() as i32;
+    let safe_space =
+        (context.pawn_attacks[side] & extended_center & !enemy_attacks).count_ones() as i32;
+
+    let king = context.king_squares[side];
+    let king_file = file_of(king);
+    let king_rank = rank_of(king);
+    let central_king = (2..=5).contains(&king_file) && (2..=5).contains(&king_rank);
+    let mut open_nearby = 0;
+    for file in (i32::from(king_file) - 1)..=(i32::from(king_file) + 1) {
+        if !(0..8).contains(&file) || context.pawn_files[side][file as usize] == 0 {
+            open_nearby += 1;
+        }
+    }
+    let king_penalty = if context.phase >= 16 && central_king {
+        open_nearby * 5
+    } else {
+        0
+    };
+
+    Score {
+        mg: -undeveloped * 10 + center_control * 4 + safe_space * 2 - king_penalty,
+        eg: center_control * 2 + safe_space - king_penalty / 2,
+    }
+}
+
+fn line_clear(pos: &Position, from: u8, to: u8) -> bool {
+    let from_file = file_of(from) as i32;
+    let from_rank = rank_of(from) as i32;
+    let to_file = file_of(to) as i32;
+    let to_rank = rank_of(to) as i32;
+    let df = (to_file - from_file).signum();
+    let dr = (to_rank - from_rank).signum();
+    let mut file = from_file + df;
+    let mut rank = from_rank + dr;
+    while file != to_file || rank != to_rank {
+        if pos.board[make_square(file as u8, rank as u8) as usize].is_some() {
+            return false;
+        }
+        file += df;
+        rank += dr;
+    }
+    true
+}
+
+fn king_zone_mask(king: u8) -> u64 {
+    let file = file_of(king) as i32;
+    let rank = rank_of(king) as i32;
+    let mut zone = 0_u64;
+    for df in -1..=1 {
+        for dr in -1..=1 {
+            if on_board(file + df, rank + dr) {
+                zone |= bit(make_square((file + df) as u8, (rank + dr) as u8));
+            }
+        }
+    }
+    zone
+}
+
+fn rook_activity_for_color(pos: &Position, context: &EvalContext, color: Color) -> Score {
+    let side = color as usize;
+    let enemy = color.opposite();
+    let own_occupied = occupied_by(context, color);
+    let mut mg = 0;
+    let mut eg = 0;
+    let mut rooks = context.piece_squares[side][piece_type_index(PieceType::Rook)];
+
+    while rooks != 0 {
+        let square = rooks.trailing_zeros() as u8;
+        rooks &= rooks - 1;
+        let file = file_of(square) as usize;
+        let attacks = piece_attack_mask(pos, square, Piece::new(color, PieceType::Rook));
+        let mobility = (attacks & !own_occupied).count_ones() as i32;
+        let own_pawns = context.pawn_files[side][file];
+        let enemy_pawns = context.pawn_files[enemy as usize][file];
+        if own_pawns == 0 {
+            if enemy_pawns == 0 {
+                mg += 14;
+                eg += 10;
+            } else {
+                mg += 8;
+                eg += 6;
+            }
+        }
+        if mobility <= 3 {
+            mg -= 10;
+        }
+        mg += mobility * 2;
+        eg += mobility * 2;
+
+        let rank = rank_of(square);
+        if (color == Color::White && rank == 6) || (color == Color::Black && rank == 1) {
+            mg += 16;
+            eg += 12;
+        }
+
+        let enemy_king_zone = king_zone_mask(context.king_squares[enemy as usize]);
+        let own_king_zone = king_zone_mask(context.king_squares[side]);
+        if attacks & enemy_king_zone != 0 {
+            mg += 6;
+        }
+        if attacks & own_king_zone != 0 {
+            mg += 4;
+        }
+
+        for (other_square, other_piece) in pos.board.iter().enumerate() {
+            if other_square == square as usize {
+                continue;
+            }
+            if other_piece.is_some_and(|piece| {
+                piece.color == color
+                    && piece.piece_type == PieceType::Rook
+                    && (file_of(other_square as u8) == file_of(square)
+                        || rank_of(other_square as u8) == rank_of(square))
+                    && line_clear(pos, square, other_square as u8)
+            }) {
+                mg += 7;
+                eg += 7;
+                break;
+            }
+        }
+    }
+    Score { mg, eg }
+}
+
+fn king_danger_e2(context: &EvalContext, pos: &Position, victim: Color) -> i32 {
+    let side = victim as usize;
+    let enemy = victim.opposite();
+    let king = context.king_squares[side];
+    let zone = king_zone_mask(king);
+    let mut attack_units = 0;
+    let mut attackers = 0;
+    for (square, piece) in pos.board.iter().enumerate() {
+        let Some(piece) = piece else { continue };
+        if piece.color == enemy && piece_attack_mask(pos, square as u8, *piece) & zone != 0 {
+            attackers += 1;
+            attack_units += match piece.piece_type {
+                PieceType::Pawn | PieceType::King => 1,
+                PieceType::Knight | PieceType::Bishop => 2,
+                PieceType::Rook => 3,
+                PieceType::Queen => 4,
+            };
+        }
+    }
+
+    let attacked_zone = (context.attack_maps[enemy as usize] & zone).count_ones() as i32;
+    let defended_zone = (context.attack_maps[side] & zone).count_ones() as i32;
+    let king_file = file_of(king) as i32;
+    let king_rank = rank_of(king) as i32;
+    let forward = if victim == Color::White { 1 } else { -1 };
+    let shield_rank = king_rank + forward;
+    let mut missing_shield = 0;
+    let mut storm = 0;
+    if (0..8).contains(&shield_rank) {
+        for file in (king_file - 1)..=(king_file + 1) {
+            if !(0..8).contains(&file) {
+                continue;
+            }
+            let square = make_square(file as u8, shield_rank as u8);
+            match pos.board[square as usize] {
+                Some(piece) if piece.color == victim && piece.piece_type == PieceType::Pawn => {}
+                Some(piece) if piece.color == enemy && piece.piece_type == PieceType::Pawn => {
+                    missing_shield += 1;
+                    storm += 1;
+                }
+                _ => missing_shield += 1,
+            }
+        }
+    }
+
+    let mut open_files = 0;
+    for file in (king_file - 1)..=(king_file + 1) {
+        if !(0..8).contains(&file) {
+            continue;
+        }
+        if context.pawn_files[side][file as usize] == 0 {
+            open_files += 1;
+        }
+    }
+
+    let nonlinear = [0, 0, 2, 5, 9, 14, 20, 27][attackers.min(7) as usize];
+    let raw = (attack_units * attack_units * 2
+        + attacked_zone * 3
+        + missing_shield * 7
+        + storm * 3
+        + open_files * 3
+        + nonlinear
+        - defended_zone * 2)
+        .max(0);
+
+    // Queens-on-board is a cheap phase gate. With no queen the signal remains
+    // a small shield/activity hint rather than a large artificial king score.
+    let queens = context.piece_counts[0][piece_type_index(PieceType::Queen)]
+        + context.piece_counts[1][piece_type_index(PieceType::Queen)];
+    let gate = match queens {
+        0 => 1,
+        1 => 2,
+        _ => 4,
+    };
+    (raw * gate * context.phase / (MAX_PHASE * 4)).clamp(0, 160)
+}
+
+fn king_safety_score(context: &EvalContext, pos: &Position) -> Score {
+    let white_danger = king_danger_e2(context, pos, Color::White);
+    let black_danger = king_danger_e2(context, pos, Color::Black);
+    let difference = black_danger - white_danger;
+    Score {
+        mg: difference,
+        eg: difference / 4,
+    }
+}
+
+fn integrated_positional_terms(pos: &Position, context: &mut EvalContext) -> EvalTerms {
+    context.ensure_attack_maps(pos);
+
+    let white_pawns = pawn_structure_for_color(context, Color::White);
+    let black_pawns = pawn_structure_for_color(context, Color::Black);
+    let white_mobility = mobility_for_color(pos, context, Color::White);
+    let black_mobility = mobility_for_color(pos, context, Color::Black);
+    let white_activity = piece_activity_for_color(pos, context, Color::White);
+    let black_activity = piece_activity_for_color(pos, context, Color::Black);
+    let white_development = development_space_for_color(pos, context, Color::White);
+    let black_development = development_space_for_color(pos, context, Color::Black);
+    let white_rooks = rook_activity_for_color(pos, context, Color::White);
+    let black_rooks = rook_activity_for_color(pos, context, Color::Black);
+
+    EvalTerms {
+        material_pst: context.terms.material_pst,
+        pawn_structure: white_difference(white_pawns, black_pawns),
+        mobility: Score {
+            mg: (white_mobility - black_mobility) * 2,
+            eg: white_mobility - black_mobility,
+        },
+        piece_activity: white_difference(white_activity, black_activity),
+        rook_activity: white_difference(white_rooks, black_rooks),
+        development_space: white_difference(white_development, black_development),
+        king_safety: king_safety_score(context, pos),
+    }
+}
+
+/// Integrated E2 candidate evaluation. Every new term is produced from one
+/// shared fixed-storage context and is enabled only for `current-eval2`.
+/// `Current` continues to call the behavior-preserving base evaluator.
+pub(crate) fn evaluate_integrated_positional(pos: &Position) -> i32 {
+    let mut context = EvalContext::from_position(pos);
+    let base = context.terms.material_pst;
+
+    // Preserve the exact KQK/KRK path while the candidate is being evaluated;
+    // no positional term is allowed to dilute the dedicated mop-up logic.
+    if exact_mop_up(pos).is_some() {
+        return finish_evaluation(pos, base.mg, base.eg, context.phase);
+    }
+
+    let white_terms = integrated_positional_terms(pos, &mut context);
+    let side_terms = EvalTerms {
+        material_pst: base,
+        pawn_structure: from_white_perspective(white_terms.pawn_structure, pos.side),
+        mobility: from_white_perspective(white_terms.mobility, pos.side),
+        piece_activity: from_white_perspective(white_terms.piece_activity, pos.side),
+        rook_activity: from_white_perspective(white_terms.rook_activity, pos.side),
+        development_space: from_white_perspective(white_terms.development_space, pos.side),
+        king_safety: from_white_perspective(white_terms.king_safety, pos.side),
+    };
+    context.terms = side_terms;
+
+    let mg = side_terms.material_pst.mg
+        + side_terms.pawn_structure.mg
+        + side_terms.mobility.mg
+        + side_terms.piece_activity.mg
+        + side_terms.rook_activity.mg
+        + side_terms.development_space.mg
+        + side_terms.king_safety.mg;
+    let eg = side_terms.material_pst.eg
+        + side_terms.pawn_structure.eg
+        + side_terms.mobility.eg
+        + side_terms.piece_activity.eg
+        + side_terms.rook_activity.eg
+        + side_terms.development_space.eg
+        + side_terms.king_safety.eg;
+    finish_evaluation(pos, mg, eg, context.phase)
+}
+
 /// Return whether a concrete piece attacks a target square in the current
 /// position. This is intentionally local to the threat-aware candidate: the
 /// rules module remains the single source of truth for legal move generation,
@@ -726,8 +1343,9 @@ pub fn evaluate_threat_aware(pos: &Position) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate, evaluate_breakdown, evaluate_threat_aware, exact_mop_up, game_phase, interpolate,
-        EvalContext, Score, KING_EG_PST, KING_MG_PST, MAX_PHASE,
+        evaluate, evaluate_breakdown, evaluate_integrated_positional, evaluate_threat_aware,
+        exact_mop_up, game_phase, interpolate, EvalContext, Score, KING_EG_PST, KING_MG_PST,
+        MAX_PHASE,
     };
     use crate::chess::fen::parse_fen;
     use crate::chess::fen::to_fen;
@@ -808,6 +1426,25 @@ mod tests {
         assert!(
             evaluate_threat_aware(&safe) > threat,
             "safe king should score above the exposed equivalent"
+        );
+    }
+
+    #[test]
+    fn integrated_eval_is_side_symmetric_and_preserves_exact_mopup() {
+        let white = parse_fen("r3k2r/ppp2ppp/2n5/3q4/3P4/2N5/PPP2PPP/R3K2R w KQkq - 0 1").unwrap();
+        let black = parse_fen("r3k2r/ppp2ppp/2n5/3q4/3P4/2N5/PPP2PPP/R3K2R b KQkq - 0 1").unwrap();
+        let before = to_fen(&white);
+        assert_eq!(
+            evaluate_integrated_positional(&white),
+            -evaluate_integrated_positional(&black)
+        );
+        assert_eq!(to_fen(&white), before);
+
+        let kqk = parse_fen("7k/8/5K2/8/3Q4/8/8/8 w - - 0 1").unwrap();
+        assert_eq!(
+            evaluate_integrated_positional(&kqk),
+            evaluate(&kqk),
+            "E2 must leave the exact KQK mop-up path unchanged"
         );
     }
 

@@ -147,6 +147,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
         search::SearchProfile::CurrentThreatAwareEvalOnly => "current-threat-aware-eval-only",
         search::SearchProfile::CurrentThreatAwareOrderOnly => "current-threat-aware-order-only",
+        search::SearchProfile::CurrentEval2 => "current-eval2",
         search::SearchProfile::CurrentAspiration => "current-aspiration",
         search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
@@ -414,6 +415,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current" => search::SearchProfile::Current,
                     "current-lmr" => search::SearchProfile::CurrentLmr,
                     "current-threat-aware" => search::SearchProfile::CurrentThreatAware,
+                    "current-eval2" => search::SearchProfile::CurrentEval2,
                     "current-aspiration" => search::SearchProfile::CurrentAspiration,
                     "current-aspiration-lmr" => search::SearchProfile::CurrentAspirationLmr,
                     "current-aspiration-lmr-futility" => {
@@ -425,7 +427,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
                             other
                         ));
                     }
@@ -457,6 +459,7 @@ fn print_startup_help() {
     println!("  current");
     println!("  current-lmr");
     println!("  current-threat-aware");
+    println!("  current-eval2");
     println!("  current-aspiration");
     println!("  current-aspiration-lmr");
     println!("  current-aspiration-lmr-futility");
@@ -885,6 +888,10 @@ mod tests {
         assert_eq!(
             startup_profile(&["--profile", "current-threat-aware"]),
             search::SearchProfile::CurrentThreatAware
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-eval2"]),
+            search::SearchProfile::CurrentEval2
         );
         assert_eq!(
             startup_profile(&["--profile", "current-aspiration"]),
