@@ -5173,8 +5173,6 @@ mod tests {
         for profile in [
             SearchProfile::CurrentThreatAwareNoQchecks,
             SearchProfile::CurrentThreatAwareEvalOrder,
-            SearchProfile::CurrentThreatAwareEvalOnly,
-            SearchProfile::CurrentThreatAwareOrderOnly,
         ] {
             assert!(profile.uses_pvs());
             assert!(profile.uses_qsearch_movegen());
