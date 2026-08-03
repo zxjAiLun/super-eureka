@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "purpose": "S2.1 diagnostic practical-position gate",
+  "source_scope": "D1.14 saved Stockfish-screen/deep positions",
+  "positions": [
+    {
+      "id": "s21-attack-345-78",
+      "group": "king-danger",
+      "fen": "6k1/2p2p2/1q2p1p1/3bP1Q1/p6R/2r2P1P/6PK/4R3 b - - 3 39",
+      "source": "results/d1.14/postmortem-deep-500k/positions.jsonl:6",
+      "source_game": 345,
+      "source_ply": 78,
+      "source_profile": "Current",
+      "played_move": "a4a3",
+      "teacher_move": "b6b4",
+      "source_note": "losing_mate_accelerated"
+    },
+    {
+      "id": "s21-attack-616-31",
+      "group": "king-danger",
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:835",
+      "source_game": 616,
+      "source_ply": 31,
+      "source_profile": "CurrentLmr",
+      "played_move": "a2c4",
+      "teacher_move": "f7f6",
+      "source_note": "losing_mate_accelerated"
+    },
+    {
+      "id": "s21-attack-621-38",
+      "group": "king-danger",
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:10",
+      "source_game": 621,
+      "source_ply": 38,
+      "source_profile": "Current",
+      "played_move": "h2e5",
+      "teacher_move": "c8e6",
+      "source_note": "losing_mate_accelerated"
+    },
+    {
+      "id": "s21-defense-607-19",
+      "group": "defensive-resource",
+      "fen": "r1bqk2r/ppp3b1/2np3p/1N2p2P/2BPQBn1/8/PPP1N1P1/R3K2R b KQkq - 3 10",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:29",
+      "source_game": 607,
+      "source_ply": 19,
+      "source_profile": "Current",
+      "played_move": "g4f6",
+      "teacher_move": "d8e7",
+      "source_note": "563cp blunder"
+    },
+    {
+      "id": "s21-defense-293-39",
+      "group": "defensive-resource",
+      "fen": "1r3rk1/2p2p2/ppBbpP1p/5bp1/3q4/P1N3NP/1PP3PK/R3QR2 w - - 1 20",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:53",
+      "source_game": 293,
+      "source_ply": 39,
+      "source_profile": "CurrentLmr",
+      "played_move": "e1e2",
+      "teacher_move": "h2h1",
+      "source_note": "495cp blunder"
+    },
+    {
+      "id": "s21-defense-143-7",
+      "group": "defensive-resource",
+      "fen": "r2qkb1r/pp3ppp/4pn2/3p3b/8/2NBBPQ1/PPP1K1PP/R6R b kq - 1 4",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:147",
+      "source_game": 143,
+      "source_ply": 7,
+      "source_profile": "Current",
+      "played_move": "d5d4",
+      "teacher_move": "a7a6",
+      "source_note": "434cp blunder"
+    },
+    {
+      "id": "s21-control-559-9",
+      "group": "control",
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:40",
+      "source_game": 559,
+      "source_ply": 9,
+      "source_profile": "CurrentLmr",
+      "played_move": "f1b5",
+      "teacher_move": "f1b5",
+      "source_note": "normal same-move sample"
+    },
+    {
+      "id": "s21-control-237-32",
+      "group": "control",
+      "fen": "r1b3k1/pp2Npbp/8/6P1/2PpB3/5Q2/Pq3PP1/4RRK1 b - - 0 16",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:46",
+      "source_game": 237,
+      "source_ply": 32,
+      "source_profile": "Current",
+      "played_move": "g8h8",
+      "teacher_move": "g8h8",
+      "source_note": "normal same-move sample"
+    },
+    {
+      "id": "s21-control-467-16",
+      "group": "control",
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "source": "results/d1.14/postmortem-screen-20k-v3/positions.jsonl:72",
+      "source_game": 467,
+      "source_ply": 16,
+      "source_profile": "CurrentLmr",
+      "played_move": "e3d4",
+      "teacher_move": "e3d4",
+      "source_note": "normal same-move sample"
+    }
+  ]
+}

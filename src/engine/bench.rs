@@ -126,6 +126,10 @@ struct BenchArgs {
     profile: SearchProfile,
     /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
+    /// Optional one-off FEN for a profile run. The CLI process owns the
+    /// leaked string for its lifetime; this keeps the existing static Fixture
+    /// representation intact for the built-in suites.
+    custom_fen: Option<&'static str>,
     /// Optional fixed limit used only by the profile suite.
     profile_limit: Option<LimitKind>,
     /// Limit selector used only by the ablation suite.
@@ -220,6 +224,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut nodes = 100_000u64;
     let mut profile = SearchProfile::M4Reference;
     let mut fixture: Option<&'static str> = None;
+    let mut custom_fen: Option<&'static str> = None;
     let mut profile_limit: Option<LimitKind> = None;
     let mut ablation_limit: Option<LimitKind> = None;
 
@@ -280,7 +285,8 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     Suite::Profile => {
                         if profile_limit.replace(LimitKind::Nodes(n)).is_some() {
                             return Err(
-                                "bench: profile accepts exactly one of --nodes|--depth".to_string()
+                                "bench: profile accepts exactly one of --nodes|--depth|--movetime"
+                                    .to_string(),
                             );
                         }
                     }
@@ -309,12 +315,17 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                         );
                     }
                 } else if profile_limit.replace(LimitKind::Depth(n)).is_some() {
-                    return Err("bench: profile accepts exactly one of --nodes|--depth".to_string());
+                    return Err(
+                        "bench: profile accepts exactly one of --nodes|--depth|--movetime"
+                            .to_string(),
+                    );
                 }
             }
             "--movetime" => {
-                if suite != Suite::Ablation {
-                    return Err("bench: --movetime is only valid for ablation".to_string());
+                if suite != Suite::Ablation && suite != Suite::Profile {
+                    return Err(
+                        "bench: --movetime is only valid for profile or ablation".to_string()
+                    );
                 }
                 let v = it
                     .next()
@@ -326,9 +337,16 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 if n == 0 {
                     return Err("bench: --movetime must be >= 1".to_string());
                 }
-                if ablation_limit.replace(LimitKind::Movetime(n)).is_some() {
+                if suite == Suite::Ablation {
+                    if ablation_limit.replace(LimitKind::Movetime(n)).is_some() {
+                        return Err(
+                            "bench: ablation accepts exactly one of --nodes|--depth|--movetime"
+                                .to_string(),
+                        );
+                    }
+                } else if profile_limit.replace(LimitKind::Movetime(n)).is_some() {
                     return Err(
-                        "bench: ablation accepts exactly one of --nodes|--depth|--movetime"
+                        "bench: profile accepts exactly one of --nodes|--depth|--movetime"
                             .to_string(),
                     );
                 }
@@ -383,6 +401,9 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                             .to_string(),
                     );
                 }
+                if custom_fen.is_some() {
+                    return Err("bench: --fixture cannot be combined with --fen".to_string());
+                }
                 let v = it
                     .next()
                     .ok_or_else(|| "bench: --fixture requires a value".to_string())?
@@ -409,6 +430,25 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                 });
             }
+            "--fen" => {
+                if suite != Suite::Profile {
+                    return Err("bench: --fen is only valid for profile".to_string());
+                }
+                if fixture.is_some() {
+                    return Err("bench: --fen cannot be combined with --fixture".to_string());
+                }
+                if custom_fen.is_some() {
+                    return Err("bench: --fen may be specified only once".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --fen requires a value".to_string())?
+                    .clone();
+                if v.trim().is_empty() {
+                    return Err("bench: --fen requires a non-empty FEN".to_string());
+                }
+                custom_fen = Some(Box::leak(v.into_boxed_str()));
+            }
             other => {
                 return Err(format!("bench: unknown argument '{}'", other));
             }
@@ -426,6 +466,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         nodes,
         profile,
         fixture,
+        custom_fen,
         profile_limit: if suite == Suite::Profile {
             Some(profile_limit.unwrap_or(LimitKind::Nodes(nodes)))
         } else {
@@ -1139,10 +1180,22 @@ fn fixtures_for(cfg: &BenchArgs) -> Vec<Fixture> {
             .into_iter()
             .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
             .collect(),
-        Suite::Profile => standard_fixtures()
-            .into_iter()
-            .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
-            .collect(),
+        Suite::Profile => {
+            if let Some(fen) = cfg.custom_fen {
+                vec![Fixture {
+                    id: "custom",
+                    fen,
+                    limit: LimitKind::Depth(1),
+                    history: None,
+                    locked: None,
+                }]
+            } else {
+                standard_fixtures()
+                    .into_iter()
+                    .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
+                    .collect()
+            }
+        }
         Suite::Ablation => standard_fixtures()
             .into_iter()
             .filter(|fx| cfg.fixture.is_none_or(|id| fx.id == id))
@@ -1259,8 +1312,9 @@ fn print_help() {
     println!("  --repeat <N>                       default: smoke=1, standard=1, throughput=3");
     println!("  --nodes <N>                       throughput/profile node budget (default 100000); ablation limit");
     println!("  --depth <N>                       profile or ablation fixed-depth limit");
-    println!("  --movetime <MS>                   ablation fixed-time limit");
+    println!("  --movetime <MS>                   profile or ablation fixed-time limit");
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
+    println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
         "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
     );
@@ -1399,6 +1453,35 @@ mod tests {
         assert_eq!(profile.profile_limit, Some(LimitKind::Depth(6)));
         assert_eq!(profile.fixture, Some("startpos"));
 
+        let profile_movetime = parse_args(&[
+            "profile".to_string(),
+            "--mode".to_string(),
+            "cold".to_string(),
+            "--movetime".to_string(),
+            "1000".to_string(),
+            "--fixture".to_string(),
+            "startpos".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(profile_movetime.mode, BenchMode::Cold);
+        assert_eq!(
+            profile_movetime.profile_limit,
+            Some(LimitKind::Movetime(1000))
+        );
+
+        let custom = parse_args(&[
+            "profile".to_string(),
+            "--fen".to_string(),
+            "7k/8/8/8/8/8/4Q3/6K1 w - - 0 1".to_string(),
+            "--depth".to_string(),
+            "2".to_string(),
+        ])
+        .unwrap();
+        assert!(custom.custom_fen.is_some());
+        assert!(custom.fixture.is_none());
+        assert_eq!(fixtures_for(&custom).len(), 1);
+        assert_eq!(fixtures_for(&custom)[0].id, "custom");
+
         let movetime = parse_args(&[
             "ablation".to_string(),
             "--movetime".to_string(),
@@ -1433,6 +1516,14 @@ mod tests {
             "1000".to_string(),
             "--depth".to_string(),
             "6".to_string(),
+        ])
+        .is_err());
+        assert!(parse_args(&[
+            "profile".to_string(),
+            "--fixture".to_string(),
+            "startpos".to_string(),
+            "--fen".to_string(),
+            "7k/8/8/8/8/8/4Q3/6K1 w - - 0 1".to_string(),
         ])
         .is_err());
     }
@@ -1801,6 +1892,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
         };
@@ -1832,6 +1924,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
         };
@@ -1881,6 +1974,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
         };
@@ -1929,6 +2023,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::M4Reference,
                 fixture: None,
+                custom_fen: None,
                 profile_limit: None,
                 ablation_limit: None,
             };
@@ -1961,6 +2056,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::Current,
                 fixture: None,
+                custom_fen: None,
                 profile_limit: None,
                 ablation_limit: None,
             };
@@ -2087,6 +2183,7 @@ mod tests {
             nodes: n,
             profile: SearchProfile::M4Reference,
             fixture: None,
+            custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
         };
