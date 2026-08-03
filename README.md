@@ -234,7 +234,10 @@ bestmove b1c3
   budget，并对候选 score cutoff 使用精确 nominal-depth 门禁；`Current`、
   LMR/null/futility/SEE pruning 均保持原边界。见
   [`s2.1-threat-aware-search.md`](docs/specs/s2.1-threat-aware-search.md)。
-  之后的 9 个实战保存局面、1/3/10 秒冷 TT gate 没有产生深度正收益；
+  之后的 9 个实战保存局面、1/3/10 秒冷 TT gate 没有产生固定时间名义深度正收益，
+  这是搜索成本负向信号而不是完整棋步质量结论。随后对 54 条保存决策做了
+  Stockfish 18 固定 500k 节点 CP/mate 分离重评分：king-danger/defensive-resource
+  组初步偏向候选，但 control 组有回归风险，因此总体为 MIXED、只授权窄范围 redesign；
   `current-threat-aware` 仍为 candidate-only，详见
   [`s2.1-practical-position-gate.md`](docs/benchmarks/s2.1-practical-position-gate.md)。
 - **D1.6 incremental base evaluation（已关闭）**：历史候选曾缓存基础 tapered
