@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "milestone": "S3-PROMOTION",
+  "decision": "H1_ACCEPTED",
+  "decision_source": "cutechess manager stdout",
+  "games": 106,
+  "opening_pairs": 53,
+  "candidate": "CurrentFinal",
+  "baseline": "Current",
+  "candidate_wins": 62,
+  "candidate_losses": 28,
+  "draws": 16,
+  "candidate_score_percent": 66.038,
+  "candidate_color_counts": {
+    "White": 53,
+    "Black": 53
+  },
+  "manager": {
+    "started_games": 106,
+    "finished_games": 106,
+    "finished_match": true,
+    "sprt_decision": "H1_ACCEPTED",
+    "manager_score": {
+      "candidate_wins": 62,
+      "baseline_wins": 28,
+      "draws": 16
+    },
+    "unexpected_stderr": [],
+    "stdout_sha256": "bf1f96092699cd22571020e0117aa17fd0aea865496306d1629f92d53d82da25",
+    "stderr_sha256": "5c02dad1187fa5d84f3a66ed40cb45bde5e009b38823a60d6bdfd1cf9852189b"
+  },
+  "provenance": {
+    "run_git_sha": "d138ab9d32b79c2a82f9feca34b8f82996573ee0",
+    "verification_git_sha": "d138ab9d32b79c2a82f9feca34b8f82996573ee0",
+    "engine_sha256": "b4bf0c3e73158bf3f5c072aa863aca671721275efc5b2e6d5354cf53a0fd0933",
+    "manager_sha256": "8889f9582dc688c567704cf083f6025baf77f791cde903698c70b3420caf5d7e",
+    "source_unchanged_since_run": true
+  },
+  "artifacts": {
+    "manifest.json": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\manifest.json",
+      "sha256": "877e83260ab2c7272451dcd57184676ccd7dd91817ed4bb5d23604499ef13f72",
+      "size": 5718
+    },
+    "command.txt": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\command.txt",
+      "sha256": "46011b961b7640cba895ba380e12cf8ac973f57c38de00c9c81485ddb5c69d8e",
+      "size": 768
+    },
+    "openings.epd": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\openings.epd",
+      "sha256": "2c5a8e02c8b62ff934a70706e605f7be3eb8c6a36c11e701d802be2c785264c7",
+      "size": 33258
+    },
+    "manager.stdout.log": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\manager.stdout.log",
+      "sha256": "bf1f96092699cd22571020e0117aa17fd0aea865496306d1629f92d53d82da25",
+      "size": 19483
+    },
+    "manager.stderr.log": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\manager.stderr.log",
+      "sha256": "5c02dad1187fa5d84f3a66ed40cb45bde5e009b38823a60d6bdfd1cf9852189b",
+      "size": 57
+    },
+    "match.pgn": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\match.pgn",
+      "sha256": "664d97d2e2979bcf05b3561cb7cb232dee6f8e3642e935a5ea1463744f46e50b",
+      "size": 352820
+    }
+  }
+}

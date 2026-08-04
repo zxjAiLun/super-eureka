@@ -1,9 +1,10 @@
 # S3-PROMOTION — frozen final candidate launcher
 
-Status: **PREPARED — NOT STARTED**
+Status: **COMPLETE — H1 ACCEPTED; CURRENT UNCHANGED**
 
-This document records the final promotion configuration. It does not claim a
-promotion result and it does not change the default `Current` profile.
+This document records the final promotion configuration and its completed
+candidate-first SPRT result. It does not automatically replace the default
+`Current` profile.
 
 ## Frozen engine
 
@@ -61,7 +62,46 @@ runtime opening hash, the complete argv, and stdout/stderr/PGN paths in the
 run manifest. It also re-checks the engine hash, manager hash, and Git tip
 after the manager exits.
 
-No S3-PROMOTION games have been started by this preparation change. A later
-run must independently verify the completed PGN, pair/color contract, legal
-moves, timeouts, crashes, and the manager's SPRT decision before any
-promotion discussion. `Current` is not replaced automatically.
+## Completed promotion run
+
+The frozen launcher was run once from the clean `d138ab9` worktree. Cutechess
+stopped after a valid SPRT boundary rather than reaching the 1,000-game cap:
+
+```text
+games:             106
+complete pairs:     53
+candidate:          62 wins / 28 losses / 16 draws
+candidate score:    66.038%
+candidate colors:   53 White / 53 Black
+SPRT:               H1 accepted
+manager return:     0
+```
+
+The manager stdout reported:
+
+```text
+Elo difference: 115.5 +/- 64.6, LOS: 100.0 %
+SPRT: llr 3.03, lbound -2.94, ubound 2.94 - H1 was accepted
+```
+
+These Elo and LOS values are descriptive manager output; the formal result is
+the explicit `H1 accepted` boundary. The early stop is not treated as a
+1,000-game result. Both colors were represented equally, and no manager
+stdout failure token, illegal move, timeout, forfeit, or crash was found.
+
+The independent verifier [`verify_s3_promotion.py`](../../tools/verify_s3_promotion.py)
+replayed all 106 PGN games, checked all moves for legality, confirmed the
+first 53 runtime openings occurred in order with strict color reversal, and
+matched the manager W/D/L line to the PGN. It also rechecked the frozen engine
+and cutechess SHA-256 values and the unchanged engine source lineage. Its
+canonical output is [`verification.json`](../../results/s3-promotion/run-001/verification.json).
+
+The complete run artifacts are [`manifest.json`](../../results/s3-promotion/run-001/manifest.json),
+[`command.txt`](../../results/s3-promotion/run-001/command.txt),
+[`openings.epd`](../../results/s3-promotion/run-001/openings.epd),
+[`manager.stdout.log`](../../results/s3-promotion/run-001/manager.stdout.log),
+[`manager.stderr.log`](../../results/s3-promotion/run-001/manager.stderr.log),
+and [`match.pgn`](../../results/s3-promotion/run-001/match.pgn).
+
+This result qualifies `CurrentFinal` for a separately reviewed production
+promotion commit, but `Current` remains unchanged in this artifact commit.

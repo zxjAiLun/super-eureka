@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "milestone": "S3-PROMOTION",
+  "status": "MANAGER_COMPLETED",
+  "decision": "NOT_STARTED",
+  "prepared_utc": "2026-08-04T11:08:25.166768+00:00",
+  "current_git_sha": "d138ab9d32b79c2a82f9feca34b8f82996573ee0",
+  "frozen_engine_git_sha": "91347775906f3f5d3730c9e9596037493429776d",
+  "engine": {
+    "binary": {
+      "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+      "sha256": "b4bf0c3e73158bf3f5c072aa863aca671721275efc5b2e6d5354cf53a0fd0933",
+      "size": 536576
+    },
+    "candidate": {
+      "label": "CurrentFinal",
+      "profile": "current-final",
+      "identity": {
+        "argv": [
+          "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+          "--profile",
+          "current-final"
+        ],
+        "id_name": "ChessEngineDemo",
+        "id_author": "Rust-learner",
+        "reported_profile": "current-final",
+        "uciok": true,
+        "return_code": 0,
+        "stdout_tail": "id name ChessEngineDemo\nid author Rust-learner\noption name Hash type spin default 16 min 1 max 1024\ninfo string search profile current-final\nuciok\n",
+        "stderr_tail": ""
+      }
+    },
+    "baseline": {
+      "label": "Current",
+      "profile": "current",
+      "identity": {
+        "argv": [
+          "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+          "--profile",
+          "current"
+        ],
+        "id_name": "ChessEngineDemo",
+        "id_author": "Rust-learner",
+        "reported_profile": "current",
+        "uciok": true,
+        "return_code": 0,
+        "stdout_tail": "id name ChessEngineDemo\nid author Rust-learner\noption name Hash type spin default 16 min 1 max 1024\ninfo string search profile current\nuciok\n",
+        "stderr_tail": ""
+      }
+    }
+  },
+  "manager": {
+    "path": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\.cache\\cutechess-1.5.1-win64\\cutechess-cli.exe",
+    "sha256": "8889f9582dc688c567704cf083f6025baf77f791cde903698c70b3420caf5d7e",
+    "size": 946176,
+    "version": "cutechess-cli 1.5.1\nUsing Qt version 6.8.3\nRunning on Windows 11 Version 25H2/x86_64\n\nCopyright (C) 2008-2023 Ilari Pihlajisto, Arto Jonsson and contributors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "opening": {
+    "selection_manifest": "E:\\AUbuntuProject\\project\\chessenginedemo\\tests\\data\\openings\\s3-promotion-openings-v1.json",
+    "selection_manifest_sha256": "b1b9664611c4932d6b4f14d6532d2ed5c3af8644958cfebb32cb45f4ce681c6c",
+    "source": "E:\\AUbuntuProject\\project\\chessenginedemo\\tests\\data\\openings\\d1.14-openings-v1.epd",
+    "runtime_path": "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\openings.epd",
+    "runtime_sha256": "2c5a8e02c8b62ff934a70706e605f7be3eb8c6a36c11e701d802be2c785264c7",
+    "pairs": 500,
+    "strict_color_swap": true,
+    "order": "sequential"
+  },
+  "match": {
+    "protocol": "uci",
+    "time_control": "10+0.1",
+    "hash_mb": 16,
+    "threads": 1,
+    "concurrency": 1,
+    "games_max": 1000,
+    "candidate_first": true
+  },
+  "sprt": {
+    "subject": "CurrentFinal minus Current",
+    "elo0": 20,
+    "elo1": 60,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "command": [
+    "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\.cache\\cutechess-1.5.1-win64\\cutechess-cli.exe",
+    "-engine",
+    "name=CurrentFinal",
+    "cmd=E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+    "proto=uci",
+    "arg=--profile",
+    "arg=current-final",
+    "-engine",
+    "name=Current",
+    "cmd=E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+    "proto=uci",
+    "arg=--profile",
+    "arg=current",
+    "-variant",
+    "standard",
+    "-openings",
+    "file=E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\openings.epd",
+    "format=epd",
+    "order=sequential",
+    "policy=default",
+    "-each",
+    "tc=10+0.1",
+    "option.Hash=16",
+    "-rounds",
+    "1000",
+    "-repeat",
+    "2",
+    "-concurrency",
+    "1",
+    "-pgnout",
+    "E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\match.pgn",
+    "-resultformat",
+    "short",
+    "-sprt",
+    "elo0=20",
+    "elo1=60",
+    "alpha=0.05",
+    "beta=0.05"
+  ],
+  "command_text": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\.cache\\cutechess-1.5.1-win64\\cutechess-cli.exe -engine name=CurrentFinal cmd=E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe proto=uci arg=--profile arg=current-final -engine name=Current cmd=E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe proto=uci arg=--profile arg=current -variant standard -openings file=E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\openings.epd format=epd order=sequential policy=default -each tc=10+0.1 option.Hash=16 -rounds 1000 -repeat 2 -concurrency 1 -pgnout E:\\AUbuntuProject\\project\\chessenginedemo\\results\\s3-promotion\\run-001\\match.pgn -resultformat short -sprt elo0=20 elo1=60 alpha=0.05 beta=0.05",
+  "artifacts": {
+    "manifest": "manifest.json",
+    "command": "command.txt",
+    "openings": "openings.epd",
+    "stdout": "manager.stdout.log",
+    "stderr": "manager.stderr.log",
+    "pgn": "match.pgn"
+  },
+  "manager_return_code": 0,
+  "finished_utc": "2026-08-04T11:56:59.452385+00:00"
+}
