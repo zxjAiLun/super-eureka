@@ -1,0 +1,113 @@
+# Arena application deploy (section 20.2).
+#
+# Triggers: workflow_dispatch
+#
+# Flow:
+#   1. run Python tests,
+#   2. package arena/,
+#   3. upload to the server temp dir,
+#   4. create a new release dir,
+#   5. create/update the virtualenv,
+#   6. run Alembic migrations,
+#   7. atomically switch /opt/chessarena/app/current,
+#   8. restart the API and worker services,
+#   9. hit /health,
+#   10. roll back to the previous release if health fails.
+#
+# Secrets required:
+#   ARENA_DEPLOY_HOST        e.g. pearllover.site
+#   ARENA_DEPLOY_USER        e.g. deploy (a non-root user allowed to sudo -u chessarena)
+#   ARENA_DEPLOY_KEY         private SSH key for that user
+#   ARENA_SERVER_HOST_KEY    known_hosts entry for the server
+#   ARENA_ADMIN_PASSWORD     Basic Auth password (optional override on the box)
+
+name: deploy-arena
+
+on:
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install arena dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r arena/requirements-dev.txt
+
+      - name: Run arena tests
+        working-directory: arena
+        run: python -m pytest tests/ -q
+
+      - name: Package arena
+        run: |
+          tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' \
+              -C arena -czf /tmp/arena.tar.gz .
+
+      - name: Upload package
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ARENA_DEPLOY_HOST }}
+          username: ${{ secrets.ARENA_DEPLOY_USER }}
+          key: ${{ secrets.ARENA_DEPLOY_KEY }}
+          source: /tmp/arena.tar.gz
+          target: /tmp/arena-deploy/
+          strip_components: 1
+
+      - name: Deploy, migrate, switch, restart, health-check (with rollback)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ARENA_DEPLOY_HOST }}
+          username: ${{ secrets.ARENA_DEPLOY_USER }}
+          key: ${{ secrets.ARENA_DEPLOY_KEY }}
+          command_timeout: "20m"
+          script: |
+            set -euo pipefail
+            RELEASE="/opt/chessarena/releases/$(date +%Y%m%d%H%M%S)"
+            PREV=$(readlink -f /opt/chessarena/app/current || true)
+
+            sudo -u chessarena mkdir -p "$RELEASE"
+            sudo -u chessarena tar -xzf /tmp/arena-deploy/arena.tar.gz -C "$RELEASE"
+            sudo -u chessarena rm -f /tmp/arena-deploy/arena.tar.gz
+
+            # venv + deps
+            if [ ! -d /opt/chessarena/venv ]; then
+              sudo -u chessarena python3.12 -m venv /opt/chessarena/venv
+            fi
+            sudo -u chessarena /opt/chessarena/venv/bin/pip install -e "$RELEASE"
+
+            # migrations
+            sudo -u chessarena env $(cat /etc/chessarena/chessarena.env | grep -v '^#' | xargs) \
+              /opt/chessarena/venv/bin/alembic -c "$RELEASE/alembic.ini" upgrade head
+
+            # atomic switch
+            sudo -u chessarena ln -sfn "$RELEASE" /opt/chessarena/app/current
+
+            # restart services
+            sudo systemctl restart chessarena-api chessarena-worker
+
+            # health check
+            sleep 3
+            HEALTH=$(curl -fsS -u "arena-admin:$ARENA_ADMIN_PASSWORD" \
+              "http://127.0.0.1:8787/chessarena/api/v1/health" || true)
+            if ! echo "$HEALTH" | grep -q '"database": "ok"'; then
+              echo "health check failed: $HEALTH"
+              if [ -n "$PREV" ] && [ -d "$PREV" ]; then
+                echo "rolling back to $PREV"
+                sudo -u chessarena ln -sfn "$PREV" /opt/chessarena/app/current
+                sudo systemctl restart chessarena-api chessarena-worker
+                sleep 3
+              fi
+              exit 1
+            fi
+            echo "deploy OK: $HEALTH"

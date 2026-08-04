@@ -1,0 +1,160 @@
+# Engine build deployment (section 20.2).
+#
+# Triggers: workflow_dispatch with inputs:
+#   git_ref      - commit/tag to build (default: main)
+#   build_label  - short label used in the immutable build directory name
+#
+# Flow:
+#   1. checkout the pinned ref,
+#   2. cargo test (debug + release), fmt, clippy,
+#   3. cargo build --release --locked,
+#   4. UCI identity probe,
+#   5. compute binary SHA-256,
+#   6. generate the build manifest,
+#   7. upload to the server incoming dir,
+#   8. server verifies SHA and atomically installs the immutable build dir,
+#   9. register the build in the database.
+#
+# Existing tournaments keep running on their original build paths; nothing
+# here mutates them (section 7).
+
+name: deploy-engine-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "git ref to build"
+        required: false
+        default: "main"
+      build_label:
+        description: "short label for the build directory (e.g. linux-x86_64)"
+        required: true
+        default: "linux-x86_64"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
+          fetch-depth: 0
+
+      - name: Install stable toolchain (rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test (debug)
+        run: cargo test
+
+      - name: cargo test (release)
+        run: cargo test --release
+
+      - name: cargo build --release --locked
+        run: cargo build --release --locked
+
+      - name: Compute build metadata
+        id: meta
+        run: |
+          BIN="target/release/chess-engine-demo"
+          SHA256=$(sha256sum "$BIN" | cut -d' ' -f1)
+          GIT_SHA=$(git rev-parse HEAD)
+          RUSTC_VERSION=$(rustc --version)
+          CARGO_LOCK_SHA=$(sha256sum Cargo.lock | cut -d' ' -f1)
+          BUILD_ID="$(date +%Y%m%d)-${GIT_SHA:0:7}-${{ inputs.build_label }}"
+          echo "binary_sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "git_sha=$GIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "rustc_version=$RUSTC_VERSION" >> "$GITHUB_OUTPUT"
+          echo "cargo_lock_sha256=$CARGO_LOCK_SHA" >> "$GITHUB_OUTPUT"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: UCI identity probe
+        run: |
+          printf 'uci\nquit\n' | ./target/release/chess-engine-demo | tee /tmp/uci-probe.txt
+          grep -q "uciok" /tmp/uci-probe.txt
+          grep -q "id name" /tmp/uci-probe.txt
+
+      - name: Stage immutable build directory
+        run: |
+          mkdir -p /tmp/build-stage/engine
+          cp target/release/chess-engine-demo /tmp/build-stage/engine/engine
+          cat > /tmp/build-stage/engine/manifest.json <<EOF
+          {
+            "schema_version": 1,
+            "build_id": "${{ steps.meta.outputs.build_id }}",
+            "engine_name": "ChessEngineDemo",
+            "git_sha": "${{ steps.meta.outputs.git_sha }}",
+            "binary_sha256": "${{ steps.meta.outputs.binary_sha256 }}",
+            "platform": "${{ inputs.build_label }}",
+            "rustc_version": "${{ steps.meta.outputs.rustc_version }}",
+            "cargo_lock_sha256": "${{ steps.meta.outputs.cargo_lock_sha256 }}",
+            "supported_profiles": ["current-final", "current"],
+            "uci_id_name": "ChessEngineDemo",
+            "uci_id_author": "Rust-learner",
+            "created_utc": "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
+          }
+          EOF
+          tar -C /tmp/build-stage -czf /tmp/build-${GITHUB_SHA:0:7}.tar.gz .
+
+      - name: Upload build package
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ARENA_DEPLOY_HOST }}
+          username: ${{ secrets.ARENA_DEPLOY_USER }}
+          key: ${{ secrets.ARENA_DEPLOY_KEY }}
+          source: /tmp/build-${{ github.sha }}.tar.gz
+          target: /opt/chessarena/incoming/
+          strip_components: 0
+
+      - name: Install and register on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ARENA_DEPLOY_HOST }}
+          username: ${{ secrets.ARENA_DEPLOY_USER }}
+          key: ${{ secrets.ARENA_DEPLOY_KEY }}
+          command_timeout: "10m"
+          script: |
+            set -euo pipefail
+            TARBALL="/opt/chessarena/incoming/build-${{ github.sha }}.tar.gz"
+            STAGE="/opt/chessarena/incoming/stage-${{ github.sha }}"
+            BUILD_ID="${{ steps.meta.outputs.build_id }}"
+            DEST="/opt/chessarena/builds/$BUILD_ID"
+
+            sudo -u chessarena rm -rf "$STAGE"
+            sudo -u chessarena mkdir -p "$STAGE"
+            sudo -u chessarena tar -xzf "$TARBALL" -C "$STAGE"
+            sudo -u chessarena rm -f "$TARBALL"
+
+            # Verify SHA matches the manifest before install.
+            ACTUAL=$(sha256sum "$STAGE/engine/engine" | cut -d' ' -f1)
+            EXPECTED=$(python3 -c "import json;print(json.load(open('$STAGE/engine/manifest.json'))['binary_sha256'])")
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "SHA mismatch: $ACTUAL != $EXPECTED"
+              exit 1
+            fi
+
+            # Atomic install into the immutable build directory (0555/0444).
+            if [ -d "$DEST" ]; then
+              echo "build already exists, refusing to overwrite: $DEST"
+              exit 1
+            fi
+            sudo -u chessarena mv "$STAGE/engine" "$DEST"
+            sudo chmod 0555 "$DEST/engine"
+            sudo chmod 0444 "$DEST/manifest.json"
+
+            # Register in the database.
+            sudo -u chessarena env $(cat /etc/chessarena/chessarena.env | grep -v '^#' | xargs) \
+              /opt/chessarena/venv/bin/python \
+              /opt/chessarena/app/current/scripts/install_build.py "$DEST" --probe
+            echo "build installed: $DEST"

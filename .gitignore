@@ -24,6 +24,15 @@
 # D1.14 local tournament-manager cache (the executable is never committed)
 /tools/.cache/
 
+# Arena runtime artifacts and Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+arena/.pytest_cache/
+
 # WorkBuddy private memory / project data
 .workbuddy/
 

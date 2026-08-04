@@ -1,0 +1,23 @@
+# ChessArena API service (section 19).
+[Unit]
+Description=ChessArena API
+After=network.target
+
+[Service]
+Type=simple
+User=chessarena
+Group=chessarena
+WorkingDirectory=/opt/chessarena/app/current
+EnvironmentFile=/etc/chessarena/chessarena.env
+ExecStart=/opt/chessarena/venv/bin/uvicorn chessarena.main:app --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=3
+MemoryMax=400M
+
+# The API process only talks to the DB and serves HTTP; it never spawns
+# engine processes, so a single process unit is sufficient.
+KillMode=process
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
