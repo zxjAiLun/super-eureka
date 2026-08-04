@@ -68,6 +68,18 @@ class S3FinalMatchVerifierTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verifier.verify_match(*inputs[:4], expected_game_count=2)
 
+    def test_quick_screen_exit_code_rejects_below_threshold(self):
+        self.assertEqual(
+            verifier.quick_screen_exit_code({"candidate_score_percent": 59.5}),
+            3,
+        )
+
+    def test_quick_screen_exit_code_accepts_threshold_boundary(self):
+        self.assertEqual(
+            verifier.quick_screen_exit_code({"candidate_score_percent": 60.0}),
+            0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

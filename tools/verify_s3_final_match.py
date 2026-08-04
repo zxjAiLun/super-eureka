@@ -30,6 +30,7 @@ PROFILE_BASELINE_ARG = "current"
 EXPECTED_GAME_COUNT = 100
 EXPECTED_PAIR_COUNT = 50
 EXPECTED_TIME_CONTROL = "10+0.1"
+QUICK_SCREEN_THRESHOLD_PERCENT = 60.0
 EXPECTED_STDERR = "Warning: 2 opening repetitions vs 1 games per encounter"
 FAILURE_TOKEN_RE = re.compile(r"\b(?:forfeit|illegal|crash|timeout|fatal)\b", re.IGNORECASE)
 
@@ -156,6 +157,12 @@ def candidate_result(candidate_color: str, result: str) -> str:
         candidate_color == "Black" and result == "0-1"
     )
     return "win" if candidate_won else "loss"
+
+
+def quick_screen_exit_code(summary: dict[str, Any]) -> int:
+    """Return 0 for the declared pass line and 3 for a gate rejection."""
+
+    return 0 if float(summary["candidate_score_percent"]) >= QUICK_SCREEN_THRESHOLD_PERCENT else 3
 
 
 def verify_match(
@@ -289,8 +296,8 @@ def main() -> int:
                     "candidate_first": True,
                 },
                 "decision": {
-                    "quick_screen_threshold_percent": 60.0,
-                    "quick_screen_pass": summary["candidate_score_percent"] >= 60.0,
+                    "quick_screen_threshold_percent": QUICK_SCREEN_THRESHOLD_PERCENT,
+                    "quick_screen_pass": quick_screen_exit_code(summary) == 0,
                     "formal_elo_or_sprt": False,
                     "current_promotion": False,
                 },
@@ -302,7 +309,14 @@ def main() -> int:
             f"S3-FINAL match integrity PASS: {summary['games']} games, "
             f"candidate score={summary['candidate_score_percent']:.3f}%"
         )
-        return 0
+        exit_code = quick_screen_exit_code(summary)
+        if exit_code:
+            print(
+                "S3-FINAL quick-screen gate FAIL: candidate score is below "
+                f"{QUICK_SCREEN_THRESHOLD_PERCENT:.1f}%",
+                file=sys.stderr,
+            )
+        return exit_code
     except (OSError, ValueError) as exc:
         print(f"S3-FINAL match verification failed: {exc}", file=sys.stderr)
         return 1
