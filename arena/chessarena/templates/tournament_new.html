@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}ChessArena · New match{% endblock %}
+{% block content %}
+<h1>Create match</h1>
+
+<form method="post" action="{{ settings.base_path }}/admin/tournaments" class="panel">
+  <label>Match name
+    <input type="text" name="name" required maxlength="200" placeholder="CurrentFinal vs Current 3+2">
+  </label>
+
+  <h3>Engine A (candidate)</h3>
+  <label>Build
+    <select name="engine_a_build" required>
+      {% for b in builds %}
+        <option value="{{ b.build_id }}">{{ b.build_id }} ({{ b.git_sha[:8] }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Profile
+    <select name="engine_a_profile" required>
+      {% for b in builds %}
+        {% for p in b.supported_profiles %}
+          <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      {% endfor %}
+    </select>
+  </label>
+
+  <h3>Engine B (baseline)</h3>
+  <label>Build
+    <select name="engine_b_build" required>
+      {% for b in builds %}
+        <option value="{{ b.build_id }}">{{ b.build_id }} ({{ b.git_sha[:8] }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Profile
+    <select name="engine_b_profile" required>
+      {% for b in builds %}
+        {% for p in b.supported_profiles %}
+          <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      {% endfor %}
+    </select>
+  </label>
+
+  <h3>Configuration</h3>
+  <label>Opening set
+    <select name="opening_set_id" required>
+      {% for o in openings %}
+        <option value="{{ o.opening_set_id }}">{{ o.opening_set_id }} ({{ o.position_count }} positions)</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Time control
+    <select name="time_control" required>
+      {% for key, tc in time_controls.items() %}
+        <option value="{{ key }}">{{ tc.label }} ({{ tc.cutechess_tc }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Pairs (each pair = 2 games, strict color swap)
+    <input type="number" name="pairs" min="1" value="10" required>
+  </label>
+
+  <button type="submit">Create match</button>
+</form>
+{% endblock %}
