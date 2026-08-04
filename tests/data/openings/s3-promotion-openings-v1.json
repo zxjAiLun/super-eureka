@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "suite_id": "s3-promotion-openings-v1",
+  "format": "epd",
+  "selection": {
+    "source_path": "tests/data/openings/d1.14-openings-v1.epd",
+    "source_sha256": "e2795fb5fe83d61a87753b7a82ff0ffa860efaf9b407bd807e2502d006202659",
+    "source_line_start": 1000,
+    "source_line_end": 1499,
+    "count": 500,
+    "slice_sha256": "2c5a8e02c8b62ff934a70706e605f7be3eb8c6a36c11e701d802be2c785264c7",
+    "method": "committed disjoint source slice",
+    "position_identity": "FEN board, side, castling, and en-passant fields",
+    "prior_use_exclusions": {
+      "d1.14_formal": "partial run consumed only the first 413 sequential source positions",
+      "s3_final_quick_screen": "consumed only the first 50 sequential source positions",
+      "s2.1_and_s2.2": "used fixed-position manifests and did not consume this opening source"
+    }
+  },
+  "runtime_contract": {
+    "pairs": 500,
+    "games_max": 1000,
+    "repeat": 2,
+    "order": "sequential",
+    "strict_color_swap": true,
+    "time_control": "10+0.1",
+    "hash_mb": 16,
+    "threads": 1,
+    "sprt": {
+      "elo0": 20,
+      "elo1": 60,
+      "alpha": 0.05,
+      "beta": 0.05
+    }
+  }
+}

@@ -18,6 +18,8 @@
 !/results/s3-final/**
 /results/s3-final/cutechess.stdout.log
 /results/s3-final/cutechess.stderr.log
+!/results/s3-promotion/
+!/results/s3-promotion/**
 
 # D1.14 local tournament-manager cache (the executable is never committed)
 /tools/.cache/
