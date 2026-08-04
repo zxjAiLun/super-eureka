@@ -2,3 +2,6 @@
 # everywhere, so `cargo fmt --check` and other line-ending-sensitive tooling
 # behave identically on Windows and the Linux CI runner.
 * text=auto eol=lf
+
+# Windows batch shims (arena test fixture) must keep CRLF to run under cmd.exe
+*.cmd text eol=crlf
