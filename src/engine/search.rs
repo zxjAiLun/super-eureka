@@ -111,6 +111,10 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
+/// * `CurrentFinal` is the explicitly selected S3-FINAL candidate. It combines
+///   the existing aspiration, LMR, verified null-probe, shallow futility, and
+///   conservative qsearch SEE-pruning paths without enabling E2/threat
+///   evaluation or forcing-search features.
 ///
 /// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
 /// non-root nodes, NO PVS at either the root or a non-root node), while
@@ -146,6 +150,7 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
     CurrentAspirationLmrFutilitySee,
+    CurrentFinal,
 }
 
 impl SearchProfile {
@@ -171,6 +176,7 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
+                | Self::CurrentFinal
         )
     }
 
@@ -183,12 +189,13 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
+                | Self::CurrentFinal
         )
     }
 
     #[inline]
     pub(crate) const fn uses_null_move(self) -> bool {
-        matches!(self, Self::NullMoveCandidate)
+        matches!(self, Self::NullMoveCandidate | Self::CurrentFinal)
     }
 
     #[inline]
@@ -198,6 +205,7 @@ impl SearchProfile {
             Self::FutilityCandidate
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
+                | Self::CurrentFinal
         )
     }
 
@@ -217,6 +225,7 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmr
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
+                | Self::CurrentFinal
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -227,7 +236,7 @@ impl SearchProfile {
     pub(crate) const fn uses_qsearch_pruning(self) -> bool {
         matches!(
             self,
-            Self::CurrentQsearchPruning | Self::CurrentQsearchFastPruning
+            Self::CurrentQsearchPruning | Self::CurrentQsearchFastPruning | Self::CurrentFinal
         )
     }
 
@@ -5269,6 +5278,20 @@ mod tests {
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_lmr());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_futility());
         assert!(!SearchProfile::CurrentQsearchFastPruning.uses_null_move());
+        assert!(SearchProfile::CurrentFinal.uses_pvs());
+        assert!(!SearchProfile::CurrentFinal.uses_see());
+        assert!(SearchProfile::CurrentFinal.uses_aspiration());
+        assert!(SearchProfile::CurrentFinal.uses_lmr());
+        assert!(SearchProfile::CurrentFinal.uses_null_move());
+        assert!(SearchProfile::CurrentFinal.uses_futility());
+        assert!(SearchProfile::CurrentFinal.uses_qsearch_movegen());
+        assert!(SearchProfile::CurrentFinal.uses_qsearch_pruning());
+        assert!(!SearchProfile::CurrentFinal.uses_qsearch_fast_pruning());
+        assert!(!SearchProfile::CurrentFinal.uses_eval2());
+        assert!(!SearchProfile::CurrentFinal.uses_threat_aware_eval());
+        assert!(!SearchProfile::CurrentFinal.uses_threat_ordering());
+        assert!(!SearchProfile::CurrentFinal.uses_forcing_search());
+        assert!(!SearchProfile::CurrentFinal.uses_threat_aware_qsearch());
         for profile in [
             SearchProfile::CurrentAspiration,
             SearchProfile::CurrentAspirationLmr,

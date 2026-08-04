@@ -162,6 +162,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
         SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
         SearchProfile::CurrentAspirationLmrFutilitySee => "current-aspiration-lmr-futility-see",
+        SearchProfile::CurrentFinal => "current-final",
     }
 }
 
@@ -395,9 +396,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-aspiration-lmr-futility-see" => {
                         SearchProfile::CurrentAspirationLmrFutilitySee
                     }
+                    "current-final" => SearchProfile::CurrentFinal,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final)",
                             other
                         ));
                     }
@@ -1326,7 +1328,7 @@ fn print_help() {
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -1683,6 +1685,7 @@ mod tests {
                 "current-aspiration-lmr-futility-see",
                 SearchProfile::CurrentAspirationLmrFutilitySee,
             ),
+            ("current-final", SearchProfile::CurrentFinal),
         ] {
             let parsed = parse_args(&[
                 "profile".to_string(),
@@ -1760,6 +1763,7 @@ mod tests {
             profile_str(SearchProfile::CurrentAspirationLmrFutilitySee),
             "current-aspiration-lmr-futility-see"
         );
+        assert_eq!(profile_str(SearchProfile::CurrentFinal), "current-final");
     }
 
     #[test]

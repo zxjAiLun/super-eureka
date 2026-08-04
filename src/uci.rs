@@ -154,6 +154,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentAspirationLmrFutilitySee => {
             "current-aspiration-lmr-futility-see"
         }
+        search::SearchProfile::CurrentFinal => "current-final",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -424,10 +425,11 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-aspiration-lmr-futility-see" => {
                         search::SearchProfile::CurrentAspirationLmrFutilitySee
                     }
+                    "current-final" => search::SearchProfile::CurrentFinal,
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final)",
                             other
                         ));
                     }
@@ -908,6 +910,10 @@ mod tests {
         assert_eq!(
             startup_profile(&["--profile", "current-aspiration-lmr-futility-see"]),
             search::SearchProfile::CurrentAspirationLmrFutilitySee
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-final"]),
+            search::SearchProfile::CurrentFinal
         );
     }
 
