@@ -1,0 +1,20 @@
+<div class="runinfo">
+  <h2>Running match</h2>
+  <p>
+    <a href="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}"><strong>{{ tournament.name }}</strong></a>
+    · <span class="status status-{{ tournament.status|lower }}">{{ tournament.status }}</span>
+    · {{ tournament.time_control }}
+  </p>
+  <p>
+    Progress: {{ tournament.completed_pairs }} / {{ tournament.requested_pairs }} pairs
+    · W/L/D {{ tournament.candidate_wins }}/{{ tournament.candidate_losses }}/{{ tournament.draws }}
+    · Score
+    {% set played = tournament.candidate_wins + tournament.candidate_losses + tournament.draws %}
+    <strong>{{ ((tournament.candidate_wins + 0.5 * tournament.draws) / played * 100)|round(1) if played else "—" }}%</strong>
+  </p>
+  <p class="muted">Current pair:
+    {% set ns = namespace(current=None) %}
+    {% for p in pairs if p.status == "RUNNING" %}{% set ns.current = p %}{% endfor %}
+    {% if ns.current %}pair {{ ns.current.pair_index + 1 }} (opening {{ ns.current.opening_index }}, attempt {{ ns.current.attempt }}){% else %}none{% endif %}
+  </p>
+</div>
