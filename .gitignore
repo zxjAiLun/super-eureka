@@ -14,6 +14,10 @@
 !/results/s2.1/**
 !/results/s2.2b/
 !/results/s2.2b/teacher-rescore-500k.json
+!/results/s3-final/
+!/results/s3-final/**
+/results/s3-final/cutechess.stdout.log
+/results/s3-final/cutechess.stderr.log
 
 # D1.14 local tournament-manager cache (the executable is never committed)
 /tools/.cache/
