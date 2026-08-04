@@ -1,6 +1,8 @@
 import tempfile
 import unittest
 from pathlib import Path
+import subprocess
+import sys
 
 import run_s3_promotion as promotion
 
@@ -37,6 +39,34 @@ class S3PromotionTests(unittest.TestCase):
             self.assertTrue(runtime.is_file())
             self.assertEqual(digest, promotion.sha256_file(runtime))
             self.assertEqual(runtime.read_text(encoding="utf-8").splitlines(), selected)
+
+    def test_dry_run_does_not_create_requested_formal_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            requested_output = Path(temporary) / "formal-run"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(promotion.REPO_ROOT / "tools" / "run_s3_promotion.py"),
+                    "--dry-run",
+                    "--output-dir",
+                    str(requested_output),
+                ],
+                cwd=promotion.REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(requested_output.exists())
+            self.assertIn('"status": "DRY_RUN"', result.stdout)
+
+    def test_nonempty_formal_output_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output_dir = Path(temporary) / "formal-run"
+            output_dir.mkdir()
+            (output_dir / "marker.txt").write_text("real match artifact\n", encoding="utf-8")
+            with self.assertRaises(promotion.PromotionError):
+                promotion.refuse_reused_output(output_dir)
 
 
 if __name__ == "__main__":

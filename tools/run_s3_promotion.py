@@ -18,6 +18,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 import chess
@@ -32,6 +33,7 @@ DEFAULT_OUTPUT = REPO_ROOT / "results" / "s3-promotion" / "run-001"
 FROZEN_ENGINE_GIT_SHA = "91347775906f3f5d3730c9e9596037493429776d"
 FROZEN_ENGINE_SHA256 = "b4bf0c3e73158bf3f5c072aa863aca671721275efc5b2e6d5354cf53a0fd0933"
 MANAGER_VERSION = "1.5.1"
+FROZEN_MANAGER_SHA256 = "8889f9582dc688c567704cf083f6025baf77f791cde903698c70b3420caf5d7e"
 PROFILE_CANDIDATE = "current-final"
 PROFILE_BASELINE = "current"
 LABEL_CANDIDATE = "CurrentFinal"
@@ -161,7 +163,12 @@ def manager_metadata(manager: Path) -> dict[str, Any]:
     require(result.returncode == 0, f"manager version probe failed: {result.stderr.strip()}")
     version = result.stdout.strip()
     require(f"cutechess-cli {MANAGER_VERSION}" in version, f"unsupported manager: {version}")
-    return {**file_metadata(manager), "version": version}
+    metadata = {**file_metadata(manager), "version": version}
+    require(
+        metadata["sha256"] == FROZEN_MANAGER_SHA256,
+        "manager SHA-256 is not the frozen cutechess-cli binary",
+    )
+    return metadata
 
 
 def position_key(fen: str) -> str:
@@ -264,8 +271,11 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], list[str], Path, Path, Path]:
-    output_dir = args.output_dir.expanduser().resolve()
+def prepare(
+    args: argparse.Namespace,
+    output_dir_override: Path | None = None,
+) -> tuple[dict[str, Any], list[str], Path, Path, Path]:
+    output_dir = (output_dir_override or args.output_dir).expanduser().resolve()
     refuse_reused_output(output_dir)
     current_git_sha = assert_frozen_engine_source()
     engine = args.engine.expanduser().resolve()
@@ -367,12 +377,14 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
     try:
-        manifest, command, output_dir, engine, manager = prepare(args)
         if args.dry_run:
-            manifest["status"] = "DRY_RUN"
-            write_json(output_dir / "manifest.json", manifest)
-            print(json.dumps(manifest, ensure_ascii=False, indent=2))
+            with tempfile.TemporaryDirectory(prefix="s3-promotion-preflight-") as temporary:
+                manifest, _, _, _, _ = prepare(args, Path(temporary))
+                manifest["status"] = "DRY_RUN"
+                manifest["requested_output_dir"] = str(args.output_dir.expanduser().resolve())
+                print(json.dumps(manifest, ensure_ascii=False, indent=2))
             return 0
+        manifest, command, output_dir, engine, manager = prepare(args)
         result = run_manager(manifest, command, output_dir, engine, manager)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

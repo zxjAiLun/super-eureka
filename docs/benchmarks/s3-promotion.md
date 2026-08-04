@@ -17,10 +17,12 @@ baseline profile:   current
 `tools/run_s3_promotion.py` refuses to run if the worktree is dirty, the
 engine source differs from the frozen commit, the binary hash differs, either
 UCI identity probe reports the wrong profile, or the manager provenance is not
-the pinned cutechess-cli 1.5.1 binary.
+the pinned cutechess-cli 1.5.1 binary with SHA-256
+`8889f9582dc688c567704cf083f6025baf77f791cde903698c70b3420caf5d7e`.
 
-The default mode is `--dry-run`; starting the manager requires an explicit
-`--run`.
+The CLI requires an explicit mode. `--dry-run` performs a non-persistent
+preflight in a system temporary directory; starting the manager requires an
+explicit `--run`.
 
 ## New opening selection
 
