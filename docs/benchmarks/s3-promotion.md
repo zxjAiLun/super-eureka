@@ -1,10 +1,9 @@
 # S3-PROMOTION — frozen final candidate launcher
 
-Status: **COMPLETE — H1 ACCEPTED; CURRENT UNCHANGED**
+Status: **COMPLETE — H1 ACCEPTED; CURRENT-FINAL PROMOTED**
 
-This document records the final promotion configuration and its completed
-candidate-first SPRT result. It does not automatically replace the default
-`Current` profile.
+This document records the final promotion configuration, its completed
+candidate-first SPRT result, and the follow-up default-profile promotion.
 
 ## Frozen engine
 
@@ -103,5 +102,17 @@ The complete run artifacts are [`manifest.json`](../../results/s3-promotion/run-
 [`manager.stderr.log`](../../results/s3-promotion/run-001/manager.stderr.log),
 and [`match.pgn`](../../results/s3-promotion/run-001/match.pgn).
 
-This result qualifies `CurrentFinal` for a separately reviewed production
-promotion commit, but `Current` remains unchanged in this artifact commit.
+## Production default
+
+The follow-up promotion changes only the UCI startup selector:
+
+```text
+no startup arguments          -> current-final
+--profile current-final       -> current-final
+--profile current             -> current
+```
+
+The search implementation, feature conditions, evaluation, and all explicit
+profile semantics remain unchanged. `Current` is retained as the historical
+baseline and explicit rollback profile; a no-argument release executable now
+uses the SPRT-approved `CurrentFinal` configuration.

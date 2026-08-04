@@ -111,7 +111,7 @@ fn assert_startup_rejected(args: &[&str]) {
 
 #[test]
 fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
-    run_profile_process(&[], "current", false);
+    run_profile_process(&[], "current-final", false);
     run_profile_process(&["--profile", "current"], "current", false);
     run_profile_process(&["--profile", "current-lmr"], "current-lmr", true);
     run_profile_process(

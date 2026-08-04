@@ -196,7 +196,7 @@ fn write_uci_handshake_with_profile<W: Write>(
 /// Compatibility wrapper for tests and callers that use the default profile.
 #[cfg(test)]
 fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
-    write_uci_handshake_with_profile(out, startup_tt_failed, search::SearchProfile::Current)
+    write_uci_handshake_with_profile(out, startup_tt_failed, search::SearchProfile::CurrentFinal)
 }
 
 /// Consumable variant used by `run()`. It takes a mutable `startup_tt_notice_pending`
@@ -388,12 +388,12 @@ fn handle_setoption(
 }
 
 /// Parse the optional command-line profile used when launching a tournament
-/// candidate. The default remains `Current`; only explicitly approved
-/// candidate profiles are selectable here. Dormant null/standalone search
-/// candidates and the closed D1.3 qsearch-pruning profile remain separate
-/// from `Current`.
+/// candidate. The default is the promoted `CurrentFinal`; explicitly selected
+/// `current` remains available as the historical production baseline. Dormant
+/// null/standalone search candidates and the closed D1.3 qsearch-pruning
+/// profile remain separate from both profiles.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
-    let mut profile = search::SearchProfile::Current;
+    let mut profile = search::SearchProfile::CurrentFinal;
     let mut profile_seen = false;
     let mut it = args.iter();
 
@@ -466,19 +466,19 @@ fn print_startup_help() {
     println!("  current-aspiration-lmr");
     println!("  current-aspiration-lmr-futility");
     println!("  current-aspiration-lmr-futility-see");
-    println!("Default: current");
+    println!("Default: current-final");
 }
 
-/// Run the UCI loop using the default production profile.
+/// Run the UCI loop using the promoted default production profile.
 pub fn run() {
-    run_with_profile(search::SearchProfile::Current);
+    run_with_profile(search::SearchProfile::CurrentFinal);
 }
 
 /// Parse startup arguments and run the UCI loop with the selected profile.
 ///
 /// The profile is fixed for the process lifetime, which makes the executable
-/// directly usable by fastchess/OpenBench as either the approved `Current`
-/// binary or a cumulative candidate binary launched with `--profile`.
+/// directly usable by fastchess/OpenBench as either the promoted default
+/// binary or an explicitly selected historical/candidate profile.
 pub fn run_with_args(args: &[String]) -> Result<(), String> {
     match parse_startup_profile(args)? {
         StartupCommand::Run(profile) => run_with_profile(profile),
@@ -873,11 +873,11 @@ mod tests {
     }
 
     #[test]
-    fn startup_profile_defaults_to_current_and_accepts_cumulative_candidates() {
+    fn startup_profile_defaults_to_current_final_and_accepts_cumulative_candidates() {
         assert_eq!(
             startup_profile(&[]),
-            search::SearchProfile::Current,
-            "no startup arguments must preserve Current"
+            search::SearchProfile::CurrentFinal,
+            "no startup arguments must select promoted CurrentFinal"
         );
         assert_eq!(
             startup_profile(&["--profile", "current"]),

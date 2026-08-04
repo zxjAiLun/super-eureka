@@ -234,8 +234,8 @@ bestmove b1c3
   `current-final` 组合候选在新的 500-position opening slice 上完成 106 局，
   以 62-28-16（66.038%）触及 `H1=+60 Elo` 边界；PGN、manager 日志、完整命令、
   SHA-256 provenance 和独立合法性/配对 verifier 均已保存。该结果只说明候选通过
-  本次正式推广门禁；`Current` 是否替换仍需单独的生产 promotion commit 和复审，
-  本次不自动修改默认 profile。见
+  本次正式推广门禁。随后默认 UCI 启动已切换到 `current-final`；显式
+  `--profile current` 仍保留旧生产基线，便于历史复现和回退。见
   [`s3-promotion.md`](docs/benchmarks/s3-promotion.md)。
 - **S2.1 Threat-Aware Search（候选开发中）**：新增显式
   `current-threat-aware` 启动 profile，包含候选 king-danger 评价、最多四个共享预算的

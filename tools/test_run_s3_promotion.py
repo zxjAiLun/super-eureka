@@ -56,6 +56,14 @@ class S3PromotionTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
+            if promotion.git_output("rev-parse", "HEAD") != promotion.FROZEN_ENGINE_GIT_SHA:
+                # Once production promotion advances the source beyond the
+                # historical S3 run, the frozen launcher must fail closed
+                # rather than silently prepare a different experiment.
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn("source differs from frozen S3-FINAL", result.stderr)
+                self.assertFalse(requested_output.exists())
+                return
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(requested_output.exists())
             self.assertIn('"status": "DRY_RUN"', result.stdout)
