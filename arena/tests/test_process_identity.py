@@ -240,6 +240,64 @@ def test_linux_terminate_escalates_for_ignoring_child(tmp_path):
             pass
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs process groups")
+def test_linux_retry_with_dead_leader_and_live_child(tmp_path):
+    """P1: the entry point must NOT treat a reaped leader as group success.
+
+    Sequence: leader is killed and reaped (proc.poll() != None) while a
+    SIGTERM-ignoring child in the same PGID survives; a second cleanup call
+    must still clear the whole group instead of short-circuiting on the dead
+    leader handle.
+    """
+    ready_file = tmp_path / "child-ready"
+    child_code = (
+        "import signal, time, os\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "open(os.environ['READY_FILE'], 'w').write('ready')\n"
+        "time.sleep(30)\n"
+    )
+    leader = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import subprocess, time, sys, os\n"
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1]])\n"
+            "time.sleep(30)\n",
+            child_code,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        env={**os.environ, "READY_FILE": str(ready_file)},
+    )
+    pgid = leader.pid
+    try:
+        deadline = time.time() + 10
+        while not ready_file.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        assert ready_file.exists(), "child never signalled readiness"
+        assert cc._group_alive(pgid) is True
+
+        # Kill and reap ONLY the leader; the child survives in the same PGID.
+        leader.kill()
+        leader.wait()
+        assert leader.poll() is not None
+        assert cc._group_alive(pgid) is True, "child should still be alive"
+
+        # The retry must not short-circuit on the dead leader handle.
+        start = time.monotonic()
+        ok = cc.terminate_process_group(leader, 1.0)
+        elapsed = time.monotonic() - start
+        assert ok is True
+        assert elapsed < 12.0
+        assert cc._group_alive(pgid) is False
+    finally:
+        try:
+            os.killpg(pgid, 9)
+        except (ProcessLookupError, OSError):
+            pass
+
+
 def _pid_alive(pid: int) -> bool:
     from chessarena.services import cutechess as cc
 
