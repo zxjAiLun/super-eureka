@@ -22,6 +22,7 @@ counted.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -98,6 +99,15 @@ class Scheduler:
         self._close_output_handles(proc)
         pair = session.get(PairJob, self.active_pair_job_id)
         tournament = session.get(Tournament, self.active_tournament_id)
+        # P1: persist the manager exit code in its own transaction BEFORE any
+        # verification or scoring.  If the worker dies after this commit,
+        # recovery can trust the recorded exit code instead of guessing from
+        # the PGN.
+        if pair is not None:
+            pair.return_code = rc
+            session.commit()
+            pair = session.get(PairJob, self.active_pair_job_id)
+            tournament = session.get(Tournament, self.active_tournament_id)
         if pair is not None and tournament is not None and pair.status == RUNNING:
             self._finish_pair(session, tournament, pair, return_code=rc)
         else:
@@ -203,7 +213,9 @@ class Scheduler:
                 verification=verification, return_code=return_code,
             )
             return
-        self._complete_pair(session, tournament, pair, run_dir, verification)
+        self._complete_pair(
+            session, tournament, pair, run_dir, verification, return_code
+        )
 
     def _run_verifier(self, session, tournament, pair, run_dir,
                       engine_a, engine_b, opening_set):
@@ -261,9 +273,13 @@ class Scheduler:
         )
         self._write_pair_verification(pair)
 
-    def _complete_pair(self, session, tournament, pair, run_dir, verification) -> None:
+    def _complete_pair(self, session, tournament, pair, run_dir, verification,
+                       return_code: int | None = None) -> None:
         """Record games, aggregate score, and finish the tournament if done."""
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
+
+        pair.return_code = return_code if return_code is not None else 0
+        verification["return_code"] = pair.return_code
 
         pgn_path = run_dir / "match.pgn"
         colors = [
@@ -332,18 +348,7 @@ class Scheduler:
         )
 
         if tournament.completed_pairs >= tournament.requested_pairs:
-            # P2.2: an explicit cancel wins over automatic completion.
-            if tournament.cancel_requested:
-                tournament.status = CANCELLED
-                tournament.finished_at = now
-                tournament.pause_requested = False
-            else:
-                tournament.status = COMPLETED
-                tournament.finished_at = now
-                tournament.cancel_requested = False
-                tournament.pause_requested = False
-                _record_event(session, tournament.id, "tournament_completed")
-                artifacts.generate_tournament_artifacts(tournament)
+            self._finalize_tournament(session, tournament, now)
 
     def _write_pair_verification(self, pair: PairJob) -> None:
         if not pair.run_directory:
@@ -351,6 +356,63 @@ class Scheduler:
         artifacts.write_json(
             Path(pair.run_directory), "verification.json", pair.verification or {}
         )
+
+    def _finalize_tournament(self, session, tournament: Tournament, now) -> None:
+        """Transition the tournament to COMPLETED or CANCELLED atomically.
+
+        Cancel/force-cancel requests can arrive from the API at any moment.
+        The API commits them with a conditional UPDATE, and this worker-side
+        transition also uses a conditional UPDATE: whichever acquires the
+        SQLite write lock first wins, and the loser's WHERE clause fails, so
+        the final row can never be COMPLETED with a pending cancel flag
+        (P2.2 race).
+        """
+        from sqlalchemy import update
+
+        # Re-read control flags fresh; they may have changed since the worker
+        # last loaded this tournament.
+        session.expire(
+            tournament,
+            ["cancel_requested", "force_cancel_requested", "pause_requested"],
+        )
+        if tournament.cancel_requested or tournament.force_cancel_requested:
+            tournament.status = CANCELLED
+            tournament.finished_at = now
+            tournament.pause_requested = False
+            tournament.force_cancel_requested = False
+            _record_event(
+                session, tournament.id, "tournament_cancelled",
+                reason="concurrent cancel",
+            )
+            return
+
+        result = session.execute(
+            update(Tournament)
+            .where(Tournament.id == tournament.id)
+            .where(Tournament.cancel_requested.is_(False))
+            .where(Tournament.force_cancel_requested.is_(False))
+            .values(
+                status=COMPLETED,
+                finished_at=now,
+                cancel_requested=False,
+                pause_requested=False,
+                force_cancel_requested=False,
+            )
+        )
+        if result.rowcount == 1:
+            tournament.status = COMPLETED
+            tournament.finished_at = now
+            _record_event(session, tournament.id, "tournament_completed")
+            session.expire(tournament)
+            artifacts.generate_tournament_artifacts(tournament)
+        else:
+            tournament.status = CANCELLED
+            tournament.finished_at = now
+            tournament.pause_requested = False
+            _record_event(
+                session, tournament.id, "tournament_cancelled",
+                reason="concurrent cancel",
+            )
 
     # ------------------------------------------------------------------
     # Launch next pair
@@ -598,6 +660,31 @@ class Scheduler:
         self.active_tournament_id = tournament.id
         self.active_pair_job_id = pair.id
         self.active_run_dir = run_dir
+        self._record_active_process(session, pair)
+
+    def _record_active_process(self, session, pair: PairJob) -> None:
+        """Persist the cutechess process identity in worker_state at launch.
+
+        Written in the same transaction that marks the pair RUNNING, so there
+        is no launch-to-heartbeat window in which recovery has no identity to
+        clean up after an abnormal worker death (P1).
+        """
+        from ..models import WorkerState
+
+        state = session.get(WorkerState, 1)
+        if state is None:
+            state = WorkerState(id=1)
+            session.add(state)
+        proc = self.active_proc
+        state.status = "running"
+        state.heartbeat_at = utcnow()
+        state.pid = proc.pid if proc is not None else None
+        state.tournament_id = self.active_tournament_id
+        state.pair_job_id = self.active_pair_job_id
+        state.pid_start_marker = cc.process_start_marker(proc.pid) if proc else None
+        cmdline = cc.process_cmdline(proc.pid) if proc else None
+        state.pid_cmdline = json.dumps(cmdline) if cmdline else None
+        session.flush()
 
     # ------------------------------------------------------------------
     # Shutdown

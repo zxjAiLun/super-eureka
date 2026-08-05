@@ -11,6 +11,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -199,3 +200,65 @@ def read_output_lines(path: Path, max_bytes: int = 4 * 1024 * 1024) -> List[str]
     if len(text) > max_bytes:
         text = text[-max_bytes:]
     return [line.rstrip("\n") for line in text.splitlines()]
+
+
+# ---------------------------------------------------------------------------
+# Process identity (P1: safe orphan cleanup)
+# ---------------------------------------------------------------------------
+def process_start_marker(pid: int) -> str | None:
+    """A value that uniquely identifies a process across time.
+
+    On Linux this is the kernel starttime (``/proc/<pid>/stat`` field 22),
+    which is NOT reused after process exit, so an old PID that has been
+    recycled for an unrelated process will have a different marker.  Returns
+    None on platforms without /proc.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
+        rparen = stat.rfind(")")
+        if rparen < 0:
+            return None
+        # Fields after the comm field: field 3 onwards.  starttime is field 22.
+        fields = stat[rparen + 2:].split()
+        if len(fields) >= 20:
+            return fields[19]
+    except OSError:
+        return None
+    return None
+
+
+def process_cmdline(pid: int) -> list[str] | None:
+    """The argv of ``pid`` (Linux /proc), or None when unavailable."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        args = [a for a in raw.split(b"\x00") if a]
+        return [a.decode("utf-8", errors="replace") for a in args]
+    except OSError:
+        return None
+
+
+def verify_process_identity(pid: int, recorded_marker: str | None,
+                            recorded_cmdline: list[str] | None) -> bool:
+    """Confirm ``pid`` still refers to the same process that was recorded.
+
+    On Linux both the start marker and the cmdline must match.  When no
+    identity was recorded (non-Linux test environments), we cannot prove
+    ownership, so the caller should not kill on that basis alone; this returns
+    True only when both pieces of evidence are available and consistent.
+    """
+    if recorded_marker is None and not recorded_cmdline:
+        return False  # no identity evidence recorded -> do not kill blindly
+    current_marker = process_start_marker(pid)
+    if recorded_marker is not None and current_marker != recorded_marker:
+        return False  # PID was reused by an unrelated process
+    current_cmdline = process_cmdline(pid)
+    if recorded_cmdline is not None:
+        if current_cmdline is None or current_cmdline != recorded_cmdline:
+            return False
+    # cmdline/starttime agree; on platforms where we could not record either
+    # (we returned early above) this function is not reached.
+    return True
