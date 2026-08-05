@@ -7,8 +7,11 @@
 #   3. wait up to 15s, then SIGKILL,
 #   4. mark the current attempt INTERRUPTED (not scored).
 #
-# KillMode=process lets the worker's own signal handler terminate its
-# children gracefully instead of systemd killing the whole cgroup abruptly.
+# KillMode=mixed sends SIGTERM to the main process (the worker's handler then
+# terminates its cutechess children gracefully) and, if the worker dies
+# abnormally (OOM/crash/SIGKILL), systemd still kills the whole cgroup so no
+# orphaned cutechess survives to race a restarted worker (P1.4).  The
+# worker also terminates orphans recorded in worker_state during recovery.
 [Unit]
 Description=ChessArena worker
 After=network.target
@@ -23,7 +26,7 @@ ExecStart=/opt/chessarena/venv/bin/python -m chessarena.worker
 Restart=always
 RestartSec=5
 MemoryMax=1700M
-KillMode=process
+KillMode=mixed
 TimeoutStopSec=20
 
 [Install]

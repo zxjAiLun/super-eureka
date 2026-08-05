@@ -105,7 +105,9 @@ jobs:
             "created_utc": "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
           }
           EOF
-          tar -C /tmp/build-stage -czf /tmp/build-${GITHUB_SHA:0:7}.tar.gz .
+          # Use the build_id for the tarball so the upload step and the SSH
+          # install step reference the same file (P1.7).
+          tar -C /tmp/build-stage -czf /tmp/build-${{ steps.meta.outputs.build_id }}.tar.gz .
 
       - name: Upload build package
         uses: appleboy/scp-action@v0.1.7
@@ -113,9 +115,9 @@ jobs:
           host: ${{ secrets.ARENA_DEPLOY_HOST }}
           username: ${{ secrets.ARENA_DEPLOY_USER }}
           key: ${{ secrets.ARENA_DEPLOY_KEY }}
-          source: /tmp/build-${{ github.sha }}.tar.gz
+          source: /tmp/build-${{ steps.meta.outputs.build_id }}.tar.gz
           target: /opt/chessarena/incoming/
-          strip_components: 0
+          rm: false
 
       - name: Install and register on server
         uses: appleboy/ssh-action@v1.0.3
@@ -126,11 +128,17 @@ jobs:
           command_timeout: "10m"
           script: |
             set -euo pipefail
-            TARBALL="/opt/chessarena/incoming/build-${{ github.sha }}.tar.gz"
-            STAGE="/opt/chessarena/incoming/stage-${{ github.sha }}"
+            TARBALL="/opt/chessarena/incoming/build-${{ steps.meta.outputs.build_id }}.tar.gz"
+            STAGE="/opt/chessarena/incoming/stage-${{ steps.meta.outputs.build_id }}"
             BUILD_ID="${{ steps.meta.outputs.build_id }}"
             DEST="/opt/chessarena/builds/$BUILD_ID"
 
+            if [ ! -f "$TARBALL" ]; then
+              echo "uploaded tarball not found: $TARBALL"
+              exit 1
+            fi
+            # All file operations run as chessarena (the deploy user's sudoers
+            # only allows -u chessarena plus restarting the two services).
             sudo -u chessarena rm -rf "$STAGE"
             sudo -u chessarena mkdir -p "$STAGE"
             sudo -u chessarena tar -xzf "$TARBALL" -C "$STAGE"
@@ -150,11 +158,14 @@ jobs:
               exit 1
             fi
             sudo -u chessarena mv "$STAGE/engine" "$DEST"
-            sudo chmod 0555 "$DEST/engine"
-            sudo chmod 0444 "$DEST/manifest.json"
+            sudo -u chessarena chmod 0555 "$DEST/engine"
+            sudo -u chessarena chmod 0444 "$DEST/manifest.json"
 
-            # Register in the database.
-            sudo -u chessarena env $(cat /etc/chessarena/chessarena.env | grep -v '^#' | xargs) \
-              /opt/chessarena/venv/bin/python \
+            # Register in the database (with the app env).
+            set -a
+            # shellcheck disable=SC1091
+            . /etc/chessarena/chessarena.env
+            set +a
+            sudo -u chessarena /opt/chessarena/venv/bin/python \
               /opt/chessarena/app/current/scripts/install_build.py "$DEST" --probe
             echo "build installed: $DEST"

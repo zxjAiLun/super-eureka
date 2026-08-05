@@ -37,6 +37,35 @@ sudo chown -R chessarena:chessarena /opt/chessarena /var/lib/chessarena /var/log
 The `chessarena` user must NOT have sudo rights. It only needs write access to
 `/var/lib/chessarena` and `/opt/chessarena/app`.
 
+### Deploy user (for GitHub Actions)
+
+The workflows SSH into the server as a non-root `deploy` user. Create it with a
+minimal sudoers entry (P1.7): the workflows do all file operations as
+`chessarena` (no root), and only restart the two services as root.
+
+```bash
+sudo useradd --create-home --shell /bin/bash deploy
+sudo mkdir -p /opt/chessarena/incoming
+# Shared group: deploy uploads into incoming/, chessarena extracts from it.
+sudo chown deploy:chessarena /opt/chessarena/incoming
+sudo chmod 775 /opt/chessarena/incoming
+
+# Minimal sudoers:
+#   - run anything as chessarena (all file/venv/migration work),
+#   - restart the two arena services only.
+cat > /etc/sudoers.d/chessarena-deploy <<'EOF'
+deploy ALL=(chessarena) NOPASSWD: ALL
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart chessarena-api
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart chessarena-worker
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl is-active chessarena-*
+EOF
+sudo chmod 0440 /etc/sudoers.d/chessarena-deploy
+```
+
+Verify with `sudo -l -U deploy` (as root) that the `deploy` user can run
+`sudo -u chessarena ...` and `sudo systemctl restart chessarena-api` without a
+password.
+
 ## 3. Create the Python virtualenv
 
 ```bash
@@ -95,19 +124,50 @@ sudo chown root:chessarena /etc/chessarena/.htpasswd
 sudo chmod 640 /etc/chessarena/.htpasswd
 ```
 
-## 9. GitHub deploy key
+## 9. GitHub Actions -> server SSH access
 
-Create a deploy key for the `chessarena` user so GitHub Actions can deploy
-without credentials:
+The workflows SSH from GitHub Actions **into** the server, so you need a
+keypair where:
+
+- the **private** key is stored in the GitHub repository secrets as
+  `ARENA_DEPLOY_KEY`, and
+- the **public** key is installed in the `deploy` user's `authorized_keys`.
+
+Generate the keypair on your workstation (NOT on the server):
 
 ```bash
-sudo -u chessarena ssh-keygen -t ed25519 -f /opt/chessarena/.ssh/id_ed25519 -N ""
+ssh-keygen -t ed25519 -f ./arena_deploy_ed25519 -N "" -C "chessarena-deploy"
+cat ./arena_deploy_ed25519.pub
 ```
 
-Add the public key as a **deploy key** on the repository (read-only is
-sufficient for `git` fetch; the workflow pushes artifacts via rsync, so grant
-write access to the repo and add the private key to the repository secret
-`ARENA_DEPLOY_KEY` plus host key to `ARENA_SERVER_HOST_KEY`).
+Then on the server, install the public key for the `deploy` user:
+
+```bash
+sudo -u deploy mkdir -p /home/deploy/.ssh
+sudo -u deploy sh -c 'echo "<paste the public key>" >> /home/deploy/.ssh/authorized_keys'
+sudo -u deploy chmod 700 /home/deploy/.ssh
+sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+Add the private key and host metadata as repository secrets:
+
+```text
+ARENA_DEPLOY_KEY        <contents of ./arena_deploy_ed25519>
+ARENA_DEPLOY_HOST       pearllover.site
+ARENA_DEPLOY_USER       deploy
+ARENA_SERVER_HOST_KEY   <output of: ssh-keyscan pearllover.site>
+```
+
+Note on GitHub "deploy keys": those are for letting the **server** clone the
+repository, which this setup does not need. The workflows upload artifacts via
+rsync/scp; the reverse direction (Actions -> server) is configured above.
+
+Verify the connection before running the workflows:
+
+```bash
+ssh -i ./arena_deploy_ed25519 deploy@pearllover.site \
+  'sudo systemctl is-active chessarena-api chessarena-worker'
+```
 
 ## 10. Register the initial build and opening set
 

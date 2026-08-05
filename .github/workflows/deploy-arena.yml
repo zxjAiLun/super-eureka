@@ -16,10 +16,11 @@
 #
 # Secrets required:
 #   ARENA_DEPLOY_HOST        e.g. pearllover.site
-#   ARENA_DEPLOY_USER        e.g. deploy (a non-root user allowed to sudo -u chessarena)
-#   ARENA_DEPLOY_KEY         private SSH key for that user
+#   ARENA_DEPLOY_USER        e.g. deploy (a non-root user allowed the sudoers
+#                            rules described in deploy/bootstrap.md)
+#   ARENA_DEPLOY_KEY         private SSH key for that user (public key goes in
+#                            the deploy user's authorized_keys)
 #   ARENA_SERVER_HOST_KEY    known_hosts entry for the server
-#   ARENA_ADMIN_PASSWORD     Basic Auth password (optional override on the box)
 
 name: deploy-arena
 
@@ -30,6 +31,32 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  clean-install:
+    name: clean venv install + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create a fresh virtualenv and install dependencies
+        run: |
+          python -m venv /tmp/arena-venv
+          /tmp/arena-venv/bin/pip install --upgrade pip
+          /tmp/arena-venv/bin/pip install -r arena/requirements-dev.txt
+          /tmp/arena-venv/bin/pip install -e arena/
+
+      - name: Smoke import from the clean venv
+        run: |
+          /tmp/arena-venv/bin/python -c "import chess; import chessarena; from chessarena.main import create_app; create_app()"
+
+      - name: Run arena tests from the clean venv
+        working-directory: arena
+        run: /tmp/arena-venv/bin/python -m pytest tests/ -q
+
   test-and-deploy:
     runs-on: ubuntu-latest
     steps:
@@ -62,7 +89,7 @@ jobs:
           key: ${{ secrets.ARENA_DEPLOY_KEY }}
           source: /tmp/arena.tar.gz
           target: /tmp/arena-deploy/
-          strip_components: 1
+          rm: false
 
       - name: Deploy, migrate, switch, restart, health-check (with rollback)
         uses: appleboy/ssh-action@v1.0.3
@@ -86,26 +113,33 @@ jobs:
             fi
             sudo -u chessarena /opt/chessarena/venv/bin/pip install -e "$RELEASE"
 
-            # migrations
-            sudo -u chessarena env $(cat /etc/chessarena/chessarena.env | grep -v '^#' | xargs) \
-              /opt/chessarena/venv/bin/alembic -c "$RELEASE/alembic.ini" upgrade head
+            # migrations (run as chessarena with the app env)
+            set -a
+            # shellcheck disable=SC1091
+            . /etc/chessarena/chessarena.env
+            set +a
+            sudo -u chessarena /opt/chessarena/venv/bin/alembic \
+              -c "$RELEASE/alembic.ini" upgrade head
 
             # atomic switch
             sudo -u chessarena ln -sfn "$RELEASE" /opt/chessarena/app/current
 
-            # restart services
-            sudo systemctl restart chessarena-api chessarena-worker
+            # restart services (each via its own sudoers-allowed command)
+            sudo systemctl restart chessarena-api
+            sudo systemctl restart chessarena-worker
 
-            # health check
+            # health check - Basic Auth lives at the Nginx layer, so the
+            # internal check against 127.0.0.1:8787 needs no credentials.
             sleep 3
-            HEALTH=$(curl -fsS -u "arena-admin:$ARENA_ADMIN_PASSWORD" \
+            HEALTH=$(curl -fsS \
               "http://127.0.0.1:8787/chessarena/api/v1/health" || true)
             if ! echo "$HEALTH" | grep -q '"database": "ok"'; then
               echo "health check failed: $HEALTH"
               if [ -n "$PREV" ] && [ -d "$PREV" ]; then
                 echo "rolling back to $PREV"
                 sudo -u chessarena ln -sfn "$PREV" /opt/chessarena/app/current
-                sudo systemctl restart chessarena-api chessarena-worker
+                sudo systemctl restart chessarena-api
+                sudo systemctl restart chessarena-worker
                 sleep 3
               fi
               exit 1
