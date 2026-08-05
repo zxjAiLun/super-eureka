@@ -30,7 +30,6 @@ from ..models import (
     PENDING,
     QUEUED,
     RUNNING,
-    TOURNAMENT_TRANSITIONS,
     EngineBuild,
     Event,
     Game,
@@ -117,27 +116,6 @@ def _validate_profile_or_422(build: EngineBuild, profile: str, label: str) -> No
             detail=(
                 f"{label}: profile '{profile}' not in build "
                 f"{build.build_id} supported_profiles {build.supported_profiles}"
-            ),
-        )
-
-
-def _require_transition(session, tournament: Tournament, new_status: str,
-                        action: str, from_statuses: set[str] | None = None) -> None:
-    allowed = TOURNAMENT_TRANSITIONS.get(tournament.status, set())
-    if new_status not in allowed:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"cannot {action} tournament in status '{tournament.status}'"
-                f" (allowed next states: {sorted(allowed)})"
-            ),
-        )
-    if from_statuses is not None and tournament.status not in from_statuses:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"cannot {action} tournament from status '{tournament.status}'"
-                f" (expected one of {sorted(from_statuses)})"
             ),
         )
 
@@ -279,14 +257,46 @@ def create_tournament(
 
 # ---------------------------------------------------------------------------
 # Lifecycle actions (sections 16.5, 10.1)
+#
+# Each action is an atomic conditional UPDATE: it only applies when the
+# tournament is in the expected status at write time.  Combined with the
+# worker's conditional COMPLETED transition this closes the cancel/force-cancel
+# race - whichever side acquires the SQLite write lock first wins, and the
+# loser's WHERE clause fails (the end state is never COMPLETED with a pending
+# cancel flag).
 # ---------------------------------------------------------------------------
+def _conditional_update(session, tournament_id: str, from_statuses, values):
+    from sqlalchemy import update
+
+    return session.execute(
+        update(Tournament)
+        .where(Tournament.id == tournament_id)
+        .where(Tournament.status.in_(list(from_statuses)))
+        .values(**values)
+    ).rowcount
+
+
+def _reload_tournament(session, tournament_id) -> Tournament:
+    session.expire_all()
+    tournament = session.get(Tournament, tournament_id)
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="tournament not found")
+    return tournament
+
+
 @router.post("/tournaments/{tournament_id}/start", response_model=TournamentOut,
     dependencies=[Depends(require_same_origin)],
 )
 def start_tournament(tournament_id: str, session: Session = Depends(get_db)):
-    tournament = _get_tournament_or_404(session, tournament_id)
-    _require_transition(session, tournament, QUEUED, "start", from_statuses={DRAFT})
-    tournament.status = QUEUED
+    if _conditional_update(
+        session, tournament_id, {DRAFT}, {"status": QUEUED}
+    ) != 1:
+        tournament = _reload_tournament(session, tournament_id)
+        raise HTTPException(
+            status_code=409,
+            detail=f"cannot start tournament in status '{tournament.status}'",
+        )
+    tournament = _reload_tournament(session, tournament_id)
     _record_event(session, tournament.id, "tournament_started")
     return _to_out(tournament)
 
@@ -295,12 +305,18 @@ def start_tournament(tournament_id: str, session: Session = Depends(get_db)):
     dependencies=[Depends(require_same_origin)],
 )
 def pause_tournament(tournament_id: str, session: Session = Depends(get_db)):
-    tournament = _get_tournament_or_404(session, tournament_id)
-    _require_transition(session, tournament, PAUSING, "pause")
-    tournament.status = PAUSING
-    tournament.pause_requested = True
+    if _conditional_update(
+        session, tournament_id, {RUNNING},
+        {"status": PAUSING, "pause_requested": True},
+    ) != 1:
+        tournament = _reload_tournament(session, tournament_id)
+        raise HTTPException(
+            status_code=409,
+            detail=f"cannot pause tournament in status '{tournament.status}'",
+        )
     # The worker emits tournament_paused when the pause actually takes effect
     # (after the current pair completes).
+    tournament = _reload_tournament(session, tournament_id)
     return _to_out(tournament)
 
 
@@ -308,10 +324,16 @@ def pause_tournament(tournament_id: str, session: Session = Depends(get_db)):
     dependencies=[Depends(require_same_origin)],
 )
 def resume_tournament(tournament_id: str, session: Session = Depends(get_db)):
-    tournament = _get_tournament_or_404(session, tournament_id)
-    _require_transition(session, tournament, QUEUED, "resume", from_statuses={PAUSED})
-    tournament.status = QUEUED
-    tournament.pause_requested = False
+    if _conditional_update(
+        session, tournament_id, {PAUSED},
+        {"status": QUEUED, "pause_requested": False},
+    ) != 1:
+        tournament = _reload_tournament(session, tournament_id)
+        raise HTTPException(
+            status_code=409,
+            detail=f"cannot resume tournament in status '{tournament.status}'",
+        )
+    tournament = _reload_tournament(session, tournament_id)
     _record_event(session, tournament.id, "tournament_resumed")
     return _to_out(tournament)
 
@@ -320,17 +342,28 @@ def resume_tournament(tournament_id: str, session: Session = Depends(get_db)):
     dependencies=[Depends(require_same_origin)],
 )
 def cancel_tournament(tournament_id: str, session: Session = Depends(get_db)):
-    tournament = _get_tournament_or_404(session, tournament_id)
-    _require_transition(session, tournament, CANCELLED, "cancel")
-    tournament.cancel_requested = True
-    _record_event(session, tournament.id, "tournament_cancelled", reason="requested")
-    if tournament.status in (QUEUED, PAUSED):
-        # Nothing is running; cancel immediately.
-        tournament.status = CANCELLED
-        tournament.finished_at = utcnow()
-    # RUNNING/PAUSING: the worker completes the current pair, then sets
-    # CANCELLED.  Status stays RUNNING/PAUSING until then.
-    return _to_out(tournament)
+    # QUEUED/PAUSED -> cancelled immediately (atomic); RUNNING/PAUSING ->
+    # cancel_requested flag set atomically for the worker to apply.
+    if _conditional_update(
+        session, tournament_id, {QUEUED, PAUSED},
+        {"status": CANCELLED, "cancel_requested": True, "finished_at": utcnow()},
+    ) == 1:
+        tournament = _reload_tournament(session, tournament_id)
+        _record_event(session, tournament.id, "tournament_cancelled", reason="requested")
+        return _to_out(tournament)
+    if _conditional_update(
+        session, tournament_id, {RUNNING, PAUSING}, {"cancel_requested": True}
+    ) == 1:
+        tournament = _reload_tournament(session, tournament_id)
+        _record_event(
+            session, tournament.id, "tournament_cancelled", reason="requested"
+        )
+        return _to_out(tournament)
+    tournament = _reload_tournament(session, tournament_id)
+    raise HTTPException(
+        status_code=409,
+        detail=f"cannot cancel tournament in status '{tournament.status}'",
+    )
 
 
 @router.post("/tournaments/{tournament_id}/force-cancel", response_model=TournamentOut,
@@ -343,23 +376,26 @@ def force_cancel_tournament(
 ):
     """Request an immediate cancellation that kills the running process group.
 
-    The API only sets ``force_cancel_requested`` in the database; the worker
-    polls it, kills the cutechess process group, and then transactionally
-    marks the pair INTERRUPTED and the tournament CANCELLED (P1.3).  The
-    response reflects the state before the worker acts.
+    The API only sets ``force_cancel_requested`` in the database (atomically);
+    the worker polls it, kills the cutechess process group, and then marks the
+    pair INTERRUPTED and the tournament CANCELLED (P1.3).  The response
+    reflects the state before the worker acts.
     """
     if not confirm:
         raise HTTPException(
             status_code=400,
             detail="force-cancel requires confirm=true",
         )
-    tournament = _get_tournament_or_404(session, tournament_id)
-    if tournament.status not in (RUNNING, PAUSING, QUEUED, PAUSED):
+    if _conditional_update(
+        session, tournament_id, {RUNNING, PAUSING, QUEUED, PAUSED},
+        {"force_cancel_requested": True},
+    ) != 1:
+        tournament = _reload_tournament(session, tournament_id)
         raise HTTPException(
             status_code=409,
             detail=f"cannot force-cancel tournament in status '{tournament.status}'",
         )
-    tournament.force_cancel_requested = True
+    tournament = _reload_tournament(session, tournament_id)
     _record_event(
         session, tournament.id, "tournament_cancelled", reason="force-requested"
     )
