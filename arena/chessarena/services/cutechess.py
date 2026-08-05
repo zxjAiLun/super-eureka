@@ -160,33 +160,132 @@ def launch_cutechess(argv: List[str], pair_dir: Path) -> subprocess.Popen:
     return proc
 
 
-def _kill_group(proc: subprocess.Popen, sig) -> None:
-    """Send a signal to the whole process group (POSIX) or the process (Windows)."""
+def _group_alive(pgid: int) -> bool:
+    """True when ANY member of the process group still exists."""
+    if pgid <= 0:
+        return False
     if hasattr(os, "killpg"):
         try:
-            os.killpg(os.getpgid(proc.pid), sig)
-            return
-        except (ProcessLookupError, PermissionError, OSError):
-            return
+            os.killpg(pgid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+    return _pid_alive(pgid)
+
+
+def _pid_alive(pid: int) -> bool:
+    """True when a process with ``pid`` exists.
+
+    On POSIX this uses ``os.kill(pid, 0)`` which is a pure existence probe.
+    On Windows ``os.kill(pid, 0)`` would call TerminateProcess (i.e. it KILLS
+    the process), so a handle-based OpenProcess probe is used instead.
+    """
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+        )
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
     try:
-        proc.send_signal(sig)
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
     except OSError:
-        pass
+        return False
 
 
-def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> None:
-    """SIGTERM the process group, wait, then SIGKILL (section 19)."""
+def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
+    """SIGTERM the process group, wait for the WHOLE group, escalate, wait.
+
+    Returns True only when the entire process group is confirmed gone.  If a
+    member (e.g. a SIGTERM-ignoring engine child) survives SIGKILL, returns
+    False so the caller does not silently discard the process identity
+    (P1, group-aware cleanup shared by recovery and active force-cancel).
+    """
+    import time
+
+    def signal_group(sig):
+        if hasattr(os, "killpg"):
+            try:
+                os.killpg(pgid, sig)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        else:
+            try:
+                os.kill(pgid, sig)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+    signal_group(signal.SIGTERM)
+    deadline = time.time() + grace_seconds
+    while time.time() < deadline:
+        if not _group_alive(pgid):
+            return True
+        time.sleep(0.1)
+
+    signal_group(getattr(signal, "SIGKILL", signal.SIGTERM))
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if not _group_alive(pgid):
+            return True
+        time.sleep(0.1)
+    return False  # group survived SIGKILL: identity must be retained
+
+
+def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> bool:
+    """Terminate a Popen's whole process group; reaps the leader handle.
+
+    Returns True when the group is fully gone, False when members survived
+    (section 19 grace, then SIGKILL).  Never stops at the leader PID.
+
+    On POSIX the group-aware path is used.  Windows has no process groups and
+    ``os.kill``/``OpenProcess`` cannot track a killed-but-unreaped leader
+    reliably, so the leader is terminated and reaped through its Popen handle
+    (the production host is Linux; Windows is the test/development platform).
+    """
     if proc.poll() is not None:
-        return
-    _kill_group(proc, signal.SIGTERM)
+        return True
+    if os.name != "posix":
+        try:
+            proc.send_signal(signal.SIGTERM)
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=grace_seconds)
+            return True
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=10)
+            return True
+        except subprocess.TimeoutExpired:
+            return False
+
+    pgid = proc.pid  # launched with start_new_session -> leader is group leader
+    terminated = terminate_process_group_by_pid(pgid, grace_seconds)
     try:
-        proc.wait(timeout=grace_seconds)
-        return
+        proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
         pass
-    sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
-    _kill_group(proc, sigkill)
-    proc.wait(timeout=10)
+    return terminated
 
 
 def read_output_lines(path: Path, max_bytes: int = 4 * 1024 * 1024) -> List[str]:
