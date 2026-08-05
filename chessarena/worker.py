@@ -46,6 +46,11 @@ def _heartbeat(session_factory, scheduler: Scheduler) -> None:
         state.pid = scheduler.active_proc.pid if scheduler.active_proc else None
         state.tournament_id = scheduler.active_tournament_id
         state.pair_job_id = scheduler.active_pair_job_id
+        if scheduler.active_proc is None:
+            # Clear the recorded process identity once the pair is no longer
+            # supervised so recovery never chases a stale PID.
+            state.pid_start_marker = None
+            state.pid_cmdline = None
         session.commit()
 
 

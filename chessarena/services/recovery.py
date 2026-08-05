@@ -34,6 +34,7 @@ RUNNING rows, scoring happens only when a pair is verified).
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -237,7 +238,7 @@ def _cancel_with_force(settings, session, tournament) -> None:
         .all()
     )
     for pair in running_pairs:
-        _kill_orphaned_pair(session, pair)
+        _kill_orphaned_pair(session, pair, settings)
         pair.status = INTERRUPTED
         pair.finished_at = utcnow()
         pair.failure_reason = "force-cancelled"
@@ -260,9 +261,16 @@ def _recover_running_pair(settings, session, tournament, pair) -> bool:
     run_dir = Path(pair.run_directory) if pair.run_directory else None
     match_pgn = run_dir / "match.pgn" if run_dir is not None else None
 
-    # P1.4: terminate an orphaned cutechess recorded in worker_state before
+    # P1: terminate an orphaned cutechess recorded in worker_state before
     # doing anything with this pair.
-    _kill_orphaned_pair(session, pair)
+    _kill_orphaned_pair(session, pair, settings)
+
+    # P1: the manager exit code must have been recorded by the worker before
+    # we may ever score a pair from its PGN.  If the worker died before
+    # recording it, there is no trustworthy evidence: interrupt and re-run.
+    if pair.return_code is None:
+        return _interrupt_pair(session, tournament, pair,
+                               run_dir, "no manager exit-code evidence")
 
     pgn_ok = (
         match_pgn is not None
@@ -270,60 +278,59 @@ def _recover_running_pair(settings, session, tournament, pair) -> bool:
         and len(verifier.parse_pgn(match_pgn)) == 2
     )
 
-    if pgn_ok and run_dir is not None:
-        try:
-            verification = verifier.verify_pair(
-                settings,
-                tournament=tournament,
-                pair_job=pair,
-                run_dir=run_dir,
-                engine_a_build=_engine_a(session, tournament),
-                engine_b_build=_engine_b(session, tournament),
-                opening_set=_opening_set(session, tournament),
-            )
-        except verifier.VerificationFailure as exc:
-            logger.warning(
-                "pair %s verification failed during recovery: %s", pair.id, exc
-            )
-            pair.status = FAILED
-            pair.finished_at = utcnow()
-            pair.failure_reason = f"verification failed during recovery: {exc}"
-            pair.verification = {"verified": False, "reason": str(exc)}
-            tournament.status = FAILED
-            tournament.finished_at = utcnow()
-            tournament.failure_reason = str(exc)
-            _record_event(session, tournament.id, "pair_failed",
-                          pair_job_id=pair.id, reason=str(exc))
-            _record_event(session, tournament.id, "tournament_failed",
-                          pair_job_id=pair.id, reason=str(exc))
-            return False
-        except Exception as exc:
-            logger.exception("recovery verification error for pair %s", pair.id)
-            pair.status = FAILED
-            pair.finished_at = utcnow()
-            pair.failure_reason = f"verification error during recovery: {exc}"
-            pair.verification = {"verified": False, "reason": f"error: {exc}"}
-            tournament.status = FAILED
-            tournament.finished_at = utcnow()
-            tournament.failure_reason = str(exc)
-            _record_event(session, tournament.id, "pair_failed",
-                          pair_job_id=pair.id, reason=str(exc))
-            _record_event(session, tournament.id, "tournament_failed",
-                          pair_job_id=pair.id, reason=str(exc))
-            return False
-
-        _complete_pair(session, tournament, pair, run_dir, verification)
-        logger.info(
-            "recovered RUNNING pair %s as COMPLETED (2-game PGN verified)", pair.id
+    if not (pgn_ok and run_dir is not None):
+        return _interrupt_pair(
+            session, tournament, pair, run_dir, "no complete 2-game PGN"
         )
-        return True
 
-    # No usable PGN: interrupt the attempt and re-run the whole pair.
-    logger.warning(
-        "interrupting pair %s attempt %d (no complete 2-game PGN); will retry",
+    if pair.return_code != 0:
+        logger.warning(
+            "pair %s has recorded non-zero exit code %s; failing the pair "
+            "and the tournament without scoring",
+            pair.id, pair.return_code,
+        )
+        return _fail_pair(session, tournament, pair,
+                          f"cutechess exited with code {pair.return_code}",
+                          run_dir=run_dir)
+
+    try:
+        verification = verifier.verify_pair(
+            settings,
+            tournament=tournament,
+            pair_job=pair,
+            run_dir=run_dir,
+            engine_a_build=_engine_a(session, tournament),
+            engine_b_build=_engine_b(session, tournament),
+            opening_set=_opening_set(session, tournament),
+        )
+    except verifier.VerificationFailure as exc:
+        logger.warning(
+            "pair %s verification failed during recovery: %s", pair.id, exc
+        )
+        return _fail_pair(session, tournament, pair,
+                          f"verification failed during recovery: {exc}",
+                          verification={"verified": False, "reason": str(exc)},
+                          run_dir=run_dir)
+    except Exception as exc:
+        logger.exception("recovery verification error for pair %s", pair.id)
+        return _fail_pair(session, tournament, pair,
+                          f"verification error during recovery: {exc}",
+                          verification={"verified": False, "reason": f"error: {exc}"},
+                          run_dir=run_dir)
+
+    verification["return_code"] = pair.return_code
+    _complete_pair(session, tournament, pair, run_dir, verification)
+    logger.info(
+        "recovered RUNNING pair %s as COMPLETED (exit 0 + 2-game PGN verified)",
         pair.id,
-        pair.attempt,
     )
+    return True
+
+
+def _interrupt_pair(session, tournament, pair, run_dir, reason: str) -> bool:
+    """Mark the attempt interrupted and reset the pair for a full re-run."""
+    logger.warning("interrupting pair %s attempt %d (%s)", pair.id, pair.attempt,
+                   reason)
     _record_event(
         session,
         tournament.id,
@@ -331,37 +338,92 @@ def _recover_running_pair(settings, session, tournament, pair) -> bool:
         pair_job_id=pair.id,
         attempt=pair.attempt,
         run_directory=str(run_dir) if run_dir else None,
-        reason="worker recovery: no complete pair PGN",
+        reason=reason,
     )
     pair.status = INTERRUPTED
     pair.finished_at = utcnow()
-    pair.failure_reason = "interrupted by recovery"
+    pair.failure_reason = reason
     pair.attempt += 1
     pair.status = PENDING
     pair.run_directory = None
     return True
 
 
-def _kill_orphaned_pair(session, pair) -> None:
-    """Terminate a cutechess process recorded for this pair in worker_state.
+def _fail_pair(session, tournament, pair, reason, verification=None,
+               run_dir=None) -> bool:
+    """Fail the pair and the tournament; artifacts are retained (P1.5)."""
+    pair.status = FAILED
+    pair.finished_at = utcnow()
+    pair.failure_reason = reason
+    pair.verification = verification or {
+        "verified": False,
+        "reason": reason,
+    }
+    tournament.status = FAILED
+    tournament.finished_at = utcnow()
+    tournament.failure_reason = reason
+    _record_event(session, tournament.id, "pair_failed",
+                  pair_job_id=pair.id, reason=reason)
+    _record_event(session, tournament.id, "tournament_failed",
+                  pair_job_id=pair.id, reason=reason)
+    if run_dir is not None:
+        artifacts.write_json(run_dir, "verification.json", pair.verification or {})
+    return False
+
+
+def _kill_orphaned_pair(session, pair, settings=None) -> None:
+    """Terminate an orphaned cutechess process recorded for this pair.
 
     worker_state.pid is the cutechess process PID (and process group leader,
-    since it was launched with start_new_session).  If it is still alive after
-    an abnormal worker death, kill it so a restarted worker never races the
-    orphan for the same artifact directory (P1.4).
+    since it was launched with start_new_session).  Before killing anything
+    we verify the recorded process identity (starttime + cmdline on Linux)
+    so a recycled PID can never cause an unrelated process to be killed.
+    The process group is then SIGTERM'd, waited on, escalated to SIGKILL on
+    timeout, and the stale identity is cleared (P1).
     """
     from ..models import WorkerState
+    from . import cutechess as cc
 
     state = session.get(WorkerState, 1)
     if state is None or state.pair_job_id != pair.id or not state.pid:
         return
     pid = state.pid
+
     if not _pid_alive(pid):
+        _clear_worker_identity(session, state)
         return
+
+    recorded_marker = state.pid_start_marker
+    recorded_cmdline = None
+    if state.pid_cmdline:
+        try:
+            recorded_cmdline = json.loads(state.pid_cmdline)
+        except ValueError:
+            recorded_cmdline = None
+
+    if not cc.verify_process_identity(pid, recorded_marker, recorded_cmdline):
+        # The PID no longer refers to the recorded cutechess process (it was
+        # recycled) - never kill it, just drop the stale identity.
+        logger.warning(
+            "worker_state pid %d does not match recorded identity for pair %s; "
+            "not killing (PID reuse guard)",
+            pid, pair.id,
+        )
+        _clear_worker_identity(session, state)
+        return
+
     logger.warning(
         "terminating orphaned cutechess pid %d for pair %s", pid, pair.id
     )
-    _kill_pid_group(pid)
+    _terminate_pid_group_wait(pid, settings=settings)
+    _clear_worker_identity(session, state)
+
+
+def _clear_worker_identity(session, state) -> None:
+    state.pid = None
+    state.pair_job_id = None
+    state.pid_start_marker = None
+    state.pid_cmdline = None
 
 
 def _pid_alive(pid: int) -> bool:
@@ -380,20 +442,44 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def _kill_pid_group(pid: int) -> None:
+def _terminate_pid_group_wait(pid: int, settings=None) -> None:
+    """SIGTERM the process group, wait for it, escalate to SIGKILL, wait."""
     import os
     import signal
+    import time
 
-    if hasattr(os, "killpg"):
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
-        return
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError, OSError):
-        pass
+    grace = (
+        getattr(settings, "shutdown_grace_seconds", 15.0)
+        if settings is not None
+        else 15.0
+    )
+
+    def signal_group(sig):
+        if hasattr(os, "killpg"):
+            try:
+                os.killpg(pid, sig)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        else:
+            try:
+                os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+    signal_group(signal.SIGTERM)
+    deadline = time.time() + grace
+    while time.time() < deadline:
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.1)
+
+    sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
+    signal_group(sigkill)
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.1)
 
 
 def _engine_a(session, tournament):
@@ -470,6 +556,10 @@ def _complete_pair(session, tournament, pair, run_dir, verification) -> None:
     pair.status = COMPLETED
     pair.finished_at = now
     pair.verification = verification
+    pair.return_code = verification.get("return_code", 0)
+    # Persist the verification for this attempt (P1: recovery must produce the
+    # same provenance artifacts the normal scheduler path produces).
+    artifacts.write_json(run_dir, "verification.json", verification)
     pair.engine_a_white_game_id = (
         session.query(Game).filter(
             Game.pair_job_id == pair.id, Game.game_number == pair.pair_index * 2 + 1

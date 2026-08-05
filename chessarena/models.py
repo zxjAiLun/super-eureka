@@ -261,7 +261,13 @@ class Event(Base):
 
 
 class WorkerState(Base):
-    """Single-row heartbeat written by the worker process (internal)."""
+    """Single-row heartbeat written by the worker process (internal).
+
+    ``pid`` / ``pid_start_marker`` / ``pid_cmdline`` record the identity of the
+    currently supervised cutechess process.  The identity is written at launch
+    time (not just on heartbeat) so recovery can safely terminate an orphaned
+    process after an abnormal worker death without risking PID reuse.
+    """
 
     __tablename__ = "worker_state"
 
@@ -273,3 +279,5 @@ class WorkerState(Base):
     pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tournament_id: Mapped[str | None] = mapped_column(String, nullable=True)
     pair_job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    pid_start_marker: Mapped[str | None] = mapped_column(String, nullable=True)
+    pid_cmdline: Mapped[str | None] = mapped_column(Text, nullable=True)

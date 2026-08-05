@@ -144,6 +144,9 @@ def test_running_pair_verified_pgn_completes(settings, engine_factory,
     with engine_factory() as session:
         pair = session.get(PairJob, pair_id)
         pair.run_directory = str(run_dir)
+        # P1: recovery may only score when the worker recorded exit-code
+        # evidence (0) before it died.
+        pair.return_code = 0
         session.commit()
 
     result = _recover(settings, engine_factory, tournament_id)
@@ -153,6 +156,94 @@ def test_running_pair_verified_pgn_completes(settings, engine_factory,
     assert result["tournament"].candidate_wins == 2
     assert len(result["games"]) == 2
     assert all(g.verified for g in result["games"])
+    # verification.json for the recovered attempt must exist with return_code.
+    verification_path = run_dir / "verification.json"
+    assert verification_path.exists()
+    verification = json.loads(verification_path.read_text(encoding="utf-8"))
+    assert verification["return_code"] == 0
+
+
+def test_running_pair_without_exit_evidence_not_scored(settings, engine_factory,
+                                                       tournament_factory):
+    """P1: a complete PGN alone is never enough - no exit evidence -> re-run."""
+    tournament_id, pair_id = _make_running_pair(engine_factory, tournament_factory)
+    from chessarena.models import EngineBuild, OpeningSet
+
+    with engine_factory() as session:
+        tournament = session.get(Tournament, tournament_id)
+        engine_a = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_a_build_id
+        ).first()
+        engine_b = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_b_build_id
+        ).first()
+        opening = session.query(OpeningSet).filter(
+            OpeningSet.opening_set_id == tournament.opening_set_id
+        ).first()
+        pair = session.get(PairJob, pair_id)
+
+    run_dir = helpers.run_fake_pair(
+        settings,
+        tournament=tournament,
+        pair_job=pair,
+        engine_a_build=engine_a,
+        engine_b_build=engine_b,
+        opening_set=opening,
+    )
+    with engine_factory() as session:
+        pair = session.get(PairJob, pair_id)
+        pair.run_directory = str(run_dir)
+        # return_code stays None: the worker died before recording it.
+        session.commit()
+
+    result = _recover(settings, engine_factory, tournament_id)
+    assert result["pairs"][0].status == PENDING
+    assert result["pairs"][0].attempt == 2
+    assert result["tournament"].status == QUEUED
+    assert result["tournament"].completed_pairs == 0
+    assert result["games"] == []
+
+
+def test_running_pair_with_nonzero_exit_never_scored(settings, engine_factory,
+                                                     tournament_factory):
+    """P1: recorded non-zero exit code fails the pair/tournament even when the
+    PGN is complete and valid."""
+    tournament_id, pair_id = _make_running_pair(engine_factory, tournament_factory)
+    from chessarena.models import EngineBuild, OpeningSet
+
+    with engine_factory() as session:
+        tournament = session.get(Tournament, tournament_id)
+        engine_a = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_a_build_id
+        ).first()
+        engine_b = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_b_build_id
+        ).first()
+        opening = session.query(OpeningSet).filter(
+            OpeningSet.opening_set_id == tournament.opening_set_id
+        ).first()
+        pair = session.get(PairJob, pair_id)
+
+    run_dir = helpers.run_fake_pair(
+        settings,
+        tournament=tournament,
+        pair_job=pair,
+        engine_a_build=engine_a,
+        engine_b_build=engine_b,
+        opening_set=opening,
+    )
+    with engine_factory() as session:
+        pair = session.get(PairJob, pair_id)
+        pair.run_directory = str(run_dir)
+        pair.return_code = 1
+        session.commit()
+
+    result = _recover(settings, engine_factory, tournament_id)
+    assert result["pairs"][0].status == FAILED
+    assert "code 1" in result["pairs"][0].failure_reason
+    assert result["tournament"].status == FAILED
+    assert result["tournament"].completed_pairs == 0
+    assert result["games"] == []
 
 
 def test_running_pair_unverifiable_pgn_fails_tournament(settings, engine_factory,
@@ -181,6 +272,7 @@ def test_running_pair_unverifiable_pgn_fails_tournament(settings, engine_factory
         (run_dir / "match.pgn").write_text(pgn)
         pair = session.get(PairJob, pair_id)
         pair.run_directory = str(run_dir)
+        pair.return_code = 0  # exit evidence present; verification decides
         session.commit()
 
     result = _recover(settings, engine_factory, tournament_id)
