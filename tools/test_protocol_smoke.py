@@ -339,6 +339,21 @@ for raw in sys.stdin:
             self.assertEqual(summary["manifest"]["profile_integrity"]["status"], "FAIL")
             self.assertTrue(summary["manifest"]["profile_integrity"]["errors"])
 
+    def test_parser_accepts_current_final_profile(self):
+        """The production profile must stay on the smoke allowlist so CI can
+        run candidate=current-final against baseline=current."""
+        args = parser().parse_args(
+            [
+                "--engine-a",
+                "baseline",
+                "--engine-b",
+                "candidate",
+                "--profile-b",
+                "current-final",
+            ]
+        )
+        self.assertEqual(args.profile_b, "current-final")
+
     def test_same_labels_do_not_collide_in_stderr_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             record = play_game(

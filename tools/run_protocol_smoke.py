@@ -54,6 +54,7 @@ STARTUP_PROFILES = (
     "current-aspiration-lmr",
     "current-aspiration-lmr-futility",
     "current-aspiration-lmr-futility-see",
+    "current-final",
 )
 
 

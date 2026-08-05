@@ -48,11 +48,12 @@ jobs:
       - name: Python tournament unit tests
         run: python -m unittest discover -s tools -p "test_*.py"
 
-      - name: E1 short self-play smoke
+      - name: E1 short protocol smoke
         run: |
-          python tools/tournament.py \
+          python tools/run_protocol_smoke.py \
             --engine-a target/release/chess-engine-demo \
             --engine-b target/release/chess-engine-demo \
+            --profile-b current-final \
             --games 4 --movetime-ms 10 --move-grace-ms 25 \
             --max-plies 40 --hash-mb 16 --seed 0 \
             --output-dir tournament-results/ci-smoke
