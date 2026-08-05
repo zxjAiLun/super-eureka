@@ -44,8 +44,8 @@ jobs:
           ref: ${{ inputs.git_ref }}
           fetch-depth: 0
 
-      - name: Install stable toolchain (rustfmt + clippy)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust 1.94.1 toolchain (rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt, clippy
 
