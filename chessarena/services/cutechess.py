@@ -245,20 +245,17 @@ def verify_process_identity(pid: int, recorded_marker: str | None,
                             recorded_cmdline: list[str] | None) -> bool:
     """Confirm ``pid`` still refers to the same process that was recorded.
 
-    On Linux both the start marker and the cmdline must match.  When no
-    identity was recorded (non-Linux test environments), we cannot prove
-    ownership, so the caller should not kill on that basis alone; this returns
-    True only when both pieces of evidence are available and consistent.
+    BOTH pieces of evidence must be present and must match exactly (P1):
+    - the kernel starttime marker (not reusable after process exit), and
+    - the full argv from /proc.
+    The cmdline alone cannot guard against PID reuse (two cutechess
+    invocations can share an argv), so if either piece of evidence cannot be
+    read the check fails closed and the caller must not kill the PID.
     """
-    if recorded_marker is None and not recorded_cmdline:
-        return False  # no identity evidence recorded -> do not kill blindly
+    if recorded_marker is None or recorded_cmdline is None:
+        return False  # no recorded identity -> fail closed
     current_marker = process_start_marker(pid)
-    if recorded_marker is not None and current_marker != recorded_marker:
-        return False  # PID was reused by an unrelated process
     current_cmdline = process_cmdline(pid)
-    if recorded_cmdline is not None:
-        if current_cmdline is None or current_cmdline != recorded_cmdline:
-            return False
-    # cmdline/starttime agree; on platforms where we could not record either
-    # (we returned early above) this function is not reached.
-    return True
+    if current_marker is None or current_cmdline is None:
+        return False
+    return current_marker == recorded_marker and current_cmdline == recorded_cmdline

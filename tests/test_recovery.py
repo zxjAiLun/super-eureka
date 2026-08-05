@@ -145,8 +145,9 @@ def test_running_pair_verified_pgn_completes(settings, engine_factory,
         pair = session.get(PairJob, pair_id)
         pair.run_directory = str(run_dir)
         # P1: recovery may only score when the worker recorded exit-code
-        # evidence (0) before it died.
+        # evidence (0) for the CURRENT attempt before it died.
         pair.return_code = 0
+        pair.return_code_attempt = pair.attempt
         session.commit()
 
     result = _recover(settings, engine_factory, tournament_id)
@@ -236,6 +237,7 @@ def test_running_pair_with_nonzero_exit_never_scored(settings, engine_factory,
         pair = session.get(PairJob, pair_id)
         pair.run_directory = str(run_dir)
         pair.return_code = 1
+        pair.return_code_attempt = pair.attempt
         session.commit()
 
     result = _recover(settings, engine_factory, tournament_id)
@@ -273,6 +275,7 @@ def test_running_pair_unverifiable_pgn_fails_tournament(settings, engine_factory
         pair = session.get(PairJob, pair_id)
         pair.run_directory = str(run_dir)
         pair.return_code = 0  # exit evidence present; verification decides
+        pair.return_code_attempt = pair.attempt
         session.commit()
 
     result = _recover(settings, engine_factory, tournament_id)
@@ -297,6 +300,54 @@ def test_recovery_idempotent(settings, engine_factory, tournament_factory):
             .all()
         )
         assert all(p.status == PENDING for p in pairs)
+
+
+def test_stale_exit_evidence_not_used(settings, engine_factory,
+                                      tournament_factory):
+    """P1: exit evidence recorded for an OLD attempt must never be applied to
+    the current attempt, even if it was not cleared by a retry path."""
+    tournament_id, pair_id = _make_running_pair(engine_factory, tournament_factory)
+    from chessarena.models import EngineBuild, OpeningSet
+
+    with engine_factory() as session:
+        tournament = session.get(Tournament, tournament_id)
+        engine_a = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_a_build_id
+        ).first()
+        engine_b = session.query(EngineBuild).filter(
+            EngineBuild.build_id == tournament.engine_b_build_id
+        ).first()
+        opening = session.query(OpeningSet).filter(
+            OpeningSet.opening_set_id == tournament.opening_set_id
+        ).first()
+        pair = session.get(PairJob, pair_id)
+
+    run_dir = helpers.run_fake_pair(
+        settings,
+        tournament=tournament,
+        pair_job=pair,
+        engine_a_build=engine_a,
+        engine_b_build=engine_b,
+        opening_set=opening,
+    )
+    with engine_factory() as session:
+        pair = session.get(PairJob, pair_id)
+        pair.run_directory = str(run_dir)
+        # Simulate the leak the retry paths must prevent: attempt 2 is now
+        # current but the exit evidence still says it belongs to attempt 1.
+        pair.attempt = 2
+        pair.return_code = 0
+        pair.return_code_attempt = 1
+        session.commit()
+
+    result = _recover(settings, engine_factory, tournament_id)
+    # The stale evidence (attempt 1) must NOT score attempt 2: the pair is
+    # interrupted and re-run instead.
+    assert result["pairs"][0].status == PENDING
+    assert result["pairs"][0].attempt == 3
+    assert result["tournament"].status == QUEUED
+    assert result["tournament"].completed_pairs == 0
+    assert result["games"] == []
 
 
 def test_recovery_paused_not_resumed(settings, engine_factory, tournament_factory):
