@@ -39,9 +39,10 @@ The `chessarena` user must NOT have sudo rights. It only needs write access to
 
 ### Deploy user (for GitHub Actions)
 
-The workflows SSH into the server as a non-root `deploy` user. Create it with a
-minimal sudoers entry (P1.7): the workflows do all file operations as
-`chessarena` (no root), and only restart the two services as root.
+The workflows SSH into the server as a non-root `deploy` user. Create it with
+a **command-restricted** sudoers entry (P1.7): the deploy user may run only
+the exact commands the workflows issue, as the `chessarena` user or to
+restart the two services - never a shell, never arbitrary Python.
 
 ```bash
 sudo useradd --create-home --shell /bin/bash deploy
@@ -49,22 +50,48 @@ sudo mkdir -p /opt/chessarena/incoming
 # Shared group: deploy uploads into incoming/, chessarena extracts from it.
 sudo chown deploy:chessarena /opt/chessarena/incoming
 sudo chmod 775 /opt/chessarena/incoming
+# deploy needs to read /etc/chessarena/chessarena.env (root:chessarena 0640)
+sudo usermod -aG chessarena deploy
 
-# Minimal sudoers:
-#   - run anything as chessarena (all file/venv/migration work),
-#   - restart the two arena services only.
 cat > /etc/sudoers.d/chessarena-deploy <<'EOF'
-deploy ALL=(chessarena) NOPASSWD: ALL
+# Preserve the ARENA_* variables sourced from /etc/chessarena/chessarena.env
+# through `sudo -u chessarena` invocations.
+Defaults:deploy env_keep += "ARENA_DB_URL ARENA_RUN_ROOT ARENA_BUILD_ROOT ARENA_OPENING_ROOT ARENA_CUTECHESS ARENA_BASE_PATH ARENA_PUBLIC_URL ARENA_LOG_LEVEL ARENA_HASH_MB ARENA_THREADS ARENA_MAX_CONCURRENCY ARENA_WORKER_POLL_SECONDS ARENA_WORKER_HEARTBEAT_SECONDS ARENA_WORKER_STALE_SECONDS ARENA_SHUTDOWN_GRACE_SECONDS"
+
+# Restarting the arena services (root).
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart chessarena-api
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart chessarena-worker
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl is-active chessarena-*
+
+# Arena application deploy, run as chessarena only.
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/mkdir -p /opt/chessarena/releases/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/tar -xzf /opt/chessarena/incoming/* -C /opt/chessarena/releases/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/rm -f /opt/chessarena/incoming/*
+deploy ALL=(chessarena) NOPASSWD: /opt/chessarena/venv/bin/pip install -e /opt/chessarena/releases/*
+deploy ALL=(chessarena) NOPASSWD: /opt/chessarena/venv/bin/alembic -c /opt/chessarena/releases/*/alembic.ini upgrade head
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/ln -sfn /opt/chessarena/releases/* /opt/chessarena/app/current
+
+# Engine build install, run as chessarena only.
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/rm -rf /opt/chessarena/incoming/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/mkdir -p /opt/chessarena/incoming/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/tar -xzf /opt/chessarena/incoming/* -C /opt/chessarena/incoming/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/mv /opt/chessarena/incoming/* /opt/chessarena/builds/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/chmod 0555 /opt/chessarena/builds/*
+deploy ALL=(chessarena) NOPASSWD: /usr/bin/chmod 0444 /opt/chessarena/builds/*
+deploy ALL=(chessarena) NOPASSWD: /opt/chessarena/venv/bin/python /opt/chessarena/app/current/scripts/install_build.py /opt/chessarena/builds/* --probe
 EOF
 sudo chmod 0440 /etc/sudoers.d/chessarena-deploy
 ```
 
-Verify with `sudo -l -U deploy` (as root) that the `deploy` user can run
-`sudo -u chessarena ...` and `sudo systemctl restart chessarena-api` without a
-password.
+Verify with `sudo -l -U deploy` (as root) that `sudo -u chessarena sh` and
+`sudo -u chessarena /opt/chessarena/venv/bin/python -c ...` are NOT allowed,
+while the listed commands are.
+
+### Health gate
+
+The deploy workflow's health check requires the API to report
+`status == ok` **and** `worker_heartbeat == ok` **and** `cutechess == ok`,
+not just a reachable database.
 
 ## 3. Create the Python virtualenv
 
