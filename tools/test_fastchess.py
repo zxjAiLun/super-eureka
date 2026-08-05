@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -93,8 +94,15 @@ class FastchessWrapperTests(unittest.TestCase):
             self.assertIn("args=--profile current", second_block)
 
     def test_uci_identity_probe_records_reported_profile(self):
+        # Cross-platform release binary name (.exe only on Windows).
+        engine = Path("target/release") / (
+            "chess-engine-demo.exe" if os.name == "nt" else "chess-engine-demo"
+        )
+        self.assertTrue(
+            engine.is_file(), f"release engine missing: {engine}"
+        )
         identity = probe_engine_identity([
-            "target/release/chess-engine-demo.exe", "--profile", "current-aspiration"
+            str(engine), "--profile", "current-aspiration"
         ])
         self.assertEqual(identity["reported_search_profile"], "current-aspiration")
         self.assertEqual(identity["id_name"], "ChessEngineDemo")
