@@ -17,8 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain (with rustfmt + clippy)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust 1.94.1 toolchain (with rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt, clippy
 
