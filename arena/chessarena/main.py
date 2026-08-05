@@ -42,6 +42,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.templates = templates
     app.state.session_factory = session_factory
 
+    # P2.4: per-browser CSRF cookie (Secure only when the public URL is HTTPS).
+    from .security import CsrfCookieMiddleware
+
+    app.add_middleware(
+        CsrfCookieMiddleware, secure=settings.public_url.startswith("https")
+    )
+
     bp = settings.base_path
     api_prefix = f"{bp}/api/v1"
 

@@ -388,9 +388,12 @@ def test_admin_form_without_csrf_token_is_403(app_client):
 
 
 def test_admin_form_with_csrf_token_works(app_client):
-    from chessarena.config import Settings
+    # P2.4: the token is bound to this browser's session cookie.
+    page = app_client.get("/chessarena/admin/tournaments/new")
+    token = app_client.cookies.get("arena_csrf")
+    assert token, "CSRF cookie was not set"
+    assert token == page.text.split('name="_csrf_token" value="')[1].split('"')[0]
 
-    settings: Settings = app_client.app.state.settings
     build = app_client.get("/chessarena/api/v1/builds").json()[0]
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     payload = {
@@ -402,12 +405,45 @@ def test_admin_form_with_csrf_token_works(app_client):
         "opening_set_id": opening["opening_set_id"],
         "time_control": "blitz_3_2",
         "pairs": 2,
-        "_csrf_token": settings.csrf_token,
+        "_csrf_token": token,
     }
     response = app_client.post(
         "/chessarena/admin/tournaments", data=payload, follow_redirects=False
     )
     assert response.status_code == 303
+
+
+def test_csrf_token_is_session_isolated(app_client):
+    """A token from one browser must not be accepted with another's session."""
+    from fastapi.testclient import TestClient
+
+    other = TestClient(app_client.app)
+    other.get("/chessarena/admin/tournaments/new")  # give it its own cookie
+    other_token = other.cookies.get("arena_csrf")
+    my_token = app_client.cookies.get("arena_csrf")
+    if my_token is None:
+        app_client.get("/chessarena/admin/tournaments/new")
+        my_token = app_client.cookies.get("arena_csrf")
+    assert other_token != my_token
+
+    build = app_client.get("/chessarena/api/v1/builds").json()[0]
+    opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
+    payload = {
+        "name": "csrf-mix",
+        "engine_a_build": build["build_id"],
+        "engine_a_profile": "current-final",
+        "engine_b_build": build["build_id"],
+        "engine_b_profile": "current",
+        "opening_set_id": opening["opening_set_id"],
+        "time_control": "blitz_3_2",
+        "pairs": 2,
+        "_csrf_token": my_token,  # browser A's token
+    }
+    # Submitted with browser B's cookie -> rejected.
+    response = other.post(
+        "/chessarena/admin/tournaments", data=payload, follow_redirects=False
+    )
+    assert response.status_code == 403
 
 
 def test_api_post_with_cross_origin_is_403(app_client):

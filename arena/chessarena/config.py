@@ -8,10 +8,7 @@ suite can run without any server-side files.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import os
-import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict
@@ -96,20 +93,6 @@ class Settings:
 
     # Logging
     log_level: str = os.environ.get("ARENA_LOG_LEVEL", "INFO")
-
-    # P2.4: CSRF protection secret.  Provide ARENA_CSRF_SECRET in production
-    # so the token survives API restarts; the random default is fine for a
-    # single-process local instance.
-    csrf_secret: str = field(
-        default_factory=lambda: os.environ.get("ARENA_CSRF_SECRET")
-        or secrets.token_hex(32)
-    )
-
-    @property
-    def csrf_token(self) -> str:
-        return hmac.new(
-            self.csrf_secret.encode(), b"chessarena-csrf", hashlib.sha256
-        ).hexdigest()
 
     # Stderr whitelist: substrings that are acceptable in a cutechess child's
     # stderr during a pair run.  Anything else fails verification.
