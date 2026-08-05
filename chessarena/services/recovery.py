@@ -436,14 +436,20 @@ def _fail_pair(session, tournament, pair, reason, verification=None,
 
 
 def _kill_orphaned_pair(session, pair, settings=None) -> None:
-    """Terminate an orphaned cutechess process recorded for this pair.
+    """Terminate an orphaned cutechess process group recorded for this pair.
 
     worker_state.pid is the cutechess process PID (and process group leader,
-    since it was launched with start_new_session).  Before killing anything
-    we verify the recorded process identity (starttime + cmdline on Linux)
-    so a recycled PID can never cause an unrelated process to be killed.
-    The process group is then SIGTERM'd, waited on, escalated to SIGKILL on
-    timeout, and the stale identity is cleared (P1).
+    since it was launched with start_new_session).  Cleanup is GROUP-aware:
+
+    - If the leader is still alive, its recorded identity (starttime +
+      cmdline on Linux) is verified first so a recycled PID can never kill an
+      unrelated process.
+    - If the leader is already gone but children survive in the same PGID,
+      the group is still cleaned (a dead leader must not leak engine
+      children).
+    - Identity is cleared ONLY after the whole process group is confirmed
+      gone; a group that survives SIGKILL keeps its identity so it is not
+      silently lost (P1 gaps A/B).
     """
     from ..models import WorkerState
     from . import cutechess as cc
@@ -452,9 +458,29 @@ def _kill_orphaned_pair(session, pair, settings=None) -> None:
     if state is None or state.pair_job_id != pair.id or not state.pid:
         return
     pid = state.pid
+    grace = (
+        getattr(settings, "shutdown_grace_seconds", 15.0)
+        if settings is not None
+        else 15.0
+    )
 
     if not _pid_alive(pid):
-        _clear_worker_identity(session, state)
+        # Gap A: leader gone but children may remain in the same PGID.
+        if not _group_alive(pid):
+            _clear_worker_identity(session, state)
+            return
+        logger.warning(
+            "orphaned cutechess leader pid %d is gone but its process group "
+            "still has members; cleaning the group",
+            pid,
+        )
+        if _terminate_pid_group_wait(pid, grace):
+            _clear_worker_identity(session, state)
+        else:
+            logger.error(
+                "orphan group %d survived SIGKILL; retaining its identity",
+                pid,
+            )
         return
 
     recorded_marker = state.pid_start_marker
@@ -479,8 +505,12 @@ def _kill_orphaned_pair(session, pair, settings=None) -> None:
     logger.warning(
         "terminating orphaned cutechess pid %d for pair %s", pid, pair.id
     )
-    _terminate_pid_group_wait(pid, settings=settings)
-    _clear_worker_identity(session, state)
+    if _terminate_pid_group_wait(pid, grace):
+        _clear_worker_identity(session, state)
+    else:
+        logger.error(
+            "orphan group %d survived SIGKILL; retaining its identity", pid
+        )
 
 
 def _clear_worker_identity(session, state) -> None:
@@ -491,19 +521,14 @@ def _clear_worker_identity(session, state) -> None:
 
 
 def _pid_alive(pid: int) -> bool:
-    import os
+    """True when a process with ``pid`` exists (safe on Windows).
 
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
+    Windows os.kill(pid, 0) would terminate the process, so the shared safe
+    probe is used on every platform.
+    """
+    from . import cutechess as cc
+
+    return cc._pid_alive(pid)
 
 
 def _group_alive(pgid: int) -> bool:
@@ -531,44 +556,16 @@ def _group_alive(pgid: int) -> bool:
     return _pid_alive(pgid)
 
 
-def _terminate_pid_group_wait(pid: int, settings=None) -> None:
-    """SIGTERM the process group, wait for the WHOLE group, escalate, wait."""
-    import os
-    import signal
-    import time
+def _terminate_pid_group_wait(pgid: int, grace: float) -> bool:
+    """Group-aware termination shared with active force-cancel (P1 gap C).
 
-    grace = (
-        getattr(settings, "shutdown_grace_seconds", 15.0)
-        if settings is not None
-        else 15.0
-    )
+    Returns True only when the entire process group is confirmed gone;
+    False when a member survived SIGKILL, in which case the caller must
+    retain the process identity.
+    """
+    from . import cutechess as cc
 
-    def signal_group(sig):
-        if hasattr(os, "killpg"):
-            try:
-                os.killpg(pid, sig)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
-        else:
-            try:
-                os.kill(pid, sig)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
-
-    signal_group(signal.SIGTERM)
-    deadline = time.time() + grace
-    while time.time() < deadline:
-        if not _group_alive(pid):
-            return
-        time.sleep(0.1)
-
-    sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
-    signal_group(sigkill)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        if not _group_alive(pid):
-            return
-        time.sleep(0.1)
+    return cc.terminate_process_group_by_pid(pgid, grace)
 
 
 def _engine_a(session, tournament):

@@ -61,22 +61,25 @@ def test_linux_positive_identification():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs /proc")
 def test_linux_pid_reuse_guard():
-    """A recycled PID with a different recorded identity must be refused."""
+    """Recorded identity must only match the SAME process.
+
+    The guard compares a recorded (starttime, cmdline) pair against the live
+    process at that PID.  Two concurrently started processes may share a
+    kernel clock tick, so the test never asserts that starttimes of different
+    PIDs differ - it asserts that a wrong recorded identity is refused and
+    that the identity stops matching once the process is gone.
+    """
     proc = _spawn_sleeper()
-    other = _spawn_sleeper()
     try:
         pid = proc.pid
         marker = cc.process_start_marker(pid)
         cmdline = cc.process_cmdline(pid)
+        # Exact match for the same process.
+        assert cc.verify_process_identity(pid, marker, cmdline) is True
         # Wrong start marker -> PID reuse -> refuse.
         assert cc.verify_process_identity(pid, "0", cmdline) is False
         # Wrong cmdline -> refuse.
         assert cc.verify_process_identity(pid, marker, ["/bin/not-cutechess"]) is False
-        # Same marker/cmdline from another live process -> refuse.
-        other_pid = other.pid
-        other_marker = cc.process_start_marker(other_pid)
-        other_cmdline = cc.process_cmdline(other_pid)
-        assert cc.verify_process_identity(pid, other_marker, other_cmdline) is False
         # cmdline must match exactly, not just contain the binary.
         assert cc.verify_process_identity(
             pid, marker, [cmdline[0], "extra-arg"]
@@ -84,8 +87,6 @@ def test_linux_pid_reuse_guard():
     finally:
         proc.kill()
         proc.wait()
-        other.kill()
-        other.wait()
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs /proc")
@@ -107,39 +108,52 @@ def test_linux_dead_pid_identity_disappears():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs process groups")
-def test_linux_cleanup_waits_for_whole_group():
+def test_linux_cleanup_waits_for_whole_group(tmp_path):
     """P1: when the group leader exits but a SIGTERM-ignoring child survives,
     cleanup must escalate to SIGKILL for the whole group, not stop at the
     leader PID."""
     from chessarena.services import recovery
 
+    ready_file = tmp_path / "child-ready"
+    # The leader spawns a child that installs a SIGTERM ignore handler and
+    # then signals readiness via the ready file BEFORE the test kills the
+    # leader, so the child is guaranteed to exist and be armed.
+    child_code = (
+        "import signal, time, os\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "open(os.environ['READY_FILE'], 'w').write('ready')\n"
+        "time.sleep(30)\n"
+    )
     leader = subprocess.Popen(
         [
             sys.executable,
             "-c",
-            "import subprocess, time, sys\n"
-            "subprocess.Popen([sys.executable, '-c', "
-            "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-            "time.sleep(30)'])\n"
+            "import subprocess, time, sys, os\n"
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1]])\n"
             "time.sleep(30)\n",
+            child_code,
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,  # leader is its own group leader
+        env={**os.environ, "READY_FILE": str(ready_file)},
     )
     pgid = leader.pid
     try:
-        # Leader exits; the child (same PGID) ignores SIGTERM and survives.
+        # Wait for the child to be up and armed (handshake), then kill the
+        # leader.  The child (same PGID) ignores SIGTERM and survives.
+        deadline = time.time() + 10
+        while not ready_file.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        assert ready_file.exists(), "child never signalled readiness"
         leader.kill()
         leader.wait()
         assert recovery._group_alive(pgid) is True, "child should still be alive"
 
-        class _ShortGrace:
-            shutdown_grace_seconds = 1.0
-
-        recovery._terminate_pid_group_wait(pgid, settings=_ShortGrace())
+        ok = recovery._terminate_pid_group_wait(pgid, 1.0)
         # The whole group must be gone: SIGTERM was ignored, so SIGKILL was
         # required, and cleanup waited for the group rather than the leader.
+        assert ok is True
         assert recovery._group_alive(pgid) is False
     finally:
         # Belt and braces: never leave a stray sleeping child behind.
@@ -150,12 +164,6 @@ def test_linux_cleanup_waits_for_whole_group():
 
 
 def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
+    from chessarena.services import cutechess as cc
+
+    return cc._pid_alive(pid)

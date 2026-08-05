@@ -23,6 +23,7 @@ counted.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -49,6 +50,8 @@ from . import artifacts
 from . import cutechess as cc
 from . import recovery
 from . import verifier
+
+logger = logging.getLogger("chessarena.scheduler")
 
 
 def _record_event(session, tournament_id, event_type, pair_job_id=None,
@@ -124,8 +127,15 @@ class Scheduler:
         tournament_id = self.active_tournament_id
         proc = self.active_proc
         if proc is not None:
-            cc.terminate_process_group(proc, self.settings.shutdown_grace_seconds)
+            terminated = cc.terminate_process_group(
+                proc, self.settings.shutdown_grace_seconds
+            )
             self._close_output_handles(proc)
+            if not terminated:
+                logger.error(
+                    "force-cancel: process group %d survived SIGKILL; "
+                    "identity retained", proc.pid,
+                )
         pair = session.get(PairJob, pair_id)
         tournament = session.get(Tournament, tournament_id)
         if pair is not None and pair.status == RUNNING:
@@ -674,10 +684,15 @@ class Scheduler:
         with self.session_factory() as session:
             pair = session.get(PairJob, self.active_pair_job_id)
             if pair is not None and pair.status == RUNNING:
-                cc.terminate_process_group(
+                terminated = cc.terminate_process_group(
                     self.active_proc, self.settings.shutdown_grace_seconds
                 )
                 self._close_output_handles(self.active_proc)
+                if not terminated:
+                    logger.error(
+                        "worker shutdown: process group %d survived SIGKILL; "
+                        "identity retained", self.active_proc.pid,
+                    )
                 pair.status = INTERRUPTED
                 pair.finished_at = utcnow()
                 pair.failure_reason = "worker shutdown"
