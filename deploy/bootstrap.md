@@ -94,9 +94,11 @@ sudo tar -xzf /opt/chessarena/incoming/arena.tar.gz /etc/shadow      # not in su
 sudo pip install /etc                                                   # not in sudoers
 ```
 
-Extra arguments are rejected twice: sudoers `*` matches a single word (so a
-third argument fails the rule) and the wrapper itself enforces `$# == 2`
-for the id subcommands and `$# == 1` for the restart commands.
+Extra arguments are rejected by the wrapper itself: the id subcommands
+enforce `$# == 2` and the restart commands enforce `$# == 1`, and the
+release/build id regexes reject `/`, `..` and spaces.  (Sudoers `*` only
+matches a single argument; the authoritative enforcement is the wrapper's
+argument-count check.)
 
 The wrapper confines every path by construction: the release/build id regex
 rejects `/`, `..` and spaces, so the resolved destination is always
@@ -112,8 +114,14 @@ launch.
 ```bash
 sudo -u chessarena python3.12 -m venv /opt/chessarena/venv
 sudo -u chessarena /opt/chessarena/venv/bin/pip install \
-    fastapi 'uvicorn[standard]' sqlalchemy alembic jinja2 python-chess pydantic
+    fastapi 'uvicorn[standard]' sqlalchemy alembic jinja2 \
+    python-chess python-multipart pydantic
 ```
+
+(`python-multipart` is required by FastAPI's form parsing, used by the admin
+forms and CSRF validation.  The wrapper's `release-install` runs
+`pip install -e <release>` which installs the same dependencies from
+`pyproject.toml`, so the two paths stay consistent.)
 
 ## 4. Configure the environment
 

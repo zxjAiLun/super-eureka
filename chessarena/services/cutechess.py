@@ -160,8 +160,8 @@ def launch_cutechess(argv: List[str], pair_dir: Path) -> subprocess.Popen:
     return proc
 
 
-def _group_alive(pgid: int) -> bool:
-    """True when ANY member of the process group still exists."""
+def _group_alive_killpg(pgid: int) -> bool:
+    """killpg(0) based group-liveness check (non-Linux fallback)."""
     if pgid <= 0:
         return False
     if hasattr(os, "killpg"):
@@ -175,6 +175,45 @@ def _group_alive(pgid: int) -> bool:
         except OSError:
             return False
     return _pid_alive(pgid)
+
+
+def _group_alive(pgid: int) -> bool:
+    """True when any RUNNABLE member of the process group still exists.
+
+    On Linux this scans /proc/*/stat for members whose pgrp matches and whose
+    state is NOT 'Z' (zombie).  A zombie can no longer execute, so it must not
+    keep the group "alive": otherwise an unreaped leader would make cleanup
+    wait out the full grace period and falsely report a SIGKILL survivor
+    (P1, zombie/reaping).  Non-Linux falls back to killpg(0).
+    """
+    if pgid <= 0:
+        return False
+    if sys.platform.startswith("linux"):
+        try:
+            entries = os.listdir("/proc")
+        except OSError:
+            return _group_alive_killpg(pgid)
+        for name in entries:
+            if not name.isdigit():
+                continue
+            try:
+                stat = Path(f"/proc/{name}/stat").read_text(
+                    encoding="utf-8", errors="replace"
+                )
+                rparen = stat.rfind(")")
+                if rparen < 0:
+                    continue
+                # After the (comm) field: [0]=state, [1]=ppid, [2]=pgrp, ...
+                fields = stat[rparen + 2:].split()
+                if len(fields) < 3:
+                    continue
+                state, pgrp = fields[0], int(fields[2])
+                if pgrp == pgid and state != "Z":
+                    return True
+            except (OSError, ValueError, IndexError):
+                continue
+        return False
+    return _group_alive_killpg(pgid)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -208,13 +247,14 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
-    """SIGTERM the process group, wait for the WHOLE group, escalate, wait.
+def _terminate_group_polling(pgid: int, grace_seconds: float,
+                             reap: callable | None = None) -> bool:
+    """Shared SIGTERM -> wait -> SIGKILL -> wait loop for a process group.
 
-    Returns True only when the entire process group is confirmed gone.  If a
-    member (e.g. a SIGTERM-ignoring engine child) survives SIGKILL, returns
-    False so the caller does not silently discard the process identity
-    (P1, group-aware cleanup shared by recovery and active force-cancel).
+    ``reap`` is an optional per-iteration hook (e.g. ``proc.poll()``) that
+    reaps an exited leader so a zombie cannot keep the group "alive" via
+    killpg(0).  Returns True only when no runnable member remains; False when
+    the group survived SIGKILL.
     """
     import time
 
@@ -233,6 +273,8 @@ def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
     signal_group(signal.SIGTERM)
     deadline = time.time() + grace_seconds
     while time.time() < deadline:
+        if reap is not None:
+            reap()
         if not _group_alive(pgid):
             return True
         time.sleep(0.1)
@@ -240,10 +282,23 @@ def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
     signal_group(getattr(signal, "SIGKILL", signal.SIGTERM))
     deadline = time.time() + 10
     while time.time() < deadline:
+        if reap is not None:
+            reap()
         if not _group_alive(pgid):
             return True
         time.sleep(0.1)
     return False  # group survived SIGKILL: identity must be retained
+
+
+def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
+    """Group-aware termination by PGID (used by recovery, P1).
+
+    Returns True only when the entire process group is confirmed gone.  The
+    caller has no Popen handle to reap an exited leader, so the zombie-aware
+    /proc liveness check is what distinguishes a reaped-able zombie from a
+    surviving child.
+    """
+    return _terminate_group_polling(pgid, grace_seconds, reap=None)
 
 
 def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> bool:
@@ -252,8 +307,11 @@ def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> boo
     Returns True when the group is fully gone, False when members survived
     (section 19 grace, then SIGKILL).  Never stops at the leader PID.
 
-    On POSIX the group-aware path is used.  Windows has no process groups and
-    ``os.kill``/``OpenProcess`` cannot track a killed-but-unreaped leader
+    On POSIX the leader is polled/reaped during each wait round so an exited
+    leader is removed from the process table promptly (a zombie would
+    otherwise keep the group alive via killpg(0) for the full grace period)
+    and the zombie-aware /proc check is used.  Windows has no process groups
+    and os.kill/OpenProcess cannot track a killed-but-unreaped leader
     reliably, so the leader is terminated and reaped through its Popen handle
     (the production host is Linux; Windows is the test/development platform).
     """
@@ -280,7 +338,9 @@ def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> boo
             return False
 
     pgid = proc.pid  # launched with start_new_session -> leader is group leader
-    terminated = terminate_process_group_by_pid(pgid, grace_seconds)
+    terminated = _terminate_group_polling(
+        pgid, grace_seconds, reap=lambda: proc.poll()
+    )
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
