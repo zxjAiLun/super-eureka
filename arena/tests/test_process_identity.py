@@ -106,6 +106,49 @@ def test_linux_dead_pid_identity_disappears():
     assert cc.verify_process_identity(pid, marker, cmdline) is False
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs process groups")
+def test_linux_cleanup_waits_for_whole_group():
+    """P1: when the group leader exits but a SIGTERM-ignoring child survives,
+    cleanup must escalate to SIGKILL for the whole group, not stop at the
+    leader PID."""
+    from chessarena.services import recovery
+
+    leader = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import subprocess, time, sys\n"
+            "subprocess.Popen([sys.executable, '-c', "
+            "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "time.sleep(30)'])\n"
+            "time.sleep(30)\n",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,  # leader is its own group leader
+    )
+    pgid = leader.pid
+    try:
+        # Leader exits; the child (same PGID) ignores SIGTERM and survives.
+        leader.kill()
+        leader.wait()
+        assert recovery._group_alive(pgid) is True, "child should still be alive"
+
+        class _ShortGrace:
+            shutdown_grace_seconds = 1.0
+
+        recovery._terminate_pid_group_wait(pgid, settings=_ShortGrace())
+        # The whole group must be gone: SIGTERM was ignored, so SIGKILL was
+        # required, and cleanup waited for the group rather than the leader.
+        assert recovery._group_alive(pgid) is False
+    finally:
+        # Belt and braces: never leave a stray sleeping child behind.
+        try:
+            os.killpg(pgid, 9)
+        except (ProcessLookupError, OSError):
+            pass
+
+
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)

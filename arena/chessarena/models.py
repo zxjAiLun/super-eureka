@@ -202,6 +202,9 @@ class PairJob(Base):
     # pending/running).  A non-zero exit code fails the pair and the
     # tournament even when the artifacts look complete.
     return_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The attempt the recorded exit code belongs to (P1: exit evidence must
+    # belong to the CURRENT attempt; both are cleared on every retry).
+    return_code_attempt: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     tournament: Mapped["Tournament"] = relationship(back_populates="pair_jobs")
 

@@ -89,6 +89,48 @@ def can_mark_completed(session, tournament) -> bool:
     return game_count == tournament.requested_pairs * 2
 
 
+def atomic_complete_or_cancel(session, tournament, now) -> str:
+    """Atomically transition a finished tournament to COMPLETED or CANCELLED.
+
+    Returns the final status.  Every path that can mark a tournament
+    COMPLETED must go through this helper so the global invariant holds: the
+    row can never end as COMPLETED while a cancel/force-cancel flag is
+    present.  The COMPLETED write is a conditional UPDATE guarded by the
+    flags, so a cancel committed concurrently (which is itself a conditional
+    UPDATE) makes this match zero rows under the SQLite write lock, and the
+    CANCELLED branch is applied instead (P2.2).
+    """
+    from sqlalchemy import update
+
+    result = session.execute(
+        update(Tournament)
+        .where(Tournament.id == tournament.id)
+        .where(Tournament.cancel_requested.is_(False))
+        .where(Tournament.force_cancel_requested.is_(False))
+        .values(
+            status=COMPLETED,
+            finished_at=now,
+            cancel_requested=False,
+            pause_requested=False,
+            force_cancel_requested=False,
+        )
+    )
+    if result.rowcount == 1:
+        return COMPLETED
+    session.execute(
+        update(Tournament)
+        .where(Tournament.id == tournament.id)
+        .values(
+            status=CANCELLED,
+            finished_at=now,
+            cancel_requested=True,
+            pause_requested=False,
+            force_cancel_requested=False,
+        )
+    )
+    return CANCELLED
+
+
 def reschedule_interrupted_pairs(session, tournament) -> int:
     """INTERRUPTED pairs in a non-CANCELLED tournament become PENDING again.
 
@@ -118,6 +160,9 @@ def reschedule_interrupted_pairs(session, tournament) -> int:
         pair.attempt += 1
         pair.status = PENDING
         pair.run_directory = None
+        # P1: exit evidence from the old attempt must not leak into the new one.
+        pair.return_code = None
+        pair.return_code_attempt = None
     return len(pairs)
 
 
@@ -196,12 +241,16 @@ def _recover_tournament(settings, session, tournament) -> None:
 
     # No pending pairs: strictly validate before calling it COMPLETED.
     if can_mark_completed(session, tournament):
-        tournament.status = COMPLETED
-        tournament.finished_at = utcnow()
-        tournament.cancel_requested = False
-        tournament.pause_requested = False
-        _record_event(session, tournament.id, "tournament_completed")
-        _generate_artifacts(session, tournament)
+        final = atomic_complete_or_cancel(session, tournament, utcnow())
+        session.expire(tournament)
+        if final == COMPLETED:
+            _record_event(session, tournament.id, "tournament_completed")
+            _generate_artifacts(session, tournament)
+        else:
+            _record_event(
+                session, tournament.id, "tournament_cancelled",
+                reason="concurrent cancel",
+            )
     else:
         failed = (
             session.query(PairJob)
@@ -265,12 +314,18 @@ def _recover_running_pair(settings, session, tournament, pair) -> bool:
     # doing anything with this pair.
     _kill_orphaned_pair(session, pair, settings)
 
-    # P1: the manager exit code must have been recorded by the worker before
-    # we may ever score a pair from its PGN.  If the worker died before
-    # recording it, there is no trustworthy evidence: interrupt and re-run.
-    if pair.return_code is None:
-        return _interrupt_pair(session, tournament, pair,
-                               run_dir, "no manager exit-code evidence")
+    # P1: the manager exit code must have been recorded by the worker for the
+    # CURRENT attempt before we may ever score a pair from its PGN.  If the
+    # worker died before recording it (or the evidence belongs to an older
+    # attempt), there is no trustworthy evidence: interrupt and re-run.
+    evidence_ok = (
+        pair.return_code is not None
+        and pair.return_code_attempt is not None
+        and pair.return_code_attempt == pair.attempt
+    )
+    if not evidence_ok:
+        return _interrupt_pair(session, tournament, pair, run_dir,
+                               "no manager exit-code evidence for this attempt")
 
     pgn_ok = (
         match_pgn is not None
@@ -346,6 +401,9 @@ def _interrupt_pair(session, tournament, pair, run_dir, reason: str) -> bool:
     pair.attempt += 1
     pair.status = PENDING
     pair.run_directory = None
+    # P1: exit evidence from the old attempt must not leak into the new one.
+    pair.return_code = None
+    pair.return_code_attempt = None
     return True
 
 
@@ -359,13 +417,19 @@ def _fail_pair(session, tournament, pair, reason, verification=None,
         "verified": False,
         "reason": reason,
     }
+    # P1: exit evidence must reach verification.json and the events on the
+    # failure path too, not only on the success path.
+    if pair.return_code is not None:
+        pair.verification["return_code"] = pair.return_code
     tournament.status = FAILED
     tournament.finished_at = utcnow()
     tournament.failure_reason = reason
     _record_event(session, tournament.id, "pair_failed",
-                  pair_job_id=pair.id, reason=reason)
+                  pair_job_id=pair.id, reason=reason,
+                  return_code=pair.return_code)
     _record_event(session, tournament.id, "tournament_failed",
-                  pair_job_id=pair.id, reason=reason)
+                  pair_job_id=pair.id, reason=reason,
+                  return_code=pair.return_code)
     if run_dir is not None:
         artifacts.write_json(run_dir, "verification.json", pair.verification or {})
     return False
@@ -442,8 +506,33 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
+def _group_alive(pgid: int) -> bool:
+    """True when ANY member of the process group still exists (P1).
+
+    This is what the cleanup wait must poll: the group leader may exit while
+    a child (engine process) survives, and only a group-wide check keeps
+    sending SIGKILL until the whole group is gone.
+    """
+    import os
+
+    if pgid <= 0:
+        return False
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(pgid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+    # Non-POSIX fallback: the leader is the whole group for our launches.
+    return _pid_alive(pgid)
+
+
 def _terminate_pid_group_wait(pid: int, settings=None) -> None:
-    """SIGTERM the process group, wait for it, escalate to SIGKILL, wait."""
+    """SIGTERM the process group, wait for the WHOLE group, escalate, wait."""
     import os
     import signal
     import time
@@ -469,7 +558,7 @@ def _terminate_pid_group_wait(pid: int, settings=None) -> None:
     signal_group(signal.SIGTERM)
     deadline = time.time() + grace
     while time.time() < deadline:
-        if not _pid_alive(pid):
+        if not _group_alive(pid):
             return
         time.sleep(0.1)
 
@@ -477,7 +566,7 @@ def _terminate_pid_group_wait(pid: int, settings=None) -> None:
     signal_group(sigkill)
     deadline = time.time() + 10
     while time.time() < deadline:
-        if not _pid_alive(pid):
+        if not _group_alive(pid):
             return
         time.sleep(0.1)
 
@@ -583,18 +672,17 @@ def _complete_pair(session, tournament, pair, run_dir, verification) -> None:
                   pair_job_id=pair.id)
 
     if tournament.completed_pairs >= tournament.requested_pairs:
-        # P2.2: an explicit cancel wins over automatic completion.
-        if tournament.cancel_requested:
-            tournament.status = CANCELLED
-            tournament.finished_at = now
-            tournament.pause_requested = False
-        else:
-            tournament.status = COMPLETED
-            tournament.finished_at = now
-            tournament.cancel_requested = False
-            tournament.pause_requested = False
+        # P2.2: the final transition is atomic - cancel wins if it landed.
+        final = atomic_complete_or_cancel(session, tournament, now)
+        session.expire(tournament)
+        if final == COMPLETED:
             _record_event(session, tournament.id, "tournament_completed")
             artifacts.generate_tournament_artifacts(tournament)
+        else:
+            _record_event(
+                session, tournament.id, "tournament_cancelled",
+                reason="concurrent cancel",
+            )
 
 
 def _generate_artifacts(session, tournament) -> None:

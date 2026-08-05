@@ -100,11 +100,12 @@ class Scheduler:
         pair = session.get(PairJob, self.active_pair_job_id)
         tournament = session.get(Tournament, self.active_tournament_id)
         # P1: persist the manager exit code in its own transaction BEFORE any
-        # verification or scoring.  If the worker dies after this commit,
-        # recovery can trust the recorded exit code instead of guessing from
-        # the PGN.
+        # verification or scoring, tagged with the attempt it belongs to.  If
+        # the worker dies after this commit, recovery can trust the recorded
+        # exit code instead of guessing from the PGN.
         if pair is not None:
             pair.return_code = rc
+            pair.return_code_attempt = pair.attempt
             session.commit()
             pair = session.get(PairJob, self.active_pair_job_id)
             tournament = session.get(Tournament, self.active_tournament_id)
@@ -246,6 +247,7 @@ class Scheduler:
         pair.finished_at = utcnow()
         pair.failure_reason = reason
         pair.return_code = return_code
+        pair.return_code_attempt = pair.attempt if return_code is not None else None
         pair.verification = verification or {
             "verified": False,
             "reason": reason,
@@ -279,6 +281,7 @@ class Scheduler:
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
 
         pair.return_code = return_code if return_code is not None else 0
+        pair.return_code_attempt = pair.attempt
         verification["return_code"] = pair.return_code
 
         pgn_path = run_dir / "match.pgn"
@@ -360,55 +363,16 @@ class Scheduler:
     def _finalize_tournament(self, session, tournament: Tournament, now) -> None:
         """Transition the tournament to COMPLETED or CANCELLED atomically.
 
-        Cancel/force-cancel requests can arrive from the API at any moment.
-        The API commits them with a conditional UPDATE, and this worker-side
-        transition also uses a conditional UPDATE: whichever acquires the
-        SQLite write lock first wins, and the loser's WHERE clause fails, so
-        the final row can never be COMPLETED with a pending cancel flag
-        (P2.2 race).
+        Delegates to the shared conditional-UPDATE helper used by every path
+        that can complete a tournament, so the invariant "COMPLETED can never
+        coexist with a pending cancel flag" holds globally (P2.2).
         """
-        from sqlalchemy import update
-
-        # Re-read control flags fresh; they may have changed since the worker
-        # last loaded this tournament.
-        session.expire(
-            tournament,
-            ["cancel_requested", "force_cancel_requested", "pause_requested"],
-        )
-        if tournament.cancel_requested or tournament.force_cancel_requested:
-            tournament.status = CANCELLED
-            tournament.finished_at = now
-            tournament.pause_requested = False
-            tournament.force_cancel_requested = False
-            _record_event(
-                session, tournament.id, "tournament_cancelled",
-                reason="concurrent cancel",
-            )
-            return
-
-        result = session.execute(
-            update(Tournament)
-            .where(Tournament.id == tournament.id)
-            .where(Tournament.cancel_requested.is_(False))
-            .where(Tournament.force_cancel_requested.is_(False))
-            .values(
-                status=COMPLETED,
-                finished_at=now,
-                cancel_requested=False,
-                pause_requested=False,
-                force_cancel_requested=False,
-            )
-        )
-        if result.rowcount == 1:
-            tournament.status = COMPLETED
-            tournament.finished_at = now
+        final = recovery.atomic_complete_or_cancel(session, tournament, now)
+        session.expire(tournament)
+        if final == COMPLETED:
             _record_event(session, tournament.id, "tournament_completed")
-            session.expire(tournament)
             artifacts.generate_tournament_artifacts(tournament)
         else:
-            tournament.status = CANCELLED
-            tournament.finished_at = now
-            tournament.pause_requested = False
             _record_event(
                 session, tournament.id, "tournament_cancelled",
                 reason="concurrent cancel",
@@ -478,6 +442,10 @@ class Scheduler:
 
         pair.status = RUNNING
         pair.started_at = utcnow()
+        # P1: a new attempt starts with no exit evidence (the previous
+        # attempt's evidence must never leak into this one).
+        pair.return_code = None
+        pair.return_code_attempt = None
         tournament.status = RUNNING
         tournament.started_at = tournament.started_at or utcnow()
         session.flush()
@@ -540,21 +508,27 @@ class Scheduler:
 
     def _finish_without_pending(self, session, tournament) -> str:
         """All pairs terminal: strictly validate before completing (P1.2)."""
+        if recovery.can_mark_completed(session, tournament):
+            final = recovery.atomic_complete_or_cancel(
+                session, tournament, utcnow()
+            )
+            session.expire(tournament)
+            if final == COMPLETED:
+                _record_event(session, tournament.id, "tournament_completed")
+                artifacts.generate_tournament_artifacts(tournament)
+            else:
+                _record_event(
+                    session, tournament.id, "tournament_cancelled",
+                    reason="concurrent cancel",
+                )
+            session.commit()
+            return f"tournament completed: {tournament.id}"
+
         if tournament.cancel_requested:
             tournament.status = CANCELLED
             tournament.finished_at = utcnow()
             session.commit()
             return f"cancelled: {tournament.id}"
-
-        if recovery.can_mark_completed(session, tournament):
-            tournament.status = COMPLETED
-            tournament.finished_at = utcnow()
-            tournament.cancel_requested = False
-            tournament.pause_requested = False
-            _record_event(session, tournament.id, "tournament_completed")
-            artifacts.generate_tournament_artifacts(tournament)
-            session.commit()
-            return f"tournament completed: {tournament.id}"
 
         failed = (
             session.query(PairJob)
