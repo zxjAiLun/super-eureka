@@ -13,37 +13,37 @@
   <h3>Controls</h3>
   {% if tournament.status == "DRAFT" %}
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/start" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit">Start</button>
     </form>
   {% elif tournament.status == "QUEUED" %}
     <span class="muted">Queued — waiting for worker</span>
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/cancel" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit" class="danger">Cancel</button>
     </form>
   {% elif tournament.status in ("RUNNING", "PAUSING") %}
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/pause" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit">Pause after current pair</button>
     </form>
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/cancel" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit" class="danger">Cancel after current pair</button>
     </form>
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/force-cancel" style="display:inline"
           onsubmit="return confirm('Force-cancel kills the running cutechess process immediately. Continue?')">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="confirm" value="1">
       <button type="submit" class="danger">Force cancel now</button>
     </form>
   {% elif tournament.status == "PAUSED" %}
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/resume" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit">Resume</button>
     </form>
     <form method="post" action="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/action/cancel" style="display:inline">
-      <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <button type="submit" class="danger">Cancel</button>
     </form>
   {% elif tournament.status == "COMPLETED" %}
