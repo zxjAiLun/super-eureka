@@ -72,26 +72,40 @@ sudo chmod 0440 /etc/sudoers.d/chessarena-deploy
 
 ### Negative acceptance for sudoers
 
-Verify the deploy user CANNOT do any of the following (each must be denied):
+Verify the deploy user CANNOT do any of the following by actually running
+each command as `deploy` and asserting a non-zero exit (this must be done
+during bootstrap, not just documented):
 
 ```bash
 sudo -l -U deploy
 
-# As the deploy user, these must all be refused:
-sudo -u chessarena sh                      # no shell as chessarena
-sudo -u chessarena bash -c 'id'            # no shell as chessarena
+# Every one of these must exit non-zero:
+sudo -u chessarena sh -c 'id'                    # no shell as chessarena
+sudo -u chessarena bash -c 'id'                  # no shell as chessarena
 sudo -u chessarena /opt/chessarena/venv/bin/python -c 'print(1)'   # no arbitrary python
-sudo /opt/chessarena/bin/arena-deploy      # missing subcommand -> wrapper fails
-sudo /opt/chessarena/bin/arena-deploy release-install ../etc/passwd     # invalid id
-sudo /opt/chessarena/bin/arena-deploy release-install 20260101x         # invalid id
-sudo /opt/chessarena/bin/arena-deploy build-install 'x; rm -rf /'       # invalid id
-sudo /opt/chessarena/bin/arena-deploy release-install 20260101000000 extra   # extra arg rejected by sudoers
-sudo tar -xzf /opt/chessarena/incoming/arena.tar.gz /etc/shadow        # not in sudoers
-sudo pip install /etc                              # not in sudoers
+sudo /opt/chessarena/bin/arena-deploy            # missing subcommand
+sudo /opt/chessarena/bin/arena-deploy release-install               # missing id
+sudo /opt/chessarena/bin/arena-deploy release-install ../etc/passwd # invalid id
+sudo /opt/chessarena/bin/arena-deploy release-install 20260101x     # invalid id
+sudo /opt/chessarena/bin/arena-deploy build-install 'x; rm -rf /'   # invalid id
+sudo /opt/chessarena/bin/arena-deploy release-install 20260101000000 extra   # extra arg
+sudo /opt/chessarena/bin/arena-deploy restart-api extra                      # extra arg
+sudo tar -xzf /opt/chessarena/incoming/arena.tar.gz /etc/shadow      # not in sudoers
+sudo pip install /etc                                                   # not in sudoers
 ```
 
-The wrapper itself refuses non-conforming ids and non-existent paths, and
-never touches anything outside `/opt/chessarena`.
+Extra arguments are rejected twice: sudoers `*` matches a single word (so a
+third argument fails the rule) and the wrapper itself enforces `$# == 2`
+for the id subcommands and `$# == 1` for the restart commands.
+
+The wrapper confines every path by construction: the release/build id regex
+rejects `/`, `..` and spaces, so the resolved destination is always
+`/opt/chessarena/{releases,builds}/<id>`; a defensive path-prefix check is
+also applied.  The build-install SHA check is an internal-consistency check
+(the manifest's `binary_sha256` is compared against the engine inside the
+same tarball, catching upload/extraction corruption); the authoritative SHA
+is recorded in the database at registration and re-verified before every
+launch.
 
 ## 3. Create the Python virtualenv
 

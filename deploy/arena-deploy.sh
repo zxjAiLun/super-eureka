@@ -31,15 +31,33 @@ fail() { echo "arena-deploy: $*" >&2; exit 1; }
 
 release_dir() {
     local id="${1:-}"
+    # Strict id format: digits only - no '/', no '..', no spaces, so the
+    # constructed path is confined to the releases tree by construction.
     [[ "$id" =~ ^[0-9]{14}$ ]] || fail "invalid release id: '$id'"
-    echo "$RELEASES/$id"
+    local dest="$RELEASES/$id"
+    [[ "$dest" == "$RELEASES/"* ]] || fail "path escape: $dest"
+    echo "$dest"
 }
 
 build_dir() {
     local id="${1:-}"
+    # Strict build-id format (date-gitlabel): no '/', no '..', no spaces.
     [[ "$id" =~ ^[0-9]{8}-[0-9a-f]{7,40}-[A-Za-z0-9._-]+$ ]] || fail "invalid build id: '$id'"
-    echo "$BUILDS/$id"
+    local dest="$BUILDS/$id"
+    [[ "$dest" == "$BUILDS/"* ]] || fail "path escape: $dest"
+    echo "$dest"
 }
+
+case "${1:-}" in
+    release-install|release-switch|build-install)
+        # Exactly one id argument; anything more is rejected (P1: the
+        # declared boundary must actually be enforced, not documented).
+        [[ $# -eq 2 ]] || fail "exactly one id argument required"
+        ;;
+    restart-api|restart-worker)
+        [[ $# -eq 1 ]] || fail "no arguments allowed"
+        ;;
+esac
 
 case "${1:-}" in
     release-install)
@@ -69,8 +87,12 @@ case "${1:-}" in
         echo "arena-deploy: switched current -> $dest"
         ;;
     build-install)
-        # Verify the uploaded tarball SHA against its manifest and atomically
-        # install it as an immutable build directory, then register it.
+        # Extract the uploaded tarball and verify internal consistency: the
+        # manifest's binary_sha256 is compared against the extracted engine
+        # (this detects upload/extraction corruption).  The authoritative
+        # SHA is recorded in the database during registration and re-verified
+        # before every launch.  Then atomically install the immutable build
+        # directory and register it.
         id="${2:-}"
         dest="$(build_dir "$id")"
         tarball="$INCOMING/build-$id.tar.gz"
