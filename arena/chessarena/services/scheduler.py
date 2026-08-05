@@ -126,16 +126,24 @@ class Scheduler:
         pair_id = self.active_pair_job_id
         tournament_id = self.active_tournament_id
         proc = self.active_proc
+        terminated = True
         if proc is not None:
             terminated = cc.terminate_process_group(
                 proc, self.settings.shutdown_grace_seconds
             )
             self._close_output_handles(proc)
-            if not terminated:
-                logger.error(
-                    "force-cancel: process group %d survived SIGKILL; "
-                    "identity retained", proc.pid,
-                )
+        if not terminated:
+            # P1: the group survived SIGKILL.  Keep the active process, the
+            # worker_state identity and the force_cancel_requested flag so the
+            # next tick retries the cleanup; never clear active state or
+            # schedule a new pair while a survivor may still run.
+            logger.error(
+                "force-cancel: process group %d survived SIGKILL; retaining "
+                "active state and identity for retry", proc.pid if proc else None,
+            )
+            session.commit()
+            return f"force-cancel pending: {tournament_id}"
+
         pair = session.get(PairJob, pair_id)
         tournament = session.get(Tournament, tournament_id)
         if pair is not None and pair.status == RUNNING:
@@ -157,7 +165,7 @@ class Scheduler:
             _record_event(
                 session, tournament.id, "tournament_cancelled", reason="force"
             )
-        self._clear_active()
+        self._clear_active()  # only after the group is confirmed gone
         session.commit()
         return f"force-cancelled: {tournament_id}"
 
@@ -677,22 +685,27 @@ class Scheduler:
         """Stop accepting new pairs and terminate the active process group.
 
         The active attempt is marked INTERRUPTED (not scored); the next worker
-        boot re-runs it from scratch via recovery (P1.2).
+        boot re-runs it from scratch via recovery (P1.2).  If the process
+        group survives SIGKILL, the pair is left RUNNING and the worker_state
+        identity is retained so recovery retries the cleanup instead of
+        abandoning a survivor.
         """
         if self.active_proc is None:
             return
         with self.session_factory() as session:
             pair = session.get(PairJob, self.active_pair_job_id)
-            if pair is not None and pair.status == RUNNING:
-                terminated = cc.terminate_process_group(
-                    self.active_proc, self.settings.shutdown_grace_seconds
+            terminated = cc.terminate_process_group(
+                self.active_proc, self.settings.shutdown_grace_seconds
+            )
+            self._close_output_handles(self.active_proc)
+            if not terminated:
+                logger.error(
+                    "worker shutdown: process group %d survived SIGKILL; "
+                    "leaving pair RUNNING and identity in place for recovery",
+                    self.active_proc.pid,
                 )
-                self._close_output_handles(self.active_proc)
-                if not terminated:
-                    logger.error(
-                        "worker shutdown: process group %d survived SIGKILL; "
-                        "identity retained", self.active_proc.pid,
-                    )
+                return
+            if pair is not None and pair.status == RUNNING:
                 pair.status = INTERRUPTED
                 pair.finished_at = utcnow()
                 pair.failure_reason = "worker shutdown"
@@ -704,11 +717,6 @@ class Scheduler:
                     reason="worker shutdown",
                 )
                 session.commit()
-            else:
-                cc.terminate_process_group(
-                    self.active_proc, self.settings.shutdown_grace_seconds
-                )
-                self._close_output_handles(self.active_proc)
         self._clear_active()
 
     def current_activity(self) -> Dict[str, Any]:

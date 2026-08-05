@@ -163,6 +163,83 @@ def test_linux_cleanup_waits_for_whole_group(tmp_path):
             pass
 
 
+def _spawn_group_leader() -> subprocess.Popen:
+    """A process that is its own group leader (like the cutechess launch)."""
+    return subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def test_terminate_single_leader_is_fast():
+    """P1: a leader that exits on SIGTERM must be reaped promptly; cleanup
+    must NOT wait out the full grace + SIGKILL window just because a zombie
+    keeps the PGID visible via killpg(0)."""
+    proc = _spawn_group_leader()
+    try:
+        start = time.monotonic()
+        ok = cc.terminate_process_group(proc, 5.0)
+        elapsed = time.monotonic() - start
+        assert ok is True
+        # A broken implementation takes ~grace(5) + SIGKILL wait(10) = 15s.
+        assert elapsed < 4.0, f"cleanup took {elapsed:.1f}s"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs process groups")
+def test_linux_terminate_escalates_for_ignoring_child(tmp_path):
+    """P1: through the Popen path, a SIGTERM-ignoring child forces escalation
+    to SIGKILL and the whole group is confirmed gone (leader reaped)."""
+    ready_file = tmp_path / "child-ready"
+    child_code = (
+        "import signal, time, os\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "open(os.environ['READY_FILE'], 'w').write('ready')\n"
+        "time.sleep(30)\n"
+    )
+    leader = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import subprocess, time, sys, os\n"
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1]])\n"
+            "time.sleep(30)\n",
+            child_code,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        env={**os.environ, "READY_FILE": str(ready_file)},
+    )
+    pgid = leader.pid
+    try:
+        deadline = time.time() + 10
+        while not ready_file.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        assert ready_file.exists(), "child never signalled readiness"
+        assert cc._group_alive(pgid) is True
+
+        start = time.monotonic()
+        ok = cc.terminate_process_group(leader, 1.0)
+        elapsed = time.monotonic() - start
+        assert ok is True
+        assert elapsed < 12.0  # grace 1 + SIGKILL wait 10 + margin
+        # The child ignored SIGTERM and had to be SIGKILLed: the whole group
+        # is now gone and the leader handle was reaped.
+        assert cc._group_alive(pgid) is False
+        assert leader.poll() is not None
+    finally:
+        try:
+            os.killpg(pgid, 9)
+        except (ProcessLookupError, OSError):
+            pass
+
+
 def _pid_alive(pid: int) -> bool:
     from chessarena.services import cutechess as cc
 

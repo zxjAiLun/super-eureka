@@ -472,6 +472,65 @@ def _create_payload_for(app_client):
 # ---------------------------------------------------------------------------
 # P1.3 cross-process force-cancel
 # ---------------------------------------------------------------------------
+def test_force_cancel_cleanup_failure_retains_state(settings, engine_factory,
+                                                    tournament_factory,
+                                                    scheduler, monkeypatch):
+    """P1: when the process group survives SIGKILL, the active process, the
+    worker_state identity and the force-cancel flag must be retained and no
+    new pair may start - cleanup retries instead of abandoning the survivor."""
+    from chessarena.services import cutechess as cc
+
+    os.environ["FAKE_CUTECHESS_SLEEP_MS"] = "5000"
+    original_terminate = cc.terminate_process_group
+    try:
+        tournament_id = tournament_factory(status="QUEUED", pairs=2)
+        scheduler.tick()  # pair 0 running
+        with engine_factory() as session:
+            tournament = session.get(Tournament, tournament_id)
+            tournament.force_cancel_requested = True
+            session.commit()
+
+        def fake_terminate(proc, grace):
+            return False
+
+        monkeypatch.setattr(
+            "chessarena.services.cutechess.terminate_process_group", fake_terminate
+        )
+        result = scheduler.tick()
+        assert "pending" in result
+
+        # Active state, flag and pair status are all retained.
+        assert scheduler.active_proc is not None
+        assert scheduler.active_pair_job_id is not None
+        with engine_factory() as session:
+            tournament = session.get(Tournament, tournament_id)
+            assert tournament.force_cancel_requested is True
+            assert tournament.status == "RUNNING"
+            pair0 = session.query(PairJob).filter(
+                PairJob.tournament_id == tournament_id,
+                PairJob.pair_index == 0,
+            ).first()
+            assert pair0.status == "RUNNING"
+            pair1 = session.query(PairJob).filter(
+                PairJob.tournament_id == tournament_id,
+                PairJob.pair_index == 1,
+            ).first()
+            assert pair1.status == "PENDING"  # no new pair started
+
+        # The next tick retries the cleanup.
+        with engine_factory() as session:
+            tournament = session.get(Tournament, tournament_id)
+            assert tournament.force_cancel_requested is True
+    finally:
+        os.environ.pop("FAKE_CUTECHESS_SLEEP_MS", None)
+        monkeypatch.setattr(
+            "chessarena.services.cutechess.terminate_process_group",
+            original_terminate,
+        )
+        if scheduler.active_proc is not None:
+            scheduler.shutdown()
+
+
 def test_force_cancel_across_real_processes(settings, engine_factory,
                                             tournament_factory, app_client):
     """The worker runs as a separate OS process; force-cancel still lands."""
