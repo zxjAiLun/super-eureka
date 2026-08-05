@@ -227,8 +227,9 @@ def verify_pair(
                 f"unexpected stderr line: {line!r}"
             )
 
-    # Provenance (section 14.14)
-    _check_command_provenance(command_json, settings, snapshot, run_dir)
+    # Provenance (section 14.14, P2.3)
+    _check_command_provenance(settings, command_json, snapshot, run_dir,
+                              engine_a_build, engine_b_build)
     _check_engine_provenance(engine_a_build, snapshot["engine_a"])
     _check_engine_provenance(engine_b_build, snapshot["engine_b"])
     _check_opening_provenance(opening_set, snapshot["opening_set"])
@@ -279,7 +280,8 @@ def _expected_opening_fen(opening_set, opening_index: int) -> str:
     return chess.Board(lines[opening_index].split(";")[0].strip()).fen()
 
 
-def _check_command_provenance(command_json: Path, settings, snapshot, run_dir) -> None:
+def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
+                              engine_a_build, engine_b_build) -> None:
     if not command_json.exists():
         raise VerificationFailure("command.json missing from pair directory")
     try:
@@ -287,23 +289,41 @@ def _check_command_provenance(command_json: Path, settings, snapshot, run_dir) -
     except (OSError, ValueError) as exc:
         raise VerificationFailure(f"command.json unreadable: {exc}") from exc
 
-    argv = cmd.get("argv", [])
-    if not argv or Path(argv[0]).resolve() != Path(settings.cutechess).resolve():
-        raise VerificationFailure("command.json does not reference configured cutechess")
+    recorded = cmd.get("argv")
+    if not isinstance(recorded, list) or not recorded:
+        raise VerificationFailure("command.json has no argv")
     if cmd.get("shell", False):
         raise VerificationFailure("command.json has shell=true (forbidden)")
-    # The snapshot carries build_ids, not binary paths; verify the build ids
-    # appear in the recorded argv so the pair provably ran those builds.
-    argv_text = " ".join(argv)
-    if snapshot["engine_a"]["build_id"] not in argv_text:
+
+    # Rebuild the expected argv from the recorded snapshot and the registered
+    # engine builds, then compare structurally (P2.3).  This pins the engine
+    # binaries, both profiles, the time control, Hash, rounds/repeat,
+    # concurrency and the opening/pgn paths exactly.
+    from .cutechess import build_pair_command
+
+    from ..config import TIME_CONTROLS
+
+    expected = build_pair_command(
+        settings,
+        engine_a={
+            "build_id": engine_a_build.build_id,
+            "binary_path": engine_a_build.binary_path,
+            "profile": snapshot["engine_a"]["profile"],
+        },
+        engine_b={
+            "build_id": engine_b_build.build_id,
+            "binary_path": engine_b_build.binary_path,
+            "profile": snapshot["engine_b"]["profile"],
+        },
+        time_control=TIME_CONTROLS[snapshot["time_control"]]["cutechess_tc"],
+        hash_mb=snapshot.get("hash_mb", settings.hash_mb),
+        opening_epd=run_dir / "opening.epd",
+        pgn_out=run_dir / "match.pgn",
+    )
+    if recorded != expected:
         raise VerificationFailure(
-            "command.json argv does not reference engine_a build "
-            f"{snapshot['engine_a']['build_id']}"
-        )
-    if snapshot["engine_b"]["build_id"] not in argv_text:
-        raise VerificationFailure(
-            "command.json argv does not reference engine_b build "
-            f"{snapshot['engine_b']['build_id']}"
+            "recorded cutechess argv does not match the expected command "
+            f"(recorded {len(recorded)} args vs expected {len(expected)})"
         )
 
 
@@ -314,6 +334,16 @@ def _check_engine_provenance(build, snapshot_engine) -> None:
         raise VerificationFailure("engine binary SHA mismatch in provenance")
     if build.git_sha != snapshot_engine["git_sha"]:
         raise VerificationFailure("engine git SHA mismatch in provenance")
+    # P2.3: re-hash the actual engine binary now, after the match.
+    binary = Path(build.binary_path)
+    if not binary.exists():
+        raise VerificationFailure(
+            f"engine binary missing at verification time: {binary}"
+        )
+    if artifacts.sha256_file(binary) != build.binary_sha256:
+        raise VerificationFailure(
+            f"engine binary changed since registration: {binary}"
+        )
 
 
 def _check_opening_provenance(opening_set, snapshot_opening) -> None:

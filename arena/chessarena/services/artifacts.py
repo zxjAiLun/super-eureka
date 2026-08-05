@@ -121,16 +121,29 @@ def build_combined_pgn(tournament_id: str, game_pgn_paths: list[Path]) -> Path |
     return combined
 
 
-def build_artifact_manifest(tournament_id: str, result_files: list[Path]) -> Path:
-    """Write ``artifact-manifest.json`` with SHA-256 of every result file."""
-    entries = {}
-    for path in sorted(set(result_files)):
-        if path.is_file():
-            entries[path.name] = {
+def build_artifact_manifest(tournament_id: str) -> Path:
+    """Write ``artifact-manifest.json`` with SHA-256 of every result file.
+
+    Entries use paths relative to the tournament run root, e.g.
+    ``pairs/000001/attempt-01/match.pgn``, so files that share a basename
+    (every pair has a ``match.pgn``) never collide (P1.6).  Every artifact
+    below the run root is included - command.json, command.txt, opening.epd,
+    stdout.log, stderr.log, verification.json, match.pgn, combined.pgn,
+    summary.json - except the manifest itself.
+    """
+    run_dir = tournament_run_dir(tournament_id)
+    entries: dict[str, dict] = {}
+    if run_dir.exists():
+        for path in sorted(run_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(run_dir).as_posix()
+            if relative == "artifact-manifest.json":
+                continue
+            entries[relative] = {
                 "sha256": sha256_file(path),
                 "size": path.stat().st_size,
             }
-    run_dir = tournament_run_dir(tournament_id)
     payload = {
         "schema_version": 1,
         "tournament_id": tournament_id,
@@ -195,11 +208,5 @@ def generate_tournament_artifacts(tournament) -> None:
         },
     )
 
-    result_files: list[Path] = []
-    for g in game_paths:
-        if g.exists():
-            result_files.append(g)
-    if combined and combined.exists():
-        result_files.append(combined)
-    result_files.append(summary)
-    build_artifact_manifest(tournament.id, result_files)
+    # The manifest enumerates the whole run tree itself (P1.6).
+    build_artifact_manifest(tournament.id)

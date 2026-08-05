@@ -130,7 +130,9 @@ def main() -> int:
     _write_stdout(pair_dir / "stdout.log", engine_a, engine_b, results)
     _write_stderr(pair_dir / "stderr.log")
 
-    return 0
+    # P1.5: simulate a manager that wrote complete artifacts but then failed.
+    exit_code = int(ENV.get("FAKE_CUTECHESS_EXIT_CODE", "0"))
+    return exit_code
 
 
 def _game_text(round_no: int, white: str, black: str, fen: str, tc: str,
