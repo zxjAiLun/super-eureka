@@ -211,15 +211,21 @@ def test_force_kill_interrupts_pair(scheduler, engine_factory, tournament_factor
     try:
         tournament_id = tournament_factory(status=QUEUED, pairs=2)
         scheduler.tick()
-        pair = _pair(engine_factory, tournament_id)
-        from chessarena.services.scheduler import request_force_kill
-
-        request_force_kill(pair.id)
+        # P1.3: force-cancel is a database flag (API and worker are separate
+        # processes); the worker picks it up on the next poll.
+        with engine_factory() as session:
+            tournament = session.get(Tournament, tournament_id)
+            tournament.force_cancel_requested = True
+            session.commit()
         scheduler.tick()  # kill processed
         with engine_factory() as session:
             pair = _pair(engine_factory, tournament_id)
             assert pair.status == INTERRUPTED
             assert pair.failure_reason == "force-cancelled"
+            tournament = session.get(Tournament, tournament_id)
+            assert tournament.status == CANCELLED
+            assert tournament.force_cancel_requested is False
+            assert tournament.completed_pairs == 0  # never scored
     finally:
         os.environ.pop("FAKE_CUTECHESS_SLEEP_MS", None)
 

@@ -119,6 +119,7 @@ class TournamentOut(BaseModel):
     finished_at: Optional[datetime] = None
     failure_reason: Optional[str] = None
     config_snapshot: Dict[str, Any] = Field(default_factory=dict)
+    force_cancel_requested: bool = False
 
     model_config = {"from_attributes": True}
 

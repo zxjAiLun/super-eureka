@@ -154,6 +154,13 @@ class Tournament(Base):
 
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # P1.3: cross-process force-cancel flag.  The API sets it in the database;
+    # the worker polls it, kills the process group, and only then marks the
+    # tournament CANCELLED.  In-process shared memory is NOT used because the
+    # API and worker are separate systemd processes.
+    force_cancel_requested: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     config_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -191,6 +198,10 @@ class PairJob(Base):
     )
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     verification: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # P1.5: the cutechess process exit code for this attempt (None while
+    # pending/running).  A non-zero exit code fails the pair and the
+    # tournament even when the artifacts look complete.
+    return_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     tournament: Mapped["Tournament"] = relationship(back_populates="pair_jobs")
 

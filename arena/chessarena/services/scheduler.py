@@ -8,16 +8,21 @@ Pause / cancel semantics:
 - pause_requested: the current pair finishes normally, then the tournament is
   set to PAUSED and no new pair starts.
 - cancel_requested: the current pair finishes normally, then the tournament is
-  set to CANCELLED.
-- force-kill: the running process group is killed immediately and the attempt
-  is marked INTERRUPTED (not scored).
+  set to CANCELLED.  Cancel wins over both pause and automatic completion.
+- force_cancel_requested: the running process group is killed immediately and
+  the attempt is marked INTERRUPTED (not scored).  The flag lives in the
+  database (not in-process memory) because the API and the worker are separate
+  processes in production (P1.3).
+- A non-zero cutechess exit code fails the pair and the tournament even when
+  the artifacts look complete (P1.5).
+
+Pair boundaries are the only scoring points; a half-completed pair is never
+counted.
 """
 
 from __future__ import annotations
 
 import subprocess
-import threading
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -41,25 +46,8 @@ from ..models import (
 )
 from . import artifacts
 from . import cutechess as cc
+from . import recovery
 from . import verifier
-
-# Module-level force-kill registry shared with the API process.
-_force_kill_lock = threading.Lock()
-_force_kill_requests: set[str] = set()
-
-
-def request_force_kill(pair_job_id: str) -> None:
-    """Ask the worker to kill the process group for a pair immediately."""
-    with _force_kill_lock:
-        _force_kill_requests.add(pair_job_id)
-
-
-def _consume_force_kill(pair_job_id: str) -> bool:
-    with _force_kill_lock:
-        if pair_job_id in _force_kill_requests:
-            _force_kill_requests.discard(pair_job_id)
-            return True
-        return False
 
 
 def _record_event(session, tournament_id, event_type, pair_job_id=None,
@@ -98,33 +86,37 @@ class Scheduler:
     # Active process handling
     # ------------------------------------------------------------------
     def _poll_active(self, session) -> str:
-        if _consume_force_kill(self.active_pair_job_id):
+        tournament = session.get(Tournament, self.active_tournament_id)
+        if tournament is not None and tournament.force_cancel_requested:
             return self._force_kill_active(session)
 
         proc = self.active_proc
         if proc.poll() is None:
             return f"pair running: {self.active_pair_job_id}"
 
+        rc = proc.returncode
         self._close_output_handles(proc)
         pair = session.get(PairJob, self.active_pair_job_id)
         tournament = session.get(Tournament, self.active_tournament_id)
         if pair is not None and tournament is not None and pair.status == RUNNING:
-            self._finish_pair(session, tournament, pair)
+            self._finish_pair(session, tournament, pair, return_code=rc)
         else:
             # Already interrupted/cancelled externally; nothing to score.
             pass
 
         self._clear_active()
         session.commit()
-        return f"pair finished: {self.active_pair_job_id} rc={proc.returncode}"
+        return f"pair finished: {self.active_pair_job_id} rc={rc}"
 
     def _force_kill_active(self, session) -> str:
         pair_id = self.active_pair_job_id
+        tournament_id = self.active_tournament_id
         proc = self.active_proc
         if proc is not None:
             cc.terminate_process_group(proc, self.settings.shutdown_grace_seconds)
             self._close_output_handles(proc)
         pair = session.get(PairJob, pair_id)
+        tournament = session.get(Tournament, tournament_id)
         if pair is not None and pair.status == RUNNING:
             pair.status = INTERRUPTED
             pair.finished_at = utcnow()
@@ -136,9 +128,17 @@ class Scheduler:
                 pair_job_id=pair.id,
                 reason="force-cancelled",
             )
+        if tournament is not None:
+            tournament.force_cancel_requested = False
+            tournament.cancel_requested = True
+            tournament.status = CANCELLED
+            tournament.finished_at = utcnow()
+            _record_event(
+                session, tournament.id, "tournament_cancelled", reason="force"
+            )
         self._clear_active()
         session.commit()
-        return f"force-killed pair: {pair_id}"
+        return f"force-cancelled: {tournament_id}"
 
     def _close_output_handles(self, proc: subprocess.Popen) -> None:
         for attr in ("_stdout_fh", "_stderr_fh"):
@@ -158,12 +158,19 @@ class Scheduler:
     # ------------------------------------------------------------------
     # Pair completion
     # ------------------------------------------------------------------
-    def _finish_pair(self, session, tournament: Tournament, pair: PairJob) -> None:
-        """Verify the completed pair and update DB state (section 14, 10.1)."""
+    def _finish_pair(self, session, tournament: Tournament, pair: PairJob,
+                     return_code: int | None = None) -> None:
+        """Verify the completed pair and update DB state (section 14, 10.1).
+
+        ``return_code`` is the cutechess process exit code.  A non-zero exit
+        code fails the pair even when the artifacts look complete (P1.5); the
+        verifier still runs to produce diagnostics, but nothing is scored.
+        """
         run_dir = Path(pair.run_directory) if pair.run_directory else None
         if run_dir is None or not run_dir.exists():
             self._fail_pair(
-                session, tournament, pair, "pair run directory missing"
+                session, tournament, pair, "pair run directory missing",
+                return_code=return_code,
             )
             return
 
@@ -179,6 +186,28 @@ class Scheduler:
 
         pair.status = "VERIFYING"
         session.flush()
+        verification, error = self._run_verifier(
+            session, tournament, pair, run_dir, engine_a, engine_b, opening_set
+        )
+        if error:
+            self._fail_pair(
+                session, tournament, pair, error,
+                verification=verification, return_code=return_code,
+            )
+            return
+        if return_code not in (None, 0):
+            # Artifacts look valid but the manager crashed -> never score.
+            self._fail_pair(
+                session, tournament, pair,
+                f"cutechess exited with code {return_code}",
+                verification=verification, return_code=return_code,
+            )
+            return
+        self._complete_pair(session, tournament, pair, run_dir, verification)
+
+    def _run_verifier(self, session, tournament, pair, run_dir,
+                      engine_a, engine_b, opening_set):
+        """Run verification; returns (verification_dict, error_string|None)."""
         try:
             verification = verifier.verify_pair(
                 self.settings,
@@ -189,35 +218,28 @@ class Scheduler:
                 engine_b_build=engine_b,
                 opening_set=opening_set,
             )
+            return verification, None
         except verifier.VerificationFailure as exc:
-            self._fail_pair(
-                session,
-                tournament,
-                pair,
-                f"verification failed: {exc}",
-                verification={"verified": False, "reason": str(exc)},
+            return {"verified": False, "reason": str(exc)}, (
+                f"verification failed: {exc}"
             )
-            return
         except Exception as exc:  # unexpected error -> treat as failure
-            self._fail_pair(
-                session,
-                tournament,
-                pair,
-                f"verification error: {exc}",
-                verification={"verified": False, "reason": f"error: {exc}"},
+            return {"verified": False, "reason": f"error: {exc}"}, (
+                f"verification error: {exc}"
             )
-            return
 
-        self._complete_pair(session, tournament, pair, run_dir, verification)
-
-    def _fail_pair(self, session, tournament, pair, reason, verification=None) -> None:
+    def _fail_pair(self, session, tournament, pair, reason, verification=None,
+                   return_code: int | None = None) -> None:
         pair.status = FAILED
         pair.finished_at = utcnow()
         pair.failure_reason = reason
+        pair.return_code = return_code
         pair.verification = verification or {
             "verified": False,
             "reason": reason,
         }
+        if return_code is not None:
+            pair.verification["return_code"] = return_code
         tournament.status = FAILED
         tournament.finished_at = utcnow()
         tournament.failure_reason = reason
@@ -227,6 +249,7 @@ class Scheduler:
             "pair_failed",
             pair_job_id=pair.id,
             reason=reason,
+            return_code=return_code,
         )
         _record_event(
             session,
@@ -234,6 +257,7 @@ class Scheduler:
             "tournament_failed",
             pair_job_id=pair.id,
             reason=reason,
+            return_code=return_code,
         )
         self._write_pair_verification(pair)
 
@@ -308,12 +332,18 @@ class Scheduler:
         )
 
         if tournament.completed_pairs >= tournament.requested_pairs:
-            tournament.status = COMPLETED
-            tournament.finished_at = now
-            tournament.cancel_requested = False
-            tournament.pause_requested = False
-            _record_event(session, tournament.id, "tournament_completed")
-            artifacts.generate_tournament_artifacts(tournament)
+            # P2.2: an explicit cancel wins over automatic completion.
+            if tournament.cancel_requested:
+                tournament.status = CANCELLED
+                tournament.finished_at = now
+                tournament.pause_requested = False
+            else:
+                tournament.status = COMPLETED
+                tournament.finished_at = now
+                tournament.cancel_requested = False
+                tournament.pause_requested = False
+                _record_event(session, tournament.id, "tournament_completed")
+                artifacts.generate_tournament_artifacts(tournament)
 
     def _write_pair_verification(self, pair: PairJob) -> None:
         if not pair.run_directory:
@@ -327,7 +357,7 @@ class Scheduler:
     # ------------------------------------------------------------------
     def _find_and_launch(self, session) -> str:
         # A PAUSING tournament has no running pair (it would be polled above);
-        # finalize the pause now.
+        # finalize the pause now.  P2.1: cancel wins over pause.
         pausing = (
             session.query(Tournament)
             .filter(Tournament.status == "PAUSING")
@@ -335,15 +365,33 @@ class Scheduler:
             .first()
         )
         if pausing is not None:
-            pausing.status = PAUSED
-            pausing.pause_requested = False
-            _record_event(session, pausing.id, "tournament_paused")
+            if pausing.cancel_requested:
+                pausing.status = CANCELLED
+                pausing.finished_at = utcnow()
+                _record_event(
+                    session, pausing.id, "tournament_cancelled", reason="worker"
+                )
+            else:
+                pausing.status = PAUSED
+                pausing.pause_requested = False
+                _record_event(session, pausing.id, "tournament_paused")
             session.commit()
             return f"paused: {pausing.id}"
 
         tournament = self._next_tournament(session)
         if tournament is None:
             return "idle"
+
+        if tournament.force_cancel_requested:
+            tournament.force_cancel_requested = False
+            tournament.cancel_requested = True
+            tournament.status = CANCELLED
+            tournament.finished_at = utcnow()
+            _record_event(
+                session, tournament.id, "tournament_cancelled", reason="force"
+            )
+            session.commit()
+            return f"force-cancelled (no running pair): {tournament.id}"
 
         if tournament.cancel_requested:
             tournament.status = CANCELLED
@@ -358,6 +406,9 @@ class Scheduler:
             _record_event(session, tournament.id, "tournament_paused")
             session.commit()
             return f"paused (no running pair): {tournament.id}"
+
+        # P1.2: pairs interrupted by an earlier worker shutdown are re-run.
+        recovery.reschedule_interrupted_pairs(session, tournament)
 
         pair = self._next_pending_pair(session, tournament)
         if pair is None:
@@ -426,26 +477,48 @@ class Scheduler:
         )
 
     def _finish_without_pending(self, session, tournament) -> str:
-        """All pairs terminal: complete or fail the tournament defensively."""
-        terminal = ["COMPLETED", "FAILED", INTERRUPTED]
-        pairs = (
+        """All pairs terminal: strictly validate before completing (P1.2)."""
+        if tournament.cancel_requested:
+            tournament.status = CANCELLED
+            tournament.finished_at = utcnow()
+            session.commit()
+            return f"cancelled: {tournament.id}"
+
+        if recovery.can_mark_completed(session, tournament):
+            tournament.status = COMPLETED
+            tournament.finished_at = utcnow()
+            tournament.cancel_requested = False
+            tournament.pause_requested = False
+            _record_event(session, tournament.id, "tournament_completed")
+            artifacts.generate_tournament_artifacts(tournament)
+            session.commit()
+            return f"tournament completed: {tournament.id}"
+
+        failed = (
             session.query(PairJob)
-            .filter(PairJob.tournament_id == tournament.id)
-            .all()
+            .filter(
+                PairJob.tournament_id == tournament.id,
+                PairJob.status == FAILED,
+            )
+            .count()
         )
-        if any(p.status == FAILED for p in pairs):
+        if failed:
             tournament.status = FAILED
             tournament.finished_at = utcnow()
             tournament.failure_reason = "one or more pairs failed"
             _record_event(session, tournament.id, "tournament_failed",
                           reason="pairs failed")
         else:
-            tournament.status = COMPLETED
+            tournament.status = FAILED
             tournament.finished_at = utcnow()
-            _record_event(session, tournament.id, "tournament_completed")
-            artifacts.generate_tournament_artifacts(tournament)
+            tournament.failure_reason = (
+                f"pairs incomplete: {tournament.completed_pairs}/"
+                f"{tournament.requested_pairs} completed"
+            )
+            _record_event(session, tournament.id, "tournament_failed",
+                          reason=tournament.failure_reason)
         session.commit()
-        return f"tournament terminal without pending pairs: {tournament.id}"
+        return f"tournament failed (incomplete pairs): {tournament.id}"
 
     # ------------------------------------------------------------------
     # Launch internals
@@ -530,7 +603,11 @@ class Scheduler:
     # Shutdown
     # ------------------------------------------------------------------
     def shutdown(self) -> None:
-        """Stop accepting new pairs and terminate the active process group."""
+        """Stop accepting new pairs and terminate the active process group.
+
+        The active attempt is marked INTERRUPTED (not scored); the next worker
+        boot re-runs it from scratch via recovery (P1.2).
+        """
         if self.active_proc is None:
             return
         with self.session_factory() as session:
