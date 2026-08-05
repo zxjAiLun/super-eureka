@@ -96,9 +96,7 @@ sudo pip install /etc                                                   # not in
 
 Extra arguments are rejected by the wrapper itself: the id subcommands
 enforce `$# == 2` and the restart commands enforce `$# == 1`, and the
-release/build id regexes reject `/`, `..` and spaces.  (Sudoers `*` only
-matches a single argument; the authoritative enforcement is the wrapper's
-argument-count check.)
+release/build id regexes reject `/`, `..` and spaces.
 
 The wrapper confines every path by construction: the release/build id regex
 rejects `/`, `..` and spaces, so the resolved destination is always

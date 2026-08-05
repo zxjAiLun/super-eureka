@@ -304,20 +304,22 @@ def terminate_process_group_by_pid(pgid: int, grace_seconds: float) -> bool:
 def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> bool:
     """Terminate a Popen's whole process group; reaps the leader handle.
 
-    Returns True when the group is fully gone, False when members survived
-    (section 19 grace, then SIGKILL).  Never stops at the leader PID.
+    Returns True only when the whole group is confirmed gone (P1): a reaped
+    leader is NOT a success by itself - an engine child in the same PGID may
+    still be running, so the entry point must keep checking ``_group_alive``
+    even after ``proc.poll()`` returns non-None (second/retry cleanup).
 
     On POSIX the leader is polled/reaped during each wait round so an exited
-    leader is removed from the process table promptly (a zombie would
-    otherwise keep the group alive via killpg(0) for the full grace period)
-    and the zombie-aware /proc check is used.  Windows has no process groups
-    and os.kill/OpenProcess cannot track a killed-but-unreaped leader
-    reliably, so the leader is terminated and reaped through its Popen handle
-    (the production host is Linux; Windows is the test/development platform).
+    leader is removed from the process table promptly, and the zombie-aware
+    /proc check distinguishes a reaped zombie from a surviving child.
+    Windows has no process groups and os.kill/OpenProcess cannot track a
+    killed-but-unreaped leader reliably, so the leader is terminated and
+    reaped through its Popen handle (the production host is Linux; Windows is
+    the test/development platform).
     """
-    if proc.poll() is not None:
-        return True
     if os.name != "posix":
+        if proc.poll() is not None:
+            return True
         try:
             proc.send_signal(signal.SIGTERM)
         except OSError:
@@ -337,7 +339,11 @@ def terminate_process_group(proc: subprocess.Popen, grace_seconds: float) -> boo
         except subprocess.TimeoutExpired:
             return False
 
+    # POSIX: leader exited != process group gone.
     pgid = proc.pid  # launched with start_new_session -> leader is group leader
+    proc.poll()  # reap the leader when possible
+    if not _group_alive(pgid):
+        return True
     terminated = _terminate_group_polling(
         pgid, grace_seconds, reap=lambda: proc.poll()
     )

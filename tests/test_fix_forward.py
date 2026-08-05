@@ -475,52 +475,86 @@ def _create_payload_for(app_client):
 def test_force_cancel_cleanup_failure_retains_state(settings, engine_factory,
                                                     tournament_factory,
                                                     scheduler, monkeypatch):
-    """P1: when the process group survives SIGKILL, the active process, the
-    worker_state identity and the force-cancel flag must be retained and no
-    new pair may start - cleanup retries instead of abandoning the survivor."""
+    """P1: a failed cleanup retains active state, identity and the force-cancel
+    flag, the next tick RETRIES the kill, and only a confirmed-clean group is
+    allowed to cancel the tournament / clear the active state."""
     from chessarena.services import cutechess as cc
+    from chessarena.models import WorkerState
 
     os.environ["FAKE_CUTECHESS_SLEEP_MS"] = "5000"
     original_terminate = cc.terminate_process_group
     try:
         tournament_id = tournament_factory(status="QUEUED", pairs=2)
-        scheduler.tick()  # pair 0 running
+        scheduler.tick()  # pair 0 running; worker_state identity recorded
         with engine_factory() as session:
             tournament = session.get(Tournament, tournament_id)
             tournament.force_cancel_requested = True
             session.commit()
+            pair_id = session.query(PairJob).filter(
+                PairJob.tournament_id == tournament_id,
+                PairJob.pair_index == 0,
+            ).first().id
+
+        results = iter([False, False, True])  # fail, retry-fail, succeed
 
         def fake_terminate(proc, grace):
-            return False
+            return next(results)
 
         monkeypatch.setattr(
             "chessarena.services.cutechess.terminate_process_group", fake_terminate
         )
-        result = scheduler.tick()
-        assert "pending" in result
 
-        # Active state, flag and pair status are all retained.
+        # Tick 1: cleanup fails -> everything retained.
+        assert "pending" in scheduler.tick()
         assert scheduler.active_proc is not None
-        assert scheduler.active_pair_job_id is not None
+        assert scheduler.active_pair_job_id == pair_id
         with engine_factory() as session:
             tournament = session.get(Tournament, tournament_id)
             assert tournament.force_cancel_requested is True
             assert tournament.status == "RUNNING"
-            pair0 = session.query(PairJob).filter(
-                PairJob.tournament_id == tournament_id,
-                PairJob.pair_index == 0,
-            ).first()
-            assert pair0.status == "RUNNING"
             pair1 = session.query(PairJob).filter(
                 PairJob.tournament_id == tournament_id,
                 PairJob.pair_index == 1,
             ).first()
-            assert pair1.status == "PENDING"  # no new pair started
+            assert pair1.status == "PENDING"
+            state = session.get(WorkerState, 1)
+            assert state is not None
+            assert state.pid == scheduler.active_proc.pid
+            assert state.pair_job_id == pair_id
+            assert state.tournament_id == tournament_id
+            # Identity evidence is retained (non-None on Linux, where it exists).
+            if sys.platform.startswith("linux"):
+                assert state.pid_start_marker is not None
+                assert state.pid_cmdline is not None
 
-        # The next tick retries the cleanup.
+        # Tick 2: cleanup fails AGAIN -> the retry really happened, state kept.
+        assert "pending" in scheduler.tick()
+        assert scheduler.active_proc is not None
         with engine_factory() as session:
             tournament = session.get(Tournament, tournament_id)
             assert tournament.force_cancel_requested is True
+            assert tournament.status == "RUNNING"
+            state = session.get(WorkerState, 1)
+            assert state.pid == scheduler.active_proc.pid
+            assert state.pair_job_id == pair_id
+
+        # Tick 3: cleanup succeeds -> only now cancel/interrupt/clear.
+        assert "force-cancelled" in scheduler.tick()
+        assert scheduler.active_proc is None
+        with engine_factory() as session:
+            tournament = session.get(Tournament, tournament_id)
+            assert tournament.status == "CANCELLED"
+            assert tournament.force_cancel_requested is False
+            pair0 = session.query(PairJob).filter(
+                PairJob.tournament_id == tournament_id,
+                PairJob.pair_index == 0,
+            ).first()
+            assert pair0.status == "INTERRUPTED"
+            pair1 = session.query(PairJob).filter(
+                PairJob.tournament_id == tournament_id,
+                PairJob.pair_index == 1,
+            ).first()
+            assert pair1.status == "PENDING"  # still never started
     finally:
         os.environ.pop("FAKE_CUTECHESS_SLEEP_MS", None)
         monkeypatch.setattr(
