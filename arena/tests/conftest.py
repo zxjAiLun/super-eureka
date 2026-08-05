@@ -29,6 +29,9 @@ if sys.platform == "win32":
     FAKE_CUTECHESS = FIXTURES / "fake_cutechess.cmd"
 else:
     FAKE_CUTECHESS = FIXTURES / "fake_cutechess.py"
+    # On POSIX the fake is a plain script invoked directly by subprocess; make
+    # sure it is executable regardless of how the checkout preserved modes.
+    FAKE_CUTECHESS.chmod(0o755)
 
 TEST_OPENING_SET_ID = "test-openings-v1"
 BUILD_A_ID = "20260805-bde9085-linux-x86_64"
