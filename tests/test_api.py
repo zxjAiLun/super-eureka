@@ -180,10 +180,24 @@ def test_force_cancel_requires_confirm(app_client):
         f"/chessarena/api/v1/tournaments/{tournament_id}/force-cancel"
     ).status_code == 400
     app_client.post(f"/chessarena/api/v1/tournaments/{tournament_id}/start")
+    # P1.3: the API only records the request; the worker applies it.
     result = app_client.post(
         f"/chessarena/api/v1/tournaments/{tournament_id}/force-cancel?confirm=true"
     ).json()
-    assert result["status"] == "CANCELLED"
+    assert result["force_cancel_requested"] is True
+    assert result["status"] == "QUEUED"  # worker has not acted yet
+    # Simulate the worker applying the force-cancel on its next poll.
+    from chessarena.services.scheduler import Scheduler
+
+    scheduler = Scheduler(
+        app_client.app.state.settings, app_client.app.state.session_factory
+    )
+    scheduler.tick()
+    applied = app_client.get(
+        f"/chessarena/api/v1/tournaments/{tournament_id}"
+    ).json()
+    assert applied["status"] == "CANCELLED"
+    assert applied["force_cancel_requested"] is False
 
 
 def test_second_tournament_enqueues_not_runs(app_client):
