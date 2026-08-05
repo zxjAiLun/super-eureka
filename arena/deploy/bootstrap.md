@@ -13,8 +13,13 @@ this one session.
 ```bash
 sudo apt-get update
 sudo apt-get install -y python3.12 python3.12-venv python3-pip \
-    cutechess-cli nginx apache2-utils rsync
+    cutechess nginx apache2-utils rsync
 ```
+
+(The package providing `cutechess-cli` is `cutechess` on Debian/Ubuntu; if the
+name differs on your distribution, install whatever provides the binary.
+On Debian the binary may land in `/usr/games/cutechess-cli` - if so, point
+`ARENA_CUTECHESS` at that path in `/etc/chessarena/chessarena.env`.)
 
 Verify cutechess:
 
@@ -26,13 +31,17 @@ cutechess-cli -version
 
 ```bash
 sudo useradd --system --create-home --home-dir /opt/chessarena chessarena
-sudo mkdir -p /opt/chessarena/app /opt/chessarena/builds /opt/chessarena/openings
+sudo mkdir -p /opt/chessarena/app /opt/chessarena/bin \
+    /opt/chessarena/builds /opt/chessarena/openings
 sudo mkdir -p /var/lib/chessarena/runs /var/lib/chessarena/state
 sudo mkdir -p /var/log/chessarena
 sudo mkdir -p /etc/chessarena
 
 sudo chown -R chessarena:chessarena /opt/chessarena /var/lib/chessarena /var/log/chessarena
 ```
+
+(`/opt/chessarena/bin` hosts the root-owned deployment wrapper installed in
+the deploy-user section below.)
 
 The `chessarena` user must NOT have sudo rights. It only needs write access to
 `/var/lib/chessarena` and `/opt/chessarena/app`.
