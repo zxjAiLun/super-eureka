@@ -238,7 +238,11 @@ def test_recovery_pausing_becomes_paused(settings, engine_factory,
 
 def test_recovery_completes_full_tournament(settings, engine_factory,
                                             tournament_factory):
-    """RUNNING tournament whose pairs are all done becomes COMPLETED."""
+    """RUNNING tournament whose pairs are all done becomes COMPLETED.
+
+    The strict completion rule (P1.2) requires the exact game count too, so
+    the test seeds the two game rows that a completed pair would have.
+    """
     tournament_id = tournament_factory(status=RUNNING, pairs=1)
     with engine_factory() as session:
         pair = (
@@ -250,6 +254,24 @@ def test_recovery_completes_full_tournament(settings, engine_factory,
         tournament = session.get(Tournament, tournament_id)
         tournament.completed_pairs = 1
         tournament.candidate_wins = 2
+        session.flush()
+        from chessarena.models import Game
+
+        for idx in range(2):
+            session.add(
+                Game(
+                    tournament_id=tournament_id,
+                    pair_job_id=pair.id,
+                    game_number=pair.pair_index * 2 + idx + 1,
+                    white_engine="EngineA" if idx == 0 else "EngineB",
+                    black_engine="EngineB" if idx == 0 else "EngineA",
+                    opening_index=pair.opening_index,
+                    result="1-0" if idx == 0 else "0-1",
+                    termination="White mates",
+                    pgn_path="/nonexistent/match.pgn",
+                    verified=True,
+                )
+            )
         session.commit()
     _recover(settings, engine_factory, tournament_id)
     with engine_factory() as session:

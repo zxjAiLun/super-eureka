@@ -49,6 +49,7 @@ from ..schemas import (
     TournamentDetailOut,
     TournamentOut,
 )
+from ..security import require_same_origin, validate_csrf_token
 from ..services import artifacts
 
 router = APIRouter(tags=["tournaments"])
@@ -172,6 +173,7 @@ def _to_out(tournament: Tournament, detail: bool = False):
         "finished_at": tournament.finished_at,
         "failure_reason": tournament.failure_reason,
         "config_snapshot": tournament.config_snapshot,
+        "force_cancel_requested": tournament.force_cancel_requested,
         "pause_requested": tournament.pause_requested,
         "cancel_requested": tournament.cancel_requested,
     }
@@ -185,7 +187,9 @@ def _to_out(tournament: Tournament, detail: bool = False):
 # ---------------------------------------------------------------------------
 # Creation (section 16.4)
 # ---------------------------------------------------------------------------
-@router.post("/tournaments", response_model=TournamentOut, status_code=201)
+@router.post("/tournaments", response_model=TournamentOut, status_code=201,
+    dependencies=[Depends(require_same_origin)],
+)
 def create_tournament(
     body: TournamentCreate,
     session: Session = Depends(get_db),
@@ -276,7 +280,9 @@ def create_tournament(
 # ---------------------------------------------------------------------------
 # Lifecycle actions (sections 16.5, 10.1)
 # ---------------------------------------------------------------------------
-@router.post("/tournaments/{tournament_id}/start", response_model=TournamentOut)
+@router.post("/tournaments/{tournament_id}/start", response_model=TournamentOut,
+    dependencies=[Depends(require_same_origin)],
+)
 def start_tournament(tournament_id: str, session: Session = Depends(get_db)):
     tournament = _get_tournament_or_404(session, tournament_id)
     _require_transition(session, tournament, QUEUED, "start", from_statuses={DRAFT})
@@ -285,7 +291,9 @@ def start_tournament(tournament_id: str, session: Session = Depends(get_db)):
     return _to_out(tournament)
 
 
-@router.post("/tournaments/{tournament_id}/pause", response_model=TournamentOut)
+@router.post("/tournaments/{tournament_id}/pause", response_model=TournamentOut,
+    dependencies=[Depends(require_same_origin)],
+)
 def pause_tournament(tournament_id: str, session: Session = Depends(get_db)):
     tournament = _get_tournament_or_404(session, tournament_id)
     _require_transition(session, tournament, PAUSING, "pause")
@@ -296,7 +304,9 @@ def pause_tournament(tournament_id: str, session: Session = Depends(get_db)):
     return _to_out(tournament)
 
 
-@router.post("/tournaments/{tournament_id}/resume", response_model=TournamentOut)
+@router.post("/tournaments/{tournament_id}/resume", response_model=TournamentOut,
+    dependencies=[Depends(require_same_origin)],
+)
 def resume_tournament(tournament_id: str, session: Session = Depends(get_db)):
     tournament = _get_tournament_or_404(session, tournament_id)
     _require_transition(session, tournament, QUEUED, "resume", from_statuses={PAUSED})
@@ -306,7 +316,9 @@ def resume_tournament(tournament_id: str, session: Session = Depends(get_db)):
     return _to_out(tournament)
 
 
-@router.post("/tournaments/{tournament_id}/cancel", response_model=TournamentOut)
+@router.post("/tournaments/{tournament_id}/cancel", response_model=TournamentOut,
+    dependencies=[Depends(require_same_origin)],
+)
 def cancel_tournament(tournament_id: str, session: Session = Depends(get_db)):
     tournament = _get_tournament_or_404(session, tournament_id)
     _require_transition(session, tournament, CANCELLED, "cancel")
@@ -321,16 +333,20 @@ def cancel_tournament(tournament_id: str, session: Session = Depends(get_db)):
     return _to_out(tournament)
 
 
-@router.post("/tournaments/{tournament_id}/force-cancel", response_model=TournamentOut)
+@router.post("/tournaments/{tournament_id}/force-cancel", response_model=TournamentOut,
+    dependencies=[Depends(require_same_origin)],
+)
 def force_cancel_tournament(
     tournament_id: str,
     confirm: bool = Query(default=False),
     session: Session = Depends(get_db),
 ):
-    """Immediate cancellation that kills the running cutechess process group.
+    """Request an immediate cancellation that kills the running process group.
 
-    Requires an explicit ``confirm=true`` so a plain cancel can never trigger
-    it by mistake (section 16.5).
+    The API only sets ``force_cancel_requested`` in the database; the worker
+    polls it, kills the cutechess process group, and then transactionally
+    marks the pair INTERRUPTED and the tournament CANCELLED (P1.3).  The
+    response reflects the state before the worker acts.
     """
     if not confirm:
         raise HTTPException(
@@ -343,36 +359,10 @@ def force_cancel_tournament(
             status_code=409,
             detail=f"cannot force-cancel tournament in status '{tournament.status}'",
         )
+    tournament.force_cancel_requested = True
     _record_event(
-        session, tournament.id, "tournament_cancelled", reason="force"
+        session, tournament.id, "tournament_cancelled", reason="force-requested"
     )
-    running_pair = (
-        session.query(PairJob)
-        .filter(
-            PairJob.tournament_id == tournament.id,
-            PairJob.status == RUNNING,
-        )
-        .first()
-    )
-    if running_pair is not None:
-        from ..services.scheduler import request_force_kill
-
-        request_force_kill(running_pair.id)
-        # The worker performs the actual kill; mark the pair interrupted here
-        # so a restart does not try to recover a dead pair as a retry.
-        running_pair.status = "INTERRUPTED"
-        running_pair.finished_at = utcnow()
-        running_pair.failure_reason = "force-cancelled"
-        _record_event(
-            session,
-            tournament.id,
-            "pair_failed",
-            pair_job_id=running_pair.id,
-            reason="force-cancelled",
-        )
-    tournament.cancel_requested = True
-    tournament.status = CANCELLED
-    tournament.finished_at = utcnow()
     return _to_out(tournament)
 
 
@@ -562,8 +552,9 @@ def admin_tournament_new(request: Request, session: Session = Depends(get_db)):
 
 
 @admin_router.post("/admin/tournaments", response_class=RedirectResponse)
-def admin_tournament_create(request: Request, session: Session = Depends(get_db)):
-    form = dict(request.form())
+async def admin_tournament_create(request: Request, session: Session = Depends(get_db)):
+    form = dict(await request.form())
+    validate_csrf_token(request, form)
     body = TournamentCreate(
         name=form["name"],
         engine_a={"build_id": form["engine_a_build"], "profile": form["engine_a_profile"]},
@@ -624,12 +615,14 @@ def admin_tournament_detail(
 
 @admin_router.post("/admin/tournaments/{tournament_id}/action/{action}",
                    response_class=RedirectResponse)
-def admin_tournament_action(
+async def admin_tournament_action(
     request: Request,
     tournament_id: str,
     action: str,
     session: Session = Depends(get_db),
 ):
+    form = dict(await request.form())
+    validate_csrf_token(request, form)
     actions = {
         "start": start_tournament,
         "pause": pause_tournament,
@@ -640,6 +633,35 @@ def admin_tournament_action(
     if handler is None:
         raise HTTPException(status_code=404, detail="unknown action")
     handler(tournament_id, session)
+    session.flush()
+    return RedirectResponse(
+        url=(
+            f"{request.app.state.settings.base_path}/admin/tournaments/"
+            f"{tournament_id}"
+        ),
+        status_code=303,
+    )
+
+
+@admin_router.post("/admin/tournaments/{tournament_id}/action/force-cancel",
+                   response_class=RedirectResponse)
+async def admin_tournament_force_cancel(
+    request: Request,
+    tournament_id: str,
+    session: Session = Depends(get_db),
+):
+    """Force-cancel from the admin UI: requires the CSRF token AND an explicit
+    ``confirm`` form field so it can never be triggered by a plain cancel."""
+    form = dict(await request.form())
+    validate_csrf_token(request, form)
+    if form.get("confirm") != "1":
+        raise HTTPException(
+            status_code=400,
+            detail="force-cancel requires explicit confirmation",
+        )
+    force_cancel_tournament(
+        tournament_id, confirm=True, session=session
+    )
     session.flush()
     return RedirectResponse(
         url=(
