@@ -58,6 +58,7 @@ jobs:
         run: /tmp/arena-venv/bin/python -m pytest tests/ -q
 
   test-and-deploy:
+    needs: clean-install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +89,7 @@ jobs:
           username: ${{ secrets.ARENA_DEPLOY_USER }}
           key: ${{ secrets.ARENA_DEPLOY_KEY }}
           source: /tmp/arena.tar.gz
-          target: /tmp/arena-deploy/
+          target: /opt/chessarena/incoming/
           rm: false
 
       - name: Deploy, migrate, switch, restart, health-check (with rollback)
@@ -103,9 +104,13 @@ jobs:
             RELEASE="/opt/chessarena/releases/$(date +%Y%m%d%H%M%S)"
             PREV=$(readlink -f /opt/chessarena/app/current || true)
 
+            if [ ! -f /opt/chessarena/incoming/arena.tar.gz ]; then
+              echo "uploaded package not found: /opt/chessarena/incoming/arena.tar.gz"
+              exit 1
+            fi
             sudo -u chessarena mkdir -p "$RELEASE"
-            sudo -u chessarena tar -xzf /tmp/arena-deploy/arena.tar.gz -C "$RELEASE"
-            sudo -u chessarena rm -f /tmp/arena-deploy/arena.tar.gz
+            sudo -u chessarena tar -xzf /opt/chessarena/incoming/arena.tar.gz -C "$RELEASE"
+            sudo -u chessarena rm -f /opt/chessarena/incoming/arena.tar.gz
 
             # venv + deps
             if [ ! -d /opt/chessarena/venv ]; then
@@ -130,11 +135,25 @@ jobs:
 
             # health check - Basic Auth lives at the Nginx layer, so the
             # internal check against 127.0.0.1:8787 needs no credentials.
-            sleep 3
-            HEALTH=$(curl -fsS \
-              "http://127.0.0.1:8787/chessarena/api/v1/health" || true)
-            if ! echo "$HEALTH" | grep -q '"database": "ok"'; then
-              echo "health check failed: $HEALTH"
+            # Every field must be ok: overall status, database, the worker
+            # heartbeat (the worker takes a few seconds to boot) and cutechess.
+            HEALTH=""
+            for i in $(seq 1 15); do
+              sleep 2
+              HEALTH=$(curl -fsS \
+                "http://127.0.0.1:8787/chessarena/api/v1/health" || true)
+              if echo "$HEALTH" | grep -q '"status": "ok"' \
+                 && echo "$HEALTH" | grep -q '"database": "ok"' \
+                 && echo "$HEALTH" | grep -q '"worker_heartbeat": "ok"' \
+                 && echo "$HEALTH" | grep -q '"cutechess": "ok"'; then
+                break
+              fi
+            done
+            if ! echo "$HEALTH" | grep -q '"status": "ok"' \
+               || ! echo "$HEALTH" | grep -q '"database": "ok"' \
+               || ! echo "$HEALTH" | grep -q '"worker_heartbeat": "ok"' \
+               || ! echo "$HEALTH" | grep -q '"cutechess": "ok"'; then
+              echo "health gate failed: $HEALTH"
               if [ -n "$PREV" ] && [ -d "$PREV" ]; then
                 echo "rolling back to $PREV"
                 sudo -u chessarena ln -sfn "$PREV" /opt/chessarena/app/current
