@@ -128,44 +128,8 @@ jobs:
           command_timeout: "10m"
           script: |
             set -euo pipefail
-            TARBALL="/opt/chessarena/incoming/build-${{ steps.meta.outputs.build_id }}.tar.gz"
-            STAGE="/opt/chessarena/incoming/stage-${{ steps.meta.outputs.build_id }}"
             BUILD_ID="${{ steps.meta.outputs.build_id }}"
-            DEST="/opt/chessarena/builds/$BUILD_ID"
-
-            if [ ! -f "$TARBALL" ]; then
-              echo "uploaded tarball not found: $TARBALL"
-              exit 1
-            fi
-            # All file operations run as chessarena (the deploy user's sudoers
-            # only allows -u chessarena plus restarting the two services).
-            sudo -u chessarena rm -rf "$STAGE"
-            sudo -u chessarena mkdir -p "$STAGE"
-            sudo -u chessarena tar -xzf "$TARBALL" -C "$STAGE"
-            sudo -u chessarena rm -f "$TARBALL"
-
-            # Verify SHA matches the manifest before install.
-            ACTUAL=$(sha256sum "$STAGE/engine/engine" | cut -d' ' -f1)
-            EXPECTED=$(python3 -c "import json;print(json.load(open('$STAGE/engine/manifest.json'))['binary_sha256'])")
-            if [ "$ACTUAL" != "$EXPECTED" ]; then
-              echo "SHA mismatch: $ACTUAL != $EXPECTED"
-              exit 1
-            fi
-
-            # Atomic install into the immutable build directory (0555/0444).
-            if [ -d "$DEST" ]; then
-              echo "build already exists, refusing to overwrite: $DEST"
-              exit 1
-            fi
-            sudo -u chessarena mv "$STAGE/engine" "$DEST"
-            sudo -u chessarena chmod 0555 "$DEST/engine"
-            sudo -u chessarena chmod 0444 "$DEST/manifest.json"
-
-            # Register in the database (with the app env).
-            set -a
-            # shellcheck disable=SC1091
-            . /etc/chessarena/chessarena.env
-            set +a
-            sudo -u chessarena /opt/chessarena/venv/bin/python \
-              /opt/chessarena/app/current/scripts/install_build.py "$DEST" --probe
-            echo "build installed: $DEST"
+            # The wrapper validates the build id format and the uploaded
+            # tarball SHA, installs the immutable build dir, and registers it.
+            sudo /opt/chessarena/bin/arena-deploy build-install "$BUILD_ID"
+            echo "build installed: /opt/chessarena/builds/$BUILD_ID"

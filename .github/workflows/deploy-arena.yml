@@ -101,37 +101,17 @@ jobs:
           command_timeout: "20m"
           script: |
             set -euo pipefail
-            RELEASE="/opt/chessarena/releases/$(date +%Y%m%d%H%M%S)"
-            PREV=$(readlink -f /opt/chessarena/app/current || true)
-
-            if [ ! -f /opt/chessarena/incoming/arena.tar.gz ]; then
-              echo "uploaded package not found: /opt/chessarena/incoming/arena.tar.gz"
-              exit 1
+            RELEASE_ID="$(date +%Y%m%d%H%M%S)"
+            PREV_ID=""
+            if [ -e /opt/chessarena/app/current ]; then
+              PREV_ID="$(basename "$(readlink /opt/chessarena/app/current)" 2>/dev/null || true)"
             fi
-            sudo -u chessarena mkdir -p "$RELEASE"
-            sudo -u chessarena tar -xzf /opt/chessarena/incoming/arena.tar.gz -C "$RELEASE"
-            sudo -u chessarena rm -f /opt/chessarena/incoming/arena.tar.gz
+            WRAPPER=/opt/chessarena/bin/arena-deploy
 
-            # venv + deps
-            if [ ! -d /opt/chessarena/venv ]; then
-              sudo -u chessarena python3.12 -m venv /opt/chessarena/venv
-            fi
-            sudo -u chessarena /opt/chessarena/venv/bin/pip install -e "$RELEASE"
-
-            # migrations (run as chessarena with the app env)
-            set -a
-            # shellcheck disable=SC1091
-            . /etc/chessarena/chessarena.env
-            set +a
-            sudo -u chessarena /opt/chessarena/venv/bin/alembic \
-              -c "$RELEASE/alembic.ini" upgrade head
-
-            # atomic switch
-            sudo -u chessarena ln -sfn "$RELEASE" /opt/chessarena/app/current
-
-            # restart services (each via its own sudoers-allowed command)
-            sudo systemctl restart chessarena-api
-            sudo systemctl restart chessarena-worker
+            sudo "$WRAPPER" release-install "$RELEASE_ID"
+            sudo "$WRAPPER" release-switch "$RELEASE_ID"
+            sudo "$WRAPPER" restart-api
+            sudo "$WRAPPER" restart-worker
 
             # health check - Basic Auth lives at the Nginx layer, so the
             # internal check against 127.0.0.1:8787 needs no credentials.
@@ -154,11 +134,11 @@ jobs:
                || ! echo "$HEALTH" | grep -q '"worker_heartbeat": "ok"' \
                || ! echo "$HEALTH" | grep -q '"cutechess": "ok"'; then
               echo "health gate failed: $HEALTH"
-              if [ -n "$PREV" ] && [ -d "$PREV" ]; then
-                echo "rolling back to $PREV"
-                sudo -u chessarena ln -sfn "$PREV" /opt/chessarena/app/current
-                sudo systemctl restart chessarena-api
-                sudo systemctl restart chessarena-worker
+              if [ -n "$PREV_ID" ]; then
+                echo "rolling back to release $PREV_ID"
+                sudo "$WRAPPER" release-switch "$PREV_ID"
+                sudo "$WRAPPER" restart-api
+                sudo "$WRAPPER" restart-worker
                 sleep 3
               fi
               exit 1
