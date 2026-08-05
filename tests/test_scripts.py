@@ -39,10 +39,20 @@ def test_install_build_registers(settings, registered, tmp_path: Path):
     assert "registered build" in result.stdout
 
 
+def _write_engine(build_dir: Path, content: bytes) -> Path:
+    """Write a dummy engine binary; make it executable on POSIX because
+    install_build.py checks os.access(X_OK)."""
+    engine = build_dir / "engine"
+    engine.write_bytes(content)
+    if sys.platform != "win32":
+        engine.chmod(0o755)
+    return engine
+
+
 def test_install_build_rejects_sha_mismatch(settings, tmp_path: Path):
     build_dir = tmp_path / "builds" / "broken"
     build_dir.mkdir(parents=True)
-    (build_dir / "engine").write_bytes(b"content")
+    _write_engine(build_dir, b"content")
     manifest = {
         "schema_version": 1,
         "build_id": "broken",
@@ -69,7 +79,7 @@ def test_install_build_rejects_dir_name_mismatch(settings, tmp_path: Path):
     build_dir = tmp_path / "builds" / "other-name"
     build_dir.mkdir(parents=True)
     content = b"x"
-    (build_dir / "engine").write_bytes(content)
+    _write_engine(build_dir, content)
     import hashlib
 
     manifest = {

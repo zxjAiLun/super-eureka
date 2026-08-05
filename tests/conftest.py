@@ -89,7 +89,12 @@ def build_dir(tmp_path: Path, build_id: str = BUILD_A_ID) -> Path:
     path = tmp_path / "builds" / build_id
     path.mkdir(parents=True)
     content = f"dummy engine binary for {build_id}".encode()
-    (path / "engine").write_bytes(content)
+    engine_path = path / "engine"
+    engine_path.write_bytes(content)
+    # install_build.py checks os.access(X_OK); on POSIX a freshly written file
+    # is not executable, so make the dummy engine runnable there.
+    if sys.platform != "win32":
+        engine_path.chmod(0o755)
     manifest = {
         "schema_version": 1,
         "build_id": build_id,
