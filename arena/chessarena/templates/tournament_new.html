@@ -4,6 +4,7 @@
 <h1>Create match</h1>
 
 <form method="post" action="{{ settings.base_path }}/admin/tournaments" class="panel">
+  <input type="hidden" name="_csrf_token" value="{{ settings.csrf_token }}">
   <label>Match name
     <input type="text" name="name" required maxlength="200" placeholder="CurrentFinal vs Current 3+2">
   </label>
