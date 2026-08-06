@@ -163,10 +163,17 @@ def test_deploy_wrapper_normalizes_working_directories():
 
 
 def _extract_health_parser(content: str) -> str:
-    """Extract the exact embedded python3 -c health parser from the workflow."""
-    m = re.search(r"python3 -c '\n(.*?)\n'", content, re.DOTALL)
+    """Extract the exact embedded python3 -c health parser from the workflow.
+
+    YAML block scalars strip the common indentation before the shell sees the
+    script, so the extracted code is dedented the same way (textwrap.dedent)
+    to match what python3 -c actually executes on the runner.
+    """
+    import textwrap
+
+    m = re.search(r"python3 -c '\n(.*?)\n\s*'", content, re.DOTALL)
     assert m, "missing embedded health parser"
-    return m.group(1)
+    return textwrap.dedent(m.group(1))
 
 
 def _run_parser(code: str, payload: str) -> int:
@@ -195,6 +202,10 @@ def test_deploy_health_gate_parses_json_structurally():
     assert "json.load" in content
     for key in ("status", "database", "worker_heartbeat", "cutechess"):
         assert f'"{key}"' in content
+    # The embedded python block must stay indented inside the YAML block
+    # scalar; a column-0 code line makes the workflow unparsable for GitHub
+    # (observed: deploy-arena lost its workflow_dispatch trigger).
+    assert "python3 -c '\nimport json" not in content
 
     code = _extract_health_parser(content)
     # Accept: compact, pretty/reordered, extra fields.

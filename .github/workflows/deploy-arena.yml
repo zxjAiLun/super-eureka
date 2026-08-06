@@ -130,22 +130,22 @@ jobs:
             # whitespace-sensitive substrings.
             health_ok() {
               printf '%s' "$HEALTH" | python3 -c '
-import json
-import sys
+            import json
+            import sys
 
-try:
-    payload = json.load(sys.stdin)
-except (json.JSONDecodeError, UnicodeDecodeError):
-    raise SystemExit(1)
+            try:
+                payload = json.load(sys.stdin)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                raise SystemExit(1)
 
-if not isinstance(payload, dict):
-    raise SystemExit(1)
+            if not isinstance(payload, dict):
+                raise SystemExit(1)
 
-required = ("status", "database", "worker_heartbeat", "cutechess")
-raise SystemExit(
-    0 if all(payload.get(key) == "ok" for key in required) else 1
-)
-'
+            required = ("status", "database", "worker_heartbeat", "cutechess")
+            raise SystemExit(
+                0 if all(payload.get(key) == "ok" for key in required) else 1
+            )
+            '
             }
             HEALTH=""
             for i in $(seq 1 15); do
