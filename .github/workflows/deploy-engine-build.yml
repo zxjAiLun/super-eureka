@@ -106,8 +106,15 @@ jobs:
           }
           EOF
           # Use the build_id for the tarball so the upload step and the SSH
-          # install step reference the same file (P1.7).
-          tar -C /tmp/build-stage -czf /tmp/build-${{ steps.meta.outputs.build_id }}.tar.gz .
+          # install step reference the same file (P1.7).  The archive is
+          # written into the repository workspace as a relative path: the
+          # scp-action runs in a Docker container whose working directory is
+          # /github/workspace, so a /tmp path on the runner host would be
+          # invisible to it ("tar: empty archive").
+          ARCHIVE="build-${{ steps.meta.outputs.build_id }}.tar.gz"
+          tar -C /tmp/build-stage -czf "$ARCHIVE" .
+          test -s "$ARCHIVE"
+          tar -tzf "$ARCHIVE" >/dev/null
 
       - name: Upload build package
         uses: appleboy/scp-action@v0.1.7
@@ -115,7 +122,7 @@ jobs:
           host: ${{ secrets.ARENA_DEPLOY_HOST }}
           username: ${{ secrets.ARENA_DEPLOY_USER }}
           key: ${{ secrets.ARENA_DEPLOY_KEY }}
-          source: /tmp/build-${{ steps.meta.outputs.build_id }}.tar.gz
+          source: build-${{ steps.meta.outputs.build_id }}.tar.gz
           target: /opt/chessarena/incoming/
           rm: false
 

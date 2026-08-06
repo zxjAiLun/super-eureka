@@ -80,7 +80,9 @@ jobs:
       - name: Package arena
         run: |
           tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' \
-              -C arena -czf /tmp/arena.tar.gz .
+              -C arena -czf arena.tar.gz .
+          test -s arena.tar.gz
+          tar -tzf arena.tar.gz >/dev/null
 
       - name: Upload package
         uses: appleboy/scp-action@v0.1.7
@@ -88,7 +90,7 @@ jobs:
           host: ${{ secrets.ARENA_DEPLOY_HOST }}
           username: ${{ secrets.ARENA_DEPLOY_USER }}
           key: ${{ secrets.ARENA_DEPLOY_KEY }}
-          source: /tmp/arena.tar.gz
+          source: arena.tar.gz
           target: /opt/chessarena/incoming/
           rm: false
 
