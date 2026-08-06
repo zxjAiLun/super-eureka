@@ -45,11 +45,13 @@ def _build(settings: Settings):
         settings,
         engine_a={
             "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
-            "profile": "current-final",
+            "command_args": ["--profile", "current-final"],
+            "uci_options": {},
         },
         engine_b={
             "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
-            "profile": "current",
+            "command_args": ["--profile", "current"],
+            "uci_options": {},
         },
         time_control="180+2",
         hash_mb=32,
@@ -71,6 +73,7 @@ def test_pair_command_structure(settings: Settings):
     assert "arg=current" in joined
     assert "tc=180+2" in joined
     assert "option.Hash=32" in joined
+    assert "option.Threads=1" in joined
     assert "-rounds 2" in joined
     assert "-repeat 2" in joined
     assert "-concurrency 1" in joined
@@ -82,17 +85,54 @@ def test_pair_command_structure(settings: Settings):
     assert "-recover" not in joined
 
 
+def test_engine_without_profile_uses_uci_options(settings: Settings):
+    """An engine like Stockfish takes no --profile; its UCI options are
+    emitted as option.<name>=<value> under -each."""
+    argv = build_pair_command(
+        settings,
+        engine_a={
+            "binary_path": "/opt/chessarena/builds/stockfish/stockfish",
+            "command_args": [],
+            "uci_options": {
+                "UCI_LimitStrength": True,
+                "UCI_Elo": 2000,
+                "Threads": 1,
+            },
+        },
+        engine_b={
+            "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
+            "command_args": ["--profile", "current-final"],
+            "uci_options": {},
+        },
+        time_control="180+2",
+        hash_mb=32,
+        opening_epd=Path("/var/lib/chessarena/runs/t/opening.epd"),
+        pgn_out=Path("/var/lib/chessarena/runs/t/match.pgn"),
+    )
+    joined = " ".join(argv)
+    assert "option.UCI_LimitStrength=true" in joined
+    assert "option.UCI_Elo=2000" in joined
+    assert "arg=--profile" in joined  # engine_b still uses its preset args
+    # preset Threads is overridden by the fixed arena constraint Threads=1
+    assert joined.count("option.Threads=1") == 2
+
+
 def test_no_shell_injection_possible(settings: Settings):
-    # Even a hostile profile string cannot escape the argv array: there is no
+    # Even a hostile arg string cannot escape the argv array: there is no
     # shell anywhere in the launch path.
     malicious = "current-final; rm -rf /"
     argv = build_pair_command(
         settings,
         engine_a={
             "binary_path": "/opt/x/engine",
-            "profile": malicious,
+            "command_args": ["--profile", malicious],
+            "uci_options": {},
         },
-        engine_b={"binary_path": "/opt/y/engine", "profile": "current"},
+        engine_b={
+            "binary_path": "/opt/y/engine",
+            "command_args": ["--profile", "current"],
+            "uci_options": {},
+        },
         time_control="60",
         hash_mb=32,
         opening_epd=Path("/tmp/o.epd"),

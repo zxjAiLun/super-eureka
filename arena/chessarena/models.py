@@ -103,6 +103,37 @@ class EngineBuild(Base):
     )
 
 
+class EnginePreset(Base):
+    """A selectable engine configuration bound to a physical EngineBuild.
+
+    Separates the immutable physical binary (EngineBuild) from the logical
+    launch configuration: extra command-line args (e.g. ``--profile``) and
+    UCI options (e.g. Stockfish ``UCI_LimitStrength``/``UCI_Elo``) emitted
+    as ``option.<name>=<value>`` under cutechess ``-each``.
+    """
+
+    __tablename__ = "engine_presets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    preset_id: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    build_id: Mapped[str] = mapped_column(String, nullable=False)
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
+    command_args: Mapped[list] = mapped_column(JSON, nullable=False)
+    uci_options: Mapped[dict] = mapped_column(JSON, nullable=False)
+    category: Mapped[str] = mapped_column(
+        String, default="external", nullable=False
+    )
+    public_visible: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
 class OpeningSet(Base):
     __tablename__ = "opening_sets"
 
@@ -133,6 +164,14 @@ class Tournament(Base):
     engine_a_profile: Mapped[str] = mapped_column(String, nullable=False)
     engine_b_build_id: Mapped[str] = mapped_column(String, nullable=False)
     engine_b_profile: Mapped[str] = mapped_column(String, nullable=False)
+    # P4.2: presets are the selectable unit; the build/profile columns above
+    # remain as historical audit fields.
+    engine_a_preset_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
+    engine_b_preset_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
     opening_set_id: Mapped[str] = mapped_column(String, nullable=False)
     time_control: Mapped[str] = mapped_column(String, nullable=False)
 

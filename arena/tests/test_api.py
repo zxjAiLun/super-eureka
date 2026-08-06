@@ -12,12 +12,11 @@ import pytest
 
 
 def _create_payload(app_client, pairs=2, **overrides):
-    build = app_client.get("/chessarena/api/v1/builds").json()[0]
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     payload = {
         "name": "api test",
-        "engine_a": {"build_id": build["build_id"], "profile": "current-final"},
-        "engine_b": {"build_id": build["build_id"], "profile": "current"},
+        "engine_a": {"preset_id": "chessengine-production"},
+        "engine_b": {"preset_id": "chessengine-legacy-current"},
         "opening_set_id": opening["opening_set_id"],
         "time_control": "blitz_3_2",
         "pairs": pairs,
@@ -55,18 +54,24 @@ def test_create_tournament(app_client):
     assert all(p["status"] == "PENDING" for p in pairs)
 
 
-def test_create_invalid_build(app_client):
+def test_create_invalid_preset(app_client):
     payload = _create_payload(app_client)
-    payload["engine_a"]["build_id"] = "does-not-exist"
+    payload["engine_a"]["preset_id"] = "does-not-exist"
     response = app_client.post("/chessarena/api/v1/tournaments", json=payload)
     assert response.status_code == 422
 
 
-def test_create_invalid_profile(app_client):
+def test_create_same_preset_rejected_unless_allowed(app_client):
     payload = _create_payload(app_client)
-    payload["engine_a"]["profile"] = "bogus-profile"
+    payload["engine_a"]["preset_id"] = "chessengine-production"
+    payload["engine_b"]["preset_id"] = "chessengine-production"
     response = app_client.post("/chessarena/api/v1/tournaments", json=payload)
     assert response.status_code == 422
+    assert "same engine preset" in response.text
+
+    payload["allow_intentional_self_play"] = True
+    response = app_client.post("/chessarena/api/v1/tournaments", json=payload)
+    assert response.status_code == 201
 
 
 def test_create_invalid_time_control(app_client):
