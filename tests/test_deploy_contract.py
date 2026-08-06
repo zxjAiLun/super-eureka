@@ -89,3 +89,28 @@ def test_deploy_workflows_stage_archives_in_the_workspace():
     assert "arena.tar.gz" in _scp_sources(arena)
     assert "test -s arena.tar.gz" in arena
     assert "tar -tzf arena.tar.gz >/dev/null" in arena
+
+
+def test_clean_venv_test_step_runs_fixture_subprocesses_from_venv():
+    """Executable fixtures use #!/usr/bin/env python3, so the clean-venv test
+    step must put the venv bin on PATH before invoking pytest.  Otherwise the
+    fake cutechess subprocess resolves /usr/bin/env python3 to the outer
+    setup-python interpreter, which does not own the installed 'chess' module,
+    and every fake-based test fails at setup (ModuleNotFoundError)."""
+    content = ARENA_WORKFLOW.read_text(encoding="utf-8")
+    match = re.search(
+        r"- name: Run arena tests from the clean venv\n(.*?)(?=\n\s*- name:|\n\s*- uses:|\Z)",
+        content,
+        re.DOTALL,
+    )
+    assert match, "missing 'Run arena tests from the clean venv' step"
+    step = match.group(1)
+
+    path_line = 'export PATH="/tmp/arena-venv/bin:$PATH"'
+    pytest_line = "/tmp/arena-venv/bin/python -m pytest tests/ -q"
+
+    assert path_line in step, "clean venv step must prepend the venv bin to PATH"
+    assert pytest_line in step, "clean venv step must invoke the venv python"
+    assert step.index(path_line) < step.index(pytest_line), (
+        "PATH export must precede the pytest invocation"
+    )
