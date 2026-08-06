@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 API_UNIT = REPO_ROOT / "arena" / "deploy" / "chessarena-api.service"
 ENGINE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy-engine-build.yml"
 ARENA_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy-arena.yml"
+DEPLOY_WRAPPER = REPO_ROOT / "arena" / "deploy" / "arena-deploy.sh"
 
 
 def test_api_unit_starts_through_the_application_factory():
@@ -114,3 +115,48 @@ def test_clean_venv_test_step_runs_fixture_subprocesses_from_venv():
     assert step.index(path_line) < step.index(pytest_line), (
         "PATH export must precede the pytest invocation"
     )
+
+
+def test_deploy_wrapper_normalizes_working_directories():
+    """pip/python/alembic inherit sys.path[0]='' resolved against the caller
+    cwd.  The wrapper is invoked by the deploy user through sudo, whose SSH
+    session starts in /home/deploy (750, not accessible to chessarena), so a
+    bare 'sudo -u chessarena pip' crashes with PermissionError during pip's
+    initial distribution scan.  The wrapper must therefore normalize its cwd
+    to /opt/chessarena up front and run pip/Alembic from inside the release
+    directory (alembic.ini's script_location is relative to the cwd)."""
+    assert DEPLOY_WRAPPER.is_file(), f"missing {DEPLOY_WRAPPER}"
+    content = DEPLOY_WRAPPER.read_text(encoding="utf-8")
+    lines = content.splitlines()
+
+    def line_index(needle: str) -> int:
+        for i, ln in enumerate(lines):
+            if ln.lstrip().startswith("#"):
+                continue  # ignore comments that mention commands
+            if needle in ln:
+                return i
+        return -1
+
+    first_sudo = line_index("sudo -u chessarena")
+    cd_root = line_index("cd /opt/chessarena")
+    assert cd_root != -1, "wrapper must cd to /opt/chessarena"
+    assert cd_root < first_sudo, (
+        "wrapper must enter /opt/chessarena before any sudo -u chessarena"
+    )
+
+    cd_dest = line_index('cd "$dest"')
+    assert cd_dest != -1, "release-install must enter the release directory"
+    pip_index = line_index('pip" install -e .')
+    assert pip_index != -1, "pip must run editable-install from the release dir"
+    assert cd_dest < pip_index, "cd \"$dest\" must precede pip install -e ."
+
+    alembic_index = line_index(
+        '"$VENV/bin/alembic" -c alembic.ini upgrade head'
+    )
+    assert alembic_index != -1, "alembic must use the release-local alembic.ini"
+    assert cd_dest < alembic_index, "alembic must run after cd \"$dest\""
+
+    # Neither pip nor Alembic may bypass the normalized cwd via an absolute
+    # target that would let an arbitrary caller cwd leak in.
+    assert '"$VENV/bin/pip" install -e "$dest"' not in content
+    assert '"$dest/alembic.ini"' not in content

@@ -29,6 +29,13 @@ ENV_FILE=/etc/chessarena/chessarena.env
 
 fail() { echo "arena-deploy: $*" >&2; exit 1; }
 
+# Normalize the working directory before any sudo -u chessarena invocation.
+# The deploy user's SSH session may start in an inaccessible home directory
+# (e.g. /home/deploy is 750), and pip/python/alembic inherit sys.path[0]=''
+# resolved against the caller cwd, so a bare 'sudo -u chessarena pip' would
+# crash on an unreadable cwd.  /opt/chessarena is readable by chessarena.
+cd /opt/chessarena || fail "cannot enter /opt/chessarena"
+
 release_dir() {
     local id="${1:-}"
     # Strict id format: digits only - no '/', no '..', no spaces, so the
@@ -71,12 +78,17 @@ case "${1:-}" in
         tar -xzf "$INCOMING/arena.tar.gz" -C "$dest"
         rm -f "$INCOMING/arena.tar.gz"
         chown -R chessarena:chessarena "$dest"
-        sudo -u chessarena "$VENV/bin/pip" install -e "$dest"
+        # Run pip and Alembic from inside the release: alembic.ini's
+        # script_location is relative to the working directory, and pip's
+        # sys.path[0]='' scans the cwd, so the cwd must be accessible to the
+        # chessarena user.
+        cd "$dest"
+        sudo -u chessarena "$VENV/bin/pip" install -e .
         set -a
         # shellcheck disable=SC1091
         . "$ENV_FILE"
         set +a
-        sudo -u chessarena "$VENV/bin/alembic" -c "$dest/alembic.ini" upgrade head
+        sudo -u chessarena "$VENV/bin/alembic" -c alembic.ini upgrade head
         echo "arena-deploy: release installed $dest"
         ;;
     release-switch)
