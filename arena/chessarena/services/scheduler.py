@@ -56,13 +56,17 @@ logger = logging.getLogger("chessarena.scheduler")
 
 
 def _resolve_engine_cfg(
-    session, build: EngineBuild, preset_id: str | None, profile: str
+    session,
+    build: EngineBuild,
+    preset_id: str | None,
+    profile: str,
+    display_name: str,
 ) -> Dict[str, Any]:
     """Resolve the launch config for one side from its EnginePreset.
 
-    The preset carries the validated command_args / uci_options.  Historical
-    rows without a preset fall back to the legacy ``--profile`` form so old
-    tournaments stay reproducible.
+    The preset carries the validated command_args / uci_options and the
+    PGN-visible display name.  Historical rows without a preset fall back to
+    the legacy ``--profile`` form so old tournaments stay reproducible.
     """
     if preset_id:
         preset = (
@@ -80,12 +84,14 @@ def _resolve_engine_cfg(
         return {
             "build_id": build.build_id,
             "binary_path": build.binary_path,
+            "display_name": preset.display_name,
             "command_args": list(preset.command_args or []),
             "uci_options": dict(preset.uci_options or {}),
         }
     return {
         "build_id": build.build_id,
         "binary_path": build.binary_path,
+        "display_name": display_name,
         "command_args": ["--profile", profile],
         "uci_options": {},
     }
@@ -334,15 +340,18 @@ class Scheduler:
                        return_code: int | None = None) -> None:
         """Record games, aggregate score, and finish the tournament if done."""
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
+        from .verifier import _side_display_name
 
         pair.return_code = return_code if return_code is not None else 0
         pair.return_code_attempt = pair.attempt
         verification["return_code"] = pair.return_code
 
         pgn_path = run_dir / "match.pgn"
+        a_name = _side_display_name(tournament.config_snapshot, "engine_a")
+        b_name = _side_display_name(tournament.config_snapshot, "engine_b")
         colors = [
-            {"white": ENGINE_A_NAME, "black": ENGINE_B_NAME},
-            {"white": ENGINE_B_NAME, "black": ENGINE_A_NAME},
+            {"white": a_name, "black": b_name},
+            {"white": b_name, "black": a_name},
         ]
         results = verification["results"]
         terminations = verification["terminations"]
@@ -628,13 +637,15 @@ class Scheduler:
         if opening_set is None or engine_a is None or engine_b is None:
             raise cc.CutechessLaunchError("referenced build/opening not found")
 
+        from ..config import ENGINE_A_NAME, ENGINE_B_NAME
+
         engine_a_cfg = _resolve_engine_cfg(
             session, engine_a, tournament.engine_a_preset_id,
-            tournament.engine_a_profile,
+            tournament.engine_a_profile, ENGINE_A_NAME,
         )
         engine_b_cfg = _resolve_engine_cfg(
             session, engine_b, tournament.engine_b_preset_id,
-            tournament.engine_b_profile,
+            tournament.engine_b_profile, ENGINE_B_NAME,
         )
 
         opening_fen = _opening_fen_for_index(opening_set, pair.opening_index)

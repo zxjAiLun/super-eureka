@@ -48,23 +48,42 @@ def _option_value(value: Any) -> str | None:
     return str(value)
 
 
+RESERVED_OPTIONS = frozenset({"Hash", "Threads", "Ponder"})
+
+
 def uci_option_args(
     engine: Dict[str, Any], hash_mb: int, threads: int
 ) -> List[str]:
     """UCI ``option.<name>=<value>`` lines for the ``-each`` block.
 
     The preset's uci_options come first, then the arena-wide Hash and Threads
-    constraints (fixed, not user-configurable via the API).
+    constraints (fixed, not user-configurable via the API).  Options are
+    emitted in sorted-by-name order so command.json and the provenance
+    rebuild are deterministic; booleans render as true/false.
     """
     merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
     merged["Hash"] = hash_mb
     merged["Threads"] = threads
     args: List[str] = []
-    for name, value in merged.items():
-        rendered = _option_value(value)
+    for name in sorted(merged):
+        rendered = _option_value(merged[name])
         if rendered is not None:
             args.append(f"option.{name}={rendered}")
     return args
+
+
+def validate_preset_options(uci_options: dict) -> None:
+    """Reject presets that try to own runtime-reserved options.
+
+    Hash/Threads/Ponder are owned by the arena runtime; a preset must not
+    override them, otherwise the cutechess command would carry duplicate
+    options with unclear precedence.
+    """
+    conflicts = sorted(RESERVED_OPTIONS & set(uci_options))
+    if conflicts:
+        raise CutechessLaunchError(
+            f"preset must not set reserved options: {conflicts}"
+        )
 
 
 def build_pair_command(
@@ -78,14 +97,20 @@ def build_pair_command(
     pgn_out: Path,
     threads: int = 1,
 ) -> List[str]:
-    """Build the cutechess-cli argv for one 2-game color-swapped pair."""
+    """Build the cutechess-cli argv for one 2-game color-swapped pair.
+
+    The ``name=`` values are the preset display names (PGN-visible) with the
+    legacy EngineA/EngineB constants as fallback for pre-preset tournaments.
+    """
+    a_name = engine_a.get("display_name") or ENGINE_A_NAME
+    b_name = engine_b.get("display_name") or ENGINE_B_NAME
     argv: List[str] = [
         str(settings.cutechess),
         "-engine",
-        "name=" + ENGINE_A_NAME,
+        "name=" + a_name,
         *engine_argv(engine_a),
         "-engine",
-        "name=" + ENGINE_B_NAME,
+        "name=" + b_name,
         *engine_argv(engine_b),
         "-variant",
         "standard",

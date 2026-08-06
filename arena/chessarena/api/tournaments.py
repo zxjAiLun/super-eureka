@@ -244,13 +244,20 @@ def create_tournament(
         )
 
     def _snapshot_engine(preset, build) -> dict:
+        args = list(preset.command_args or [])
+        if len(args) >= 2:
+            # Project engines carry "--profile <profile>".
+            profile = args[1]
+        else:
+            # External engines (e.g. Stockfish) have no internal profile; the
+            # historical audit column records the preset id instead.
+            profile = f"preset:{preset.preset_id}"
         return {
             "preset_id": preset.preset_id,
             "display_name": preset.display_name,
             "build_id": build.build_id,
-            "profile": (preset.command_args[1] if len(preset.command_args or []) >= 2
-                        else build.supported_profiles[0] if build.supported_profiles else ""),
-            "command_args": list(preset.command_args or []),
+            "profile": profile,
+            "command_args": args,
             "uci_options": dict(preset.uci_options or {}),
             "git_sha": build.git_sha,
             "binary_sha256": build.binary_sha256,
