@@ -136,3 +136,40 @@ class HealthOut(BaseModel):
     worker_heartbeat: str
     cutechess: str
     active_tournament_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Public replay (anonymous, read-only; whitelist fields only)
+# ---------------------------------------------------------------------------
+class PublicGameOut(BaseModel):
+    id: str
+    game_number: int
+    white_engine: str
+    black_engine: str
+    opening_index: int
+    result: Optional[str] = None
+    termination: Optional[str] = None
+    finished_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PublicMatchOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    time_control: str
+    requested_pairs: int
+    completed_pairs: int
+    candidate_wins: int
+    candidate_losses: int
+    draws: int
+    score_percent: Optional[float] = None
+    finished_at: Optional[datetime] = None
+    engine_a_label: str
+    engine_b_label: str
+    opening_set_id: str
+
+
+class PublicMatchDetailOut(PublicMatchOut):
+    games: List[PublicGameOut] = Field(default_factory=list)

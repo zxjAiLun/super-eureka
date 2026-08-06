@@ -25,6 +25,7 @@ API_UNIT = REPO_ROOT / "arena" / "deploy" / "chessarena-api.service"
 ENGINE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy-engine-build.yml"
 ARENA_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy-arena.yml"
 DEPLOY_WRAPPER = REPO_ROOT / "arena" / "deploy" / "arena-deploy.sh"
+NGINX_SNIPPET = REPO_ROOT / "arena" / "deploy" / "nginx-chessarena.conf"
 
 
 def test_api_unit_starts_through_the_application_factory():
@@ -245,3 +246,47 @@ def test_deploy_release_provenance_marker():
         'tar -xOf arena.tar.gz ./DEPLOY_SOURCE_SHA | grep -Fx "$GITHUB_SHA"'
         in content
     )
+
+
+def _nginx_locations(content: str) -> dict[str, str]:
+    """Parse each ``location <path> { ... }`` block from the nginx snippet."""
+    locations: dict[str, str] = {}
+    import re as _re
+
+    for m in _re.finditer(r"location\s+(\S+)\s*{(.*?)}", content, _re.DOTALL):
+        locations[m.group(1)] = m.group(2)
+    return locations
+
+
+def test_nginx_auth_split_keeps_admin_and_api_private():
+    """P4.1 auth split: /admin/ and /api/v1/ stay behind Basic Auth; the
+    public replay subtree (/static/, root, /matches/, /games/, /public-api/)
+    must be anonymous.  proxy_pass must stay trailing-slash-free so the app's
+    base path is preserved."""
+    assert NGINX_SNIPPET.is_file(), f"missing {NGINX_SNIPPET}"
+    content = NGINX_SNIPPET.read_text(encoding="utf-8")
+    locations = _nginx_locations(content)
+
+    assert "/chessarena/admin/" in locations
+    assert "/chessarena/api/v1/" in locations
+    assert "/chessarena/static/" in locations
+    assert "/chessarena/" in locations
+
+    admin = locations["/chessarena/admin/"]
+    api = locations["/chessarena/api/v1/"]
+    public_static = locations["/chessarena/static/"]
+    public_root = locations["/chessarena/"]
+
+    assert "auth_basic" in admin, "admin location must require Basic Auth"
+    assert "auth_basic_user_file" in admin
+    assert "auth_basic" in api, "management API location must require Basic Auth"
+    assert "auth_basic" not in public_static, "static must stay public"
+    assert "auth_basic" not in public_root, "public pages must stay anonymous"
+
+    for block in locations.values():
+        for line in block.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("proxy_pass"):
+                assert "://" in stripped and not stripped.rstrip(";").endswith("/"), (
+                    "proxy_pass must have no trailing slash (base path passthrough)"
+                )

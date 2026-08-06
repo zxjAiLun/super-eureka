@@ -1,0 +1,29 @@
+{% extends "public_base.html" %}
+{% block title %}ChessArena — Game {{ game.game_number }}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ settings.base_path }}/static/pgn-viewer/lichess-pgn-viewer.css">
+{% endblock %}
+{% block content %}
+<p><a href="{{ settings.base_path }}/matches/{{ game.tournament_id }}">&larr; Back to match</a></p>
+<h1>Game {{ game.game_number }}</h1>
+<table class="match-meta">
+  <tbody>
+    <tr><th>White</th><td>{{ game.white_engine }}</td></tr>
+    <tr><th>Black</th><td>{{ game.black_engine }}</td></tr>
+    <tr><th>Result</th><td>{{ game.result or "" }}{% if game.termination %} ({{ game.termination }}){% endif %}</td></tr>
+  </tbody>
+</table>
+
+<div id="board" class="pgn-viewer-board"></div>
+
+<p>
+  <a href="{{ settings.base_path }}/public-api/v1/games/{{ game.id }}/pgn">Download PGN</a>
+</p>
+{% endblock %}
+{% block scripts %}
+<script type="module">
+  import LichessPgnViewer from "{{ settings.base_path }}/static/pgn-viewer/lichess-pgn-viewer.min.js";
+  const pgn = {{ pgn_text | tojson }};
+  LichessPgnViewer("#board", { pgn: pgn });
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "public_base.html" %}
+{% block title %}ChessArena — {{ match.name }}{% endblock %}
+{% block content %}
+<p><a href="{{ settings.base_path }}/matches/">&larr; All matches</a></p>
+<h1>{{ match.name }}</h1>
+<table class="match-meta">
+  <tbody>
+    <tr><th>Time control</th><td>{{ match.time_control }}</td></tr>
+    <tr><th>Engine A</th><td>{{ match.engine_a_label }}</td></tr>
+    <tr><th>Engine B</th><td>{{ match.engine_b_label }}</td></tr>
+    <tr><th>Score</th><td>{{ match.candidate_wins }}W / {{ match.candidate_losses }}L / {{ match.draws }}D
+      {% if match.score_percent is not none %}({{ match.score_percent }}%){% endif %}</td></tr>
+    <tr><th>Pairs</th><td>{{ match.completed_pairs }} / {{ match.requested_pairs }}</td></tr>
+    <tr><th>Opening set</th><td>{{ match.opening_set_id }}</td></tr>
+    <tr><th>Finished</th><td>{{ match.finished_at.strftime("%Y-%m-%d %H:%M:%S") if match.finished_at else "" }}</td></tr>
+  </tbody>
+</table>
+
+<h2>Games</h2>
+{% if match.games %}
+<table class="match-table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>White</th>
+      <th>Black</th>
+      <th>Result</th>
+      <th>Termination</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for g in match.games %}
+    <tr>
+      <td>{{ g.game_number }}</td>
+      <td>{{ g.white_engine }}</td>
+      <td>{{ g.black_engine }}</td>
+      <td>{{ g.result or "" }}</td>
+      <td>{{ g.termination or "" }}</td>
+      <td><a href="{{ settings.base_path }}/games/{{ g.id }}">Replay</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No verified games in this match.</p>
+{% endif %}
+{% endblock %}
