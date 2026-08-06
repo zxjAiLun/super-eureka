@@ -55,7 +55,9 @@ jobs:
 
       - name: Run arena tests from the clean venv
         working-directory: arena
-        run: /tmp/arena-venv/bin/python -m pytest tests/ -q
+        run: |
+          export PATH="/tmp/arena-venv/bin:$PATH"
+          /tmp/arena-venv/bin/python -m pytest tests/ -q
 
   test-and-deploy:
     needs: clean-install
