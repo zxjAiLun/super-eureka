@@ -18,9 +18,10 @@ def test_resolve_engine_cfg_uses_preset(engine_factory, registered):
     with engine_factory() as session:
         build = session.query(EngineBuild).first()
         cfg = _resolve_engine_cfg(
-            session, build, "chessengine-production", "current-final"
+            session, build, "chessengine-production", "current-final", "EngineA"
         )
         assert cfg["binary_path"] == build.binary_path
+        assert cfg["display_name"] == "ChessEngine Production"
         assert cfg["command_args"] == ["--profile", "current-final"]
         assert cfg["uci_options"] == {}
 
@@ -28,7 +29,8 @@ def test_resolve_engine_cfg_uses_preset(engine_factory, registered):
 def test_resolve_engine_cfg_falls_back_to_profile(engine_factory, registered):
     with engine_factory() as session:
         build = session.query(EngineBuild).first()
-        cfg = _resolve_engine_cfg(session, build, None, "current-final")
+        cfg = _resolve_engine_cfg(session, build, None, "current-final", "EngineA")
+        assert cfg["display_name"] == "EngineA"
         assert cfg["command_args"] == ["--profile", "current-final"]
         assert cfg["uci_options"] == {}
 
@@ -39,7 +41,7 @@ def test_resolve_engine_cfg_missing_preset_raises(engine_factory, registered):
     with engine_factory() as session:
         build = session.query(EngineBuild).first()
         with pytest.raises(CutechessLaunchError, match="preset not found"):
-            _resolve_engine_cfg(session, build, "stockfish-2000", "current")
+            _resolve_engine_cfg(session, build, "stockfish-2000", "current", "EngineA")
 
 
 def test_config_snapshot_freezes_preset(app_client):

@@ -27,8 +27,10 @@ from . import cutechess as cc
 # Substrings that are never acceptable in cutechess stdout (section 14.12).
 FORBIDDEN_STDOUT = ("illegal", "crash", "timeout", "forfeit", "fatal", "error")
 
+# Engine display names may contain spaces (e.g. "ChessEngine Production"), so
+# the two sides are matched lazily up to "vs" / ":".
 _SCORE_LINE_RE = re.compile(
-    r"Score of\s+(\S+?)\s+vs\s+(\S+?):\s+(\d+)\s*-\s*(\d+)\s*-\s*(\d+)"
+    r"Score of\s+(.+?)\s+vs\s+(.+?):\s+(\d+)\s*-\s*(\d+)\s*-\s*(\d+)"
 )
 
 
@@ -93,6 +95,21 @@ def parse_score_line(stdout_lines: List[str]) -> Dict[str, int] | None:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+def _side_display_name(snapshot, key: str) -> str:
+    """PGN-facing engine name for one side.
+
+    New tournaments freeze the preset's display_name into the snapshot;
+    legacy rows fall back to the historical EngineA/EngineB constants.
+    """
+    side = (snapshot or {}).get(key) or {}
+    display = side.get("display_name")
+    if display:
+        return display
+    from ..config import ENGINE_A_NAME, ENGINE_B_NAME
+
+    return ENGINE_A_NAME if key == "engine_a" else ENGINE_B_NAME
+
+
 def verify_pair(
     settings: Settings,
     *,
@@ -128,19 +145,22 @@ def verify_pair(
     if len(games) != 2:
         raise VerificationFailure(f"expected 2 games, found {len(games)}")
 
-    # Strict color swap and identity (section 14.6, 14.8)
-    names = [games[0].headers.get("White"), games[0].headers.get("Black")]
-    if games[0].headers.get("White") != ENGINE_A_NAME or games[0].headers.get("Black") != ENGINE_B_NAME:
+    # Strict color swap and identity (section 14.6, 14.8).  PGN engine names
+    # come from the preset display names (or the legacy EngineA/EngineB
+    # constants for pre-preset tournaments).
+    a_name = _side_display_name(snapshot, "engine_a")
+    b_name = _side_display_name(snapshot, "engine_b")
+    if games[0].headers.get("White") != a_name or games[0].headers.get("Black") != b_name:
         raise VerificationFailure(
             f"game 1 color assignment wrong: White={games[0].headers.get('White')} "
             f"Black={games[0].headers.get('Black')} (expected "
-            f"{ENGINE_A_NAME}/{ENGINE_B_NAME})"
+            f"{a_name}/{b_name})"
         )
-    if games[1].headers.get("White") != ENGINE_B_NAME or games[1].headers.get("Black") != ENGINE_A_NAME:
+    if games[1].headers.get("White") != b_name or games[1].headers.get("Black") != a_name:
         raise VerificationFailure(
             f"game 2 color assignment wrong: White={games[1].headers.get('White')} "
             f"Black={games[1].headers.get('Black')} (expected "
-            f"{ENGINE_B_NAME}/{ENGINE_A_NAME})"
+            f"{b_name}/{a_name})"
         )
 
     # Opening position key identical across both games (section 14.7)
@@ -240,8 +260,8 @@ def verify_pair(
         "verified": True,
         "pgn_game_count": len(games),
         "colors": [
-            {"white": names[0], "black": names[1]},
-            {"white": ENGINE_B_NAME, "black": ENGINE_A_NAME},
+            {"white": a_name, "black": b_name},
+            {"white": b_name, "black": a_name},
         ],
         "opening_position_key": key1,
         "moves_legal": True,
@@ -308,6 +328,7 @@ def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
         return {
             "build_id": build.build_id,
             "binary_path": build.binary_path,
+            "display_name": snap.get("display_name"),
             "command_args": list(
                 snap.get("command_args")
                 or ["--profile", snap["profile"]]
