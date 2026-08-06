@@ -160,3 +160,77 @@ def test_deploy_wrapper_normalizes_working_directories():
     # target that would let an arbitrary caller cwd leak in.
     assert '"$VENV/bin/pip" install -e "$dest"' not in content
     assert '"$dest/alembic.ini"' not in content
+
+
+def _extract_health_parser(content: str) -> str:
+    """Extract the exact embedded python3 -c health parser from the workflow."""
+    m = re.search(r"python3 -c '\n(.*?)\n'", content, re.DOTALL)
+    assert m, "missing embedded health parser"
+    return m.group(1)
+
+
+def _run_parser(code: str, payload: str) -> int:
+    import subprocess
+    import sys
+
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        input=payload,
+        capture_output=True,
+        text=True,
+    ).returncode
+
+
+def test_deploy_health_gate_parses_json_structurally():
+    """The health gate must parse JSON structurally (json.load) instead of
+    grepping whitespace-sensitive substrings: the API returns compact JSON,
+    so the previous '"status": "ok"' grep produced a false negative and
+    rolled back a healthy deployment."""
+    content = ARENA_WORKFLOW.read_text(encoding="utf-8")
+
+    # No whitespace-sensitive health greps remain.
+    assert '"status": "ok"' not in content
+    assert 'grep -q "status' not in content
+    # Structural parsing and the four required fields.
+    assert "json.load" in content
+    for key in ("status", "database", "worker_heartbeat", "cutechess"):
+        assert f'"{key}"' in content
+
+    code = _extract_health_parser(content)
+    # Accept: compact, pretty/reordered, extra fields.
+    assert _run_parser(
+        code,
+        '{"status":"ok","database":"ok","worker_heartbeat":"ok","cutechess":"ok","active_tournament_id":null}',
+    ) == 0
+    assert _run_parser(
+        code,
+        '{\n  "worker_heartbeat": "ok",\n  "status": "ok",\n  "cutechess": "ok",\n  "database": "ok"\n}',
+    ) == 0
+    assert _run_parser(
+        code, '{"status":"ok","database":"ok","worker_heartbeat":"ok","cutechess":"ok","extra":1}'
+    ) == 0
+    # Reject: malformed, array, missing field, non-ok value, empty.
+    assert _run_parser(code, "not-json") != 0
+    assert _run_parser(code, "[]") != 0
+    assert _run_parser(
+        code, '{"status":"ok","database":"ok","worker_heartbeat":"ok"}'
+    ) != 0
+    assert _run_parser(
+        code,
+        '{"status":"ok","database":"ok","worker_heartbeat":"ok","cutechess":"nope"}',
+    ) != 0
+    assert _run_parser(code, "") != 0
+
+
+def test_deploy_release_provenance_marker():
+    """The release must record the exact workflow commit as DEPLOY_SOURCE_SHA
+    and verify it inside the produced archive."""
+    content = ARENA_WORKFLOW.read_text(encoding="utf-8")
+    assert (
+        'printf \'%s\\n\' "$GITHUB_SHA" > arena/DEPLOY_SOURCE_SHA' in content
+    )
+    assert 'test "$(cat arena/DEPLOY_SOURCE_SHA)" = "$GITHUB_SHA"' in content
+    assert (
+        'tar -xOf arena.tar.gz ./DEPLOY_SOURCE_SHA | grep -Fx "$GITHUB_SHA"'
+        in content
+    )

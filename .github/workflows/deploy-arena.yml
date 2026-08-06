@@ -81,10 +81,15 @@ jobs:
 
       - name: Package arena
         run: |
+          # Record the exact workflow commit in the release (provenance gate).
+          printf '%s\n' "$GITHUB_SHA" > arena/DEPLOY_SOURCE_SHA
+          test "$(cat arena/DEPLOY_SOURCE_SHA)" = "$GITHUB_SHA"
+
           tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' \
               -C arena -czf arena.tar.gz .
           test -s arena.tar.gz
           tar -tzf arena.tar.gz >/dev/null
+          tar -xOf arena.tar.gz ./DEPLOY_SOURCE_SHA | grep -Fx "$GITHUB_SHA"
 
       - name: Upload package
         uses: appleboy/scp-action@v0.1.7
@@ -121,22 +126,37 @@ jobs:
             # internal check against 127.0.0.1:8787 needs no credentials.
             # Every field must be ok: overall status, database, the worker
             # heartbeat (the worker takes a few seconds to boot) and cutechess.
+            # Parse the response structurally rather than grepping for
+            # whitespace-sensitive substrings.
+            health_ok() {
+              printf '%s' "$HEALTH" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (json.JSONDecodeError, UnicodeDecodeError):
+    raise SystemExit(1)
+
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+
+required = ("status", "database", "worker_heartbeat", "cutechess")
+raise SystemExit(
+    0 if all(payload.get(key) == "ok" for key in required) else 1
+)
+'
+            }
             HEALTH=""
             for i in $(seq 1 15); do
               sleep 2
               HEALTH=$(curl -fsS \
                 "http://127.0.0.1:8787/chessarena/api/v1/health" || true)
-              if echo "$HEALTH" | grep -q '"status": "ok"' \
-                 && echo "$HEALTH" | grep -q '"database": "ok"' \
-                 && echo "$HEALTH" | grep -q '"worker_heartbeat": "ok"' \
-                 && echo "$HEALTH" | grep -q '"cutechess": "ok"'; then
+              if health_ok; then
                 break
               fi
             done
-            if ! echo "$HEALTH" | grep -q '"status": "ok"' \
-               || ! echo "$HEALTH" | grep -q '"database": "ok"' \
-               || ! echo "$HEALTH" | grep -q '"worker_heartbeat": "ok"' \
-               || ! echo "$HEALTH" | grep -q '"cutechess": "ok"'; then
+            if ! health_ok; then
               echo "health gate failed: $HEALTH"
               if [ -n "$PREV_ID" ]; then
                 echo "rolling back to release $PREV_ID"
