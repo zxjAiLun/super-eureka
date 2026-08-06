@@ -10,11 +10,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .api import builds, health, openings, tournaments
+from .api import builds, health, openings, public, tournaments
 from .config import Settings, get_settings
 from .db import bind_session_factory, make_engine, make_session_factory
 from .services import artifacts
@@ -58,11 +57,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tournaments.router, prefix=api_prefix)
     app.include_router(tournaments.admin_router, prefix=bp)
 
-    app.mount(f"{bp}/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    # Public, anonymous replay: read-only JSON under /public-api/v1 and the
+    # public HTML pages (home, matches, match detail, game replay).  Nginx
+    # keeps /admin/ and /api/v1/ behind Basic Auth while this subtree stays
+    # public.
+    app.include_router(public.router, prefix=f"{bp}/public-api/v1")
+    app.include_router(public.pages_router, prefix=bp)
 
-    @app.get(bp, include_in_schema=False)
-    @app.get(f"{bp}/", include_in_schema=False)
-    def arena_root():
-        return RedirectResponse(url=f"{bp}/admin/")
+    app.mount(f"{bp}/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     return app

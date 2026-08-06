@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ChessArena{% endblock %}</title>
+  <link rel="stylesheet" href="{{ settings.base_path }}/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <nav class="topnav">
+      <a class="brand" href="{{ settings.base_path }}/">ChessArena</a>
+      <a href="{{ settings.base_path }}/matches/">Matches</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    ChessArena &middot; PGN replay by
+    <a href="https://github.com/lichess-org/pgn-viewer" rel="noopener">Lichess PGN Viewer</a>
+    (GPL-3.0)
+  </footer>
+  <script src="{{ settings.base_path }}/static/htmx.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
