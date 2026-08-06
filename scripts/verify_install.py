@@ -20,6 +20,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sqlalchemy import text
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chessarena.config import get_settings  # noqa: E402
@@ -57,7 +59,7 @@ def check_cutechess(settings) -> None:
 def check_database(session_factory) -> None:
     try:
         with session_factory() as session:
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
     except Exception as exc:
         failures.append(f"database unreachable: {exc}")
         return
