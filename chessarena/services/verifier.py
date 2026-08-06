@@ -297,28 +297,33 @@ def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
 
     # Rebuild the expected argv from the recorded snapshot and the registered
     # engine builds, then compare structurally (P2.3).  This pins the engine
-    # binaries, both profiles, the time control, Hash, rounds/repeat,
-    # concurrency and the opening/pgn paths exactly.
+    # binaries, both presets (command_args / uci_options frozen in the
+    # snapshot), the time control, Hash/Threads, rounds/repeat, concurrency
+    # and the opening/pgn paths exactly.
     from .cutechess import build_pair_command
 
     from ..config import TIME_CONTROLS
 
+    def _engine_cfg(build, snap) -> dict:
+        return {
+            "build_id": build.build_id,
+            "binary_path": build.binary_path,
+            "command_args": list(
+                snap.get("command_args")
+                or ["--profile", snap["profile"]]
+            ),
+            "uci_options": dict(snap.get("uci_options") or {}),
+        }
+
     expected = build_pair_command(
         settings,
-        engine_a={
-            "build_id": engine_a_build.build_id,
-            "binary_path": engine_a_build.binary_path,
-            "profile": snapshot["engine_a"]["profile"],
-        },
-        engine_b={
-            "build_id": engine_b_build.build_id,
-            "binary_path": engine_b_build.binary_path,
-            "profile": snapshot["engine_b"]["profile"],
-        },
+        engine_a=_engine_cfg(engine_a_build, snapshot["engine_a"]),
+        engine_b=_engine_cfg(engine_b_build, snapshot["engine_b"]),
         time_control=TIME_CONTROLS[snapshot["time_control"]]["cutechess_tc"],
         hash_mb=snapshot.get("hash_mb", settings.hash_mb),
         opening_epd=run_dir / "opening.epd",
         pgn_out=run_dir / "match.pgn",
+        threads=settings.threads,
     )
     if recorded != expected:
         raise VerificationFailure(

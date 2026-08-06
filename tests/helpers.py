@@ -56,11 +56,13 @@ def run_fake_pair(
         settings,
         engine_a={
             "binary_path": engine_a_build.binary_path,
-            "profile": tournament.engine_a_profile,
+            "command_args": ["--profile", tournament.engine_a_profile],
+            "uci_options": {},
         },
         engine_b={
             "binary_path": engine_b_build.binary_path,
-            "profile": tournament.engine_b_profile,
+            "command_args": ["--profile", tournament.engine_b_profile],
+            "uci_options": {},
         },
         time_control=tc,
         hash_mb=settings.hash_mb,

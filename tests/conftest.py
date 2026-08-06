@@ -21,7 +21,7 @@ import pytest
 
 from chessarena.config import Settings
 from chessarena.db import make_engine, make_session_factory
-from chessarena.models import EngineBuild, OpeningSet
+from chessarena.models import EngineBuild, EnginePreset, OpeningSet
 from chessarena.services import artifacts
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -149,6 +149,30 @@ def registered(engine_factory, build_dir: Path, opening_dir: Path):
                 platform=manifest["platform"],
                 supported_profiles=manifest["supported_profiles"],
                 manifest=manifest,
+                enabled=True,
+            )
+        )
+        session.add(
+            EnginePreset(
+                preset_id="chessengine-production",
+                build_id=manifest["build_id"],
+                display_name="ChessEngine Production",
+                command_args=["--profile", "current-final"],
+                uci_options={},
+                category="production",
+                public_visible=True,
+                enabled=True,
+            )
+        )
+        session.add(
+            EnginePreset(
+                preset_id="chessengine-legacy-current",
+                build_id=manifest["build_id"],
+                display_name="ChessEngine Legacy Baseline",
+                command_args=["--profile", "current"],
+                uci_options={},
+                category="legacy",
+                public_visible=True,
                 enabled=True,
             )
         )

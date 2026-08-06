@@ -23,13 +23,48 @@ class CutechessLaunchError(RuntimeError):
     pass
 
 
-def engine_a_argv(build: Dict[str, Any]) -> List[str]:
-    return [
-        "cmd=" + build["binary_path"],
+def engine_argv(engine: Dict[str, Any]) -> List[str]:
+    """The ``-engine`` sub-args for one side.
+
+    ``command_args`` (from the validated EnginePreset) are passed to the
+    engine as ``arg=<value>``; engines without extra args (e.g. Stockfish)
+    simply have an empty list.  This replaces the old hard-coded
+    ``--profile`` assumption.
+    """
+    argv = [
+        "cmd=" + engine["binary_path"],
         "proto=uci",
-        "arg=--profile",
-        "arg=" + build["profile"],
     ]
+    for a in engine.get("command_args") or []:
+        argv.append("arg=" + a)
+    return argv
+
+
+def _option_value(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return None
+    return str(value)
+
+
+def uci_option_args(
+    engine: Dict[str, Any], hash_mb: int, threads: int
+) -> List[str]:
+    """UCI ``option.<name>=<value>`` lines for the ``-each`` block.
+
+    The preset's uci_options come first, then the arena-wide Hash and Threads
+    constraints (fixed, not user-configurable via the API).
+    """
+    merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
+    merged["Hash"] = hash_mb
+    merged["Threads"] = threads
+    args: List[str] = []
+    for name, value in merged.items():
+        rendered = _option_value(value)
+        if rendered is not None:
+            args.append(f"option.{name}={rendered}")
+    return args
 
 
 def build_pair_command(
@@ -41,16 +76,17 @@ def build_pair_command(
     hash_mb: int,
     opening_epd: Path,
     pgn_out: Path,
+    threads: int = 1,
 ) -> List[str]:
     """Build the cutechess-cli argv for one 2-game color-swapped pair."""
     argv: List[str] = [
         str(settings.cutechess),
         "-engine",
         "name=" + ENGINE_A_NAME,
-        *engine_a_argv(engine_a),
+        *engine_argv(engine_a),
         "-engine",
         "name=" + ENGINE_B_NAME,
-        *engine_a_argv(engine_b),
+        *engine_argv(engine_b),
         "-variant",
         "standard",
         "-openings",
@@ -60,7 +96,8 @@ def build_pair_command(
         "policy=default",
         "-each",
         f"tc={time_control}",
-        f"option.Hash={hash_mb}",
+        *uci_option_args(engine_a, hash_mb, threads),
+        *uci_option_args(engine_b, hash_mb, threads),
         # One opening position per pair; -repeat 2 plays it twice with the
         # sides swapped, giving exactly two games with strict color reversal.
         "-rounds",

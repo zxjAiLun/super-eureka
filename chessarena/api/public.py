@@ -13,7 +13,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import COMPLETED, EngineBuild, Game, Tournament
+from ..models import COMPLETED, EngineBuild, EnginePreset, Game, Tournament
 from ..schemas import PublicGameOut, PublicMatchDetailOut, PublicMatchOut
 from ..services.replay import ReplayError, read_single_game_pgn
 
@@ -21,9 +21,19 @@ router = APIRouter(tags=["public-replay"])
 pages_router = APIRouter(include_in_schema=False, tags=["public-pages"])
 
 
-def _engine_label(session: Session, build_id: str, profile: str) -> str:
-    """Display label for one side.  Only the engine display name and profile
-    are exposed; the build_id itself is never returned."""
+def _engine_label(
+    session: Session, preset_id: str | None, build_id: str, profile: str
+) -> str:
+    """Display label for one side.  Prefers the preset's friendly display name;
+    falls back to the engine name + profile.  build_id is never exposed."""
+    if preset_id:
+        preset = (
+            session.query(EnginePreset)
+            .filter(EnginePreset.preset_id == preset_id)
+            .first()
+        )
+        if preset is not None:
+            return preset.display_name
     name = "ChessEngine"
     if build_id:
         build = (
@@ -56,8 +66,12 @@ def _public_match(session: Session, t: Tournament) -> PublicMatchOut:
         draws=t.draws,
         score_percent=_score_percent(t),
         finished_at=t.finished_at,
-        engine_a_label=_engine_label(session, t.engine_a_build_id, t.engine_a_profile),
-        engine_b_label=_engine_label(session, t.engine_b_build_id, t.engine_b_profile),
+        engine_a_label=_engine_label(
+            session, t.engine_a_preset_id, t.engine_a_build_id, t.engine_a_profile
+        ),
+        engine_b_label=_engine_label(
+            session, t.engine_b_preset_id, t.engine_b_build_id, t.engine_b_profile
+        ),
         opening_set_id=t.opening_set_id,
     )
 

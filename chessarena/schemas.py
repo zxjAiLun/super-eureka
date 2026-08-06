@@ -44,8 +44,7 @@ class OpeningSetOut(BaseModel):
 # Tournaments
 # ---------------------------------------------------------------------------
 class EngineRef(BaseModel):
-    build_id: str = Field(min_length=1)
-    profile: str = Field(min_length=1)
+    preset_id: str = Field(min_length=1)
 
 
 class TournamentCreate(BaseModel):
@@ -55,6 +54,7 @@ class TournamentCreate(BaseModel):
     opening_set_id: str = Field(min_length=1)
     time_control: str
     pairs: int = Field(ge=1)
+    allow_intentional_self_play: bool = False
 
 
 class GameOut(BaseModel):
@@ -106,6 +106,8 @@ class TournamentOut(BaseModel):
     engine_a_profile: str
     engine_b_build_id: str
     engine_b_profile: str
+    engine_a_preset_id: Optional[str] = None
+    engine_b_preset_id: Optional[str] = None
     opening_set_id: str
     time_control: str
     requested_pairs: int

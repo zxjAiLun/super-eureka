@@ -50,14 +50,8 @@ def test_full_lifecycle_acceptance(scheduler, engine_factory, app_client,
         "/chessarena/api/v1/tournaments",
         json={
             "name": "Arena v1 Acceptance",
-            "engine_a": {
-                "build_id": "20260805-bde9085-linux-x86_64",
-                "profile": "current-final",
-            },
-            "engine_b": {
-                "build_id": "20260805-bde9085-linux-x86_64",
-                "profile": "current",
-            },
+            "engine_a": {"preset_id": "chessengine-production"},
+            "engine_b": {"preset_id": "chessengine-legacy-current"},
             "opening_set_id": "test-openings-v1",
             "time_control": "bullet_1_0",
             "pairs": 10,

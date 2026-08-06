@@ -39,6 +39,7 @@ from ..models import (
     QUEUED,
     RUNNING,
     EngineBuild,
+    EnginePreset,
     Event,
     Game,
     OpeningSet,
@@ -52,6 +53,42 @@ from . import recovery
 from . import verifier
 
 logger = logging.getLogger("chessarena.scheduler")
+
+
+def _resolve_engine_cfg(
+    session, build: EngineBuild, preset_id: str | None, profile: str
+) -> Dict[str, Any]:
+    """Resolve the launch config for one side from its EnginePreset.
+
+    The preset carries the validated command_args / uci_options.  Historical
+    rows without a preset fall back to the legacy ``--profile`` form so old
+    tournaments stay reproducible.
+    """
+    if preset_id:
+        preset = (
+            session.query(EnginePreset)
+            .filter(
+                EnginePreset.preset_id == preset_id,
+                EnginePreset.enabled.is_(True),
+            )
+            .first()
+        )
+        if preset is None:
+            raise cc.CutechessLaunchError(
+                f"preset not found or disabled: {preset_id}"
+            )
+        return {
+            "build_id": build.build_id,
+            "binary_path": build.binary_path,
+            "command_args": list(preset.command_args or []),
+            "uci_options": dict(preset.uci_options or {}),
+        }
+    return {
+        "build_id": build.build_id,
+        "binary_path": build.binary_path,
+        "command_args": ["--profile", profile],
+        "uci_options": {},
+    }
 
 
 def _record_event(session, tournament_id, event_type, pair_job_id=None,
@@ -591,6 +628,15 @@ class Scheduler:
         if opening_set is None or engine_a is None or engine_b is None:
             raise cc.CutechessLaunchError("referenced build/opening not found")
 
+        engine_a_cfg = _resolve_engine_cfg(
+            session, engine_a, tournament.engine_a_preset_id,
+            tournament.engine_a_profile,
+        )
+        engine_b_cfg = _resolve_engine_cfg(
+            session, engine_b, tournament.engine_b_preset_id,
+            tournament.engine_b_profile,
+        )
+
         opening_fen = _opening_fen_for_index(opening_set, pair.opening_index)
         opening_epd = run_dir / "opening.epd"
         opening_epd.write_text(opening_fen + "\n", encoding="utf-8")
@@ -601,20 +647,13 @@ class Scheduler:
 
         argv = cc.build_pair_command(
             self.settings,
-            engine_a={
-                "build_id": engine_a.build_id,
-                "binary_path": engine_a.binary_path,
-                "profile": tournament.engine_a_profile,
-            },
-            engine_b={
-                "build_id": engine_b.build_id,
-                "binary_path": engine_b.binary_path,
-                "profile": tournament.engine_b_profile,
-            },
+            engine_a=engine_a_cfg,
+            engine_b=engine_b_cfg,
             time_control=tc,
             hash_mb=self.settings.hash_mb,
             opening_epd=opening_epd,
             pgn_out=run_dir / "match.pgn",
+            threads=self.settings.threads,
         )
 
         # Pre-flight checks (section 12)

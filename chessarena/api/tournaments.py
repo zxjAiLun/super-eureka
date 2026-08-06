@@ -31,6 +31,7 @@ from ..models import (
     QUEUED,
     RUNNING,
     EngineBuild,
+    EnginePreset,
     Event,
     Game,
     OpeningSet,
@@ -120,6 +121,38 @@ def _validate_profile_or_422(build: EngineBuild, profile: str, label: str) -> No
         )
 
 
+def _get_enabled_preset_or_422(session, preset_id, label):
+    """Resolve an enabled EnginePreset and its EngineBuild (422 on any miss)."""
+    preset = (
+        session.query(EnginePreset)
+        .filter(
+            EnginePreset.preset_id == preset_id,
+            EnginePreset.enabled.is_(True),
+        )
+        .first()
+    )
+    if preset is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label}: unknown or disabled engine preset '{preset_id}'",
+        )
+    build = (
+        session.query(EngineBuild)
+        .filter(
+            EngineBuild.build_id == preset.build_id,
+            EngineBuild.enabled.is_(True),
+        )
+        .first()
+    )
+    if build is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label}: preset '{preset_id}' references missing build "
+            f"'{preset.build_id}'",
+        )
+    return preset, build
+
+
 def _score_percent(tournament: Tournament) -> Optional[float]:
     played = tournament.candidate_wins + tournament.candidate_losses + tournament.draws
     if played == 0:
@@ -138,6 +171,8 @@ def _to_out(tournament: Tournament, detail: bool = False):
         "engine_a_profile": tournament.engine_a_profile,
         "engine_b_build_id": tournament.engine_b_build_id,
         "engine_b_profile": tournament.engine_b_profile,
+        "engine_a_preset_id": tournament.engine_a_preset_id,
+        "engine_b_preset_id": tournament.engine_b_preset_id,
         "opening_set_id": tournament.opening_set_id,
         "time_control": tournament.time_control,
         "requested_pairs": tournament.requested_pairs,
@@ -173,10 +208,23 @@ def create_tournament(
     session: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    build_a = _get_enabled_build_or_422(session, body.engine_a.build_id, "engine_a")
-    _validate_profile_or_422(build_a, body.engine_a.profile, "engine_a")
-    build_b = _get_enabled_build_or_422(session, body.engine_b.build_id, "engine_b")
-    _validate_profile_or_422(build_b, body.engine_b.profile, "engine_b")
+    preset_a, build_a = _get_enabled_preset_or_422(
+        session, body.engine_a.preset_id, "engine_a"
+    )
+    preset_b, build_b = _get_enabled_preset_or_422(
+        session, body.engine_b.preset_id, "engine_b"
+    )
+    if (
+        body.engine_a.preset_id == body.engine_b.preset_id
+        and not body.allow_intentional_self_play
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "both sides use the same engine preset; set "
+                "allow_intentional_self_play to run it deliberately"
+            ),
+        )
 
     opening = _get_enabled_opening_or_422(session, body.opening_set_id)
     if body.time_control not in TIME_CONTROLS:
@@ -195,25 +243,29 @@ def create_tournament(
             ),
         )
 
+    def _snapshot_engine(preset, build) -> dict:
+        return {
+            "preset_id": preset.preset_id,
+            "display_name": preset.display_name,
+            "build_id": build.build_id,
+            "profile": (preset.command_args[1] if len(preset.command_args or []) >= 2
+                        else build.supported_profiles[0] if build.supported_profiles else ""),
+            "command_args": list(preset.command_args or []),
+            "uci_options": dict(preset.uci_options or {}),
+            "git_sha": build.git_sha,
+            "binary_sha256": build.binary_sha256,
+        }
+
     config_snapshot = {
-        "engine_a": {
-            "build_id": build_a.build_id,
-            "profile": body.engine_a.profile,
-            "git_sha": build_a.git_sha,
-            "binary_sha256": build_a.binary_sha256,
-        },
-        "engine_b": {
-            "build_id": build_b.build_id,
-            "profile": body.engine_b.profile,
-            "git_sha": build_b.git_sha,
-            "binary_sha256": build_b.binary_sha256,
-        },
+        "engine_a": _snapshot_engine(preset_a, build_a),
+        "engine_b": _snapshot_engine(preset_b, build_b),
         "opening_set": {
             "opening_set_id": opening.opening_set_id,
             "sha256": opening.sha256,
         },
         "time_control": body.time_control,
         "hash_mb": settings.hash_mb,
+        "threads": settings.threads,
         "concurrency": settings.max_concurrency,
         "requested_pairs": body.pairs,
     }
@@ -222,9 +274,11 @@ def create_tournament(
         name=body.name,
         status=DRAFT,
         engine_a_build_id=build_a.build_id,
-        engine_a_profile=body.engine_a.profile,
+        engine_a_profile=config_snapshot["engine_a"]["profile"],
         engine_b_build_id=build_b.build_id,
-        engine_b_profile=body.engine_b.profile,
+        engine_b_profile=config_snapshot["engine_b"]["profile"],
+        engine_a_preset_id=preset_a.preset_id,
+        engine_b_preset_id=preset_b.preset_id,
         opening_set_id=opening.opening_set_id,
         time_control=body.time_control,
         requested_pairs=body.pairs,
@@ -563,10 +617,10 @@ def admin_dashboard(request: Request, session: Session = Depends(get_db)):
 @admin_router.get("/admin/tournaments/new", response_class=HTMLResponse)
 def admin_tournament_new(request: Request, session: Session = Depends(get_db)):
     templates = request.app.state.templates
-    builds = (
-        session.query(EngineBuild)
-        .filter(EngineBuild.enabled.is_(True))
-        .order_by(EngineBuild.created_at.desc())
+    presets = (
+        session.query(EnginePreset)
+        .filter(EnginePreset.enabled.is_(True))
+        .order_by(EnginePreset.category, EnginePreset.created_at.desc())
         .all()
     )
     openings = (
@@ -579,7 +633,7 @@ def admin_tournament_new(request: Request, session: Session = Depends(get_db)):
         request,
         "tournament_new.html",
         {
-            "builds": builds,
+            "presets": presets,
             "openings": openings,
             "time_controls": TIME_CONTROLS,
             "settings": request.app.state.settings,
@@ -593,11 +647,12 @@ async def admin_tournament_create(request: Request, session: Session = Depends(g
     validate_csrf_token(request, form)
     body = TournamentCreate(
         name=form["name"],
-        engine_a={"build_id": form["engine_a_build"], "profile": form["engine_a_profile"]},
-        engine_b={"build_id": form["engine_b_build"], "profile": form["engine_b_profile"]},
+        engine_a={"preset_id": form["engine_a_preset"]},
+        engine_b={"preset_id": form["engine_b_preset"]},
         opening_set_id=form["opening_set_id"],
         time_control=form["time_control"],
         pairs=int(form["pairs"]),
+        allow_intentional_self_play=form.get("allow_intentional_self_play") == "on",
     )
     # Reuse the API creation logic by calling it directly.
     created = create_tournament(body, session, request.app.state.settings)
