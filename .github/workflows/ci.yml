@@ -74,6 +74,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r arena/requirements-dev.txt
 
+      - name: Install Playwright browser (PGN viewer E2E)
+        run: |
+          python -m playwright install --with-deps chromium
+
       - name: Arena pytest suite
         working-directory: arena
         run: python -m pytest tests/ -q
