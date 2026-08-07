@@ -65,12 +65,13 @@ def _engine_cfg_from_snapshot(
 
     The snapshot is the execution source of truth: once a tournament is
     created it must run exactly what was recorded (display_name, command_args,
-    uci_options, binary_sha256), not whatever the live EnginePreset rows say
-    today.  Only pre-preset rows without preset fields fall back to the
-    legacy ``--profile <profile>`` form.
+    uci_options, binary_sha256, git_sha), not whatever the live EnginePreset
+    rows say today.  Only pre-preset rows without preset fields fall back to
+    the legacy ``--profile <profile>`` form.
 
-    The physical build is looked up by the snapshot's build_id; its binary is
-    immutable, and the caller re-verifies the binary SHA before launch.
+    The physical build is looked up by the snapshot's build_id; the returned
+    binary_sha256/git_sha come from the snapshot so the caller can pin the
+    prelaunch check to the frozen values instead of the live build row.
     """
     side = (snapshot or {}).get(key) or {}
     build_id = side.get("build_id")
@@ -87,18 +88,22 @@ def _engine_cfg_from_snapshot(
         raise cc.CutechessLaunchError(
             f"snapshot {key} references missing build {build_id}"
         )
+    base = {
+        "build_id": build_id,
+        "binary_path": build.binary_path,
+        "binary_sha256": side.get("binary_sha256") or build.binary_sha256,
+        "git_sha": side.get("git_sha") or build.git_sha,
+    }
     if "command_args" in side:
         return {
-            "build_id": build_id,
-            "binary_path": build.binary_path,
+            **base,
             "display_name": side.get("display_name") or fallback_name,
             "command_args": list(side.get("command_args") or []),
             "uci_options": dict(side.get("uci_options") or {}),
         }
     # Legacy pre-preset snapshot: fall back to the historical profile.
     return {
-        "build_id": build_id,
-        "binary_path": build.binary_path,
+        **base,
         "display_name": fallback_name,
         "command_args": ["--profile", side.get("profile") or fallback_profile],
         "uci_options": {},
@@ -641,8 +646,9 @@ class Scheduler:
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
 
         # Execution is driven by the FROZEN config_snapshot (P4.2 repair):
-        # display_name / command_args / uci_options are whatever was recorded
-        # at creation time, never the current EnginePreset rows.
+        # display_name / command_args / uci_options / binary_sha256 / git_sha
+        # / hash_mb / threads are whatever was recorded at creation time,
+        # never the current EnginePreset rows or live Settings.
         engine_a_cfg = _engine_cfg_from_snapshot(
             session, tournament.config_snapshot, "engine_a",
             tournament.engine_a_profile, ENGINE_A_NAME,
@@ -664,6 +670,31 @@ class Scheduler:
         if engine_a is None or engine_b is None:
             raise cc.CutechessLaunchError("snapshot references missing build")
 
+        # Prelaunch pinning: the live EngineBuild row must still match the
+        # FROZEN snapshot, otherwise the tournament must NOT run (fail-closed
+        # before Popen).  The verifier alone cannot repair a wasted run.
+        snapshot = tournament.config_snapshot or {}
+        for label, cfg, build in (
+            ("engine_a", engine_a_cfg, engine_a),
+            ("engine_b", engine_b_cfg, engine_b),
+        ):
+            if build.build_id != cfg["build_id"]:
+                raise cc.CutechessLaunchError(
+                    f"{label}: live build id differs from frozen snapshot"
+                )
+            if build.binary_sha256 != cfg["binary_sha256"]:
+                raise cc.CutechessLaunchError(
+                    f"{label}: live build binary SHA differs from frozen "
+                    f"snapshot ({build.build_id})"
+                )
+            if build.git_sha != cfg["git_sha"]:
+                raise cc.CutechessLaunchError(
+                    f"{label}: live build git_sha differs from frozen snapshot"
+                )
+
+        hash_mb = snapshot.get("hash_mb", self.settings.hash_mb)
+        threads = snapshot.get("threads", self.settings.threads)
+
         opening_fen = _opening_fen_for_index(opening_set, pair.opening_index)
         opening_epd = run_dir / "opening.epd"
         opening_epd.write_text(opening_fen + "\n", encoding="utf-8")
@@ -677,21 +708,24 @@ class Scheduler:
             engine_a=engine_a_cfg,
             engine_b=engine_b_cfg,
             time_control=tc,
-            hash_mb=self.settings.hash_mb,
+            hash_mb=hash_mb,
             opening_epd=opening_epd,
             pgn_out=run_dir / "match.pgn",
-            threads=self.settings.threads,
+            threads=threads,
         )
 
-        # Pre-flight checks (section 12)
+        # Pre-flight checks (section 12): the binary SHA must match the
+        # FROZEN snapshot value, not the live EngineBuild row.
         cc.check_cutechess(self.settings)
         cc.check_engine_binary(
-            {"binary_path": engine_a.binary_path, "binary_sha256": engine_a.binary_sha256,
-             "build_id": engine_a.build_id}
+            {"binary_path": engine_a_cfg["binary_path"],
+             "binary_sha256": engine_a_cfg["binary_sha256"],
+             "build_id": engine_a_cfg["build_id"]}
         )
         cc.check_engine_binary(
-            {"binary_path": engine_b.binary_path, "binary_sha256": engine_b.binary_sha256,
-             "build_id": engine_b.build_id}
+            {"binary_path": engine_b_cfg["binary_path"],
+             "binary_sha256": engine_b_cfg["binary_sha256"],
+             "build_id": engine_b_cfg["build_id"]}
         )
 
         cc.write_command_artifacts(
@@ -702,15 +736,16 @@ class Scheduler:
                 "pair_index": pair.pair_index,
                 "attempt": pair.attempt,
                 "engine_a": {
-                    "build_id": engine_a.build_id,
-                    "binary_sha256": engine_a.binary_sha256,
+                    "build_id": engine_a_cfg["build_id"],
+                    "binary_sha256": engine_a_cfg["binary_sha256"],
                 },
                 "engine_b": {
-                    "build_id": engine_b.build_id,
-                    "binary_sha256": engine_b.binary_sha256,
+                    "build_id": engine_b_cfg["build_id"],
+                    "binary_sha256": engine_b_cfg["binary_sha256"],
                 },
                 "time_control": tournament.time_control,
-                "hash_mb": self.settings.hash_mb,
+                "hash_mb": hash_mb,
+                "threads": threads,
             },
         )
 

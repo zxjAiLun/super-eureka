@@ -132,6 +132,7 @@ def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
     options: dict[str, UciOption] = {}
     saw_uciok = False
     saw_readyok = False
+    handshake_completed = False
     try:
         proc.stdin.write("uci\n")
         proc.stdin.flush()
@@ -160,12 +161,19 @@ def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
 
         proc.stdin.write("quit\n")
         proc.stdin.flush()
+        handshake_completed = True
     except BrokenPipeError as exc:
         raise UciProbeError("engine closed its input early") from exc
     finally:
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
+        if handshake_completed:
+            # Normal path: quit was accepted; give it a short grace period.
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        else:
+            # Error/timeout path: reap immediately — no extra grace wait.
             proc.kill()
             proc.wait(timeout=5)
 

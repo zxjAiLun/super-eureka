@@ -90,6 +90,50 @@ def test_install_external_build_idempotent_same_sha(
     assert "already registered" in second.stdout
 
 
+def test_idempotent_same_sha_different_path_fails_without_writes(
+    settings, engine_factory, tmp_path
+):
+    """P2: an existing build_id registered at path A must reject a re-run
+    pointing at path B (even with the same binary SHA) BEFORE any filesystem
+    write — path B must stay untouched."""
+    binary_a = _stage_binary(tmp_path)
+    sha = _sha256(binary_a)
+    install = _run_script(
+        "install_external_build.py",
+        tmp_path,
+        "--build-id", "stockfish-idem",
+        "--engine-name", "Stockfish",
+        "--binary-name", "stockfish",
+        "--binary-sha256", sha,
+        "--platform", "linux-x86_64",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert install.returncode == 0, install.stderr
+
+    # Path B: a different directory containing an identical binary.
+    dir_b = tmp_path / "other"
+    dir_b.mkdir(exist_ok=True)
+    binary_b = dir_b / "stockfish"
+    binary_b.write_bytes(FAKE_UCI_ENGINE.read_bytes())
+    binary_b.chmod(0o755)
+
+    rerun = _run_script(
+        "install_external_build.py",
+        dir_b,
+        "--build-id", "stockfish-idem",
+        "--engine-name", "Stockfish",
+        "--binary-name", "stockfish",
+        "--binary-sha256", sha,
+        "--platform", "linux-x86_64",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert rerun.returncode != 0
+    assert "already registered at" in rerun.stderr
+    # No side effects in path B.
+    assert not (dir_b / "manifest.json").exists()
+    assert not (dir_b / "manifest.json.tmp").exists()
+
+
 def test_install_external_build_rejects_sha_mismatch(settings, tmp_path):
     binary = _stage_binary(tmp_path)
     result = _run_script(
