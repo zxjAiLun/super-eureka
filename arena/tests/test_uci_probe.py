@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
 from chessarena.services.cutechess import (
     RESERVED_OPTIONS,
+    each_option_args,
+    engine_option_args,
     validate_preset_options,
-    uci_option_args,
 )
 from chessarena.services.uci_probe import (
     UciProbeError,
@@ -26,6 +28,8 @@ from chessarena.services.uci_probe import (
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 FAKE_UCI_ENGINE = FIXTURES / "fake_uci_engine.py"
+FAKE_UCI_HANG = FIXTURES / "fake_uci_hang.py"
+FAKE_UCI_PARTIAL = FIXTURES / "fake_uci_partial.py"
 
 
 def _probe(env_extra: dict | None = None):
@@ -97,18 +101,18 @@ def test_probe_missing_binary(tmp_path):
 
 
 def test_uci_option_args_are_sorted_and_bool_lowercase():
-    args = uci_option_args(
-        {"uci_options": {"UCI_Elo": 2000, "UCI_LimitStrength": True, "Ponder": False}},
-        hash_mb=32,
-        threads=1,
+    args = engine_option_args(
+        {"uci_options": {"UCI_Elo": 2000, "UCI_LimitStrength": True, "Ponder": False}}
     )
-    # Sorted by name: Hash, Ponder, Threads, UCI_Elo, UCI_LimitStrength
+    # Sorted by name: Ponder, UCI_Elo, UCI_LimitStrength
     names = [a.split("=")[0] for a in args]
     assert names == sorted(names)
     assert "option.UCI_LimitStrength=true" in args
     assert "option.Ponder=false" in args
-    assert "option.Hash=32" in args
-    assert "option.Threads=1" in args
+    assert "option.UCI_Elo=2000" in args
+
+    common = each_option_args(hash_mb=32, threads=1)
+    assert common == ["option.Hash=32", "option.Threads=1"]
 
 
 def test_reserved_options_rejected():
@@ -117,3 +121,23 @@ def test_reserved_options_rejected():
     assert RESERVED_OPTIONS == frozenset({"Hash", "Threads", "Ponder"})
     # Non-conflicting preset options pass.
     validate_preset_options({"UCI_LimitStrength": True, "UCI_Elo": 2000})
+
+
+def test_probe_times_out_when_engine_hangs():
+    """P1 regression: an engine that receives uci and never outputs must
+    fail at the real deadline, not hang forever."""
+    start = time.monotonic()
+    with pytest.raises(UciProbeError, match="timed out"):
+        probe_uci(FAKE_UCI_HANG, timeout=2)
+    elapsed = time.monotonic() - start
+    assert elapsed < 10, f"deadline not enforced: {elapsed:.1f}s"
+
+
+def test_probe_times_out_on_partial_line_without_newline():
+    """P1 regression: a partial line without a newline must also hit the
+    real deadline (readline alone would block forever)."""
+    start = time.monotonic()
+    with pytest.raises(UciProbeError, match="timed out"):
+        probe_uci(FAKE_UCI_PARTIAL, timeout=2)
+    elapsed = time.monotonic() - start
+    assert elapsed < 10, f"deadline not enforced: {elapsed:.1f}s"

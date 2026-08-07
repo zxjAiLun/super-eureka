@@ -150,9 +150,7 @@ def test_register_stockfish_presets_and_idempotent(
 
     args = [
         "register_stockfish_presets.py",
-        tmp_path,
         "--build-id", build_id,
-        "--binary-name", "stockfish",
     ]
     first = _run_script(*args, env_extra={"ARENA_DB_URL": settings.db_url})
     assert first.returncode == 0, first.stdout + first.stderr
@@ -179,13 +177,10 @@ def test_register_stockfish_presets_and_idempotent(
     assert "updated preset" in second.stdout
 
 
-def test_register_stockfish_presets_requires_build(settings, engine_factory, tmp_path):
-    binary = _stage_binary(tmp_path)
+def test_register_stockfish_presets_requires_build(settings, engine_factory):
     result = _run_script(
         "register_stockfish_presets.py",
-        tmp_path,
         "--build-id", "not-registered",
-        "--binary-name", "stockfish",
         env_extra={"ARENA_DB_URL": settings.db_url},
     )
     assert result.returncode != 0

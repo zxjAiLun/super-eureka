@@ -39,7 +39,6 @@ from ..models import (
     QUEUED,
     RUNNING,
     EngineBuild,
-    EnginePreset,
     Event,
     Game,
     OpeningSet,
@@ -55,44 +54,53 @@ from . import verifier
 logger = logging.getLogger("chessarena.scheduler")
 
 
-def _resolve_engine_cfg(
+def _engine_cfg_from_snapshot(
     session,
-    build: EngineBuild,
-    preset_id: str | None,
-    profile: str,
-    display_name: str,
+    snapshot: Dict[str, Any],
+    key: str,
+    fallback_profile: str,
+    fallback_name: str,
 ) -> Dict[str, Any]:
-    """Resolve the launch config for one side from its EnginePreset.
+    """Resolve one side's launch config from the FROZEN config_snapshot.
 
-    The preset carries the validated command_args / uci_options and the
-    PGN-visible display name.  Historical rows without a preset fall back to
-    the legacy ``--profile`` form so old tournaments stay reproducible.
+    The snapshot is the execution source of truth: once a tournament is
+    created it must run exactly what was recorded (display_name, command_args,
+    uci_options, binary_sha256), not whatever the live EnginePreset rows say
+    today.  Only pre-preset rows without preset fields fall back to the
+    legacy ``--profile <profile>`` form.
+
+    The physical build is looked up by the snapshot's build_id; its binary is
+    immutable, and the caller re-verifies the binary SHA before launch.
     """
-    if preset_id:
-        preset = (
-            session.query(EnginePreset)
-            .filter(
-                EnginePreset.preset_id == preset_id,
-                EnginePreset.enabled.is_(True),
-            )
-            .first()
+    side = (snapshot or {}).get(key) or {}
+    build_id = side.get("build_id")
+    if not build_id:
+        raise cc.CutechessLaunchError(
+            f"snapshot {key} has no build_id (unreproducible)"
         )
-        if preset is None:
-            raise cc.CutechessLaunchError(
-                f"preset not found or disabled: {preset_id}"
-            )
+    build = (
+        session.query(EngineBuild)
+        .filter(EngineBuild.build_id == build_id)
+        .first()
+    )
+    if build is None:
+        raise cc.CutechessLaunchError(
+            f"snapshot {key} references missing build {build_id}"
+        )
+    if "command_args" in side:
         return {
-            "build_id": build.build_id,
+            "build_id": build_id,
             "binary_path": build.binary_path,
-            "display_name": preset.display_name,
-            "command_args": list(preset.command_args or []),
-            "uci_options": dict(preset.uci_options or {}),
+            "display_name": side.get("display_name") or fallback_name,
+            "command_args": list(side.get("command_args") or []),
+            "uci_options": dict(side.get("uci_options") or {}),
         }
+    # Legacy pre-preset snapshot: fall back to the historical profile.
     return {
-        "build_id": build.build_id,
+        "build_id": build_id,
         "binary_path": build.binary_path,
-        "display_name": display_name,
-        "command_args": ["--profile", profile],
+        "display_name": fallback_name,
+        "command_args": ["--profile", side.get("profile") or fallback_profile],
         "uci_options": {},
     }
 
@@ -627,26 +635,34 @@ class Scheduler:
         opening_set = session.query(OpeningSet).filter(
             OpeningSet.opening_set_id == tournament.opening_set_id
         ).first()
-        engine_a = session.query(EngineBuild).filter(
-            EngineBuild.build_id == tournament.engine_a_build_id
-        ).first()
-        engine_b = session.query(EngineBuild).filter(
-            EngineBuild.build_id == tournament.engine_b_build_id
-        ).first()
-
-        if opening_set is None or engine_a is None or engine_b is None:
-            raise cc.CutechessLaunchError("referenced build/opening not found")
+        if opening_set is None:
+            raise cc.CutechessLaunchError("referenced opening not found")
 
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
 
-        engine_a_cfg = _resolve_engine_cfg(
-            session, engine_a, tournament.engine_a_preset_id,
+        # Execution is driven by the FROZEN config_snapshot (P4.2 repair):
+        # display_name / command_args / uci_options are whatever was recorded
+        # at creation time, never the current EnginePreset rows.
+        engine_a_cfg = _engine_cfg_from_snapshot(
+            session, tournament.config_snapshot, "engine_a",
             tournament.engine_a_profile, ENGINE_A_NAME,
         )
-        engine_b_cfg = _resolve_engine_cfg(
-            session, engine_b, tournament.engine_b_preset_id,
+        engine_b_cfg = _engine_cfg_from_snapshot(
+            session, tournament.config_snapshot, "engine_b",
             tournament.engine_b_profile, ENGINE_B_NAME,
         )
+        engine_a = (
+            session.query(EngineBuild)
+            .filter(EngineBuild.build_id == engine_a_cfg["build_id"])
+            .first()
+        )
+        engine_b = (
+            session.query(EngineBuild)
+            .filter(EngineBuild.build_id == engine_b_cfg["build_id"])
+            .first()
+        )
+        if engine_a is None or engine_b is None:
+            raise cc.CutechessLaunchError("snapshot references missing build")
 
         opening_fen = _opening_fen_for_index(opening_set, pair.opening_index)
         opening_epd = run_dir / "opening.epd"

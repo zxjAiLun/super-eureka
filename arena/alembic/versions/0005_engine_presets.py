@@ -3,6 +3,12 @@
 Revision ID: 0005_engine_presets
 Revises: 0004_return_code_attempt
 Create Date: 2026-08-06
+
+Note: historical tournaments are intentionally NOT backfilled with preset
+ids.  Their engine_a/b_preset_id stays NULL so the scheduler falls back to
+the legacy build/profile columns as the real provenance.  A backfill would
+point old rows at presets bound to the newest build, contradicting the
+recorded build_id.
 """
 from __future__ import annotations
 
@@ -19,14 +25,6 @@ depends_on = None
 
 PRODUCTION_PRESET = "chessengine-production"
 LEGACY_PRESET = "chessengine-legacy-current"
-
-
-def _profile_preset(profile: str) -> str | None:
-    if profile == "current-final":
-        return PRODUCTION_PRESET
-    if profile == "current":
-        return LEGACY_PRESET
-    return None
 
 
 def upgrade() -> None:
@@ -101,27 +99,6 @@ def upgrade() -> None:
                         "cat": category,
                         "ts": now,
                     },
-                )
-
-    # Backfill historical tournaments from their audit profile columns.
-    for col, profile_col in (
-        ("engine_a_preset_id", "engine_a_profile"),
-        ("engine_b_preset_id", "engine_b_profile"),
-    ):
-        rows = bind.execute(
-            sa.text(
-                f"SELECT id, {profile_col} FROM tournaments "
-                f"WHERE {col} IS NULL"
-            )
-        ).fetchall()
-        for tid, profile in rows:
-            preset = _profile_preset(profile)
-            if preset:
-                bind.execute(
-                    sa.text(
-                        f"UPDATE tournaments SET {col} = :pid WHERE id = :tid"
-                    ),
-                    {"pid": preset, "tid": tid},
                 )
 
 

@@ -18,6 +18,7 @@ Idempotent: re-running updates nothing if the presets are unchanged.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 from pathlib import Path
 
@@ -37,6 +38,14 @@ from chessarena.services.uci_probe import (  # noqa: E402
 STOCKFISH_ELOS = [1800, 2000, 2200, 2400]
 
 
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _preset_for_elo(build_id: str, elo: int) -> dict:
     return {
         "preset_id": f"stockfish-limited-{elo}",
@@ -52,27 +61,8 @@ def _preset_for_elo(build_id: str, elo: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("build_dir", type=Path)
     parser.add_argument("--build-id", required=True)
-    parser.add_argument("--binary-name", default="stockfish")
     args = parser.parse_args()
-
-    binary = args.build_dir.resolve() / args.binary_name
-    if not binary.is_file():
-        sys.exit(f"error: engine binary not found: {binary}")
-
-    try:
-        probe = probe_uci(binary)
-    except UciProbeError as exc:
-        sys.exit(f"error: UCI probe failed: {exc}")
-
-    require_option(probe, "UCI_LimitStrength", "check")
-    elo_opt = require_option(probe, "UCI_Elo", "spin")
-    for value in STOCKFISH_ELOS:
-        if elo_opt.min is not None and value < elo_opt.min:
-            sys.exit(f"error: UCI_Elo {value} below minimum {elo_opt.min}")
-        if elo_opt.max is not None and value > elo_opt.max:
-            sys.exit(f"error: UCI_Elo {value} above maximum {elo_opt.max}")
 
     engine = make_engine(get_settings().db_url)
     session_factory = make_session_factory(engine)
@@ -87,6 +77,29 @@ def main() -> int:
                 f"error: build {args.build_id} not registered "
                 f"(run install_external_build.py first)"
             )
+
+        # The probe must target the EXACT binary this build row points at,
+        # re-verified against the registered SHA — never an arbitrary path.
+        binary = Path(build.binary_path)
+        if not binary.is_file():
+            sys.exit(f"error: registered binary missing: {binary}")
+        if sha256_file(binary) != build.binary_sha256:
+            sys.exit(
+                f"error: binary SHA mismatch for registered build "
+                f"{args.build_id}"
+            )
+        try:
+            probe = probe_uci(binary)
+        except UciProbeError as exc:
+            sys.exit(f"error: UCI probe failed: {exc}")
+
+        require_option(probe, "UCI_LimitStrength", "check")
+        elo_opt = require_option(probe, "UCI_Elo", "spin")
+        for value in STOCKFISH_ELOS:
+            if elo_opt.min is not None and value < elo_opt.min:
+                sys.exit(f"error: UCI_Elo {value} below minimum {elo_opt.min}")
+            if elo_opt.max is not None and value > elo_opt.max:
+                sys.exit(f"error: UCI_Elo {value} above maximum {elo_opt.max}")
 
         for elo in STOCKFISH_ELOS:
             preset_cfg = _preset_for_elo(args.build_id, elo)

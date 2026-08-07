@@ -12,9 +12,12 @@ Unlike the project engine, external engines (e.g. Stockfish) do not take a
 
 from __future__ import annotations
 
+import queue
 import re
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -72,7 +75,13 @@ def _is_python_script(binary: Path) -> bool:
 
 def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
     """Run a UCI handshake against ``binary`` and return the probed identity
-    and options.  Raises UciProbeError on any contract violation."""
+    and options.  Raises UciProbeError on any contract violation.
+
+    A reader thread drains stdout into a queue so ``timeout`` is a real
+    deadline: even if the engine hangs without output (or writes a partial
+    line without a newline), the main thread wakes via queue.get(timeout)
+    and the process is killed.  This works on Windows (no select on pipes).
+    """
     if not binary.is_file():
         raise UciProbeError(f"binary not found: {binary}")
     # Test fixtures may be plain python engines that Windows cannot exec
@@ -94,6 +103,31 @@ def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
         raise UciProbeError(f"cannot launch {binary}: {exc}") from exc
 
     assert proc.stdin is not None and proc.stdout is not None
+
+    lines: "queue.Queue[str | None]" = queue.Queue()
+
+    def _reader() -> None:
+        try:
+            for line in proc.stdout:
+                lines.put(line)
+        finally:
+            lines.put(None)  # EOF sentinel
+
+    reader = threading.Thread(target=_reader, daemon=True)
+    reader.start()
+    deadline = _deadline(timeout)
+
+    def _next_line() -> str | None:
+        """Blocking read bounded by the real deadline."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise UciProbeError("UCI handshake timed out")
+        try:
+            item = lines.get(timeout=remaining)
+        except queue.Empty:
+            raise UciProbeError("UCI handshake timed out")
+        return item  # None on EOF
+
     id_name: str | None = None
     options: dict[str, UciOption] = {}
     saw_uciok = False
@@ -101,9 +135,8 @@ def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
     try:
         proc.stdin.write("uci\n")
         proc.stdin.flush()
-        deadline = _deadline(timeout)
         while not saw_uciok:
-            line = _read_line(proc, deadline)
+            line = _next_line()
             if line is None:
                 raise UciProbeError("engine closed stdout before uciok")
             line = line.strip()
@@ -119,7 +152,7 @@ def probe_uci(binary: Path, timeout: float = 15.0) -> UciProbeResult:
         proc.stdin.write("isready\n")
         proc.stdin.flush()
         while not saw_readyok:
-            line = _read_line(proc, deadline)
+            line = _next_line()
             if line is None:
                 raise UciProbeError("engine closed stdout before readyok")
             if line.strip() == "readyok":
@@ -159,17 +192,4 @@ def require_option(
 
 
 def _deadline(timeout: float) -> float:
-    import time
-
     return time.monotonic() + timeout
-
-
-def _read_line(proc, deadline) -> str | None:
-    import time
-
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        raise UciProbeError("UCI handshake timed out")
-    assert proc.stdout is not None
-    line = proc.stdout.readline()
-    return line if line else None
