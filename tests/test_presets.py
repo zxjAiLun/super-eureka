@@ -264,3 +264,73 @@ def test_snapshot_hash_threads_used_in_command_and_verifier(
             engine_a,
             engine_a,
         )
+
+
+def test_verifier_rebuild_accepts_empty_command_args(
+    settings, engine_factory, registered
+):
+    """Stockfish presets freeze command_args=[]; the verifier provenance
+    rebuild must treat that as a real value, not fall back to --profile."""
+    from chessarena.models import EngineBuild
+    from chessarena.services.cutechess import (
+        build_pair_command,
+        write_command_artifacts,
+    )
+    from chessarena.services.verifier import _check_command_provenance
+
+    with engine_factory() as session:
+        build = session.query(EngineBuild).first()
+        snapshot = {
+            "engine_a": {
+                "build_id": build.build_id,
+                "profile": "current-final",
+                "command_args": ["--profile", "current-final"],
+                "uci_options": {},
+            },
+            "engine_b": {
+                "build_id": build.build_id,
+                "profile": "preset:stockfish-limited-1800",
+                "command_args": [],
+                "uci_options": {
+                    "UCI_LimitStrength": True,
+                    "UCI_Elo": 1800,
+                },
+            },
+            "time_control": "blitz_3_2",
+            "hash_mb": 32,
+            "threads": 1,
+        }
+        run_dir = settings.run_root / "provenance-empty-args"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "opening.epd").write_text("dummy\n", encoding="utf-8")
+
+        argv = build_pair_command(
+            settings,
+            engine_a={
+                "binary_path": build.binary_path,
+                "command_args": ["--profile", "current-final"],
+                "uci_options": {},
+            },
+            engine_b={
+                "binary_path": build.binary_path,
+                "command_args": [],
+                "uci_options": {
+                    "UCI_LimitStrength": True,
+                    "UCI_Elo": 1800,
+                },
+            },
+            time_control="180+2",
+            hash_mb=32,
+            opening_epd=run_dir / "opening.epd",
+            pgn_out=run_dir / "match.pgn",
+        )
+        write_command_artifacts(run_dir, argv, extra={})
+
+        _check_command_provenance(
+            settings,
+            run_dir / "command.json",
+            snapshot,
+            run_dir,
+            build,
+            build,
+        )
