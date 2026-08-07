@@ -254,14 +254,13 @@ def test_second_tournament_waits_for_first(scheduler, engine_factory,
 # ---------------------------------------------------------------------------
 def test_tournament_state_transitions(app_client):
     # A tournament in DRAFT cannot be paused; start moves it to QUEUED.
-    build = app_client.get("/chessarena/api/v1/builds").json()[0]
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     created = app_client.post(
         "/chessarena/api/v1/tournaments",
         json={
             "name": "smoke",
-            "engine_a": {"build_id": build["build_id"], "profile": "current-final"},
-            "engine_b": {"build_id": build["build_id"], "profile": "current"},
+            "engine_a": {"preset_id": "chessengine-production"},
+            "engine_b": {"preset_id": "chessengine-legacy-current"},
             "opening_set_id": opening["opening_set_id"],
             "time_control": "blitz_3_2",
             "pairs": 2,

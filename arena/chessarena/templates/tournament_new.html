@@ -6,43 +6,39 @@
 <form method="post" action="{{ settings.base_path }}/admin/tournaments" class="panel">
   <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
   <label>Match name
-    <input type="text" name="name" required maxlength="200" placeholder="CurrentFinal vs Current 3+2">
+    <input type="text" name="name" required maxlength="200" placeholder="Production vs Stockfish Limited 2000">
   </label>
 
-  <h3>Engine A (candidate)</h3>
-  <label>Build
-    <select name="engine_a_build" required>
-      {% for b in builds %}
-        <option value="{{ b.build_id }}">{{ b.build_id }} ({{ b.git_sha[:8] }})</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>Profile
-    <select name="engine_a_profile" required>
-      {% for b in builds %}
-        {% for p in b.supported_profiles %}
-          <option value="{{ p }}">{{ p }}</option>
-        {% endfor %}
+  <h3>Engine A</h3>
+  <label>Preset
+    <select name="engine_a_preset" required>
+      {% for p in presets %}
+        <option value="{{ p.preset_id }}"
+          {% if p.preset_id == "chessengine-production" %}selected{% endif %}>
+          {{ p.display_name }} ({{ p.build_id }})
+        </option>
       {% endfor %}
     </select>
   </label>
 
-  <h3>Engine B (baseline)</h3>
-  <label>Build
-    <select name="engine_b_build" required>
-      {% for b in builds %}
-        <option value="{{ b.build_id }}">{{ b.build_id }} ({{ b.git_sha[:8] }})</option>
+  <h3>Engine B</h3>
+  <label>Preset
+    <select name="engine_b_preset" required>
+      {% for p in presets %}
+        <option value="{{ p.preset_id }}"
+          {% if p.preset_id == "chessengine-legacy-current" %}selected{% endif %}>
+          {{ p.display_name }} ({{ p.build_id }})
+        </option>
       {% endfor %}
     </select>
   </label>
-  <label>Profile
-    <select name="engine_b_profile" required>
-      {% for b in builds %}
-        {% for p in b.supported_profiles %}
-          <option value="{{ p }}">{{ p }}</option>
-        {% endfor %}
-      {% endfor %}
-    </select>
+
+  <p id="same-preset-warning" class="danger" style="display:none">
+    Warning: both sides use the same engine preset.
+  </p>
+  <label style="display:none" id="allow-selfplay-wrap">
+    <input type="checkbox" name="allow_intentional_self_play">
+    Allow intentional self-play
   </label>
 
   <h3>Configuration</h3>
@@ -66,4 +62,21 @@
 
   <button type="submit">Create match</button>
 </form>
+
+<script>
+(function () {
+  var a = document.querySelector('select[name="engine_a_preset"]');
+  var b = document.querySelector('select[name="engine_b_preset"]');
+  var warn = document.getElementById('same-preset-warning');
+  var wrap = document.getElementById('allow-selfplay-wrap');
+  function refresh() {
+    var same = a.value === b.value;
+    warn.style.display = same ? 'block' : 'none';
+    wrap.style.display = same ? 'block' : 'none';
+  }
+  a.addEventListener('change', refresh);
+  b.addEventListener('change', refresh);
+  refresh();
+})();
+</script>
 {% endblock %}

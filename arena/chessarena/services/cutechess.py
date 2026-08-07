@@ -23,13 +23,76 @@ class CutechessLaunchError(RuntimeError):
     pass
 
 
-def engine_a_argv(build: Dict[str, Any]) -> List[str]:
-    return [
-        "cmd=" + build["binary_path"],
+def engine_argv(engine: Dict[str, Any]) -> List[str]:
+    """The ``-engine`` sub-args for one side.
+
+    ``command_args`` (from the validated EnginePreset) are passed to the
+    engine as ``arg=<value>``; engines without extra args (e.g. Stockfish)
+    simply have an empty list.  This replaces the old hard-coded
+    ``--profile`` assumption.
+    """
+    argv = [
+        "cmd=" + engine["binary_path"],
         "proto=uci",
-        "arg=--profile",
-        "arg=" + build["profile"],
     ]
+    for a in engine.get("command_args") or []:
+        argv.append("arg=" + a)
+    return argv
+
+
+def _option_value(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return None
+    return str(value)
+
+
+RESERVED_OPTIONS = frozenset({"Hash", "Threads", "Ponder"})
+
+
+def engine_option_args(engine: Dict[str, Any]) -> List[str]:
+    """Engine-specific UCI ``option.<name>=<value>`` lines.
+
+    These belong to the engine's OWN ``-engine`` block (cutechess applies
+    them to that engine only).  Putting them under ``-each`` would apply
+    e.g. Stockfish's UCI_Elo to the opponent as well, which breaks
+    different-strength slices.  Sorted by name for determinism; booleans
+    render as true/false.
+    """
+    merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
+    args: List[str] = []
+    for name in sorted(merged):
+        rendered = _option_value(merged[name])
+        if rendered is not None:
+            args.append(f"option.{name}={rendered}")
+    return args
+
+
+def each_option_args(hash_mb: int, threads: int) -> List[str]:
+    """Common UCI options applied to EVERY engine via ``-each``.
+
+    Only arena-owned options live here (Hash/Threads); engine-specific
+    preset options never go under ``-each``.
+    """
+    return [
+        f"option.Hash={hash_mb}",
+        f"option.Threads={threads}",
+    ]
+
+
+def validate_preset_options(uci_options: dict) -> None:
+    """Reject presets that try to own runtime-reserved options.
+
+    Hash/Threads/Ponder are owned by the arena runtime; a preset must not
+    override them, otherwise the cutechess command would carry duplicate
+    options with unclear precedence.
+    """
+    conflicts = sorted(RESERVED_OPTIONS & set(uci_options))
+    if conflicts:
+        raise CutechessLaunchError(
+            f"preset must not set reserved options: {conflicts}"
+        )
 
 
 def build_pair_command(
@@ -41,16 +104,25 @@ def build_pair_command(
     hash_mb: int,
     opening_epd: Path,
     pgn_out: Path,
+    threads: int = 1,
 ) -> List[str]:
-    """Build the cutechess-cli argv for one 2-game color-swapped pair."""
+    """Build the cutechess-cli argv for one 2-game color-swapped pair.
+
+    The ``name=`` values are the preset display names (PGN-visible) with the
+    legacy EngineA/EngineB constants as fallback for pre-preset tournaments.
+    """
+    a_name = engine_a.get("display_name") or ENGINE_A_NAME
+    b_name = engine_b.get("display_name") or ENGINE_B_NAME
     argv: List[str] = [
         str(settings.cutechess),
         "-engine",
-        "name=" + ENGINE_A_NAME,
-        *engine_a_argv(engine_a),
+        "name=" + a_name,
+        *engine_argv(engine_a),
+        *engine_option_args(engine_a),
         "-engine",
-        "name=" + ENGINE_B_NAME,
-        *engine_a_argv(engine_b),
+        "name=" + b_name,
+        *engine_argv(engine_b),
+        *engine_option_args(engine_b),
         "-variant",
         "standard",
         "-openings",
@@ -60,7 +132,7 @@ def build_pair_command(
         "policy=default",
         "-each",
         f"tc={time_control}",
-        f"option.Hash={hash_mb}",
+        *each_option_args(hash_mb, threads),
         # One opening position per pair; -repeat 2 plays it twice with the
         # sides swapped, giving exactly two games with strict color reversal.
         "-rounds",

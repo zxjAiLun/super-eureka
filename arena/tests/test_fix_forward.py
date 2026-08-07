@@ -369,14 +369,11 @@ def test_cancel_during_last_pair_wins_over_completion(scheduler, engine_factory,
 # P2.4 CSRF + same-origin
 # ---------------------------------------------------------------------------
 def test_admin_form_without_csrf_token_is_403(app_client):
-    build = app_client.get("/chessarena/api/v1/builds").json()[0]
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     payload = {
         "name": "csrf",
-        "engine_a_build": build["build_id"],
-        "engine_a_profile": "current-final",
-        "engine_b_build": build["build_id"],
-        "engine_b_profile": "current",
+        "engine_a_preset": "chessengine-production",
+        "engine_b_preset": "chessengine-legacy-current",
         "opening_set_id": opening["opening_set_id"],
         "time_control": "blitz_3_2",
         "pairs": 2,
@@ -394,14 +391,11 @@ def test_admin_form_with_csrf_token_works(app_client):
     assert token, "CSRF cookie was not set"
     assert token == page.text.split('name="_csrf_token" value="')[1].split('"')[0]
 
-    build = app_client.get("/chessarena/api/v1/builds").json()[0]
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     payload = {
         "name": "csrf-ok",
-        "engine_a_build": build["build_id"],
-        "engine_a_profile": "current-final",
-        "engine_b_build": build["build_id"],
-        "engine_b_profile": "current",
+        "engine_a_preset": "chessengine-production",
+        "engine_b_preset": "chessengine-legacy-current",
         "opening_set_id": opening["opening_set_id"],
         "time_control": "blitz_3_2",
         "pairs": 2,

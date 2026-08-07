@@ -50,14 +50,8 @@ def test_full_lifecycle_acceptance(scheduler, engine_factory, app_client,
         "/chessarena/api/v1/tournaments",
         json={
             "name": "Arena v1 Acceptance",
-            "engine_a": {
-                "build_id": "20260805-bde9085-linux-x86_64",
-                "profile": "current-final",
-            },
-            "engine_b": {
-                "build_id": "20260805-bde9085-linux-x86_64",
-                "profile": "current",
-            },
+            "engine_a": {"preset_id": "chessengine-production"},
+            "engine_b": {"preset_id": "chessengine-legacy-current"},
             "opening_set_id": "test-openings-v1",
             "time_control": "bullet_1_0",
             "pairs": 10,
@@ -91,8 +85,10 @@ def test_full_lifecycle_acceptance(scheduler, engine_factory, app_client,
         for pair in range(10):
             g1 = games[pair * 2]
             g2 = games[pair * 2 + 1]
-            assert (g1.white_engine, g1.black_engine) == ("EngineA", "EngineB")
-            assert (g2.white_engine, g2.black_engine) == ("EngineB", "EngineA")
+            assert (g1.white_engine, g1.black_engine) == (
+                "ChessEngine Production", "ChessEngine Legacy Baseline")
+            assert (g2.white_engine, g2.black_engine) == (
+                "ChessEngine Legacy Baseline", "ChessEngine Production")
 
         pairs = (
             session.query(PairJob)
@@ -113,8 +109,8 @@ def test_full_lifecycle_acceptance(scheduler, engine_factory, app_client,
         f"/chessarena/api/v1/tournaments/{tournament_id}/summary"
     ).json()
     assert summary["candidate_perspective"]["wins"] == 20
-    assert summary["games"][0]["white"] == "EngineA"
-    assert summary["games"][1]["white"] == "EngineB"
+    assert summary["games"][0]["white"] == "ChessEngine Production"
+    assert summary["games"][1]["white"] == "ChessEngine Legacy Baseline"
 
     manifest = app_client.get(
         f"/chessarena/api/v1/tournaments/{tournament_id}/artifacts"
