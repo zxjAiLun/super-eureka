@@ -325,14 +325,18 @@ def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
     from ..config import TIME_CONTROLS
 
     def _engine_cfg(build, snap) -> dict:
+        # command_args may legitimately be [] (e.g. Stockfish has no
+        # --profile); only fall back to the legacy profile form when the key
+        # is absent (pre-preset snapshots).
+        if "command_args" in snap:
+            args = list(snap["command_args"] or [])
+        else:
+            args = ["--profile", snap["profile"]]
         return {
             "build_id": build.build_id,
             "binary_path": build.binary_path,
             "display_name": snap.get("display_name"),
-            "command_args": list(
-                snap.get("command_args")
-                or ["--profile", snap["profile"]]
-            ),
+            "command_args": args,
             "uci_options": dict(snap.get("uci_options") or {}),
         }
 
