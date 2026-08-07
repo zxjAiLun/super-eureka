@@ -42,6 +42,8 @@ from chessarena.models import (
     Game,
     PairJob,
     Tournament,
+    WorkerState,
+    utcnow,
 )
 from chessarena.services import recovery, artifacts
 from chessarena.services.scheduler import Scheduler
@@ -368,6 +370,45 @@ def test_cancel_during_last_pair_wins_over_completion(scheduler, engine_factory,
 # ---------------------------------------------------------------------------
 # P2.4 CSRF + same-origin
 # ---------------------------------------------------------------------------
+def test_admin_dashboard_renders_active_tournament(
+    app_client, engine_factory, tournament_factory
+):
+    """P1 regression: /admin/ must render while a match is RUNNING.  The
+    dashboard includes _tournament_status.html which needs tournament/pairs;
+    before the fix it only passed 'active' and the page 500'd."""
+    tid = tournament_factory(name="Active Smoke", pairs=2, status=RUNNING)
+    with engine_factory() as session:
+        t = session.query(Tournament).filter(Tournament.id == tid).one()
+        t.started_at = utcnow()
+        pair = t.pair_jobs[0]
+        pair.status = RUNNING
+        worker = session.get(WorkerState, 1)
+        if worker is None:
+            worker = WorkerState(id=1)
+            session.add(worker)
+        worker.tournament_id = tid
+        worker.pair_job_id = pair.id
+        worker.status = "running"
+        worker.heartbeat_at = utcnow()
+        session.commit()
+
+    r = app_client.get("/chessarena/admin/")
+    assert r.status_code == 200
+    assert "Running match" in r.text
+    assert "Active Smoke" in r.text
+    assert "Current pair:" in r.text
+
+
+def test_admin_dashboard_idle_has_no_poll_target(app_client):
+    """Idle dashboard must not emit /admin/tournaments//status (double slash)
+    as an HTMX polling target."""
+    r = app_client.get("/chessarena/admin/")
+    assert r.status_code == 200
+    assert "/tournaments//status" not in r.text
+    assert "No match currently running" in r.text
+    assert "Running match" not in r.text
+
+
 def test_admin_form_without_csrf_token_is_403(app_client):
     opening = app_client.get("/chessarena/api/v1/opening-sets").json()[0]
     payload = {
