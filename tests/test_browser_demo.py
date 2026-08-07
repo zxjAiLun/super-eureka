@@ -26,6 +26,9 @@ from chessarena.models import COMPLETED, Game, Tournament  # noqa: E402
 
 ARENA_ROOT = Path(__file__).resolve().parents[1]
 
+# Contains captures (2.exd5, 2...Qxd5) to exercise move application from
+# verbose from/to squares (a regression where SAN re-parse failed on real
+# tournament PGNs with "Invalid move: Bxc6").
 SAMPLE_PGN = "\n".join(
     [
         '[Event "E2E"]',
@@ -36,16 +39,16 @@ SAMPLE_PGN = "\n".join(
         '[Black "EngineB"]',
         '[Result "1-0"]',
         "",
-        "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 1-0",
+        "1. e4 d5 2. exd5 Qxd5 3. Nc3 Qd8 1-0",
         "",
     ]
 )
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-PLY3_FEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
-PLY4_FEN = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
-PLY9_FEN = "r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 3 5"
-PLY10_FEN = "r1bqk2r/1pppbppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 4 6"
+PLY3_FEN = "rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2"
+PLY4_FEN = "rnb1kbnr/ppp1pppp/8/3q4/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3"
+PLY5_FEN = "rnb1kbnr/ppp1pppp/8/3q4/8/2N5/PPPP1PPP/R1BQKBNR b KQkq - 1 3"
+PLY6_FEN = "rnbqkbnr/ppp1pppp/8/8/8/2N5/PPPP1PPP/R1BQKBNR w KQkq - 2 4"
 
 
 def _free_port() -> int:
@@ -198,16 +201,16 @@ def test_browser_demo_replay(settings, engine_factory, registered):
                 "initial position wrong"
             )
 
-            # Move count = 10 plies.
+            # Move count = 6 plies.
             moves = page.locator("button.move")
-            assert moves.count() == 10, f"move count wrong: {moves.count()}"
+            assert moves.count() == 6, f"move count wrong: {moves.count()}"
 
-            # Clicking ply 3 (2.Nf3, the 3rd move button) sets the FEN.
+            # Clicking ply 3 (2.exd5, the 3rd move button) sets the FEN.
             moves.nth(2).click()
             page.wait_for_timeout(300)
             assert board.get_attribute("data-fen") == PLY3_FEN
 
-            # Next button -> ply 4.
+            # Next button -> ply 4 (2...Qxd5 capture).
             page.get_by_label("Next move").click()
             page.wait_for_timeout(300)
             assert board.get_attribute("data-fen") == PLY4_FEN
@@ -215,12 +218,12 @@ def test_browser_demo_replay(settings, engine_factory, registered):
             # Last -> final position.
             page.locator("button", has_text="last").click()
             page.wait_for_timeout(300)
-            assert board.get_attribute("data-fen") == PLY10_FEN
+            assert board.get_attribute("data-fen") == PLY6_FEN
 
-            # Previous -> ply 9.
+            # Previous -> ply 5.
             page.get_by_label("Previous move").click()
             page.wait_for_timeout(300)
-            assert board.get_attribute("data-fen") == PLY9_FEN
+            assert board.get_attribute("data-fen") == PLY5_FEN
 
             # First -> start.
             page.locator("button", has_text="first").click()
