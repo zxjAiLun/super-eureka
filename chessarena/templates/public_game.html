@@ -24,6 +24,17 @@
 <script type="module">
   import LichessPgnViewer from "{{ settings.base_path }}/static/pgn-viewer/lichess-pgn-viewer.min.js";
   const pgn = {{ pgn_text | tojson }};
-  LichessPgnViewer("#board", { pgn: pgn });
+  const boardEl = document.getElementById("board");
+  if (!boardEl) {
+    throw new Error("PGN viewer board element not found");
+  }
+  // The Lichess pgn-viewer API takes an HTMLElement (it calls
+  // element.innerHTML = '' on start), not a CSS selector string.
+  try {
+    LichessPgnViewer(boardEl, { pgn: pgn });
+  } catch (err) {
+    boardEl.innerHTML =
+      '<p class="error">Replay failed to load: ' + String(err && err.message || err) + '</p>';
+  }
 </script>
 {% endblock %}
