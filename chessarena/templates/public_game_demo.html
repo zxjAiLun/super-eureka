@@ -1,0 +1,18 @@
+{% extends "public_base.html" %}
+{% block title %}ChessArena — Replay Demo Game {{ game.game_number }}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ settings.base_path }}/static/replay-app/assets/index-CPuo8myo.css">
+{% endblock %}
+{% block content %}
+<p><a href="{{ settings.base_path }}/matches/{{ game.tournament_id }}">&larr; Back to match</a></p>
+<div
+  id="replay-root"
+  data-game-id="{{ game.id }}"
+  data-tournament-id="{{ game.tournament_id }}"
+  data-base-path="{{ settings.base_path }}"
+  data-pair-index="{{ pair_index }}"
+></div>
+{% endblock %}
+{% block scripts %}
+<script type="module" src="{{ settings.base_path }}/static/replay-app/assets/index-CJnkxcw6.js"></script>
+{% endblock %}
