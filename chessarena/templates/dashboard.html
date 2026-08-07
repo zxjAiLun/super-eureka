@@ -3,8 +3,11 @@
 {% block content %}
 <h1>Dashboard</h1>
 
-<section class="panel" hx-get="{{ settings.base_path }}/admin/tournaments/{{ active.id }}/status"
-         hx-trigger="every 5s" hx-swap="innerHTML" id="worker-panel">
+<section class="panel" id="worker-panel"
+         {% if active %}
+         hx-get="{{ settings.base_path }}/admin/tournaments/{{ active.id }}/status"
+         hx-trigger="every 5s" hx-swap="innerHTML"
+         {% endif %}>
   {% if active %}
     {% include "_tournament_status.html" %}
   {% else %}

@@ -608,6 +608,14 @@ def admin_dashboard(request: Request, session: Session = Depends(get_db)):
     recent = (
         session.query(Tournament).order_by(Tournament.created_at.desc()).limit(20).all()
     )
+    # _tournament_status.html is included whenever a match is active and
+    # requires the full tournament/pairs/score_percent contract (it uses
+    # {{ tournament.* }} and iterates {{ pairs }}), so pass them explicitly.
+    active_pairs = (
+        sorted(active.pair_jobs, key=lambda p: p.pair_index)
+        if active is not None
+        else []
+    )
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -615,6 +623,9 @@ def admin_dashboard(request: Request, session: Session = Depends(get_db)):
             "worker_online": worker_online,
             "worker": worker,
             "active": active,
+            "tournament": active,
+            "pairs": active_pairs,
+            "score_percent": _score_percent(active) if active else None,
             "recent": recent,
             "settings": settings,
         },
