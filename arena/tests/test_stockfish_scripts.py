@@ -134,6 +134,45 @@ def test_idempotent_same_sha_different_path_fails_without_writes(
     assert not (dir_b / "manifest.json.tmp").exists()
 
 
+def test_idempotent_corrupt_manifest_fails_without_writes(
+    settings, engine_factory, tmp_path
+):
+    """P2: an existing build whose manifest content no longer matches the
+    registered metadata must be rejected; the corrupt file is not touched."""
+    binary = _stage_binary(tmp_path)
+    sha = _sha256(binary)
+    install = _run_script(
+        "install_external_build.py",
+        tmp_path,
+        "--build-id", "stockfish-corrupt",
+        "--engine-name", "Stockfish",
+        "--binary-name", "stockfish",
+        "--binary-sha256", sha,
+        "--platform", "linux-x86_64",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert install.returncode == 0, install.stderr
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.chmod(0o644)
+    manifest_path.write_text('{"build_id": "someone-else"}', encoding="utf-8")
+
+    rerun = _run_script(
+        "install_external_build.py",
+        tmp_path,
+        "--build-id", "stockfish-corrupt",
+        "--engine-name", "Stockfish",
+        "--binary-name", "stockfish",
+        "--binary-sha256", sha,
+        "--platform", "linux-x86_64",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert rerun.returncode != 0
+    assert "manifest build_id" in rerun.stderr
+    # The corrupt manifest was not rewritten.
+    assert manifest_path.read_text(encoding="utf-8") == '{"build_id": "someone-else"}'
+
+
 def test_install_external_build_rejects_sha_mismatch(settings, tmp_path):
     binary = _stage_binary(tmp_path)
     result = _run_script(
