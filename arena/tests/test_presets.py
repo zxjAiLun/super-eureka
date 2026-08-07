@@ -165,3 +165,99 @@ def test_preset_change_after_create_does_not_affect_snapshot(
         f"/chessarena/api/v1/tournaments/{tid}"
     ).json()
     assert detail["config_snapshot"]["engine_a"] == frozen
+
+
+# ---------------------------------------------------------------------------
+# P4.2 Repair round 2: frozen provenance is enforced at launch
+# ---------------------------------------------------------------------------
+def _launch_context(engine_factory, tournament_factory, status="QUEUED"):
+    from chessarena.models import Tournament
+    from chessarena.services import artifacts
+
+    tid = tournament_factory(name="pinned", pairs=1, status=status)
+
+    def _enter(session):
+        t = (
+            session.query(Tournament)
+            .filter(Tournament.id == tid)
+            .one()
+        )
+        pair = t.pair_jobs[0]
+        run_dir = artifacts.pair_run_dir(t.id, pair.pair_index, pair.attempt)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        return t, pair, run_dir
+
+    return tid, _enter
+
+
+def test_snapshot_sha_mismatch_fails_before_launch(
+    settings, scheduler, engine_factory, tournament_factory
+):
+    """P1: if the live EngineBuild SHA differs from the frozen snapshot, the
+    tournament must fail before Popen — no binary runs."""
+    from chessarena.services.cutechess import CutechessLaunchError
+
+    tid, _enter = _launch_context(engine_factory, tournament_factory)
+    with engine_factory() as session:
+        t, pair, run_dir = _enter(session)
+        t.config_snapshot["engine_a"]["binary_sha256"] = "0" * 64
+        session.commit()
+        with pytest.raises(CutechessLaunchError, match="binary SHA differs"):
+            scheduler._prepare_and_launch(session, t, pair, run_dir)
+        assert scheduler.active_proc is None, "Popen must not have been called"
+
+
+def test_snapshot_git_sha_mismatch_fails_before_launch(
+    settings, scheduler, engine_factory, tournament_factory
+):
+    from chessarena.services.cutechess import CutechessLaunchError
+
+    tid, _enter = _launch_context(engine_factory, tournament_factory)
+    with engine_factory() as session:
+        t, pair, run_dir = _enter(session)
+        t.config_snapshot["engine_a"]["git_sha"] = "deadbeef"
+        session.commit()
+        with pytest.raises(CutechessLaunchError, match="git_sha"):
+            scheduler._prepare_and_launch(session, t, pair, run_dir)
+        assert scheduler.active_proc is None
+
+
+def test_snapshot_hash_threads_used_in_command_and_verifier(
+    settings, scheduler, engine_factory, tournament_factory
+):
+    """P1: Hash/Threads must come from the frozen snapshot (16/2), not the
+    live Settings (32/1); the verifier rebuild must use the same values."""
+    import json
+
+    from chessarena.models import EngineBuild
+
+    tid, _enter = _launch_context(engine_factory, tournament_factory)
+    with engine_factory() as session:
+        t, pair, run_dir = _enter(session)
+        t.config_snapshot["hash_mb"] = 16
+        t.config_snapshot["threads"] = 2
+        session.commit()
+
+        scheduler._prepare_and_launch(session, t, pair, run_dir)
+        if scheduler.active_proc is not None:
+            scheduler.active_proc.terminate()
+
+        command = json.loads((run_dir / "command.json").read_text(encoding="utf-8"))
+        joined = " ".join(command["argv"])
+        assert "option.Hash=16" in joined
+        assert "option.Threads=2" in joined
+        assert command["hash_mb"] == 16
+        assert command["threads"] == 2
+
+        from chessarena.services.verifier import _check_command_provenance
+
+        engine_a = session.query(EngineBuild).first()
+        # Rebuild must match (it uses the snapshot's 16/2, not settings 32/1).
+        _check_command_provenance(
+            settings,
+            run_dir / "command.json",
+            t.config_snapshot,
+            run_dir,
+            engine_a,
+            engine_a,
+        )

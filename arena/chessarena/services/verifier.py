@@ -344,7 +344,7 @@ def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
         hash_mb=snapshot.get("hash_mb", settings.hash_mb),
         opening_epd=run_dir / "opening.epd",
         pgn_out=run_dir / "match.pgn",
-        threads=settings.threads,
+        threads=snapshot.get("threads", settings.threads),
     )
     if recorded != expected:
         raise VerificationFailure(

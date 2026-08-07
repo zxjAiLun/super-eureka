@@ -125,12 +125,13 @@ def test_reserved_options_rejected():
 
 def test_probe_times_out_when_engine_hangs():
     """P1 regression: an engine that receives uci and never outputs must
-    fail at the real deadline, not hang forever."""
+    fail at the real deadline and be reaped immediately (no extra grace
+    wait)."""
     start = time.monotonic()
     with pytest.raises(UciProbeError, match="timed out"):
         probe_uci(FAKE_UCI_HANG, timeout=2)
     elapsed = time.monotonic() - start
-    assert elapsed < 10, f"deadline not enforced: {elapsed:.1f}s"
+    assert elapsed < 4, f"deadline not enforced: {elapsed:.1f}s"
 
 
 def test_probe_times_out_on_partial_line_without_newline():
@@ -140,4 +141,4 @@ def test_probe_times_out_on_partial_line_without_newline():
     with pytest.raises(UciProbeError, match="timed out"):
         probe_uci(FAKE_UCI_PARTIAL, timeout=2)
     elapsed = time.monotonic() - start
-    assert elapsed < 10, f"deadline not enforced: {elapsed:.1f}s"
+    assert elapsed < 4, f"deadline not enforced: {elapsed:.1f}s"
