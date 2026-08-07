@@ -73,7 +73,9 @@ def test_pair_command_structure(settings: Settings):
     assert "arg=current" in joined
     assert "tc=180+2" in joined
     assert "option.Hash=32" in joined
-    assert "option.Threads=1" in joined
+    # Threads is NOT forced via -each: ChessEngine does not declare a Threads
+    # UCI option, so cutechess would warn and break the stderr contract.
+    assert "option.Threads" not in joined
     assert "-rounds 2" in joined
     assert "-repeat 2" in joined
     assert "-concurrency 1" in joined
@@ -112,8 +114,8 @@ def test_engine_without_profile_uses_uci_options(settings: Settings):
     assert "option.UCI_LimitStrength=true" in joined
     assert "option.UCI_Elo=2000" in joined
     assert "arg=--profile" in joined  # engine_b still uses its preset args
-    # Threads (arena-owned) is applied once via -each to every engine.
-    assert joined.count("option.Threads=1") == 1
+    # Threads is never forced (ChessEngine has no Threads UCI option).
+    assert "option.Threads" not in joined
 
 
 def _split_argv_blocks(argv):
@@ -184,10 +186,10 @@ def test_engine_specific_uci_options_scope_contract(settings: Settings):
     # -each must never carry engine-specific options.
     assert "UCI_Elo" not in " ".join(each)
     assert "UCI_LimitStrength" not in " ".join(each)
-    # -each only carries the common tc + arena Hash/Threads.
+    # -each only carries the common tc + Hash (Threads is not forced).
     assert "tc=180+2" in each
     assert "option.Hash=32" in each
-    assert "option.Threads=1" in each
+    assert "option.Threads" not in each
 
 
 def test_no_shell_injection_possible(settings: Settings):

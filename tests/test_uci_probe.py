@@ -112,7 +112,7 @@ def test_uci_option_args_are_sorted_and_bool_lowercase():
     assert "option.UCI_Elo=2000" in args
 
     common = each_option_args(hash_mb=32, threads=1)
-    assert common == ["option.Hash=32", "option.Threads=1"]
+    assert common == ["option.Hash=32"]
 
 
 def test_reserved_options_rejected():
