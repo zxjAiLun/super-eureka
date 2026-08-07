@@ -67,7 +67,11 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
     if (moves.length === 0) return START_FEN;
     const c = new Chess();
     for (let i = 0; i < ply; i++) {
-      c.move(moves[i].san);
+      // Apply by source/target squares (verbose object), not by SAN:
+      // re-parsing SAN can hit disambiguation errors on real tournament
+      // PGNs ("Invalid move: Bxc6").
+      const m = moves[i];
+      c.move({ from: m.from, to: m.to, promotion: m.promotion });
     }
     return c.fen();
   }, [moves, ply]);
