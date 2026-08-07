@@ -16,7 +16,7 @@ import chess
 import chess.pgn
 import pytest
 
-from chessarena.models import COMPLETED, Game, Tournament, utcnow
+from chessarena.models import COMPLETED, DRAFT, Game, Tournament, utcnow
 
 TEST_PGN_MOVES = [
     ("EngineA", "EngineB", "1-0", "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6"),
@@ -123,6 +123,58 @@ def test_anonymous_pages_render(app_client, completed_match):
     r = app_client.get(f"/chessarena/games/{gid1}")
     assert r.status_code == 200
     assert "pgn-viewer" in r.text
+
+
+def test_anonymous_demo_page_render(app_client, completed_match):
+    """P4.UI-1: the demo page mounts the React root and references the
+    committed replay-app build output (production fallback page untouched)."""
+    tid, gid1, gid2 = completed_match
+    r = app_client.get(f"/chessarena/demo/games/{gid1}")
+    assert r.status_code == 200
+    assert 'id="replay-root"' in r.text
+    assert f"data-game-id=\"{gid1}\"" in r.text
+    assert "/static/replay-app/assets/index-" in r.text
+    # The production fallback page is untouched.
+    r2 = app_client.get(f"/chessarena/games/{gid1}")
+    assert r2.status_code == 200
+    assert "pgn-viewer" in r2.text
+
+
+def test_demo_page_404s(app_client, completed_match, settings, engine_factory,
+                        tournament_factory):
+    _, gid1, _ = completed_match
+    assert (
+        app_client.get("/chessarena/demo/games/not-a-real-id").status_code
+        == 404
+    )
+    # A game in a DRAFT tournament must not be reachable via the demo route.
+    tid = tournament_factory(name="Draft", pairs=1, status=DRAFT)
+    with engine_factory() as session:
+        t = session.query(Tournament).filter(Tournament.id == tid).one()
+        pair = t.pair_jobs[0]
+        pgn_path = (
+            settings.run_root / tid / "pairs" / "000000" / "attempt-01" / "match.pgn"
+        )
+        _write_match_pgn(pgn_path)
+        g = Game(
+            tournament_id=tid,
+            pair_job_id=pair.id,
+            game_number=1,
+            white_engine="EngineA",
+            black_engine="EngineB",
+            opening_index=0,
+            result="1-0",
+            pgn_path=str(pgn_path),
+            verified=True,
+        )
+        session.add(g)
+        session.commit()
+        session.refresh(g)
+        draft_gid = g.id
+    assert (
+        app_client.get(f"/chessarena/demo/games/{draft_gid}").status_code
+        == 404
+    )
 
 
 def test_public_api_lists_only_completed(app_client, completed_match, tournament_factory):
