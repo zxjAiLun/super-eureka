@@ -244,8 +244,11 @@ def test_snapshot_hash_threads_used_in_command_and_verifier(
 
         command = json.loads((run_dir / "command.json").read_text(encoding="utf-8"))
         joined = " ".join(command["argv"])
+        # Hash must come from the frozen snapshot (16), not live settings (32).
         assert "option.Hash=16" in joined
-        assert "option.Threads=2" in joined
+        # Threads is not forced (ChessEngine lacks the option); it is frozen
+        # as snapshot metadata only.
+        assert "option.Threads" not in joined
         assert command["hash_mb"] == 16
         assert command["threads"] == 2
 
