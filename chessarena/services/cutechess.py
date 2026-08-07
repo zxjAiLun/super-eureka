@@ -51,25 +51,34 @@ def _option_value(value: Any) -> str | None:
 RESERVED_OPTIONS = frozenset({"Hash", "Threads", "Ponder"})
 
 
-def uci_option_args(
-    engine: Dict[str, Any], hash_mb: int, threads: int
-) -> List[str]:
-    """UCI ``option.<name>=<value>`` lines for the ``-each`` block.
+def engine_option_args(engine: Dict[str, Any]) -> List[str]:
+    """Engine-specific UCI ``option.<name>=<value>`` lines.
 
-    The preset's uci_options come first, then the arena-wide Hash and Threads
-    constraints (fixed, not user-configurable via the API).  Options are
-    emitted in sorted-by-name order so command.json and the provenance
-    rebuild are deterministic; booleans render as true/false.
+    These belong to the engine's OWN ``-engine`` block (cutechess applies
+    them to that engine only).  Putting them under ``-each`` would apply
+    e.g. Stockfish's UCI_Elo to the opponent as well, which breaks
+    different-strength slices.  Sorted by name for determinism; booleans
+    render as true/false.
     """
     merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
-    merged["Hash"] = hash_mb
-    merged["Threads"] = threads
     args: List[str] = []
     for name in sorted(merged):
         rendered = _option_value(merged[name])
         if rendered is not None:
             args.append(f"option.{name}={rendered}")
     return args
+
+
+def each_option_args(hash_mb: int, threads: int) -> List[str]:
+    """Common UCI options applied to EVERY engine via ``-each``.
+
+    Only arena-owned options live here (Hash/Threads); engine-specific
+    preset options never go under ``-each``.
+    """
+    return [
+        f"option.Hash={hash_mb}",
+        f"option.Threads={threads}",
+    ]
 
 
 def validate_preset_options(uci_options: dict) -> None:
@@ -109,9 +118,11 @@ def build_pair_command(
         "-engine",
         "name=" + a_name,
         *engine_argv(engine_a),
+        *engine_option_args(engine_a),
         "-engine",
         "name=" + b_name,
         *engine_argv(engine_b),
+        *engine_option_args(engine_b),
         "-variant",
         "standard",
         "-openings",
@@ -121,8 +132,7 @@ def build_pair_command(
         "policy=default",
         "-each",
         f"tc={time_control}",
-        *uci_option_args(engine_a, hash_mb, threads),
-        *uci_option_args(engine_b, hash_mb, threads),
+        *each_option_args(hash_mb, threads),
         # One opening position per pair; -repeat 2 plays it twice with the
         # sides swapped, giving exactly two games with strict color reversal.
         "-rounds",

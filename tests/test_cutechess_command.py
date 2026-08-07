@@ -87,7 +87,7 @@ def test_pair_command_structure(settings: Settings):
 
 def test_engine_without_profile_uses_uci_options(settings: Settings):
     """An engine like Stockfish takes no --profile; its UCI options are
-    emitted as option.<name>=<value> under -each."""
+    emitted as option.<name>=<value> inside its OWN -engine block."""
     argv = build_pair_command(
         settings,
         engine_a={
@@ -96,7 +96,6 @@ def test_engine_without_profile_uses_uci_options(settings: Settings):
             "uci_options": {
                 "UCI_LimitStrength": True,
                 "UCI_Elo": 2000,
-                "Threads": 1,
             },
         },
         engine_b={
@@ -113,8 +112,82 @@ def test_engine_without_profile_uses_uci_options(settings: Settings):
     assert "option.UCI_LimitStrength=true" in joined
     assert "option.UCI_Elo=2000" in joined
     assert "arg=--profile" in joined  # engine_b still uses its preset args
-    # preset Threads is overridden by the fixed arena constraint Threads=1
-    assert joined.count("option.Threads=1") == 2
+    # Threads (arena-owned) is applied once via -each to every engine.
+    assert joined.count("option.Threads=1") == 1
+
+
+def _split_argv_blocks(argv):
+    """Split argv into per-engine blocks and the -each block."""
+    engine_blocks: dict[str, list[str]] = {}
+    each: list[str] = []
+    cur: list[str] | None = None
+    cur_name: str | None = None
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token == "-engine":
+            cur_name = argv[i + 1][len("name="):]
+            cur = engine_blocks.setdefault(cur_name, [])
+            i += 2
+            continue
+        if token == "-each":
+            cur = each
+            i += 1
+            continue
+        if token in ("-variant", "-openings", "-rounds"):
+            cur = None
+            i += 1
+            continue
+        if cur is not None:
+            cur.append(token)
+        i += 1
+    return engine_blocks, each
+
+
+def test_engine_specific_uci_options_scope_contract(settings: Settings):
+    """P0 regression: an engine's UCI options must live in its OWN -engine
+    block and never leak into -each (which cutechess applies to EVERY
+    engine).  Otherwise Stockfish 2000 vs 2400 would set UCI_Elo twice on
+    both sides and different strength slices would be impossible."""
+    argv = build_pair_command(
+        settings,
+        engine_a={
+            "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
+            "display_name": "ChessEngine Production",
+            "command_args": ["--profile", "current-final"],
+            "uci_options": {},
+        },
+        engine_b={
+            "binary_path": "/opt/chessarena/builds/stockfish/stockfish",
+            "display_name": "Stockfish Limited 2000",
+            "command_args": [],
+            "uci_options": {
+                "UCI_LimitStrength": True,
+                "UCI_Elo": 2000,
+            },
+        },
+        time_control="180+2",
+        hash_mb=32,
+        opening_epd=Path("/var/lib/chessarena/runs/t/opening.epd"),
+        pgn_out=Path("/var/lib/chessarena/runs/t/match.pgn"),
+    )
+    blocks, each = _split_argv_blocks(argv)
+    sf_block = blocks["Stockfish Limited 2000"]
+    ce_block = blocks["ChessEngine Production"]
+
+    # Stockfish's own block carries its UCI_Elo / UCI_LimitStrength.
+    assert "option.UCI_Elo=2000" in sf_block
+    assert "option.UCI_LimitStrength=true" in sf_block
+    # The project engine's block must NOT carry Stockfish options.
+    assert "option.UCI_Elo" not in " ".join(ce_block)
+    assert "option.UCI_LimitStrength" not in " ".join(ce_block)
+    # -each must never carry engine-specific options.
+    assert "UCI_Elo" not in " ".join(each)
+    assert "UCI_LimitStrength" not in " ".join(each)
+    # -each only carries the common tc + arena Hash/Threads.
+    assert "tc=180+2" in each
+    assert "option.Hash=32" in each
+    assert "option.Threads=1" in each
 
 
 def test_no_shell_injection_possible(settings: Settings):

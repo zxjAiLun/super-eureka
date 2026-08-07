@@ -131,6 +131,41 @@ def main() -> int:
         ),
     }
 
+    # Filesystem first, DB last (P4.2 repair): a failed DB commit leaves a
+    # complete-but-unregistered filesystem, which a re-run can safely
+    # register.  The reverse (DB row present but filesystem half-baked) is
+    # the unsafe state and is rejected.
+    manifest_path = build_dir / "manifest.json"
+    manifest_tmp = build_dir / "manifest.json.tmp"
+    manifest_tmp.write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    try:
+        with open(manifest_tmp, "rb") as fh:
+            os.fsync(fh.fileno())
+    except OSError:
+        pass
+    if manifest_path.exists():
+        # Windows refuses to replace a read-only target.
+        manifest_path.chmod(0o644)
+    os.replace(manifest_tmp, manifest_path)
+
+    binary.chmod(binary.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+    manifest_path.chmod(0o444)
+
+    # Post-write re-verification.
+    if sha256_file(binary) != args.binary_sha256:
+        sys.exit("error: binary SHA changed after install (unexpected)")
+    try:
+        stored = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        sys.exit(f"error: manifest.json unreadable after write: {exc}")
+    if (
+        stored.get("binary_sha256") != args.binary_sha256
+        or stored.get("build_id") != args.build_id
+    ):
+        sys.exit("error: manifest.json content mismatch after write")
+
     engine = make_engine(get_settings().db_url)
     session_factory = make_session_factory(engine)
     with session_factory() as session:
@@ -145,9 +180,26 @@ def main() -> int:
                     f"error: build_id {args.build_id} already registered with "
                     f"a different binary SHA"
                 )
+            # The idempotent path must also verify the filesystem contract,
+            # not just a DB SHA value.
+            if not Path(existing.binary_path).is_file():
+                sys.exit(
+                    f"error: registered binary_path missing: "
+                    f"{existing.binary_path}"
+                )
+            if sha256_file(Path(existing.binary_path)) != args.binary_sha256:
+                sys.exit(
+                    f"error: registered binary SHA mismatch on disk for "
+                    f"{existing.binary_path}"
+                )
+            if not manifest_path.is_file():
+                sys.exit(
+                    f"error: manifest.json missing for registered build "
+                    f"{args.build_id}"
+                )
             print(
                 f"build {args.build_id} already registered "
-                f"(binary SHA matches)"
+                f"(binary SHA and filesystem verified)"
             )
             return 0
         session.add(
@@ -164,14 +216,6 @@ def main() -> int:
             )
         )
         session.commit()
-
-    # The immutable build directory: binary read-only, manifest present.
-    manifest_path = build_dir / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
-    binary.chmod(binary.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
-    manifest_path.chmod(0o444)
 
     print(f"registered external build {args.build_id}")
     print(f"  engine_name: {args.engine_name}")
