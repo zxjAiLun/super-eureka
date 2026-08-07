@@ -72,12 +72,15 @@ def engine_option_args(engine: Dict[str, Any]) -> List[str]:
 def each_option_args(hash_mb: int, threads: int) -> List[str]:
     """Common UCI options applied to EVERY engine via ``-each``.
 
-    Only arena-owned options live here (Hash/Threads); engine-specific
-    preset options never go under ``-each``.
+    Only options every registered engine declares may live here.  Hash is
+    supported by both ChessEngine and Stockfish; Threads is NOT — ChessEngine
+    does not declare a Threads UCI option, so forcing it via -each produces a
+    cutechess warning ("doesn't have option Threads") that breaks the
+    verifier's stderr contract.  Engines therefore run with their default
+    thread count (1 for both), recorded in the snapshot as metadata only.
     """
     return [
         f"option.Hash={hash_mb}",
-        f"option.Threads={threads}",
     ]
 
 
