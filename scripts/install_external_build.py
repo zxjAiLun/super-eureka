@@ -112,6 +112,11 @@ def main() -> int:
                     f"error: build_id {args.build_id} already registered with "
                     f"a different binary SHA"
                 )
+            if not Path(existing.binary_path).is_file():
+                sys.exit(
+                    f"error: registered binary missing: "
+                    f"{existing.binary_path}"
+                )
             if sha256_file(Path(existing.binary_path)) != args.binary_sha256:
                 sys.exit(
                     f"error: registered binary SHA mismatch on disk for "
@@ -123,9 +128,26 @@ def main() -> int:
                     f"error: manifest.json missing for registered build "
                     f"{args.build_id}"
                 )
+            try:
+                stored = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                sys.exit(
+                    f"error: manifest.json unreadable for registered build "
+                    f"{args.build_id}: {exc}"
+                )
+            if stored.get("build_id") != existing.build_id:
+                sys.exit(
+                    f"error: manifest build_id {stored.get('build_id')!r} "
+                    f"does not match registered build {existing.build_id}"
+                )
+            if stored.get("binary_sha256") != existing.binary_sha256:
+                sys.exit(
+                    f"error: manifest binary_sha256 does not match "
+                    f"registered build {existing.build_id}"
+                )
             print(
                 f"build {args.build_id} already registered "
-                f"(path, binary SHA and manifest verified; no writes)"
+                f"(path, binary SHA, manifest content verified; no writes)"
             )
             return 0
 
