@@ -12,6 +12,13 @@ function pgnStartFen(pgn) {
   return m ? m[1] : null;
 }
 
+// Friendly time-control labels for the badge (API returns the config key).
+const TC_LABELS = {
+  bullet_1_0: "1+0",
+  blitz_3_2: "3+2",
+  rapid_5_3: "5+3",
+};
+
 function useReplay({ gameId, tournamentId, basePath }) {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
@@ -99,6 +106,16 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
     return () => window.removeEventListener("keydown", handler);
   }, [status, moves.length]);
 
+  // Keep the active move visible while navigating a long game.
+  useEffect(() => {
+    if (status !== "ready") return undefined;
+    const active = document.querySelector(".move.active");
+    if (active) {
+      active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    return undefined;
+  }, [ply, status]);
+
   if (status === "loading") {
     return <div className="demo-message">Loading game…</div>;
   }
@@ -119,16 +136,18 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
   return (
     <div className="replay">
       <div className="replay-board-col">
+        {/* White at the bottom: react-chessboard's default white orientation
+            places White at the bottom, so Black card sits above the board. */}
         <div className="player-card top">
-          <span className="color-dot white" />
-          <span className="player-name">{game.white_engine}</span>
+          <span className="color-dot black" />
+          <span className="player-name">{game.black_engine}</span>
         </div>
         <div className="board-wrap" data-fen={fen}>
           <Chessboard options={{ position: fen, allowDragging: false }} />
         </div>
         <div className="player-card bottom">
-          <span className="player-name">{game.black_engine}</span>
-          <span className="color-dot black" />
+          <span className="player-name">{game.white_engine}</span>
+          <span className="color-dot white" />
         </div>
         <div className="controls">
           <button
@@ -171,7 +190,7 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
         <div className="badges">
           <span className="badge">Game {game.game_number}</span>
           <span className="badge">Pair {pairIndex + 1}</span>
-          <span className="badge">{timeControl}</span>
+          <span className="badge">{TC_LABELS[timeControl] || timeControl}</span>
           <span className="badge badge-result">
             {game.result || "?"}
             {game.termination ? ` · ${game.termination}` : ""}
@@ -215,7 +234,7 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
             rel="noreferrer"
             className="action-link"
           >
-            Open in Lichess Analysis
+            Import into Lichess
           </a>
         </div>
 
