@@ -127,7 +127,14 @@ def main() -> int:
     empty_pgn = ENV.get("FAKE_CUTECHESS_EMPTY_PGN") == "1"
     if not empty_pgn:
         _write_pgn(pair_dir / Path(pgn_out).name, engine_a, engine_b, fen, tc, results)
-    _write_stdout(pair_dir / "stdout.log", engine_a, engine_b, results)
+    streaming = ENV.get("FAKE_CUTECHESS_STREAM") == "1"
+    if streaming:
+        delay_ms = float(ENV.get("FAKE_CUTECHESS_STREAM_DELAY_MS", "300"))
+        _write_streaming_stdout(
+            pair_dir / "stdout.log", engine_a, engine_b, results, delay_ms
+        )
+    else:
+        _write_stdout(pair_dir / "stdout.log", engine_a, engine_b, results)
     _write_stderr(pair_dir / "stderr.log")
 
     # P1.5: simulate a manager that wrote complete artifacts but then failed.
@@ -224,6 +231,47 @@ def _write_stdout(path: Path, engine_a: str, engine_b: str, results: list[str]) 
     if ENV.get("FAKE_CUTECHESS_STDOUT_FORBIDDEN") == "1":
         lines.append("Warning: illegal move rejected")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+def _write_streaming_stdout(
+    path: Path, engine_a: str, engine_b: str, results: list[str],
+    delay_ms: float,
+) -> None:
+    """Emit game-boundary lines one at a time (flushed, with delays) so
+    runtime-status tests can observe Game 1 -> Game 2 while the process is
+    still alive."""
+    wins = losses = draws = 0
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        for idx, result in enumerate(results):
+            if result == "1/2-1/2":
+                draws += 1
+            elif idx % 2 == 0:
+                wins += 1 if result == "1-0" else 0
+                losses += 1 if result == "0-1" else 0
+            else:
+                wins += 1 if result == "0-1" else 0
+                losses += 1 if result == "1-0" else 0
+            fh.write(
+                f"Started game {idx + 1} of {len(results)} "
+                f"({engine_a} vs {engine_b})\n"
+            )
+            fh.flush()
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+            fh.write(
+                f"Finished game {idx + 1} ({engine_a} vs {engine_b}): "
+                f"{result}\n"
+            )
+            fh.flush()
+            if idx < len(results) - 1 and delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+        total = wins + losses + draws
+        score = (wins + 0.5 * draws) / total if total else 0.0
+        fh.write(
+            f"Score of {engine_a} vs {engine_b}: "
+            f"{wins} - {losses} - {draws}  [{score:.3f}] {total}\n"
+        )
+        fh.flush()
 
 
 def _write_stderr(path: Path) -> None:

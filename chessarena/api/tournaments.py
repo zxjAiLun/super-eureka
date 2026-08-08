@@ -7,6 +7,7 @@ nothing accepts raw paths or arbitrary cutechess parameters.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -705,12 +706,22 @@ def admin_tournament_detail(
     has_combined = (run_dir / "combined.pgn").exists()
     has_summary = (run_dir / "summary.json").exists()
     has_manifest = (run_dir / "artifact-manifest.json").exists()
+
+    from chessarena.services.runtime_status import derive_runtime_status
+
+    runtime: dict[str, dict] = {}
+    for p in pairs:
+        if p.run_directory and Path(p.run_directory).is_dir():
+            runtime[p.id] = derive_runtime_status(
+                Path(p.run_directory), total_games=2
+            )
     return templates.TemplateResponse(
         request,
         "tournament_detail.html",
         {
             "tournament": tournament,
             "pairs": pairs,
+            "runtime": runtime,
             "games": games,
             "events": events,
             "score_percent": _score_percent(tournament),
@@ -797,6 +808,38 @@ def admin_tournament_status_fragment(
             "tournament": tournament,
             "pairs": pairs,
             "score_percent": _score_percent(tournament),
+            "settings": request.app.state.settings,
+        },
+    )
+
+
+@admin_router.get("/admin/tournaments/{tournament_id}/pairs",
+                  response_class=HTMLResponse)
+def admin_tournament_pairs_fragment(
+    request: Request, tournament_id: str, session: Session = Depends(get_db)
+):
+    """HTMX pair-progress fragment (2s refresh) including live per-game
+    runtime status derived from cutechess stdout (P4.F1 A3)."""
+    templates = request.app.state.templates
+    tournament = _get_tournament_or_404(session, tournament_id)
+    pairs = sorted(tournament.pair_jobs, key=lambda p: p.pair_index)
+
+    from chessarena.services import artifacts
+    from chessarena.services.runtime_status import derive_runtime_status
+
+    runtime: dict[str, dict] = {}
+    for p in pairs:
+        if p.run_directory and Path(p.run_directory).is_dir():
+            runtime[p.id] = derive_runtime_status(
+                Path(p.run_directory), total_games=2
+            )
+    return templates.TemplateResponse(
+        request,
+        "_pair_progress.html",
+        {
+            "tournament": tournament,
+            "pairs": pairs,
+            "runtime": runtime,
             "settings": request.app.state.settings,
         },
     )

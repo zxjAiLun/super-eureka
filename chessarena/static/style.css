@@ -58,7 +58,10 @@ button {
   cursor: pointer;
   margin: 0.25rem 0.25rem 0.25rem 0;
 }
-button.danger { background: var(--danger); }
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
 dl { display: grid; grid-template-columns: 160px 1fr; row-gap: 0.3rem; }
 dt { font-weight: 600; color: var(--muted); }
 dd { margin: 0; }

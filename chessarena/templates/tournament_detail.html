@@ -72,30 +72,10 @@
   </dl>
 </section>
 
-<section class="panel">
-  <h3>Pair progress</h3>
-  <table>
-    <thead>
-      <tr><th>#</th><th>Opening</th><th>Status</th><th>Attempt</th><th>Result (A)</th></tr>
-    </thead>
-    <tbody>
-    {% for p in pairs %}
-      <tr>
-        <td>{{ p.pair_index + 1 }}</td>
-        <td>{{ p.opening_index }}</td>
-        <td><span class="status status-{{ p.status|lower }}">{{ p.status }}</span></td>
-        <td>{{ p.attempt }}</td>
-        <td>
-          {% if p.verification and p.verification.get("candidate_perspective") %}
-            {{ p.verification["candidate_perspective"]["wins"] }}W /
-            {{ p.verification["candidate_perspective"]["losses"] }}L /
-            {{ p.verification["candidate_perspective"]["draws"] }}D
-          {% elif p.failure_reason %}{{ p.failure_reason[:60] }}{% endif %}
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<section class="panel" id="pair-progress"
+         hx-get="{{ settings.base_path }}/admin/tournaments/{{ tournament.id }}/pairs"
+         hx-trigger="every 2s" hx-swap="innerHTML">
+  {% include "_pair_progress.html" %}
 </section>
 
 <section class="panel">
