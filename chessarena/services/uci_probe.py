@@ -22,12 +22,43 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-OPTION_LINE = re.compile(
-    r"^option name (?P<name>\S[^:]*?)\s+type\s+(?P<type>\w+)"
-    r"(?:\s+default\s+(?P<default>\S+))?"
-    r"(?:\s+min\s+(?P<min>-?\d+))?"
-    r"(?:\s+max\s+(?P<max>-?\d+))?$"
+# Full UCI option line: name may contain spaces; type is check|spin|combo|
+# button|string; after the type come optional default/min/max/var clauses.
+_OPTION_LINE = re.compile(
+    r"^option name (?P<name>.+?)\s+type\s+(?P<type>\w+)\s*(?P<attrs>.*)$"
 )
+_VAR_RE = re.compile(r"\bvar\s+(\S+)")
+_DEFAULT_TOKEN_RE = re.compile(r"\bdefault\s+(\S+)")
+_MIN_RE = re.compile(r"\bmin\s+(-?\d+)")
+_MAX_RE = re.compile(r"\bmax\s+(-?\d+)")
+
+
+def _parse_option_attrs(typ: str, attrs: str):
+    """Extract default/min/max/var from the tail of an option line.
+
+    combo ``var`` values are repeated clauses (``var Solid var Normal ...``);
+    ``string`` defaults may contain spaces (protocol permits them up to the
+    end of the line), other types use a single token.
+    """
+    vars_ = _VAR_RE.findall(attrs)
+    rest = _VAR_RE.sub("", attrs)
+    default: Optional[str] = None
+    if typ == "string":
+        m = re.search(r"\bdefault\s+(.*?)\s*$", rest)
+        if m:
+            default = m.group(1).strip() or None
+    else:
+        m = _DEFAULT_TOKEN_RE.search(rest)
+        if m:
+            default = m.group(1)
+    lo = hi = None
+    m = _MIN_RE.search(rest)
+    if m:
+        lo = int(m.group(1))
+    m = _MAX_RE.search(rest)
+    if m:
+        hi = int(m.group(1))
+    return default, lo, hi, vars_
 
 
 class UciProbeError(RuntimeError):
@@ -41,6 +72,7 @@ class UciOption:
     default: Optional[str] = None
     min: Optional[int] = None
     max: Optional[int] = None
+    vars: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -51,17 +83,17 @@ class UciProbeResult:
 
 def parse_option_line(line: str) -> Optional[UciOption]:
     """Parse a ``option name ... type ...`` UCI line, or None if not one."""
-    m = OPTION_LINE.match(line.strip())
+    m = _OPTION_LINE.match(line.strip())
     if not m:
         return None
     name = m.group("name")
     typ = m.group("type")
-    default = m.group("default")
-    lo = int(m.group("min")) if m.group("min") is not None else None
-    hi = int(m.group("max")) if m.group("max") is not None else None
     if name is None or "\n" in name or "\x00" in name:
         raise UciProbeError(f"malformed option name: {line!r}")
-    return UciOption(name=name, type=typ, default=default, min=lo, max=hi)
+    default, lo, hi, vars_ = _parse_option_attrs(typ, m.group("attrs"))
+    return UciOption(
+        name=name, type=typ, default=default, min=lo, max=hi, vars=vars_
+    )
 
 
 def _is_python_script(binary: Path) -> bool:

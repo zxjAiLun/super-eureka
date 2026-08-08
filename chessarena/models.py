@@ -95,6 +95,11 @@ class EngineBuild(Base):
     platform: Mapped[str] = mapped_column(String, nullable=False)
     supported_profiles: Mapped[list] = mapped_column(JSON, nullable=False)
     manifest: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # UCI capability schema probed from THIS exact binary (bound to
+    # binary_sha256); None for builds that predate capability capture.
+    uci_options_schema: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

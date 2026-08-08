@@ -7,10 +7,11 @@ argument; they are configured through UCI options.  This script:
 1. verifies the binary SHA-256 against the caller-provided value,
 2. runs a real UCI handshake (uci -> id name/option lines -> uciok ->
    isready -> readyok -> quit),
-3. requires the listed ``Name:type`` UCI options (e.g.
-   UCI_LimitStrength:check UCI_Elo:spin Hash:spin Threads:spin Ponder:check),
-4. verifies the requested UCI_Elo values fall within the engine's declared
-   min/max,
+3. optionally requires listed ``Name:type`` UCI options (default: none —
+   capability-driven; engine-specific requirements belong to the engine's
+   registration layer),
+4. optionally verifies UCI_Elo values (``--uci-elos``) fall within the
+   engine's declared min/max,
 5. registers an immutable EngineBuild row (idempotent: an existing build_id
    with the same binary SHA is reported as already present; a differing SHA
    is an error).
@@ -42,13 +43,12 @@ from chessarena.services.uci_probe import (  # noqa: E402
     require_option,
 )
 
-DEFAULT_REQUIRED_OPTIONS = [
-    ("UCI_LimitStrength", "check"),
-    ("UCI_Elo", "spin"),
-    ("Hash", "spin"),
-    ("Threads", "spin"),
-    ("Ponder", "check"),
-]
+# The generic installer is capability-driven: the ONLY requirements are the
+# UCI handshake itself (uci / id name / option lines / uciok / isready /
+# readyok / quit).  Engine-specific requirements (e.g. Stockfish's
+# UCI_LimitStrength/UCI_Elo/Hash/Threads/Ponder) belong to the Stockfish
+# registration layer, not here.
+DEFAULT_REQUIRED_OPTIONS: list[tuple[str, str]] = []
 
 
 def sha256_file(path: Path) -> str:
@@ -59,6 +59,21 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def uci_schema_from_probe(probe) -> dict:
+    """Serialize the probed UCI option schema, bound to this exact binary."""
+    return {
+        name: {
+            "name": opt.name,
+            "type": opt.type,
+            "default": opt.default,
+            "min": opt.min,
+            "max": opt.max,
+            "vars": list(opt.vars),
+        }
+        for name, opt in probe.options.items()
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build_dir", type=Path)
@@ -67,7 +82,12 @@ def main() -> int:
     parser.add_argument("--binary-name", default="engine")
     parser.add_argument("--binary-sha256", required=True)
     parser.add_argument("--platform", required=True)
-    parser.add_argument("--uci-elos", default="1800,2000,2200,2400")
+    parser.add_argument(
+        "--uci-elos",
+        default="",
+        help="Optional comma-separated UCI_Elo values to validate against the "
+        "engine's declared range (used by Stockfish registration)",
+    )
     parser.add_argument(
         "--required-options",
         nargs="+",
@@ -164,10 +184,12 @@ def main() -> int:
                 )
             require_option(probe, name, typ)
 
-        elo_opt = probe.options.get("UCI_Elo")
-        elo_values = [int(v) for v in args.uci_elos.split(",")]
-        for value in elo_values:
-            if elo_opt is not None:
+        if args.uci_elos:
+            elo_opt = probe.options.get("UCI_Elo")
+            if elo_opt is None:
+                sys.exit("error: --uci-elos requested but engine declares no UCI_Elo")
+            elo_values = [int(v) for v in args.uci_elos.split(",")]
+            for value in elo_values:
                 if elo_opt.min is not None and value < elo_opt.min:
                     sys.exit(
                         f"error: UCI_Elo {value} below engine minimum "
@@ -244,6 +266,7 @@ def main() -> int:
                 platform=args.platform,
                 supported_profiles=[],
                 manifest=manifest,
+                uci_options_schema=uci_schema_from_probe(probe),
                 enabled=True,
             )
         )
@@ -253,7 +276,7 @@ def main() -> int:
     print(f"  engine_name: {args.engine_name}")
     print(f"  uci id name: {probe.id_name}")
     print(f"  binary sha256: {args.binary_sha256}")
-    print(f"  UCI_Elo range: {elo_opt.min if elo_opt else '?'}..{elo_opt.max if elo_opt else '?'}")
+    print(f"  uci options: {len(probe.options)} declared")
     return 0
 
 

@@ -20,6 +20,11 @@ def main() -> int:
         "option name Hash type spin default 16 min 1 max 1024",
         "option name Threads type spin default 1 min 1 max 1",
         "option name Ponder type check default false",
+        "option name Style type combo default Normal var Solid var Normal var Risky",
+        "option name Clear Hash type button",
+        "option name SyzygyPath type string default <empty>",
+        "option name My Custom Option type string default some default value",
+        "option name Move Overhead type spin default 10 min 0 max 5000",
         "uciok",
     ]
     for line in lines:

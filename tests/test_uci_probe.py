@@ -73,6 +73,11 @@ def test_probe_uci_handshake_ok():
         "Hash",
         "Threads",
         "Ponder",
+        "Style",
+        "Clear Hash",
+        "SyzygyPath",
+        "My Custom Option",
+        "Move Overhead",
     }
 
 
@@ -142,3 +147,59 @@ def test_probe_times_out_on_partial_line_without_newline():
         probe_uci(FAKE_UCI_PARTIAL, timeout=2)
     elapsed = time.monotonic() - start
     assert elapsed < 4, f"deadline not enforced: {elapsed:.1f}s"
+
+
+def test_parse_option_combo_with_vars():
+    opt = parse_option_line(
+        "option name Style type combo default Normal var Solid var Normal var Risky"
+    )
+    assert opt is not None
+    assert opt.name == "Style"
+    assert opt.type == "combo"
+    assert opt.default == "Normal"
+    assert opt.vars == ["Solid", "Normal", "Risky"]
+
+
+def test_parse_option_string_default_with_spaces():
+    opt = parse_option_line(
+        "option name SyzygyPath type string default <empty>"
+    )
+    assert opt is not None
+    assert opt.type == "string"
+    assert opt.default == "<empty>"
+    opt2 = parse_option_line(
+        "option name My Custom Option type string default some default value"
+    )
+    assert opt2 is not None
+    assert opt2.name == "My Custom Option"
+    assert opt2.default == "some default value"
+
+
+def test_parse_option_button_has_no_default():
+    opt = parse_option_line("option name Clear Hash type button")
+    assert opt is not None
+    assert opt.type == "button"
+    assert opt.default is None
+    assert opt.min is None and opt.max is None
+
+
+def test_parse_option_name_with_spaces_and_minmax():
+    opt = parse_option_line(
+        "option name Move Overhead type spin default 10 min 0 max 5000"
+    )
+    assert opt is not None
+    assert opt.name == "Move Overhead"
+    assert opt.default == "10"
+    assert opt.min == 0
+    assert opt.max == 5000
+
+
+def test_probe_captures_full_option_schema():
+    result = probe_uci(FAKE_UCI_ENGINE, timeout=10)
+    opts = result.options
+    assert opts["Style"].vars == ["Solid", "Normal", "Risky"]
+    assert opts["Style"].type == "combo"
+    assert opts["Clear Hash"].type == "button"
+    assert opts["My Custom Option"].default == "some default value"
+    assert opts["Move Overhead"].min == 0
+    assert opts["Move Overhead"].max == 5000
