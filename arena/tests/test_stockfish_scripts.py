@@ -67,6 +67,14 @@ def test_install_external_build_registers(settings, engine_factory, tmp_path):
         assert build.engine_name == "Stockfish"
         assert build.binary_sha256 == sha
         assert build.supported_profiles == []
+        # B3: the UCI capability schema is captured and bound to the binary.
+        schema = build.uci_options_schema or {}
+        assert schema["Style"]["type"] == "combo"
+        assert schema["Style"]["vars"] == ["Solid", "Normal", "Risky"]
+        assert schema["My Custom Option"]["default"] == "some default value"
+        assert schema["Move Overhead"]["min"] == 0
+        assert schema["Move Overhead"]["max"] == 5000
+        assert schema["Clear Hash"]["type"] == "button"
 
 
 def test_install_external_build_idempotent_same_sha(
