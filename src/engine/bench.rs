@@ -30,10 +30,12 @@ use crate::chess::move_to_uci;
 use crate::chess::movegen::generate_legal_moves;
 use crate::chess::position::Position;
 use crate::chess::types::START_FEN;
+use crate::chess::Move;
 use crate::chess::ZobristKey;
 use crate::engine::search::{
     search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
-    SearchContext, SearchLimits, SearchOutcome, SearchProfile, SearchStats, MATE,
+    SearchContext, SearchDiagnostics, SearchLimits, SearchOutcome, SearchProfile, SearchStats,
+    MATE,
 };
 use crate::engine::time::{compute_budget, TimeInput};
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
@@ -115,7 +117,7 @@ struct Locked {
 }
 
 /// Parsed CLI configuration.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct BenchArgs {
     suite: Suite,
     mode: BenchMode,
@@ -134,6 +136,17 @@ struct BenchArgs {
     profile_limit: Option<LimitKind>,
     /// Limit selector used only by the ablation suite.
     ablation_limit: Option<LimitKind>,
+    /// S4.0B bench-only diagnostic overrides (feature ablation). Applied only
+    /// to a CurrentFinal profile search; never reachable through UCI.
+    diag_lmr: bool,
+    diag_futility: bool,
+    diag_null: bool,
+    diag_qsee: bool,
+    /// S4.0B: force the root to search only this move (UCI), e.g. the teacher move.
+    forced_root: Option<String>,
+    /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
+    /// ordering, before forced-root filtering.
+    target_root: Option<String>,
 }
 
 /// Render a `SearchProfile` as its CLI string (also used in bench output).
@@ -182,9 +195,9 @@ struct BenchResult {
     elapsed_us: u128,
     nps: u64,
     pv: String,
+    target_root_rank: u32,
     stats: SearchStats,
 }
-
 // ---------------------------------------------------------------------------
 // CLI parsing
 // ---------------------------------------------------------------------------
@@ -233,6 +246,12 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut custom_fen: Option<&'static str> = None;
     let mut profile_limit: Option<LimitKind> = None;
     let mut ablation_limit: Option<LimitKind> = None;
+    let mut diag_lmr = false;
+    let mut diag_futility = false;
+    let mut diag_null = false;
+    let mut diag_qsee = false;
+    let mut forced_root: Option<String> = None;
+    let mut target_root: Option<String> = None;
 
     while let Some(tok) = it.next() {
         match tok.as_str() {
@@ -461,6 +480,53 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 }
                 custom_fen = Some(Box::leak(v.into_boxed_str()));
             }
+            "--diag" => {
+                if suite != Suite::Profile {
+                    return Err("bench: --diag is only valid for profile".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --diag requires a value".to_string())?
+                    .clone();
+                match v.as_str() {
+                    "no-lmr" => diag_lmr = true,
+                    "no-futility" => diag_futility = true,
+                    "no-null" => diag_null = true,
+                    "no-qsee" => diag_qsee = true,
+                    other => {
+                        return Err(format!(
+                            "bench: invalid --diag '{}' (expected no-lmr|no-futility|no-null|no-qsee)",
+                            other
+                        ));
+                    }
+                }
+            }
+            "--forced-root" => {
+                if suite != Suite::Profile {
+                    return Err("bench: --forced-root is only valid for profile".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --forced-root requires a value".to_string())?
+                    .clone();
+                if forced_root.is_some() {
+                    return Err("bench: --forced-root may be specified only once".to_string());
+                }
+                forced_root = Some(v);
+            }
+            "--target-root" => {
+                if suite != Suite::Profile {
+                    return Err("bench: --target-root is only valid for profile".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --target-root requires a value".to_string())?
+                    .clone();
+                if target_root.is_some() {
+                    return Err("bench: --target-root may be specified only once".to_string());
+                }
+                target_root = Some(v);
+            }
             other => {
                 return Err(format!("bench: unknown argument '{}'", other));
             }
@@ -489,6 +555,12 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         } else {
             None
         },
+        diag_lmr,
+        diag_futility,
+        diag_null,
+        diag_qsee,
+        forced_root,
+        target_root,
     })
 }
 
@@ -736,7 +808,7 @@ fn median_u64(v: &[u64]) -> u64 {
 /// Format one result line. Stable key order, integers, quoted PV.
 fn format_result_line(r: &BenchResult) -> String {
     let line = format!(
-        "bench_result suite={} fixture={} mode={} profile={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\"",
+        "bench_result suite={} fixture={} mode={} profile={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\" target_root_rank={}",
         r.suite,
         r.fixture,
         r.mode,
@@ -750,7 +822,8 @@ fn format_result_line(r: &BenchResult) -> String {
         r.nodes,
         r.elapsed_us,
         r.nps,
-        r.pv
+        r.pv,
+        r.target_root_rank
     );
     let line = if r.suite == "profile" || r.suite == "ablation" {
         format!("{} elapsed_ms={}", line, r.elapsed_us / 1_000)
@@ -1089,7 +1162,7 @@ fn run_one(
     };
     let profiling = matches!(cfg.suite, Suite::Profile | Suite::Ablation);
     let stop = Arc::new(AtomicBool::new(false));
-    let ctx = match actual_limit {
+    let mut ctx = match actual_limit {
         LimitKind::Movetime(ms) => {
             let budget = compute_budget(
                 &TimeInput {
@@ -1102,6 +1175,44 @@ fn run_one(
         }
         _ => SearchContext::new_with_profiling(stop, profiling),
     };
+
+    // S4.0B bench-only diagnostics. Only active for a profile search; the
+    // production UCI path never constructs a `SearchContext` with these set.
+    if cfg.diag_lmr
+        || cfg.diag_futility
+        || cfg.diag_null
+        || cfg.diag_qsee
+        || cfg.forced_root.is_some()
+        || cfg.target_root.is_some()
+    {
+        let legal = generate_legal_moves(&mut pos.clone());
+        let resolve = |label: &str, uci: &str| -> Result<Move, String> {
+            legal
+                .iter()
+                .copied()
+                .find(|m| move_to_uci(*m) == uci)
+                .ok_or_else(|| {
+                    format!("--{} move {} is not legal in fixture {}", label, uci, fx.id)
+                })
+        };
+        let forced_root_move = match &cfg.forced_root {
+            Some(u) => Some(resolve("forced-root", u)?),
+            None => None,
+        };
+        let target_root_move = match &cfg.target_root {
+            Some(u) => Some(resolve("target-root", u)?),
+            None => None,
+        };
+        ctx.diagnostics = Some(SearchDiagnostics {
+            forced_root_move,
+            target_root_move,
+            disable_lmr: cfg.diag_lmr,
+            disable_futility: cfg.diag_futility,
+            disable_null_move: cfg.diag_null,
+            disable_qsearch_see: cfg.diag_qsee,
+        });
+    }
+
     let limits = limits_for(actual_limit);
 
     let start = Instant::now();
@@ -1151,6 +1262,7 @@ fn run_one(
         elapsed_us,
         nps,
         pv: pv_uci.join(" "),
+        target_root_rank: ctx.target_root_rank.load(Ordering::Relaxed),
         stats,
     })
 }
@@ -1282,7 +1394,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
     let mut results: Vec<BenchResult> = Vec::new();
     for profile in profiles {
-        let mut profile_cfg = cfg;
+        let mut profile_cfg = cfg.clone();
         profile_cfg.profile = profile;
         for fx in &fixtures {
             for &mode in &modes {
@@ -1853,6 +1965,7 @@ mod tests {
             elapsed_us: 413_000,
             nps: 20467,
             pv: "b1c3 b8c6 g1f3".to_string(),
+            target_root_rank: 0,
             stats: SearchStats::default(),
         };
         let line = format_result_line(&r);
@@ -1873,7 +1986,7 @@ mod tests {
         assert!(i("elapsed_us=") < i("nps="));
         assert!(i("nps=") < i("pv="));
         assert!(line.contains("score=cp:0"));
-        assert!(line.ends_with("pv=\"b1c3 b8c6 g1f3\""));
+        assert!(line.ends_with("target_root_rank=0"));
     }
 
     #[test]
@@ -1893,6 +2006,7 @@ mod tests {
             elapsed_us: 12_345,
             nps: 81_004,
             pv: "b1c3 b8c6".to_string(),
+            target_root_rank: 0,
             stats: SearchStats {
                 qsearch_nodes: 12,
                 aspiration_retries: 3,
@@ -1953,6 +2067,12 @@ mod tests {
             custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
+            diag_lmr: false,
+            diag_futility: false,
+            diag_null: false,
+            diag_qsee: false,
+            forced_root: None,
+            target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -1960,6 +2080,77 @@ mod tests {
         assert!(r.score.is_some());
         // run_one validates bestmove/PV legality and full restoration internally.
         assert!(!r.best_move.is_empty());
+    }
+
+    fn profile_cfg(
+        limit: LimitKind,
+        diag_lmr: bool,
+        forced_root: Option<&str>,
+        target_root: Option<&str>,
+    ) -> BenchArgs {
+        BenchArgs {
+            suite: Suite::Profile,
+            mode: BenchMode::Disabled,
+            repeat: 1,
+            nodes: 100_000,
+            profile: SearchProfile::CurrentFinal,
+            fixture: None,
+            custom_fen: None,
+            profile_limit: Some(limit),
+            ablation_limit: None,
+            diag_lmr,
+            diag_futility: false,
+            diag_null: false,
+            diag_qsee: false,
+            forced_root: forced_root.map(|s| s.to_string()),
+            target_root: target_root.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn diag_target_root_records_rank_before_forced_filter() {
+        let fx = Fixture {
+            id: "startpos",
+            fen: START_FEN,
+            limit: LimitKind::Depth(1),
+            history: None,
+            locked: None,
+        };
+        let cfg = profile_cfg(LimitKind::Depth(1), false, Some("b1c3"), Some("b1c3"));
+        let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
+        assert_eq!(r.best_move, "b1c3", "forced root must pick the forced move");
+        assert_eq!(
+            r.target_root_rank, 1,
+            "b1c3 is rank 1 under the static root ordering at startpos"
+        );
+    }
+
+    #[test]
+    fn diag_disable_lmr_zeroes_lmr_reductions() {
+        let fx = Fixture {
+            id: "startpos",
+            fen: START_FEN,
+            limit: LimitKind::Depth(5),
+            history: None,
+            locked: None,
+        };
+        let no_lmr = profile_cfg(LimitKind::Depth(5), true, None, None);
+        let r_no = run_one(&no_lmr, &fx, BenchMode::Disabled, 1).unwrap();
+        assert_eq!(
+            r_no.stats.lmr_reductions, 0,
+            "no-lmr disables late-move reductions"
+        );
+        assert_eq!(
+            r_no.stats.lmr_researches, 0,
+            "no-lmr disables LMR re-searches"
+        );
+
+        let base = profile_cfg(LimitKind::Depth(5), false, None, None);
+        let r_base = run_one(&base, &fx, BenchMode::Disabled, 1).unwrap();
+        assert!(
+            r_base.stats.lmr_reductions > 0,
+            "CurrentFinal still applies LMR when no diagnostic is set"
+        );
     }
 
     #[test]
@@ -1985,6 +2176,12 @@ mod tests {
             custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
+            diag_lmr: false,
+            diag_futility: false,
+            diag_null: false,
+            diag_qsee: false,
+            forced_root: None,
+            target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -2035,6 +2232,12 @@ mod tests {
             custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
+            diag_lmr: false,
+            diag_futility: false,
+            diag_null: false,
+            diag_qsee: false,
+            forced_root: None,
+            target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
         assert_eq!(r.completed_depth, 1);
@@ -2084,6 +2287,12 @@ mod tests {
                 custom_fen: None,
                 profile_limit: None,
                 ablation_limit: None,
+                diag_lmr: false,
+                diag_futility: false,
+                diag_null: false,
+                diag_qsee: false,
+                forced_root: None,
+                target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
             let locked = fx.locked.expect("smoke fixture must be locked");
@@ -2117,6 +2326,12 @@ mod tests {
                 custom_fen: None,
                 profile_limit: None,
                 ablation_limit: None,
+                diag_lmr: false,
+                diag_futility: false,
+                diag_null: false,
+                diag_qsee: false,
+                forced_root: None,
+                target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
                 .unwrap_or_else(|e| panic!("current smoke {} must complete: {}", fx.id, e));
@@ -2244,6 +2459,12 @@ mod tests {
             custom_fen: None,
             profile_limit: None,
             ablation_limit: None,
+            diag_lmr: false,
+            diag_futility: false,
+            diag_null: false,
+            diag_qsee: false,
+            forced_root: None,
+            target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
         assert!(r.nodes <= n, "node budget must not be exceeded");

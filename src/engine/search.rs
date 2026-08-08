@@ -25,7 +25,7 @@
 
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -324,6 +324,85 @@ pub struct SearchLimits {
     pub nodes: Option<u64>,
 }
 
+/// S4.0B: the effective search-feature policy, resolved ONCE at search start
+/// from the active profile plus any bench-only diagnostic overrides. The hot
+/// path reads the resolved `SearchFeaturePolicy` fields instead of
+/// recomputing a per-feature predicate (plus an extra diagnostic condition)
+/// at every gate site.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct SearchFeaturePolicy {
+    pub(crate) lmr: bool,
+    pub(crate) futility: bool,
+    pub(crate) null_move: bool,
+    pub(crate) qsearch_see: bool,
+}
+
+const FEATURE_LMR: u32 = 1 << 0;
+const FEATURE_FUTILITY: u32 = 1 << 1;
+const FEATURE_NULL: u32 = 1 << 2;
+const FEATURE_QSEE: u32 = 1 << 3;
+
+impl SearchFeaturePolicy {
+    /// Resolve the effective policy for `profile`, applying diagnostic
+    /// overrides. Never called on the production UCI path (diagnostics are
+    /// `None` there), so CurrentFinal behavior is unchanged.
+    pub(crate) fn for_profile(profile: SearchProfile, diag: Option<&SearchDiagnostics>) -> Self {
+        let d = diag.copied().unwrap_or_default();
+        Self {
+            lmr: profile.uses_lmr() && !d.disable_lmr,
+            futility: profile.uses_futility() && !d.disable_futility,
+            null_move: profile.uses_null_move() && !d.disable_null_move,
+            qsearch_see: profile.uses_qsearch_pruning() && !d.disable_qsearch_see,
+        }
+    }
+
+    fn to_bits(self) -> u32 {
+        let mut bits = 0u32;
+        if self.lmr {
+            bits |= FEATURE_LMR;
+        }
+        if self.futility {
+            bits |= FEATURE_FUTILITY;
+        }
+        if self.null_move {
+            bits |= FEATURE_NULL;
+        }
+        if self.qsearch_see {
+            bits |= FEATURE_QSEE;
+        }
+        bits
+    }
+
+    fn from_bits(bits: u32) -> Self {
+        Self {
+            lmr: bits & FEATURE_LMR != 0,
+            futility: bits & FEATURE_FUTILITY != 0,
+            null_move: bits & FEATURE_NULL != 0,
+            qsearch_see: bits & FEATURE_QSEE != 0,
+        }
+    }
+}
+
+/// S4.0B bench-only diagnostic configuration. It is a separate struct (not a
+/// pile of loose fields on `SearchContext`) and is only ever populated by the
+/// bench harness. The production UCI path never sets it, so there is no way
+/// to activate these diagnostics through UCI and default behavior is unchanged.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct SearchDiagnostics {
+    /// Force the root to search only this single move (Stockfish teacher move).
+    pub(crate) forced_root_move: Option<Move>,
+    /// Record the 1-based rank of this move in the normal root ordering,
+    /// BEFORE any forced-root filtering.
+    pub(crate) target_root_move: Option<Move>,
+    pub(crate) disable_lmr: bool,
+    pub(crate) disable_futility: bool,
+    pub(crate) disable_null_move: bool,
+    pub(crate) disable_qsearch_see: bool,
+}
+
+/// S4.0B: the initial (pre-filter) root rank of the diagnostic target move.
+/// Resolved at search start; read back by the bench harness after the search.
+pub(crate) const TARGET_ROOT_RANK_NONE: u32 = 0;
 /// Live, *shared* state for one search run. `stop` and `nodes` are
 /// atomic because the search runs on its own thread (M1.2) while the UCI
 /// main thread flips `stop` and reads `nodes`. The deadlines come from the
@@ -382,6 +461,17 @@ pub struct SearchContext {
     pub last_completed_iteration_nodes: AtomicU64,
     pub aborted_iteration_depth: AtomicU64,
     pub aborted_iteration_nodes: AtomicU64,
+    /// S4.0B: resolved feature policy bitmask (set at search start via
+    /// `SearchFeaturePolicy::for_profile(...).to_bits()`). `AtomicU32` so the
+    /// context stays `Send + Sync` (it is shared across the search thread).
+    pub(crate) features_mask: AtomicU32,
+    /// S4.0B: bench-only diagnostics (forced-root / disable-feature / target
+    /// rank). `None` on the production UCI path.
+    pub(crate) diagnostics: Option<SearchDiagnostics>,
+    /// S4.0B: 1-based root rank of `diagnostics.target_root_move` in the
+    /// normal root ordering (before forced-root filtering). 0 = target not in
+    /// the legal move list.
+    pub(crate) target_root_rank: AtomicU32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -428,6 +518,8 @@ pub struct SearchStats {
     pub last_completed_iteration_nodes: u64,
     pub aborted_iteration_depth: u64,
     pub aborted_iteration_nodes: u64,
+    /// S4.0B: 1-based root rank of the diagnostic target move, 0 = unset/absent.
+    pub target_root_rank: u32,
 }
 
 impl SearchContext {
@@ -483,6 +575,9 @@ impl SearchContext {
             last_completed_iteration_nodes: AtomicU64::new(0),
             aborted_iteration_depth: AtomicU64::new(0),
             aborted_iteration_nodes: AtomicU64::new(0),
+            features_mask: AtomicU32::new(0),
+            diagnostics: None,
+            target_root_rank: AtomicU32::new(TARGET_ROOT_RANK_NONE),
         }
     }
 
@@ -546,6 +641,9 @@ impl SearchContext {
             last_completed_iteration_nodes: AtomicU64::new(0),
             aborted_iteration_depth: AtomicU64::new(0),
             aborted_iteration_nodes: AtomicU64::new(0),
+            features_mask: AtomicU32::new(0),
+            diagnostics: None,
+            target_root_rank: AtomicU32::new(TARGET_ROOT_RANK_NONE),
         }
     }
 
@@ -599,6 +697,7 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             aborted_iteration_depth: self.aborted_iteration_depth.load(Ordering::Relaxed),
             aborted_iteration_nodes: self.aborted_iteration_nodes.load(Ordering::Relaxed),
+            target_root_rank: self.target_root_rank.load(Ordering::Relaxed),
         }
     }
 
@@ -614,6 +713,12 @@ impl SearchContext {
         if self.profiling_enabled {
             counter.fetch_add(amount, Ordering::Relaxed);
         }
+    }
+
+    /// S4.0B: decode the resolved feature policy (set once at search start).
+    #[inline]
+    pub(crate) fn features(&self) -> SearchFeaturePolicy {
+        SearchFeaturePolicy::from_bits(self.features_mask.load(Ordering::Relaxed))
     }
 }
 
@@ -2089,7 +2194,16 @@ fn negamax_entered_impl_with_null_and_extensions(
         return Some(cutoff);
     }
 
-    if allow_null && null_move_eligible(pos, _profile, depth, alpha, beta, node_in_check) {
+    if allow_null
+        && null_move_eligible(
+            pos,
+            ctx.features().null_move,
+            depth,
+            alpha,
+            beta,
+            node_in_check,
+        )
+    {
         ctx.add_profile_counter(&ctx.null_move_attempts, 1);
         let mut null_pos = make_null_position(pos);
         path.push_child(&null_pos);
@@ -2162,7 +2276,7 @@ fn negamax_entered_impl_with_null_and_extensions(
             path,
             _profile,
             _profile.uses_qsearch_movegen(),
-            _profile.uses_qsearch_pruning(),
+            ctx.features().qsearch_see,
             _profile.uses_qsearch_fast_pruning(),
         ) {
             Some(s) => {
@@ -2181,7 +2295,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // with substantial non-pawn material. Tactical, checking, mate-range,
     // and advanced-pawn moves remain in the search even when their static
     // estimate is below the shallow margin.
-    let futility_base = if _profile.uses_futility()
+    let futility_base = if ctx.features().futility
         && !node_in_check
         && depth <= 3
         && beta == alpha.saturating_add(1)
@@ -2249,7 +2363,8 @@ fn negamax_entered_impl_with_null_and_extensions(
                 continue;
             }
         }
-        let reduction = late_move_reduction(pos, m, _profile, depth, move_idx, node_in_check);
+        let reduction =
+            late_move_reduction(pos, m, ctx.features().lmr, depth, move_idx, node_in_check);
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
         let alpha_before_move = alpha;
@@ -2727,12 +2842,12 @@ fn is_pawn_promotion_threat(pos: &Position, m: Move) -> bool {
 fn late_move_reduction(
     pos: &mut Position,
     m: Move,
-    profile: SearchProfile,
+    lmr_enabled: bool,
     depth: u32,
     move_idx: usize,
     node_in_check: bool,
 ) -> u32 {
-    if !profile.uses_lmr()
+    if !lmr_enabled
         || node_in_check
         || depth < 4
         || move_idx < 3
@@ -2763,13 +2878,13 @@ fn null_move_reduction(depth: u32) -> u32 {
 
 fn null_move_eligible(
     pos: &Position,
-    profile: SearchProfile,
+    null_enabled: bool,
     depth: u32,
     alpha: i32,
     beta: i32,
     node_in_check: bool,
 ) -> bool {
-    profile.uses_null_move()
+    null_enabled
         && !node_in_check
         && depth >= 5
         && beta == alpha.saturating_add(1)
@@ -4642,6 +4757,10 @@ fn search_best_move_impl(
 ) -> Option<SearchOutcome> {
     ctx.see_enabled
         .store(_profile.uses_see(), Ordering::Relaxed);
+    ctx.features_mask.store(
+        SearchFeaturePolicy::for_profile(_profile, ctx.diagnostics.as_ref()).to_bits(),
+        Ordering::Relaxed,
+    );
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -4649,6 +4768,32 @@ fn search_best_move_impl(
     // Stable fallback: the first legal move. Used if we never complete a
     // single iteration (e.g. stopped before depth 1 finishes).
     let fallback = root_moves[0];
+
+    // S4.0B bench-only diagnostics. Never active on the production UCI path
+    // (UCI never sets `ctx.diagnostics`). Root contract: generate legal root
+    // moves -> apply the normal CurrentFinal initial (static) ordering ->
+    // record the target move's 1-based rank -> only then filter to the single
+    // forced root move. Forcing happens after ranking so forced mode does not
+    // trivially report rank 1.
+    if let Some(diag) = ctx.diagnostics {
+        if diag.forced_root_move.is_some() || diag.target_root_move.is_some() {
+            order_moves(pos, &mut root_moves);
+        }
+        if let Some(target) = diag.target_root_move {
+            let rank = root_moves
+                .iter()
+                .position(|m| *m == target)
+                .map(|i| i as u32 + 1)
+                .unwrap_or(TARGET_ROOT_RANK_NONE);
+            ctx.target_root_rank.store(rank, Ordering::Relaxed);
+        }
+        if let Some(forced) = diag.forced_root_move {
+            root_moves.retain(|m| *m == forced);
+            if root_moves.is_empty() {
+                return None; // forced move is not legal at the root
+            }
+        }
+    }
 
     // M4.1 Commit 3: build the per-search heuristic state ONLY for
     // non-M4Reference profiles (`M41Reference` and `Current`).
@@ -5354,83 +5499,30 @@ mod tests {
     fn lmr_reduces_only_eligible_quiet_moves() {
         let pos = parse_fen(START_FEN).unwrap();
         let quiet = find_move(&pos, "e2e3");
-        assert!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::LmrCandidate,
-                5,
-                3,
-                false
-            ) > 0
-        );
-        assert!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                false
-            ) > 0
-        );
+        assert!(late_move_reduction(&mut pos.clone(), quiet, true, 5, 3, false) > 0);
+        assert!(late_move_reduction(&mut pos.clone(), quiet, true, 5, 3, false) > 0);
         assert_eq!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::LmrCandidate,
-                5,
-                0,
-                false
-            ),
+            late_move_reduction(&mut pos.clone(), quiet, true, 5, 0, false),
             0,
             "PV move must never be reduced"
         );
         assert_eq!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::CurrentLmr,
-                5,
-                0,
-                false
-            ),
+            late_move_reduction(&mut pos.clone(), quiet, true, 5, 0, false),
             0,
             "CurrentLmr PV move must never be reduced"
         );
         assert_eq!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::LmrCandidate,
-                5,
-                3,
-                true
-            ),
+            late_move_reduction(&mut pos.clone(), quiet, true, 5, 3, true),
             0,
             "in-check node must never be reduced"
         );
         assert_eq!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                true
-            ),
+            late_move_reduction(&mut pos.clone(), quiet, true, 5, 3, true),
             0,
             "CurrentLmr in-check node must never be reduced"
         );
         assert_eq!(
-            late_move_reduction(
-                &mut pos.clone(),
-                quiet,
-                SearchProfile::M41Reference,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut pos.clone(), quiet, false, 5, 3, false),
             0,
             "reference profile must not reduce"
         );
@@ -5438,14 +5530,7 @@ mod tests {
         let kqk = parse_fen("7k/8/8/8/8/8/3QK3/8 w - - 0 1").unwrap();
         let quiet_endgame = find_move(&kqk, "d2d3");
         assert_eq!(
-            late_move_reduction(
-                &mut kqk.clone(),
-                quiet_endgame,
-                SearchProfile::LmrCandidate,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut kqk.clone(), quiet_endgame, true, 5, 3, false),
             0,
             "low-material endgames must not be reduced"
         );
@@ -5453,14 +5538,7 @@ mod tests {
         let cap_pos = parse_fen("7k/8/8/8/8/8/K7/Rr6 w - - 0 1").unwrap();
         let capture = find_move(&cap_pos, "a1b1");
         assert_eq!(
-            late_move_reduction(
-                &mut cap_pos.clone(),
-                capture,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut cap_pos.clone(), capture, true, 5, 3, false),
             0,
             "captures must never be reduced"
         );
@@ -5468,14 +5546,7 @@ mod tests {
         let promo_pos = parse_fen("8/P7/8/8/8/8/8/k6K w - - 0 1").unwrap();
         let promotion = find_move(&promo_pos, "a7a8q");
         assert_eq!(
-            late_move_reduction(
-                &mut promo_pos.clone(),
-                promotion,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut promo_pos.clone(), promotion, true, 5, 3, false),
             0,
             "promotions must never be reduced"
         );
@@ -5483,14 +5554,7 @@ mod tests {
         let ep_pos = parse_fen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1").unwrap();
         let en_passant = find_move(&ep_pos, "e5d6");
         assert_eq!(
-            late_move_reduction(
-                &mut ep_pos.clone(),
-                en_passant,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut ep_pos.clone(), en_passant, true, 5, 3, false),
             0,
             "en-passant captures must never be reduced"
         );
@@ -5498,14 +5562,7 @@ mod tests {
         let checking_pos = parse_fen("4k3/8/8/8/8/8/4Q3/K6R w - - 0 1").unwrap();
         let checking_quiet = find_move(&checking_pos, "e2e7");
         assert_eq!(
-            late_move_reduction(
-                &mut checking_pos.clone(),
-                checking_quiet,
-                SearchProfile::CurrentLmr,
-                5,
-                3,
-                false
-            ),
+            late_move_reduction(&mut checking_pos.clone(), checking_quiet, true, 5, 3, false),
             0,
             "checking quiet moves must never be reduced"
         );
@@ -5522,52 +5579,17 @@ mod tests {
         assert_eq!(null_pos.zobrist_key, recompute_zobrist(&null_pos));
         assert_ne!(null_pos.zobrist_key, pos.zobrist_key);
 
-        assert!(null_move_eligible(
-            &pos,
-            SearchProfile::NullMoveCandidate,
-            5,
-            0,
-            1,
-            false
-        ));
-        assert!(!null_move_eligible(
-            &pos,
-            SearchProfile::NullMoveCandidate,
-            5,
-            0,
-            100,
-            false
-        ));
-        assert!(!null_move_eligible(
-            &pos,
-            SearchProfile::NullMoveCandidate,
-            5,
-            0,
-            1,
-            true
-        ));
+        assert!(null_move_eligible(&pos, true, 5, 0, 1, false));
+        assert!(!null_move_eligible(&pos, true, 5, 0, 100, false));
+        assert!(!null_move_eligible(&pos, true, 5, 0, 1, true));
         let kqk = parse_fen("7k/8/8/8/8/8/3QK3/8 w - - 0 1").unwrap();
-        assert!(!null_move_eligible(
-            &kqk,
-            SearchProfile::NullMoveCandidate,
-            5,
-            0,
-            1,
-            false
-        ));
+        assert!(!null_move_eligible(&kqk, true, 5, 0, 1, false));
     }
 
     #[test]
     fn null_probe_child_is_non_reentrant_at_depth_nine() {
         let pos = parse_fen(START_FEN).unwrap();
-        assert!(null_move_eligible(
-            &pos,
-            SearchProfile::NullMoveCandidate,
-            9,
-            0,
-            1,
-            false
-        ));
+        assert!(null_move_eligible(&pos, true, 9, 0, 1, false));
 
         let stop = Arc::new(AtomicBool::new(true));
         let ctx = SearchContext::new_with_profiling(stop, true);
