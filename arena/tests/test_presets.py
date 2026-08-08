@@ -388,3 +388,92 @@ def test_capability_frozen_in_snapshot_survives_live_mutation(
             build,
             build,
         )
+
+
+def test_preset_editor_routes_and_create(
+    settings, app_client, engine_factory, registered
+):
+    from chessarena.models import EngineBuild, EnginePreset
+
+    with engine_factory() as session:
+        build = session.query(EngineBuild).first()
+        build.uci_options_schema = {
+            "UCI_LimitStrength": {"type": "check"},
+            "UCI_Elo": {"type": "spin", "min": 1350, "max": 2850},
+            "Hash": {"type": "spin", "min": 1, "max": 1024},
+        }
+        session.commit()
+        bid = build.build_id
+
+    page = app_client.get("/chessarena/admin/presets/new")
+    assert page.status_code == 200
+    assert bid in page.text
+
+    frag = app_client.get(
+        f"/chessarena/admin/presets/new/options?build_id={bid}"
+    )
+    assert frag.status_code == 200
+    assert 'name="option_UCI_Elo"' in frag.text
+    assert 'name="option_UCI_LimitStrength"' in frag.text
+    # Arena-owned runtime options are never shown in the editor.
+    assert "option_Hash" not in frag.text
+
+    token = app_client.cookies.get("arena_csrf")
+    resp = app_client.post(
+        "/chessarena/admin/presets",
+        data={
+            "_csrf_token": token,
+            "build_id": bid,
+            "display_name": "Custom Strength",
+            "option_UCI_LimitStrength": "on",
+            "option_UCI_Elo": "2100",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    with engine_factory() as session:
+        preset = (
+            session.query(EnginePreset)
+            .filter(EnginePreset.display_name == "Custom Strength")
+            .first()
+        )
+        assert preset is not None
+        assert preset.uci_options == {
+            "UCI_LimitStrength": True,
+            "UCI_Elo": 2100,
+        }
+        assert preset.category == "custom"
+        assert preset.enabled is True
+
+    # The new preset appears in the New Match engine selector.
+    r = app_client.get("/chessarena/admin/tournaments/new")
+    assert "Custom Strength" in r.text
+
+
+def test_preset_editor_rejects_invalid_submission(
+    app_client, engine_factory, registered
+):
+    from chessarena.models import EngineBuild
+
+    with engine_factory() as session:
+        build = session.query(EngineBuild).first()
+        build.uci_options_schema = {
+            "UCI_Elo": {"type": "spin", "min": 1350, "max": 2850},
+        }
+        session.commit()
+        bid = build.build_id
+
+    app_client.get("/chessarena/admin/presets/new")  # set csrf cookie
+    token = app_client.cookies.get("arena_csrf")
+    resp = app_client.post(
+        "/chessarena/admin/presets",
+        data={
+            "_csrf_token": token,
+            "build_id": bid,
+            "display_name": "Bad Preset",
+            "option_UCI_Elo": "1",  # below min
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 400

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..config import ENGINE_A_NAME, ENGINE_B_NAME, TIME_CONTROLS, Settings, get_settings
 from ..db import get_db
+import uuid
 from ..models import (
     CANCELLED,
     COMPLETED,
@@ -846,4 +847,125 @@ def admin_tournament_pairs_fragment(
             "runtime": runtime,
             "settings": request.app.state.settings,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# B4: dynamic EnginePreset editor (capability-driven)
+# ---------------------------------------------------------------------------
+
+def _configurable_schema(build) -> dict:
+    """The build's capability schema minus arena-owned runtime options."""
+    from ..services.cutechess import RESERVED_OPTIONS
+
+    schema = build.uci_options_schema or {}
+    return {
+        name: decl
+        for name, decl in schema.items()
+        if name not in RESERVED_OPTIONS
+    }
+
+
+@admin_router.get("/admin/presets/new", response_class=HTMLResponse)
+def admin_preset_new(request: Request, session: Session = Depends(get_db)):
+    templates = request.app.state.templates
+    builds = (
+        session.query(EngineBuild)
+        .filter(EngineBuild.enabled.is_(True))
+        .order_by(EngineBuild.engine_name, EngineBuild.created_at.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "preset_new.html",
+        {
+            "builds": builds,
+            "settings": request.app.state.settings,
+        },
+    )
+
+
+@admin_router.get("/admin/presets/new/options", response_class=HTMLResponse)
+def admin_preset_options_fragment(
+    request: Request,
+    build_id: str,
+    session: Session = Depends(get_db),
+):
+    """Dynamic UCI-option controls for the selected build (HTMX/fetch)."""
+    templates = request.app.state.templates
+    build = (
+        session.query(EngineBuild)
+        .filter(
+            EngineBuild.build_id == build_id,
+            EngineBuild.enabled.is_(True),
+            EngineBuild.uci_options_schema.isnot(None),
+        )
+        .first()
+    )
+    if build is None:
+        raise HTTPException(status_code=404, detail="build not available")
+    return templates.TemplateResponse(
+        request,
+        "_preset_options.html",
+        {
+            "options": _configurable_schema(build),
+            "settings": request.app.state.settings,
+        },
+    )
+
+
+@admin_router.post("/admin/presets", response_class=RedirectResponse)
+async def admin_preset_create(
+    request: Request, session: Session = Depends(get_db)
+):
+    from ..services.preset_validation import validate_preset_uci_options
+
+    form = dict(await request.form())
+    validate_csrf_token(request, form)
+    build_id = form.get("build_id", "")
+    display_name = (form.get("display_name") or "").strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="display name required")
+
+    build = (
+        session.query(EngineBuild)
+        .filter(
+            EngineBuild.build_id == build_id,
+            EngineBuild.enabled.is_(True),
+            EngineBuild.uci_options_schema.isnot(None),
+        )
+        .first()
+    )
+    if build is None:
+        raise HTTPException(status_code=404, detail="build not available")
+
+    submitted = {
+        name[len("option_"):]: value
+        for name, value in form.items()
+        if name.startswith("option_")
+    }
+    try:
+        uci_options = validate_preset_uci_options(
+            build.uci_options_schema or {}, submitted
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    preset_id = f"preset-{uuid.uuid4().hex[:10]}"
+    session.add(
+        EnginePreset(
+            preset_id=preset_id,
+            build_id=build.build_id,
+            display_name=display_name,
+            command_args=[],
+            uci_options=uci_options,
+            category="custom",
+            public_visible=True,
+            enabled=True,
+        )
+    )
+    session.commit()
+    return RedirectResponse(
+        url=f"{request.app.state.settings.base_path}/admin/tournaments/new",
+        status_code=303,
     )
