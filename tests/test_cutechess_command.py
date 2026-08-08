@@ -47,11 +47,13 @@ def _build(settings: Settings):
             "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
             "command_args": ["--profile", "current-final"],
             "uci_options": {},
+            "uci_options_schema": {"Hash": {"type": "spin", "min": 1, "max": 1024}},
         },
         engine_b={
             "binary_path": "/opt/chessarena/builds/20260805-bde9085-linux-x86_64/engine",
             "command_args": ["--profile", "current"],
             "uci_options": {},
+            "uci_options_schema": {"Hash": {"type": "spin", "min": 1, "max": 1024}},
         },
         time_control="180+2",
         hash_mb=32,
@@ -72,9 +74,10 @@ def test_pair_command_structure(settings: Settings):
     assert "arg=current-final" in joined
     assert "arg=current" in joined
     assert "tc=180+2" in joined
-    assert "option.Hash=32" in joined
-    # Threads is NOT forced via -each: ChessEngine does not declare a Threads
-    # UCI option, so cutechess would warn and break the stderr contract.
+    # B5: Hash is sent per-engine block because both engines declare it.
+    assert joined.count("option.Hash=32") == 2
+    # Threads is NOT sent: ChessEngine does not declare a Threads UCI option,
+    # so forcing it would make cutechess warn and break the stderr contract.
     assert "option.Threads" not in joined
     assert "-rounds 2" in joined
     assert "-repeat 2" in joined
@@ -158,6 +161,8 @@ def test_engine_specific_uci_options_scope_contract(settings: Settings):
             "display_name": "ChessEngine Production",
             "command_args": ["--profile", "current-final"],
             "uci_options": {},
+            # ChessEngine declares Hash but not Threads.
+            "uci_options_schema": {"Hash": {"type": "spin"}},
         },
         engine_b={
             "binary_path": "/opt/chessarena/builds/stockfish/stockfish",
@@ -167,9 +172,14 @@ def test_engine_specific_uci_options_scope_contract(settings: Settings):
                 "UCI_LimitStrength": True,
                 "UCI_Elo": 2000,
             },
+            "uci_options_schema": {
+                "Hash": {"type": "spin"},
+                "Threads": {"type": "spin"},
+            },
         },
         time_control="180+2",
         hash_mb=32,
+        threads=1,
         opening_epd=Path("/var/lib/chessarena/runs/t/opening.epd"),
         pgn_out=Path("/var/lib/chessarena/runs/t/match.pgn"),
     )
@@ -177,19 +187,24 @@ def test_engine_specific_uci_options_scope_contract(settings: Settings):
     sf_block = blocks["Stockfish Limited 2000"]
     ce_block = blocks["ChessEngine Production"]
 
-    # Stockfish's own block carries its UCI_Elo / UCI_LimitStrength.
+    # Stockfish's own block carries its UCI_Elo / UCI_LimitStrength plus the
+    # runtime Hash/Threads it declares.
     assert "option.UCI_Elo=2000" in sf_block
     assert "option.UCI_LimitStrength=true" in sf_block
+    assert "option.Hash=32" in sf_block
+    assert "option.Threads=1" in sf_block
     # The project engine's block must NOT carry Stockfish options.
     assert "option.UCI_Elo" not in " ".join(ce_block)
     assert "option.UCI_LimitStrength" not in " ".join(ce_block)
-    # -each must never carry engine-specific options.
+    # B5: Hash is sent to ChessEngine (it declares Hash) but not Threads.
+    assert "option.Hash=32" in ce_block
+    assert "option.Threads" not in ce_block
+    # -each must never carry engine-specific or runtime options.
     assert "UCI_Elo" not in " ".join(each)
     assert "UCI_LimitStrength" not in " ".join(each)
-    # -each only carries the common tc + Hash (Threads is not forced).
+    assert "option.Hash" not in " ".join(each)
+    assert "option.Threads" not in " ".join(each)
     assert "tc=180+2" in each
-    assert "option.Hash=32" in each
-    assert "option.Threads" not in each
 
 
 def test_no_shell_injection_possible(settings: Settings):
