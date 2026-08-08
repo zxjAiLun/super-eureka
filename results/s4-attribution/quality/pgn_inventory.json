@@ -1,0 +1,40 @@
+[
+  {
+    "path": "results\\s3-promotion\\run-001\\match.pgn",
+    "games": 106,
+    "pairs": [
+      [
+        "Current",
+        "CurrentFinal"
+      ],
+      [
+        "CurrentFinal",
+        "Current"
+      ]
+    ],
+    "results": {
+      "1/2-1/2": 16,
+      "0-1": 45,
+      "1-0": 45
+    }
+  },
+  {
+    "path": "results\\s3-final\\match\\match.pgn",
+    "games": 100,
+    "pairs": [
+      [
+        "Current",
+        "CurrentFinal"
+      ],
+      [
+        "CurrentFinal",
+        "Current"
+      ]
+    ],
+    "results": {
+      "1-0": 45,
+      "0-1": 36,
+      "1/2-1/2": 19
+    }
+  }
+]

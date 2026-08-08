@@ -1,0 +1,22 @@
+{
+  "git_sha": "6c7efe759327aed570176d22fd85d9cceb60b3f7",
+  "engine": "target\\release\\chess-engine-demo.exe",
+  "engine_sha256": "0e33e97db9cba206970756924fe120415b914402631adddbceeab17a969a0090",
+  "stockfish": "tools\\.cache\\stockfish-18\\stockfish\\stockfish-windows-x86-64-avx2.exe",
+  "teacher_multipv": 3,
+  "teacher_nodes": 60000,
+  "normal_budgets_ms": [
+    100,
+    500,
+    1000
+  ],
+  "threshold_cp": 50,
+  "sampled": 700,
+  "disagreements": 105,
+  "classification": {
+    "SEARCH_SUSPECT": 23,
+    "EVAL_SUSPECT": 45,
+    "UNRESOLVED": 32,
+    "HORIZON_SUSPECT": 5
+  }
+}

@@ -344,8 +344,9 @@ const FEATURE_QSEE: u32 = 1 << 3;
 
 impl SearchFeaturePolicy {
     /// Resolve the effective policy for `profile`, applying diagnostic
-    /// overrides. Never called on the production UCI path (diagnostics are
-    /// `None` there), so CurrentFinal behavior is unchanged.
+    /// overrides. Called at the start of every search (including the UCI
+    /// production path, which always passes `diagnostics = None`), so
+    /// CurrentFinal behavior is unchanged when no diagnostics are set.
     pub(crate) fn for_profile(profile: SearchProfile, diag: Option<&SearchDiagnostics>) -> Self {
         let d = diag.copied().unwrap_or_default();
         Self {
