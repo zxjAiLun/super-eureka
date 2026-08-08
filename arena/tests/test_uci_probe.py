@@ -15,7 +15,6 @@ import pytest
 
 from chessarena.services.cutechess import (
     RESERVED_OPTIONS,
-    each_option_args,
     engine_option_args,
     validate_preset_options,
 )
@@ -116,14 +115,31 @@ def test_uci_option_args_are_sorted_and_bool_lowercase():
     assert "option.Ponder=false" in args
     assert "option.UCI_Elo=2000" in args
 
-    common = each_option_args(hash_mb=32, threads=1)
-    assert common == ["option.Hash=32"]
+
+def test_runtime_options_sent_per_capability():
+    """B5: Hash/Threads are sent per-engine only when the engine's probed
+    schema declares them."""
+    engine = {
+        "uci_options": {"UCI_Elo": 2000},
+        "uci_options_schema": {"Hash": {"type": "spin"}, "Threads": {"type": "spin"}},
+    }
+    args = engine_option_args(engine, hash_mb=32, threads=1)
+    assert "option.UCI_Elo=2000" in args
+    assert "option.Hash=32" in args
+    assert "option.Threads=1" in args
+
+    # An engine that does not declare Hash/Threads gets neither.
+    plain = {"uci_options": {}, "uci_options_schema": {}}
+    args2 = engine_option_args(plain, hash_mb=32, threads=1)
+    assert args2 == []
 
 
 def test_reserved_options_rejected():
     with pytest.raises(Exception, match="reserved options"):
         validate_preset_options({"UCI_LimitStrength": True, "Hash": 64})
-    assert RESERVED_OPTIONS == frozenset({"Hash", "Threads", "Ponder"})
+    assert RESERVED_OPTIONS == frozenset(
+        {"Hash", "Threads", "Ponder", "OwnBook", "UCI_Chess960"}
+    )
     # Non-conflicting preset options pass.
     validate_preset_options({"UCI_LimitStrength": True, "UCI_Elo": 2000})
 

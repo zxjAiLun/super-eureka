@@ -236,6 +236,13 @@ def test_snapshot_hash_threads_used_in_command_and_verifier(
         t, pair, run_dir = _enter(session)
         t.config_snapshot["hash_mb"] = 16
         t.config_snapshot["threads"] = 2
+        # Give the engines declared Hash/Threads capabilities so the runtime
+        # options are actually sent (capability-aware, B5).
+        for build in session.query(EngineBuild):
+            build.uci_options_schema = {
+                "Hash": {"type": "spin", "min": 1, "max": 1024},
+                "Threads": {"type": "spin", "min": 1, "max": 16},
+            }
         session.commit()
 
         scheduler._prepare_and_launch(session, t, pair, run_dir)
@@ -244,11 +251,12 @@ def test_snapshot_hash_threads_used_in_command_and_verifier(
 
         command = json.loads((run_dir / "command.json").read_text(encoding="utf-8"))
         joined = " ".join(command["argv"])
-        # Hash must come from the frozen snapshot (16), not live settings (32).
+        # Hash/Threads must come from the frozen snapshot (16/2), not the
+        # live Settings (32/1).
         assert "option.Hash=16" in joined
-        # Threads is not forced (ChessEngine lacks the option); it is frozen
-        # as snapshot metadata only.
-        assert "option.Threads" not in joined
+        assert "option.Threads=2" in joined
+        assert "option.Hash=32" not in joined
+        assert "option.Threads=1" not in joined
         assert command["hash_mb"] == 16
         assert command["threads"] == 2
 

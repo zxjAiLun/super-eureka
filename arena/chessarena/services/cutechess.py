@@ -48,48 +48,43 @@ def _option_value(value: Any) -> str | None:
     return str(value)
 
 
-RESERVED_OPTIONS = frozenset({"Hash", "Threads", "Ponder"})
+RESERVED_OPTIONS = frozenset(
+    {"Hash", "Threads", "Ponder", "OwnBook", "UCI_Chess960"}
+)
 
 
-def engine_option_args(engine: Dict[str, Any]) -> List[str]:
-    """Engine-specific UCI ``option.<name>=<value>`` lines.
+def engine_option_args(
+    engine: Dict[str, Any], *, hash_mb: int | None = None, threads: int | None = None
+) -> List[str]:
+    """Engine-specific UCI ``option.<name>=<value>`` lines for the engine's
+    OWN ``-engine`` block.
 
-    These belong to the engine's OWN ``-engine`` block (cutechess applies
-    them to that engine only).  Putting them under ``-each`` would apply
-    e.g. Stockfish's UCI_Elo to the opponent as well, which breaks
-    different-strength slices.  Sorted by name for determinism; booleans
-    render as true/false.
+    Preset ``uci_options`` always apply.  The arena-owned runtime options
+    (Hash, Threads) are sent per-engine ONLY when that engine's probed
+    capability schema declares them — never via ``-each`` (which would force
+    options onto engines that don't support them).  Sorted by name for
+    determinism; booleans render as true/false.
     """
-    merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
     args: List[str] = []
+    merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
     for name in sorted(merged):
         rendered = _option_value(merged[name])
         if rendered is not None:
             args.append(f"option.{name}={rendered}")
+    schema = engine.get("uci_options_schema") or {}
+    if hash_mb is not None and "Hash" in schema:
+        args.append(f"option.Hash={hash_mb}")
+    if threads is not None and "Threads" in schema:
+        args.append(f"option.Threads={threads}")
     return args
-
-
-def each_option_args(hash_mb: int, threads: int) -> List[str]:
-    """Common UCI options applied to EVERY engine via ``-each``.
-
-    Only options every registered engine declares may live here.  Hash is
-    supported by both ChessEngine and Stockfish; Threads is NOT — ChessEngine
-    does not declare a Threads UCI option, so forcing it via -each produces a
-    cutechess warning ("doesn't have option Threads") that breaks the
-    verifier's stderr contract.  Engines therefore run with their default
-    thread count (1 for both), recorded in the snapshot as metadata only.
-    """
-    return [
-        f"option.Hash={hash_mb}",
-    ]
 
 
 def validate_preset_options(uci_options: dict) -> None:
     """Reject presets that try to own runtime-reserved options.
 
-    Hash/Threads/Ponder are owned by the arena runtime; a preset must not
-    override them, otherwise the cutechess command would carry duplicate
-    options with unclear precedence.
+    Hash/Threads/Ponder/OwnBook/UCI_Chess960 are owned by the arena runtime
+    (capability-aware); a preset must not override them, otherwise the
+    cutechess command would carry duplicate options with unclear precedence.
     """
     conflicts = sorted(RESERVED_OPTIONS & set(uci_options))
     if conflicts:
@@ -121,11 +116,11 @@ def build_pair_command(
         "-engine",
         "name=" + a_name,
         *engine_argv(engine_a),
-        *engine_option_args(engine_a),
+        *engine_option_args(engine_a, hash_mb=hash_mb, threads=threads),
         "-engine",
         "name=" + b_name,
         *engine_argv(engine_b),
-        *engine_option_args(engine_b),
+        *engine_option_args(engine_b, hash_mb=hash_mb, threads=threads),
         "-variant",
         "standard",
         "-openings",
@@ -135,7 +130,6 @@ def build_pair_command(
         "policy=default",
         "-each",
         f"tc={time_control}",
-        *each_option_args(hash_mb, threads),
         # One opening position per pair; -repeat 2 plays it twice with the
         # sides swapped, giving exactly two games with strict color reversal.
         "-rounds",
