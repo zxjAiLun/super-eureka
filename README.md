@@ -51,15 +51,19 @@ cargo run --release -- bench profile --nodes 100000
   Depth 7–8 瓶颈，不把计数或节点数解释成 Elo。
 - 可选 `--mode disabled|cold|warm|all`、`--repeat N`、`--nodes N`、`--depth N`、
   `--movetime MS` 和 profile 专用的 `--fen FEN`，以及
-  `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current`、
+  `--profile reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-final`、
   `current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning`，
   或一个明确的累计 `current-aspiration[-lmr[-futility[-see]]]` profile。
-- `--profile` 选择搜索配置：**默认 `reference`**，使用 M4.0 的搜索路径；`m4.1` 是
-  M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
-  `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选；`current` 是已批准的
-  M4.1 排序 + PVS + 已批准的 specialized qsearch movegen 生产路径；SEE pruning、
-  fast SEE、aspiration、LMR、null 和 futility 仍关闭。`current-aspiration-*` 是
-  累计 tournament candidate profile；没有现有 profile 同时包含 null 与全部累计功能。
+- `--profile` 选择搜索配置：**无参数启动时默认 `current-final`**（S3-PROMOTION 批准的生产组合）；
+  显式 `--profile current-final` 等价；`--profile current` 是历史生产基线 / 回退路径，
+  保留用于历史复现和 A/B 对照，不能删除。`reference` 是 M4.0 的教学参考路径；`m4.1`
+  是 M4.1 完整窗口路径；`pvs` 是 M4.1 + PVS 的独立基线；`see`、`aspiration`、
+  `lmr`、`null`、`futility` 分别只打开一个 SEARCH 1 候选。`current-final` 的组合为
+  Current 的 PVS + D1.2 specialized qsearch movegen + aspiration + conservative LMR
+  + verified null-move + shallow futility + conservative qsearch SEE pruning，均已通过
+  S3-PROMOTION SPRT；E2 / threat-aware / forcing extensions 不在此组合内。
+  `current-aspiration-*` 是累计 tournament candidate profile；没有现有 profile 同时
+  包含 null 与全部累计功能。
   `current-threat-aware` 是 S2.1 的候选 profile，增加有界 king-danger 评价、检查/单一
   应将扩展、前两层 qsearch 检查和威胁感知排序；不改变 `Current`，也不打开 LMR、null、
   futility 或 SEE pruning。`current-threat-aware-no-qchecks` 与
@@ -72,8 +76,10 @@ cargo run --release -- bench profile --nodes 100000
 完整环境、命令与数值结果见 `docs/benchmarks/m4.0-search-baseline.md`；profiling
 样本见 `docs/benchmarks/perf-profiling.md`；SEE/qsearch 收缩候选的独立记录见
 `docs/benchmarks/search-see-qsearch.md`；aspiration/LMR/null/futility 候选的
-记录见 `docs/benchmarks/search-pruning-candidates.md`。**M4.0 只建立测量基线；
-所有这些搜索增强目前仍未通过性能/Elo 门禁，不是已接受的搜索基线。**
+记录见 `docs/benchmarks/search-pruning-candidates.md`。**M4.0 只建立测量基线，
+不改变搜索语义。** 上述单点搜索增强最初以独立候选形式验证，并最终以 `current-final`
+组合通过 S3-PROMOTION 的正式 SPRT 后成为默认生产配置；`reference` / `current` 等
+profile 仍保留为历史对照与回退入口，不代表它们仍是当前生产语义。
 
 ## E1 UCI protocol smoke
 
@@ -308,8 +314,9 @@ bestmove b1c3
   `current-aspiration-*` candidates 提供 aspiration、受限 LMR、验证式 null probe
   和浅层 futility；批准的 `current` 仍关闭这些开关。见
   [`search-pruning-candidates.md`](docs/benchmarks/search-pruning-candidates.md)。
-- **Milestone 4**：高级增强（确认瓶颈后再加，且一次只加一个并做对照测试）——
-  aspiration window、PVS、null-move pruning、LMR、SEE、futility pruning。Bitboard 不急。
+- **Milestone 4（已完成，见 S3-PROMOTION）**：aspiration、PVS、null-move pruning、
+  LMR、SEE、futility pruning 以 `current-final` 组合通过正式 SPRT 后成为默认生产配置。
+  后续不继续直接叠加 pruning；见 `handoff.md` 的 S4 方向。
 
 ## 版本变更
 
