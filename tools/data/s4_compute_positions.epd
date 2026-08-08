@@ -1,0 +1,34 @@
+# S4.0A Compute Attribution position corpus (2026-08-08)
+# 30 legal, non-terminal positions across 7 coarse classes.
+# Validated with python-chess (is_valid && !is_checkmate && !is_stalemate && legal_moves).
+# Line format: <fen> ; id=<id> ; class=<class>
+rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id=opening_01 ; class=opening
+rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id=opening_02 ; class=opening
+rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id=opening_03 ; class=opening
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4 ; id=opening_04 ; class=opening
+r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4 ; id=opening_05 ; class=opening
+r1bq1rk1/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 6 6 ; id=mid_01 ; class=normal_middlegame
+r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5 ; id=mid_02 ; class=normal_middlegame
+r1bq1rk1/ppppbppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 2 6 ; id=mid_03 ; class=normal_middlegame
+r1bq1rk1/ppp2ppp/2np1n2/4p3/2BPP3/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 7 ; id=mid_04 ; class=normal_middlegame
+r3k2r/ppp2ppp/2n1b3/3qp3/3PP3/2N1B3/PPP2PPP/R3K2R w KQkq - 0 1 ; id=mid_05 ; class=normal_middlegame
+r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 6 5 ; id=mid_06 ; class=normal_middlegame
+r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9 ; id=mid_07 ; class=normal_middlegame
+r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5 ; id=mid_08 ; class=normal_middlegame
+rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8 ; id=tac_01 ; class=tactical_middlegame
+r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1 ; id=tac_02 ; class=tactical_middlegame
+r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1 ; id=tac_03 ; class=tactical_middlegame
+2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16 ; id=tac_04 ; class=tactical_middlegame
+r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19 ; id=tac_05 ; class=tactical_middlegame
+rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2 ; id=closed_01 ; class=closed_middlegame
+rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6 ; id=closed_02 ; class=closed_middlegame
+rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6 ; id=closed_03 ; class=closed_middlegame
+r1bq1rk1/ppp1bppp/2np1n2/4p3/2P1P3/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 7 ; id=closed_04 ; class=closed_middlegame
+r3k2r/ppp2ppp/2n1b3/3p4/3P4/2N1B3/PPP2PPP/R3K2R w KQkq - 0 7 ; id=qless_01 ; class=queenless_middlegame
+2r3k1/1p3ppp/p1n1p3/8/4P3/1NN1B3/PPP2PPP/R2R2K1 w - - 0 12 ; id=qless_02 ; class=queenless_middlegame
+r4rk1/pp3ppp/2p2n2/3p4/3P4/1PN1PN2/P1P2PPP/2R1R1K1 w - - 0 12 ; id=qless_03 ; class=queenless_middlegame
+7k/8/8/8/8/8/3QK3/8 w - - 0 1 ; id=piece_01 ; class=piece_endgame
+7k/8/8/8/8/8/3RK3/8 w - - 0 1 ; id=piece_02 ; class=piece_endgame
+8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1 ; id=piece_03 ; class=piece_endgame
+8/8/8/8/3k4/8/PPP5/4K3 w - - 0 1 ; id=pawn_01 ; class=pawn_endgame
+4k3/8/8/8/8/4p3/4P3/4K3 w - - 0 1 ; id=pawn_02 ; class=pawn_endgame

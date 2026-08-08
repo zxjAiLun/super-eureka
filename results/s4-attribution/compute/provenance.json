@@ -1,0 +1,17 @@
+{
+  "git_sha": "ed8235571ec6eec85dfa3aff00750558a6623d54",
+  "engine": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+  "engine_sha256": "9821fe413d31bf0cc180367d9c344e8f6e0ac772d3418c48c2373c825c4d702e",
+  "profile": "current-final",
+  "hash_mb": 16,
+  "threads": 1,
+  "tt": "cold",
+  "budgets_ms": [
+    100,
+    500,
+    1000,
+    3000
+  ],
+  "repeat": 3,
+  "position_count": 30
+}
