@@ -93,9 +93,11 @@ def _engine_cfg_from_snapshot(
         "binary_path": build.binary_path,
         "binary_sha256": side.get("binary_sha256") or build.binary_sha256,
         "git_sha": side.get("git_sha") or build.git_sha,
-        # Capability schema bound to this binary, so the command builder can
-        # send Hash/Threads per-engine only when the engine declares them.
-        "uci_options_schema": build.uci_options_schema or {},
+        # Capability schema: prefer the one frozen in the tournament snapshot
+        # (B3c); fall back to the live build only for pre-freeze snapshots.
+        "uci_options_schema": (
+            side.get("uci_options_schema") or build.uci_options_schema or {}
+        ),
     }
     if "command_args" in side:
         return {

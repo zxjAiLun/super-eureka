@@ -342,3 +342,49 @@ def test_verifier_rebuild_accepts_empty_command_args(
             build,
             build,
         )
+
+
+def test_capability_frozen_in_snapshot_survives_live_mutation(
+    settings, scheduler, engine_factory, tournament_factory
+):
+    """B3c: the command and verifier rebuild use the capability schema frozen
+    at tournament creation, not the live EngineBuild row (which may be
+    re-probed/backfilled later)."""
+    import json
+
+    from chessarena.models import EngineBuild
+
+    tid, _enter = _launch_context(engine_factory, tournament_factory)
+    with engine_factory() as session:
+        t, pair, run_dir = _enter(session)
+        schema_a = {"Hash": {"type": "spin", "min": 1, "max": 1024}}
+        t.config_snapshot["engine_a"]["uci_options_schema"] = schema_a
+        t.config_snapshot["engine_b"]["uci_options_schema"] = schema_a
+        session.commit()
+
+        # Mutate the live build after the snapshot was frozen.
+        for build in session.query(EngineBuild):
+            build.uci_options_schema = {}
+        session.commit()
+
+        scheduler._prepare_and_launch(session, t, pair, run_dir)
+        if scheduler.active_proc is not None:
+            scheduler.active_proc.terminate()
+
+        command = json.loads((run_dir / "command.json").read_text(encoding="utf-8"))
+        joined = " ".join(command["argv"])
+        # Hash comes from frozen schema A, even though live schema was emptied.
+        assert "option.Hash=32" in joined
+
+        from chessarena.services.verifier import _check_command_provenance
+
+        build = session.query(EngineBuild).first()
+        # Rebuild must also use frozen A and therefore match the command.
+        _check_command_provenance(
+            settings,
+            run_dir / "command.json",
+            t.config_snapshot,
+            run_dir,
+            build,
+            build,
+        )

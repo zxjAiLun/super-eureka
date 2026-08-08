@@ -56,8 +56,12 @@ def health(
         .scalar()
     )
 
+    from ..services.capabilities import enabled_builds_without_uci_schema
+
+    capability_gap = enabled_builds_without_uci_schema(session)
+
     status = "ok"
-    if not db_ok or worker != "ok" or cutechess != "ok":
+    if not db_ok or worker != "ok" or cutechess != "ok" or capability_gap > 0:
         status = "degraded"
 
     return HealthOut(
@@ -66,4 +70,5 @@ def health(
         worker_heartbeat=worker,
         cutechess=cutechess,
         active_tournament_id=active,
+        uci_capability_gap=capability_gap,
     )

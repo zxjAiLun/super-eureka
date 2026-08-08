@@ -27,8 +27,12 @@ from typing import Optional
 _OPTION_LINE = re.compile(
     r"^option name (?P<name>.+?)\s+type\s+(?P<type>\w+)\s*(?P<attrs>.*)$"
 )
-_VAR_RE = re.compile(r"\bvar\s+(\S+)")
-_DEFAULT_TOKEN_RE = re.compile(r"\bdefault\s+(\S+)")
+
+# A clause value runs to the next clause keyword (var/default/min/max) or the
+# end of the line — so combo values and string defaults may contain spaces.
+_NEXT_CLAUSE = r"(?=\s+var\s|\s+default\s|\s+min\s|\s+max\s|$)"
+_DEFAULT_RE = re.compile(r"\bdefault\s+(.+?)" + _NEXT_CLAUSE)
+_VAR_RE = re.compile(r"\bvar\s+(.+?)" + _NEXT_CLAUSE)
 _MIN_RE = re.compile(r"\bmin\s+(-?\d+)")
 _MAX_RE = re.compile(r"\bmax\s+(-?\d+)")
 
@@ -36,26 +40,27 @@ _MAX_RE = re.compile(r"\bmax\s+(-?\d+)")
 def _parse_option_attrs(typ: str, attrs: str):
     """Extract default/min/max/var from the tail of an option line.
 
-    combo ``var`` values are repeated clauses (``var Solid var Normal ...``);
-    ``string`` defaults may contain spaces (protocol permits them up to the
-    end of the line), other types use a single token.
+    combo ``var`` values may contain spaces and run until the next
+    ``var``/``default``/``min``/``max`` keyword; ``string`` defaults may
+    contain spaces up to the end of the line; spin uses a single token
+    followed by min/max.
     """
-    vars_ = _VAR_RE.findall(attrs)
-    rest = _VAR_RE.sub("", attrs)
+    attrs = attrs.strip()
     default: Optional[str] = None
     if typ == "string":
-        m = re.search(r"\bdefault\s+(.*?)\s*$", rest)
+        m = re.search(r"\bdefault\s+(.*?)\s*$", attrs)
         if m:
             default = m.group(1).strip() or None
     else:
-        m = _DEFAULT_TOKEN_RE.search(rest)
+        m = _DEFAULT_RE.search(attrs)
         if m:
-            default = m.group(1)
+            default = m.group(1).strip()
+    vars_ = [v.strip() for v in _VAR_RE.findall(attrs)]
     lo = hi = None
-    m = _MIN_RE.search(rest)
+    m = _MIN_RE.search(attrs)
     if m:
         lo = int(m.group(1))
-    m = _MAX_RE.search(rest)
+    m = _MAX_RE.search(attrs)
     if m:
         hi = int(m.group(1))
     return default, lo, hi, vars_

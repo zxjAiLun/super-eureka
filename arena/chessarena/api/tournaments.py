@@ -260,6 +260,10 @@ def create_tournament(
             "profile": profile,
             "command_args": args,
             "uci_options": dict(preset.uci_options or {}),
+            # Freeze the engine's capability schema into the tournament
+            # snapshot so command construction and verifier rebuild are
+            # immune to later live backfill/re-probe of the EngineBuild row.
+            "uci_options_schema": build.uci_options_schema or {},
             "git_sha": build.git_sha,
             "binary_sha256": build.binary_sha256,
         }

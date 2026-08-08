@@ -138,6 +138,10 @@ class HealthOut(BaseModel):
     worker_heartbeat: str
     cutechess: str
     active_tournament_id: Optional[str] = None
+    # Deployment gate: enabled builds whose capability schema is still NULL
+    # (migration 0006 backfill pending).  >0 means the worker must not start
+    # new tournaments.
+    uci_capability_gap: int = 0
 
 
 # ---------------------------------------------------------------------------

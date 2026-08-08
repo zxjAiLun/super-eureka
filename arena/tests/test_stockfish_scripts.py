@@ -324,3 +324,74 @@ def test_pgn_display_names_from_presets(settings, engine_factory, app_client):
     }
     # Historical audit profile column records the external preset id.
     assert snapshot["engine_b"]["profile"] == "preset:stockfish-limited-2000"
+
+
+def test_backfill_populates_null_schema(settings, engine_factory, tmp_path):
+    binary = _stage_binary(tmp_path)
+    sha = _sha256(binary)
+    with engine_factory() as session:
+        session.add(
+            EngineBuild(
+                build_id="backfill-test",
+                engine_name="FakeStockfish",
+                git_sha="deadbeef",
+                binary_path=str(binary),
+                binary_sha256=sha,
+                platform="linux-x86_64",
+                supported_profiles=[],
+                manifest={},
+                uci_options_schema=None,
+                enabled=True,
+            )
+        )
+        session.commit()
+    result = _run_script(
+        "probe_build_capabilities.py", "backfill-test",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "backfilled backfill-test" in result.stdout
+    with engine_factory() as session:
+        build = (
+            session.query(EngineBuild)
+            .filter(EngineBuild.build_id == "backfill-test")
+            .one()
+        )
+        schema = build.uci_options_schema or {}
+        assert schema["Style"]["type"] == "combo"
+        assert schema["Style"]["vars"] == ["Solid", "Normal", "Risky"]
+        assert "Hash" in schema
+        assert "My Custom Option" in schema
+
+
+def test_backfill_rejects_sha_mismatch(settings, engine_factory, tmp_path):
+    binary = _stage_binary(tmp_path)
+    with engine_factory() as session:
+        session.add(
+            EngineBuild(
+                build_id="backfill-mismatch",
+                engine_name="FakeStockfish",
+                git_sha="deadbeef",
+                binary_path=str(binary),
+                binary_sha256="0" * 64,
+                platform="linux-x86_64",
+                supported_profiles=[],
+                manifest={},
+                uci_options_schema=None,
+                enabled=True,
+            )
+        )
+        session.commit()
+    result = _run_script(
+        "probe_build_capabilities.py", "backfill-mismatch",
+        env_extra={"ARENA_DB_URL": settings.db_url},
+    )
+    assert result.returncode != 0
+    assert "SHA mismatch" in result.stderr
+    with engine_factory() as session:
+        build = (
+            session.query(EngineBuild)
+            .filter(EngineBuild.build_id == "backfill-mismatch")
+            .one()
+        )
+        assert build.uci_options_schema is None

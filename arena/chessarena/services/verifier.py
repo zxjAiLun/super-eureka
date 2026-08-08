@@ -338,7 +338,10 @@ def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
             "display_name": snap.get("display_name"),
             "command_args": args,
             "uci_options": dict(snap.get("uci_options") or {}),
-            "uci_options_schema": build.uci_options_schema or {},
+            # Frozen snapshot capability wins (B3c); live build is fallback.
+            "uci_options_schema": (
+                snap.get("uci_options_schema") or build.uci_options_schema or {}
+            ),
         }
 
     expected = build_pair_command(

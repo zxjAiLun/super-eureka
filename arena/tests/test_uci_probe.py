@@ -219,3 +219,82 @@ def test_probe_captures_full_option_schema():
     assert opts["My Custom Option"].default == "some default value"
     assert opts["Move Overhead"].min == 0
     assert opts["Move Overhead"].max == 5000
+
+
+def test_parse_option_combo_var_with_spaces():
+    opt = parse_option_line(
+        "option name Style type combo default Normal var Very Solid var Normal var Very Risky"
+    )
+    assert opt is not None
+    assert opt.type == "combo"
+    assert opt.default == "Normal"
+    assert opt.vars == ["Very Solid", "Normal", "Very Risky"]
+
+
+def test_parse_option_spin_default_still_single_token():
+    opt = parse_option_line(
+        "option name Move Overhead type spin default 10 min 0 max 5000"
+    )
+    assert opt.default == "10"
+    assert opt.min == 0 and opt.max == 5000
+
+
+def test_parse_option_string_default_with_embedded_keyword():
+    opt = parse_option_line(
+        "option name Notes type string default default value here"
+    )
+    assert opt.type == "string"
+    assert opt.default == "default value here"
+
+
+def test_runtime_policy_options_sent_only_when_declared():
+    engine = {
+        "uci_options": {},
+        "uci_options_schema": {
+            "Ponder": {"type": "check"},
+            "OwnBook": {"type": "check"},
+            "UCI_Chess960": {"type": "check"},
+        },
+    }
+    args = engine_option_args(
+        engine, ponder=False, ownbook=False, chess960=False
+    )
+    assert "option.Ponder=false" in args
+    assert "option.OwnBook=false" in args
+    assert "option.UCI_Chess960=false" in args
+
+
+def test_runtime_policy_options_omitted_when_not_declared():
+    engine = {"uci_options": {}, "uci_options_schema": {}}
+    args = engine_option_args(
+        engine, hash_mb=32, threads=1, ponder=False, ownbook=False,
+        chess960=False,
+    )
+    assert args == []
+
+
+def test_hash_out_of_range_rejected_before_launch():
+    engine = {
+        "uci_options": {},
+        "uci_options_schema": {"Hash": {"type": "spin", "min": 1, "max": 1024}},
+    }
+    with pytest.raises(Exception, match="above engine maximum"):
+        engine_option_args(engine, hash_mb=2048)
+
+
+def test_threads_under_min_rejected():
+    engine = {
+        "uci_options": {},
+        "uci_options_schema": {"Threads": {"type": "spin", "min": 1, "max": 8}},
+    }
+    with pytest.raises(Exception, match="below engine minimum"):
+        engine_option_args(engine, threads=0)
+
+
+def test_wrong_reserved_option_type_rejected():
+    engine = {
+        "uci_options": {},
+        "uci_options_schema": {"Hash": {"type": "check"}},
+    }
+    with pytest.raises(Exception, match="declares type"):
+        engine_option_args(engine, hash_mb=32)

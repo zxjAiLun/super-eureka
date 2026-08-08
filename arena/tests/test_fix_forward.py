@@ -610,6 +610,17 @@ def test_force_cancel_across_real_processes(settings, engine_factory,
     try:
         tournament_id = tournament_factory(status="QUEUED", pairs=1)
 
+        # The worker refuses to start while any enabled build lacks a
+        # capability schema (deployment gate); backfill it first.
+        from chessarena.models import EngineBuild
+
+        with engine_factory() as session:
+            for build in session.query(EngineBuild):
+                build.uci_options_schema = {
+                    "Hash": {"type": "spin", "min": 1, "max": 1024}
+                }
+            session.commit()
+
         # Real worker process (API and worker share only the database).
         env = dict(os.environ)
         env["PYTHONDONTWRITEBYTECODE"] = "1"
