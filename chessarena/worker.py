@@ -55,6 +55,22 @@ def _heartbeat(session_factory, scheduler: Scheduler) -> None:
 
 
 def run_worker(settings: Settings, session_factory) -> int:
+    # Deployment gate (P4.F1 B3b): refuse to start new tournaments while any
+    # enabled build lacks a probed capability schema — running matches would
+    # silently omit runtime options the frozen snapshot expects.
+    with session_factory() as session:
+        from .services.capabilities import enabled_builds_without_uci_schema
+
+        gap = enabled_builds_without_uci_schema(session)
+    if gap > 0:
+        logger.error(
+            "refusing to start: %d enabled build(s) have NULL "
+            "uci_options_schema; run scripts/probe_build_capabilities.py "
+            "to backfill before starting matches",
+            gap,
+        )
+        return 1
+
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 

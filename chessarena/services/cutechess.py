@@ -54,16 +54,24 @@ RESERVED_OPTIONS = frozenset(
 
 
 def engine_option_args(
-    engine: Dict[str, Any], *, hash_mb: int | None = None, threads: int | None = None
+    engine: Dict[str, Any],
+    *,
+    hash_mb: int | None = None,
+    threads: int | None = None,
+    ponder: bool | None = None,
+    ownbook: bool | None = None,
+    chess960: bool | None = None,
 ) -> List[str]:
     """Engine-specific UCI ``option.<name>=<value>`` lines for the engine's
     OWN ``-engine`` block.
 
     Preset ``uci_options`` always apply.  The arena-owned runtime options
-    (Hash, Threads) are sent per-engine ONLY when that engine's probed
-    capability schema declares them — never via ``-each`` (which would force
-    options onto engines that don't support them).  Sorted by name for
-    determinism; booleans render as true/false.
+    (Hash, Threads, Ponder, OwnBook, UCI_Chess960) are sent per-engine ONLY
+    when that engine's probed capability schema declares them — never via
+    ``-each``.  Every runtime option is type-checked against the schema and
+    spin values are range-checked; violations fail closed before the process
+    is launched.  Sorted by name for determinism; booleans render as true/
+    false.
     """
     args: List[str] = []
     merged: Dict[str, Any] = dict(engine.get("uci_options") or {})
@@ -71,11 +79,39 @@ def engine_option_args(
         rendered = _option_value(merged[name])
         if rendered is not None:
             args.append(f"option.{name}={rendered}")
+
     schema = engine.get("uci_options_schema") or {}
-    if hash_mb is not None and "Hash" in schema:
-        args.append(f"option.Hash={hash_mb}")
-    if threads is not None and "Threads" in schema:
-        args.append(f"option.Threads={threads}")
+    # (name, expected UCI type, arena-managed value)
+    runtime: List[tuple[str, str, Any]] = [
+        ("Hash", "spin", hash_mb),
+        ("Threads", "spin", threads),
+        ("Ponder", "check", ponder),
+        ("OwnBook", "check", ownbook),
+        ("UCI_Chess960", "check", chess960),
+    ]
+    for name, expected_type, value in runtime:
+        if value is None:
+            continue
+        decl = schema.get(name)
+        if decl is None:
+            continue  # engine does not declare it -> omit
+        declared = decl.get("type")
+        if declared != expected_type:
+            raise CutechessLaunchError(
+                f"{name}: engine declares type {declared!r}, "
+                f"expected {expected_type!r}"
+            )
+        if expected_type == "spin":
+            lo, hi = decl.get("min"), decl.get("max")
+            if lo is not None and int(value) < lo:
+                raise CutechessLaunchError(
+                    f"{name}={value} below engine minimum {lo}"
+                )
+            if hi is not None and int(value) > hi:
+                raise CutechessLaunchError(
+                    f"{name}={value} above engine maximum {hi}"
+                )
+        args.append(f"option.{name}={_option_value(value)}")
     return args
 
 
@@ -103,11 +139,17 @@ def build_pair_command(
     opening_epd: Path,
     pgn_out: Path,
     threads: int = 1,
+    ponder: bool = False,
+    ownbook: bool = False,
+    chess960: bool = False,
 ) -> List[str]:
     """Build the cutechess-cli argv for one 2-game color-swapped pair.
 
     The ``name=`` values are the preset display names (PGN-visible) with the
     legacy EngineA/EngineB constants as fallback for pre-preset tournaments.
+    Arena runtime policy: Ponder=false, OwnBook=false (the arena controls
+    the opening), UCI_Chess960=false for the standard variant — sent only to
+    engines that declare them.
     """
     a_name = engine_a.get("display_name") or ENGINE_A_NAME
     b_name = engine_b.get("display_name") or ENGINE_B_NAME
@@ -116,13 +158,27 @@ def build_pair_command(
         "-engine",
         "name=" + a_name,
         *engine_argv(engine_a),
-        *engine_option_args(engine_a, hash_mb=hash_mb, threads=threads),
+        *engine_option_args(
+            engine_a,
+            hash_mb=hash_mb,
+            threads=threads,
+            ponder=ponder,
+            ownbook=ownbook,
+            chess960=chess960,
+        ),
         "-engine",
         "name=" + b_name,
         *engine_argv(engine_b),
-        *engine_option_args(engine_b, hash_mb=hash_mb, threads=threads),
+        *engine_option_args(
+            engine_b,
+            hash_mb=hash_mb,
+            threads=threads,
+            ponder=ponder,
+            ownbook=ownbook,
+            chess960=chess960,
+        ),
         "-variant",
-        "standard",
+        "chess960" if chess960 else "standard",
         "-openings",
         f"file={opening_epd}",
         "format=epd",
