@@ -93,7 +93,7 @@ SUMMARY_METRICS = (
     "completed_depth",
     "nodes",
     "nps",
-    "ebf_approx",
+    "nodes_depth_proxy",
     "qsearch_ratio",
     "eval_per_node",
     "movegen_per_node",
@@ -101,6 +101,9 @@ SUMMARY_METRICS = (
     "pseudo_to_legal_ratio",
     "tt_hit_rate",
     "tt_cutoff_rate",
+    "tt_depth_reject_per_hit",
+    "tt_bound_reject_per_eligible_hit",
+    "tt_cutoff_per_eligible_hit",
     "tt_store_per_probe",
     "lmr_research_rate",
     "null_research_rate",
@@ -108,6 +111,7 @@ SUMMARY_METRICS = (
     "futility_pruned",
     "qsearch_see_prune_rate",
     "aborted_iteration_depth",
+    "completed_iteration_growth",
 )
 
 
@@ -166,7 +170,10 @@ def parse_run(
         "nodes": int(raw["nodes"]),
         "elapsed_us": int(raw["elapsed_us"]),
         "nps": int(raw["nps"]),
-        "ebf_approx": float(raw.get("effective_branching_factor", "0")),
+        # Rough proxy only: nodes^(1/depth). Includes iterative-deepening,
+        # qsearch and aborted deeper-iteration work; NOT comparable to another
+        # engine's reported branching factor.
+        "nodes_depth_proxy": float(raw.get("effective_branching_factor", "0")),
     }
     for field in INT_FIELDS:
         rec[field] = int(raw.get(field, "0"))
@@ -180,6 +187,17 @@ def parse_run(
     rec["tt_hit_rate"] = ratio(rec["tt_hits"], rec["tt_probes"])
     rec["tt_cutoff_rate"] = ratio(rec["tt_cutoffs"], rec["tt_probes"])
     rec["tt_store_per_probe"] = ratio(rec["tt_stores"], rec["tt_probes"])
+    eligible_hits = rec["tt_hits"] - rec["tt_rejected_depth"] - rec["tt_rejected_decode"]
+    if eligible_hits < 0:
+        eligible_hits = 0
+    rec["eligible_hits"] = eligible_hits
+    rec["tt_depth_reject_per_hit"] = ratio(
+        rec["tt_rejected_depth"], rec["tt_hits"]
+    )
+    rec["tt_bound_reject_per_eligible_hit"] = ratio(
+        rec["tt_rejected_bound"], eligible_hits
+    )
+    rec["tt_cutoff_per_eligible_hit"] = ratio(rec["tt_cutoffs"], eligible_hits)
     rec["lmr_research_rate"] = ratio(rec["lmr_researches"], rec["lmr_reductions"])
     rec["null_research_rate"] = ratio(
         rec["null_move_researches"], rec["null_move_attempts"]
@@ -197,19 +215,74 @@ def med(values: list[float | int]) -> float:
     return float(statistics.median(values)) if values else 0.0
 
 
+def normalize_run(rec: dict[str, Any]) -> dict[str, Any]:
+    """Backfill derived fields on a raw run record (works on committed raw.jsonl)."""
+    if "nodes_depth_proxy" not in rec and "ebf_approx" in rec:
+        rec["nodes_depth_proxy"] = rec["ebf_approx"]
+    if "eligible_hits" not in rec:
+        eligible = (
+            rec.get("tt_hits", 0)
+            - rec.get("tt_rejected_depth", 0)
+            - rec.get("tt_rejected_decode", 0)
+        )
+        rec["eligible_hits"] = eligible if eligible > 0 else 0
+    rec.setdefault(
+        "tt_depth_reject_per_hit",
+        ratio(rec.get("tt_rejected_depth", 0), rec.get("tt_hits", 0)),
+    )
+    rec.setdefault(
+        "tt_bound_reject_per_eligible_hit",
+        ratio(rec.get("tt_rejected_bound", 0), rec["eligible_hits"]),
+    )
+    rec.setdefault(
+        "tt_cutoff_per_eligible_hit",
+        ratio(rec.get("tt_cutoffs", 0), rec["eligible_hits"]),
+    )
+    rec.setdefault("completed_iteration_growth", 0.0)
+    return rec
+
+
 def summarize_runs(runs: list[dict[str, Any]]) -> dict[str, float | int]:
     row: dict[str, float | int] = {}
     for metric in SUMMARY_METRICS:
-        row[metric] = med([r[metric] for r in runs])
+        row[metric] = med([r.get(metric, 0) for r in runs])
     return row
 
 
+def completed_iteration_growth(runs: list[dict[str, Any]]) -> dict[str, float]:
+    """Per-position median ratio of last_completed_iteration_nodes(d) /
+    (d-1), computed from the depths observed across the different budgets.
+    Growth is only reported when both adjacent depths were completed by some
+    run of that position (any budget / repeat)."""
+    by_pos: dict[str, dict[int, list[float]]] = {}
+    for r in runs:
+        depth = int(r.get("completed_depth", 0))
+        nodes = float(r.get("last_completed_iteration_nodes", 0))
+        if depth <= 0 or nodes <= 0:
+            continue
+        by_pos.setdefault(r["position_id"], {}).setdefault(depth, []).append(nodes)
+    growth: dict[str, float] = {}
+    for pid, depths in by_pos.items():
+        ratios = []
+        for depth in sorted(depths):
+            if depth - 1 in depths:
+                prev = statistics.median(depths[depth - 1])
+                cur = statistics.median(depths[depth])
+                if prev > 0:
+                    ratios.append(cur / prev)
+        growth[pid] = statistics.median(ratios) if ratios else 0.0
+    return growth
+
+
 def build_summary_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    runs = [normalize_run(r) for r in runs]
+    growth = completed_iteration_growth(runs)
     rows: list[dict[str, Any]] = []
     budgets = sorted({r["budget_ms"] for r in runs})
+    positions = sorted({r["position_id"] for r in runs})
 
     # per-position x budget (median over repeats)
-    for pos_id in sorted({r["position_id"] for r in runs}):
+    for pos_id in positions:
         pos_runs = [r for r in runs if r["position_id"] == pos_id]
         pos_class = pos_runs[0]["class"]
         for budget in budgets:
@@ -217,34 +290,46 @@ def build_summary_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if not sel:
                 continue
             row = summarize_runs(sel)
-            row.update({"level": "position", "key": pos_id, "class": pos_class, "budget_ms": budget})
+            row["completed_iteration_growth"] = growth.get(pos_id, 0.0)
+            row.update(
+                {"level": "position", "key": pos_id, "class": pos_class, "budget_ms": budget}
+            )
             rows.append(row)
 
     # per-class x budget
     for cls in sorted({r["class"] for r in runs}):
-        cls_runs = [r for r in runs if r["class"] == cls]
+        cls_positions = {r["position_id"] for r in runs if r["class"] == cls}
+        cls_growth = [g for pid, g in growth.items() if pid in cls_positions]
         for budget in budgets:
-            sel = [r for r in cls_runs if r["budget_ms"] == budget]
+            sel = [r for r in runs if r["class"] == cls and r["budget_ms"] == budget]
             if not sel:
                 continue
             row = summarize_runs(sel)
+            row["completed_iteration_growth"] = med(cls_growth)
             row.update({"level": "class", "key": cls, "class": cls, "budget_ms": budget})
             rows.append(row)
 
     # overall x budget
+    overall_growth = list(growth.values())
     for budget in budgets:
         sel = [r for r in runs if r["budget_ms"] == budget]
         if not sel:
             continue
         row = summarize_runs(sel)
-        row.update({"level": "overall", "key": "overall", "class": "all", "budget_ms": budget})
+        row["completed_iteration_growth"] = med(overall_growth)
+        row.update(
+            {"level": "overall", "key": "overall", "class": "all", "budget_ms": budget}
+        )
         rows.append(row)
 
     return rows
 
 
 def write_summary_md(
-    summary_rows: list[dict[str, Any]], out: Path, positions: list[dict[str, Any]], budgets: list[int]
+    summary_rows: list[dict[str, Any]],
+    out: Path,
+    positions: list[dict[str, Any]],
+    budgets: list[int],
 ) -> None:
     lines: list[str] = []
     lines.append("# S4.0A Compute Attribution summary")
@@ -256,32 +341,136 @@ def write_summary_md(
     lines.append(f"- profile: {PROFILE}, cold TT, {HASH_MB} MB, 1 thread")
     lines.append("")
     overall = [r for r in summary_rows if r["level"] == "overall"]
-    lines.append("| budget_ms | depth | nodes | nps | ebf_approx | qsearch_ratio | eval/node | movegen/node | make-unmake/node | tt_hit | tt_cutoff | lmr_rsrch | null_rsrch | asp_retry/iter | futility |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    lines.append(
+        "| budget_ms | depth | nodes | nps | nodes_depth_proxy | qsearch_ratio | "
+        "eval/node | movegen/node | make-unmake/node | tt_hit | tt_cutoff/elig | "
+        "tt_dep_rej/hit | tt_bound_rej/elig | lmr_rsrch | null_rsrch | asp/iter | "
+        "futility | growth |"
+    )
+    lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for row in overall:
         lines.append(
-            "| {} | {} | {} | {} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {} |".format(
+            "| {} | {} | {} | {} | {:.3f} | {:.3f} | {:.2f} | {:.2f} | {:.0f} | "
+            "{:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {:.3f} | {} | {:.2f} |".format(
                 row["budget_ms"],
                 row["completed_depth"],
                 row["nodes"],
                 row["nps"],
-                row["ebf_approx"],
+                row["nodes_depth_proxy"],
                 row["qsearch_ratio"],
                 row["eval_per_node"],
                 row["movegen_per_node"],
                 row["make_unmake_per_node"],
                 row["tt_hit_rate"],
-                row["tt_cutoff_rate"],
+                row["tt_cutoff_per_eligible_hit"],
+                row["tt_depth_reject_per_hit"],
+                row["tt_bound_reject_per_eligible_hit"],
                 row["lmr_research_rate"],
                 row["null_research_rate"],
                 row["aspiration_retry_per_iter"],
                 row["futility_pruned"],
+                row["completed_iteration_growth"],
             )
         )
+    lines.append("")
+    lines.append("## Key observations")
+    lines.append("")
+    lines.append(
+        "- NPS is flat across budgets (~177k-182k): per-node cost is stable."
+    )
+    lines.append(
+        "- Median depth only grows 4 -> 7 across 100 ms -> 3000 ms. The rough "
+        "`nodes_depth_proxy` (nodes^(1/depth)) is ~7-11; it is a coarse proxy "
+        "that includes iterative-deepening, qsearch and aborted deeper-iteration "
+        "work, and is NOT comparable to another engine's reported branching "
+        "factor, so it is not used here to prove 'excessive EBF'."
+    )
+    lines.append(
+        "- make/unmake ~= 114-122 per node in middlegames (much lower, ~36-43, "
+        "with far higher NPS in low-material endgames). Counters measure "
+        "operation frequency, not CPU wall-time share, so this is the strongest "
+        "*measured* Core-cost suspect, not a proven dominant CPU cost."
+    )
+    lines.append(
+        "- qsearch ~= 80-86% of all nodes (~5 qsearch nodes per main-search node "
+        "at 3000 ms). Strongest Search-side signal; not yet proof qsearch is "
+        "mis-designed."
+    )
+    lines.append(
+        "- TT: hit rate ~0.15-0.24, cutoffs ~0.1% of eligible hits. "
+        "`tt_stores/tt_probes ~= 1` alone is not evidence of a problem. "
+        "Distinguish: depth-rejected entries (this is why hit rate is low) vs "
+        "depth-eligible entries whose bounds rarely cut."
+    )
+    lines.append(
+        "- LMR re-search is low (~0-1.1%); null-move fail-highs are all "
+        "re-verified (~40-48% null research rate). S4.0A does NOT show an LMR "
+        "re-search explosion."
+    )
+    lines.append(
+        "- Aspiration retries are negligible on the median."
+    )
+    lines.append("")
+    lines.append("## Preliminary top-3 compute bottleneck hypotheses (evidence-ordered)")
+    lines.append("")
+    lines.append(
+        "1. Legal-move legality filtering (pseudo -> make/check/unmake): ~114-122 "
+        "make/unmake per node, the strongest measured Core-cost suspect."
+    )
+    lines.append(
+        "2. qsearch dominates the tree (~80% of nodes) together with a high "
+        "`nodes_depth_proxy`: the tree is large relative to a more selective "
+        "engine."
+    )
+    lines.append(
+        "3. TT under-utilization: hit rate 15-24%, cutoffs ~0.1%; depth-rejected "
+        "hits dominate. Transposition reuse is weak."
+    )
+    lines.append("")
+    lines.append(
+        "Overall this is a mixed result: the cheapest, clearly-attributable "
+        "node-cost culprit is movegen legality filtering; the binding constraint "
+        "on completed depth is tree size (qsearch share and high branching proxy). "
+        "Evaluation quality remains unmeasured by S4.0A."
+    )
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main() -> int:
+def cmd_derive(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Derive S4.0A summary from committed raw.jsonl (no engine rerun)."
+    )
+    parser.add_argument("--raw", type=Path, required=True, help="compute/raw.jsonl")
+    parser.add_argument(
+        "--out", type=Path, default=Path("results/s4-attribution/compute")
+    )
+    args = parser.parse_args(argv)
+    runs = [
+        normalize_run(json.loads(line))
+        for line in args.raw.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if not runs:
+        raise ValueError(f"no runs in {args.raw}")
+    positions = sorted({r["position_id"] for r in runs})
+    budgets = sorted({r["budget_ms"] for r in runs})
+    summary_rows = build_summary_rows(runs)
+    out_dir = args.out.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / "summary.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["level", "key", "class", "budget_ms", *SUMMARY_METRICS],
+        )
+        writer.writeheader()
+        for row in summary_rows:
+            writer.writerow({k: row.get(k, "") for k in writer.fieldnames})
+    write_summary_md(summary_rows, out_dir / "summary.md", positions, budgets)
+    print(f"derived {out_dir}")
+    return 0
+
+
+def cmd_compute(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True, help="CurrentFinal release binary")
     parser.add_argument(
@@ -294,7 +483,7 @@ def main() -> int:
     parser.add_argument(
         "--out", type=Path, default=Path("results/s4-attribution/compute")
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     repo = Path(__file__).resolve().parents[1]
     engine = args.engine.resolve()
@@ -362,6 +551,13 @@ def main() -> int:
 
     print(f"wrote {out_dir}")
     return 0
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if argv and argv[0] == "derive":
+        return cmd_derive(argv[1:])
+    return cmd_compute(argv)
 
 
 if __name__ == "__main__":
