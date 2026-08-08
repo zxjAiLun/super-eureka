@@ -477,3 +477,42 @@ def test_preset_editor_rejects_invalid_submission(
         follow_redirects=False,
     )
     assert resp.status_code == 400
+
+
+def test_preset_editor_allows_full_strength_and_generic_no_uci_elo(
+    settings, app_client, engine_factory, registered
+):
+    """B6 closure: a generic engine without UCI_Elo (or without any limited-
+    strength option) can still be configured as a preset — UCI_Elo is not a
+    universal requirement, only a Stockfish convenience."""
+    from chessarena.models import EngineBuild, EnginePreset
+
+    with engine_factory() as session:
+        build = session.query(EngineBuild).first()
+        build.uci_options_schema = {
+            "Hash": {"type": "spin", "min": 1, "max": 1024},
+        }
+        session.commit()
+        bid = build.build_id
+
+    app_client.get("/chessarena/admin/presets/new")
+    token = app_client.cookies.get("arena_csrf")
+    resp = app_client.post(
+        "/chessarena/admin/presets",
+        data={
+            "_csrf_token": token,
+            "build_id": bid,
+            "display_name": "Full Strength Generic",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    with engine_factory() as session:
+        preset = (
+            session.query(EnginePreset)
+            .filter(EnginePreset.display_name == "Full Strength Generic")
+            .first()
+        )
+        assert preset is not None
+        assert preset.uci_options == {}
