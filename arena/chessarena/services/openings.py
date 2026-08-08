@@ -9,6 +9,7 @@ eligible pool (entries with at least the requested plies).
 
 from __future__ import annotations
 
+import hashlib
 import random
 from pathlib import Path
 
@@ -16,6 +17,36 @@ import chess
 import chess.pgn
 
 from .cutechess import CutechessLaunchError
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_opening_file_identity(opening_set, snapshot_opening) -> None:
+    """Re-hash the ACTUAL opening file and fail closed (P4.F1 P1-3).
+
+    Compares against both the frozen tournament snapshot SHA and the
+    registered OpeningSet SHA — a tampered-on-disk file whose DB row was not
+    touched must be rejected by the scheduler before Popen and by the
+    verifier after pair completion.
+    """
+    path = Path(opening_set.file_path)
+    if not path.is_file():
+        raise CutechessLaunchError(f"opening set file missing: {path}")
+    actual = sha256_file(path)
+    if snapshot_opening.get("sha256") and actual != snapshot_opening["sha256"]:
+        raise CutechessLaunchError(
+            "opening file SHA does not match the frozen tournament snapshot"
+        )
+    if opening_set.sha256 and actual != opening_set.sha256:
+        raise CutechessLaunchError(
+            "opening file SHA does not match the registered OpeningSet"
+        )
 
 
 def _format(opening_set) -> str:
@@ -32,7 +63,9 @@ def _epd_fen_for_index(opening_set, opening_index: int) -> str:
         raise CutechessLaunchError(
             f"opening_index {opening_index} out of range ({len(lines)} lines)"
         )
-    return lines[opening_index].split(";")[0].strip()
+    # Canonicalize so scheduler-written opening.epd and the verifier's
+    # expected FEN match what cutechess emits into the PGN [FEN] header.
+    return chess.Board(lines[opening_index].split(";")[0].strip()).fen()
 
 
 def _iter_games(path: Path):

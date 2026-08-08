@@ -170,7 +170,18 @@ def verify_pair(
         raise VerificationFailure("the two games used different opening positions")
 
     # The position must match the registered opening line for this pair index
-    expected_fen = _expected_opening_fen(opening_set, pair_job.opening_index)
+    # (same canonical resolver as the scheduler, using the FROZEN plies).
+    from ..services import openings
+
+    snapshot_opening = snapshot.get("opening_set") or {}
+    try:
+        expected_fen = openings.opening_fen_for_index(
+            opening_set,
+            pair_job.opening_index,
+            snapshot_opening.get("plies"),
+        )
+    except Exception as exc:
+        raise VerificationFailure(str(exc)) from exc
     if key1 != expected_fen:
         raise VerificationFailure(
             f"opening position mismatch: pair used {key1}, registered line is "
@@ -284,22 +295,6 @@ def verify_pair(
 # ---------------------------------------------------------------------------
 # Provenance helpers
 # ---------------------------------------------------------------------------
-def _expected_opening_fen(opening_set, opening_index: int) -> str:
-    path = Path(opening_set.file_path)
-    if not path.exists():
-        raise VerificationFailure(f"opening set file missing: {path}")
-    lines = [
-        ln.strip()
-        for ln in path.read_text(encoding="utf-8").splitlines()
-        if ln.strip() and not ln.lstrip().startswith("#")
-    ]
-    if opening_index >= len(lines):
-        raise VerificationFailure(
-            f"opening_index {opening_index} out of range ({len(lines)} lines)"
-        )
-    return chess.Board(lines[opening_index].split(";")[0].strip()).fen()
-
-
 def _check_command_provenance(settings, command_json: Path, snapshot, run_dir,
                               engine_a_build, engine_b_build) -> None:
     if not command_json.exists():
@@ -385,3 +380,10 @@ def _check_opening_provenance(opening_set, snapshot_opening) -> None:
         raise VerificationFailure("opening set id mismatch in provenance")
     if opening_set.sha256 != snapshot_opening["sha256"]:
         raise VerificationFailure("opening set SHA mismatch in provenance")
+    # P1-3: re-hash the ACTUAL file on disk, not just compare DB rows.
+    from ..services import openings
+
+    try:
+        openings.verify_opening_file_identity(opening_set, snapshot_opening)
+    except Exception as exc:
+        raise VerificationFailure(str(exc)) from exc

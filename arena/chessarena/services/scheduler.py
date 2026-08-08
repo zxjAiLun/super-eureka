@@ -648,14 +648,12 @@ class Scheduler:
         if opening_set is None:
             raise cc.CutechessLaunchError("referenced opening not found")
         snapshot_opening = (tournament.config_snapshot or {}).get("opening_set") or {}
-        if (
-            snapshot_opening.get("sha256")
-            and snapshot_opening["sha256"] != opening_set.sha256
-        ):
-            raise cc.CutechessLaunchError(
-                "opening set SHA changed since tournament creation; "
-                "execution contract is frozen"
-            )
+        # P1-3: re-hash the ACTUAL opening file (not just compare DB rows) and
+        # fail closed before Popen if it drifted from the frozen snapshot.
+        from ..services import openings
+
+        if snapshot_opening.get("sha256"):
+            openings.verify_opening_file_identity(opening_set, snapshot_opening)
 
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
 
