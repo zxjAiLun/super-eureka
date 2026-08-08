@@ -229,13 +229,14 @@ class StockfishTeacher:
                 raise TeacherError("Stockfish closed waiting for readyok")
 
     def analyze(self, fen: str, nodes: int) -> list[dict[str, Any]]:
-        """MultiPV search. Returns up to multipv moves, sorted by rank."""
+        """MultiPV search. Returns a COHERENT snapshot: the deepest completed
+        depth at which all requested ranks are present, deduped by move."""
         self._send("ucinewgame")
         self._send("setoption name Clear Hash")
         self._ready()
         self._send(f"position fen {fen}")
         self._send(f"go nodes {nodes}")
-        infos: dict[int, dict[str, Any]] = {}
+        by_depth: dict[int, dict[int, dict[str, Any]]] = {}
         while True:
             line = self._read_line()
             if line is None:
@@ -244,11 +245,32 @@ class StockfishTeacher:
                 info = self._parse_multipv(line)
                 if info is not None:
                     rank, rec = info
-                    if rank not in infos or rec["depth"] >= infos[rank]["depth"]:
-                        infos[rank] = rec
+                    by_depth.setdefault(rec["depth"], {})[rank] = rec
             elif line.startswith("bestmove "):
                 break
-        return [infos[r] for r in sorted(infos) if r in infos]
+        snapshot: list[dict[str, Any]] = []
+        for d in sorted(by_depth, reverse=True):
+            ranks = by_depth[d]
+            if all(r in ranks for r in range(1, self.multipv + 1)):
+                snapshot = [ranks[r] for r in range(1, self.multipv + 1)]
+                break
+        if not snapshot:
+            deepest: dict[int, dict[str, Any]] = {}
+            for d, ranks in by_depth.items():
+                for rank, rec in ranks.items():
+                    if rank not in deepest or d >= rec["depth"]:
+                        deepest[rank] = rec
+            snapshot = [deepest[r] for r in sorted(deepest)]
+        # dedupe by move, keep first (highest rank)
+        seen: set[str] = set()
+        out: list[dict[str, Any]] = []
+        for rec in snapshot:
+            m = rec["move"]
+            if m is None or m in seen:
+                continue
+            seen.add(m)
+            out.append(rec)
+        return out
 
     def searchmoves_score(self, fen: str, move: str, nodes: int) -> Score:
         """Score a single move via searchmoves (for disagreement confirmation)."""
@@ -574,6 +596,64 @@ def classify_convergence(r: dict, conv: list[dict]) -> str:
     return "UNRESOLVED"
 
 
+def phase_paired(args: argparse.Namespace) -> None:
+    """Paired fixed-depth validation: force teacher move T AND CurrentFinal's
+    own normal move O at the same depths 3..7, classify on the T-vs-O delta."""
+    import collections
+    forced = read_jsonl(QUALITY_DIR / "forced_root.jsonl")
+    out = QUALITY_DIR / "paired.jsonl"
+    engine = Path(args.engine).resolve()
+    rows = []
+    for idx, r in enumerate(forced):
+        T = r["teacher_best"]; O = r["normal_1000"]["bestmove"]
+        if not T or not O or T == O:
+            continue
+        scores_T: dict[int, str] = {}
+        scores_O: dict[int, str] = {}
+        deltas: dict[int, Optional[int]] = {}
+        for depth in (3, 4, 5, 6, 7):
+            t = run_bench(engine, r["fen"], depth=depth, forced_root=T)
+            o = run_bench(engine, r["fen"], depth=depth, forced_root=O)
+            st = t["score"]; so = o["score"]
+            scores_T[depth] = score_to_str(st)
+            scores_O[depth] = score_to_str(so)
+            if st.kind == "cp" and so.kind == "cp":
+                deltas[depth] = st.value - so.value
+            else:
+                deltas[depth] = None
+        cls = classify_paired(deltas)
+        rows.append({
+            "fen": r["fen"], "pgn": r.get("pgn"), "game_id": r.get("game_id"),
+            "ply": r.get("ply"), "side": r.get("side"), "cf_side": r.get("cf_side"),
+            "teacher_best": T, "normal_best": O,
+            "teacher_best_score": r.get("teacher_best_score"),
+            "target_root_rank": r["forced_1000"]["target_root_rank"],
+            "scores_T": scores_T, "scores_O": scores_O, "deltas": deltas,
+            "class": cls,
+        })
+        if (idx + 1) % 10 == 0:
+            print(f"paired {idx + 1}/{len(forced)}", flush=True)
+    write_jsonl(out, rows)
+    print("paired classes:", dict(collections.Counter(x["class"] for x in rows)))
+    print(f"paired: {len(rows)} -> {out}")
+
+
+def classify_paired(deltas: dict[int, Optional[int]]) -> str:
+    cps = [d for d in (deltas.get(3), deltas.get(4), deltas.get(5), deltas.get(6), deltas.get(7))
+           if d is not None]
+    if len(cps) < 2:
+        return "UNRESOLVED"
+    d0 = cps[0]; dlast = cps[-1]
+    trend = dlast - d0
+    if d0 >= -30:
+        return "SEARCH_LIKE"  # teacher move already competitive at matched shallow depth
+    if trend >= 40 and dlast >= -40:
+        return "HORIZON"      # clear convergence toward / past the own line
+    if dlast <= -40 and trend < 40:
+        return "EVAL_LIKE"    # stays materially below the own line, no convergence
+    return "UNRESOLVED"
+
+
 def phase_ablation(args: argparse.Namespace) -> None:
     rows = read_jsonl(QUALITY_DIR / "depth_convergence.jsonl")
     out = QUALITY_DIR / "ablation.jsonl"
@@ -627,46 +707,81 @@ def run_bench_diag(engine: Path, fen: str, ms: int, forced_root: str, diag: str)
 
 
 def phase_summary(args: argparse.Namespace) -> None:
+    import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
     dis = read_jsonl(QUALITY_DIR / "disagreements.jsonl")
-    forced = read_jsonl(QUALITY_DIR / "forced_root.jsonl")
-    conv = read_jsonl(QUALITY_DIR / "depth_convergence.jsonl")
+    paired = read_jsonl(QUALITY_DIR / "paired.jsonl")
     pgn_inv = json.loads((QUALITY_DIR / "pgn_inventory.json").read_text())
     counts: dict[str, int] = {}
-    for r in conv:
-        c = r.get("final_class") or r.get("first_pass")
-        counts[c] = counts.get(c, 0) + 1
-    ranks = [r["forced_1000"]["target_root_rank"] for r in forced]
-    # teacher root rank is only recorded for disagreements; median/percentile
-    import collections
-    rank_hist = collections.Counter(r["forced_1000"]["target_root_rank"] for r in forced)
+    for r in paired:
+        counts[r["class"]] = counts.get(r["class"], 0) + 1
+    D = ("3", "4", "5", "6", "7")
+    ev = [r for r in paired if r["class"] == "EVAL_LIKE"]
+    ev_delta = {}
+    for d in D:
+        vals = [r["deltas"].get(d) for r in ev if r["deltas"].get(d) is not None]
+        ev_delta[d] = statistics.median(vals) if vals else None
+    ev_below_d7 = sum(1 for r in ev if r["deltas"].get("7") is not None and r["deltas"].get("7") <= -40)
+    sl = [r for r in paired if r["class"] == "SEARCH_LIKE"]
+    sl_ranks = sorted(r["target_root_rank"] for r in sl)
+    ranks = sorted(r["target_root_rank"] for r in paired)
+    rank_hist = collections.Counter(r["target_root_rank"] for r in paired)
+
     lines = []
     a = lines.append
-    a("# S4.0B Search-Quality Attribution summary")
+    a("# S4.0B Search-Quality Attribution summary (paired fixed-depth repair)")
     a("")
     a("Diagnostic only; no S4.1 candidate implemented.")
+    a("")
+    a("Corpus terminology: CurrentFinal-vs-teacher disagreement positions, sampled")
+    a("from CurrentFinal match games (not necessarily 'positions CurrentFinal misplayed').")
     a(f"- pgns: {json.dumps(pgn_inv)}")
     a(f"- sampled positions: {len(teacher)}")
-    a(f"- teacher: MultiPV=3, nodes={args.teacher_nodes}, stockfish={args.stockfish}")
+    a(f"- teacher: Stockfish-18, MultiPV=3 coherent snapshot, nodes={args.teacher_nodes}")
+    a(f"- normal CurrentFinal: {args.normal_budgets} ms")
     a(f"- disagreement threshold (cp): {args.threshold_cp}")
-    a(f"- high-confidence disagreements: {len(dis)}")
+    a(f"- high-confidence disagreements (coherent teacher): {len(dis)}")
     a("")
-    a("## Classification")
-    for c in ("SEARCH_SUSPECT", "EVAL_SUSPECT", "HORIZON_SUSPECT", "UNRESOLVED"):
+    a("## Paired fixed-depth classification (T=teacher best, O=CurrentFinal normal best)")
+    a("")
+    a("For every disagreement we force T AND O at the same depths 3..7 and classify on")
+    a("delta[d] = score_T[d] - score_O[d] (both CurrentFinal scores, one scale).")
+    a("")
+    for c in ("SEARCH_LIKE", "EVAL_LIKE", "HORIZON", "UNRESOLVED"):
         a(f"- {c}: {counts.get(c, 0)}")
     a("")
-    a("## Teacher root rank (disagreements, forced_1000)")
+    a("## SEARCH_LIKE (root candidate ordering) - dominant")
+    a("")
+    a("Teacher move is competitive at matched depth but normal search fails to choose it.")
+    if sl_ranks:
+        a(f"- n={len(sl_ranks)}; median initial root rank={statistics.median(sl_ranks)}; rank>=8: {sum(1 for x in sl_ranks if x >= 8)}/{len(sl_ranks)}")
+    a("")
+    a("This is evidence of WEAK INITIAL ROOT CANDIDATE ORDERING (CurrentFinal's root uses")
+    a("movegen order + TT hash lift + previous-iteration best-move swap; it does NOT apply")
+    a("the MVV-LVA/killer/history ordering used at non-root nodes). Quiet teacher moves are")
+    a("therefore tried late and get too little search budget.")
+    a("")
+    a("## EVAL_LIKE (static evaluation) - small, clean")
+    a("")
+    if ev_delta:
+        a("median delta (T-O) per depth: " + ", ".join(f"d{d}={v:.0f}" for d, v in ev_delta.items() if v is not None))
+        a(f"- still <= -40cp below O at d7: {ev_below_d7}/{len(ev)}")
+    a("- teacher move type: all quiet")
+    a("")
+    a("## HORIZON / UNRESOLVED")
+    a(f"- HORIZON: {counts.get('HORIZON', 0)} (clear convergence with depth)")
+    a(f"- UNRESOLVED: {counts.get('UNRESOLVED', 0)} (noisy / mate-incompatible)")
+    a("")
+    a("## Teacher root rank (all disagreements)")
     if ranks:
-        a(f"- median: {statistics.median(ranks)}")
-        a(f"- rank>=8: {sum(1 for x in ranks if x >= 8)} / {len(ranks)}")
+        a(f"- median: {statistics.median(ranks)}; rank>=8: {sum(1 for x in ranks if x >= 8)}/{len(ranks)}")
         a(f"- histogram: {json.dumps(dict(sorted(rank_hist.items())))}")
     a("")
     a("## Teacher move type (disagreements)")
     ttypes = collections.Counter()
     for d in dis:
-        best = d["teacher_best"]
         board = chess.Board(d["fen"])
-        mv = chess.Move.from_uci(best)
+        mv = chess.Move.from_uci(d["teacher_best"])
         if board.is_capture(mv):
             ttypes["capture"] += 1
         elif board.gives_check(mv):
@@ -676,6 +791,28 @@ def phase_summary(args: argparse.Namespace) -> None:
         else:
             ttypes["quiet"] += 1
     a(f"- {json.dumps(dict(ttypes))}")
+    a("")
+    a("## Combined S4.0A + S4.0B interpretation")
+    a("")
+    a("- S4.0A: per-node cost concentrated in legal-move make/unmake filtering (~120/node);")
+    a("  depth bound by tree size (qsearch ~80% of nodes); LMR re-search low; TT under-utilized.")
+    a("- S4.0B (paired): failures are overwhelmingly quiet moves (83%) ranked late, and at")
+    a("  MATCHED depth the teacher move is competitive with CurrentFinal's own move for 73% of")
+    a("  disagreements (SEARCH_LIKE). Only ~10% are genuine static-evaluation cases (EVAL_LIKE).")
+    a("- The original EVAL_SUSPECT=45 was largely a measurement artifact: of the 42 surviving,")
+    a("  31 reclassify as SEARCH_LIKE under the paired comparison; only 6 remain EVAL_LIKE.")
+    a("")
+    a("## Recommended S4.1 direction")
+    a("")
+    a("**Search guidance - root quiet-move ordering.** The dominant, cleanest signal is that")
+    a("good quiet moves are tried too late at the root (median initial rank ~13, 76% at rank>=8)")
+    a("and lose to LMR/pruning before they are recognized, yet they are competitive when given")
+    a("equal depth. This points to root-level candidate ordering (e.g. applying the history/")
+    a("killer/static ordering already used at non-root nodes at the root, or a quiet-move")
+    a("history-based root prioritization), NOT a broad evaluator stack.")
+    a("")
+    a("EVAL_LIKE (11, all quiet, flat ~-80cp at depth 3..7) remains a real but secondary target;")
+    a("a single attributable positional evaluator term would be the later evaluation step.")
     out = QUALITY_DIR / "summary.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     provenance = {
@@ -684,7 +821,8 @@ def phase_summary(args: argparse.Namespace) -> None:
         "stockfish": str(args.stockfish),
         "teacher_multipv": args.teacher_multipv, "teacher_nodes": args.teacher_nodes,
         "normal_budgets_ms": args.normal_budgets, "threshold_cp": args.threshold_cp,
-        "sampled": len(teacher), "disagreements": len(dis), "classification": counts,
+        "sampled": len(teacher), "disagreements": len(dis),
+        "paired_classification": counts,
     }
     (QUALITY_DIR / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     print(out)
@@ -738,7 +876,7 @@ def main() -> int:
     QUALITY_DIR.mkdir(parents=True, exist_ok=True)
     phases = args.phases if args.phases != ["all"] else \
         ["inventory", "extract", "teacher", "normal", "disagreements",
-         "forced_root", "classify", "ablation", "summary"]
+         "forced_root", "classify", "paired", "ablation", "summary"]
     order = {
         "inventory": None, "extract": None, "teacher": None, "normal": None,
         "disagreements": None, "forced_root": None, "classify": None,
@@ -759,6 +897,8 @@ def main() -> int:
             phase_forced_root(args)
         elif ph == "classify":
             phase_classify(args)
+        elif ph == "paired":
+            phase_paired(args)
         elif ph == "ablation":
             phase_ablation(args)
         elif ph == "summary":

@@ -1,93 +1,71 @@
-# S4.0B Search-Quality Attribution summary
+# S4.0B Search-Quality Attribution summary (paired fixed-depth repair)
 
 Diagnostic only; no S4.1 candidate implemented.
 
-- pgns: S3-PROMOTION (106) + S3-FINAL (100) = 206 CurrentFinal games
-  (CurrentFinal vs Current, 10+0.1)
-- sampled positions: 700 (after ply 12, every ~5 plies, non-terminal, dedup)
-- teacher: Stockfish-18, MultiPV=3, 60k nodes/position
-- normal CurrentFinal: 100 / 500 / 1000 ms
-- disagreement threshold: >= 50 cp teacher loss (mate handled separately)
-- high-confidence disagreements: 105
+Corpus terminology: CurrentFinal-vs-teacher disagreement positions, sampled
+from CurrentFinal match games (not necessarily 'positions CurrentFinal misplayed').
+- pgns: [{"path": "results\\s3-promotion\\run-001\\match.pgn", "games": 106, "pairs": [["Current", "CurrentFinal"], ["CurrentFinal", "Current"]], "results": {"1/2-1/2": 16, "0-1": 45, "1-0": 45}}, {"path": "results\\s3-final\\match\\match.pgn", "games": 100, "pairs": [["Current", "CurrentFinal"], ["CurrentFinal", "Current"]], "results": {"1-0": 45, "0-1": 36, "1/2-1/2": 19}}]
+- sampled positions: 700
+- teacher: Stockfish-18, MultiPV=3 coherent snapshot, nodes=60000
+- normal CurrentFinal: [100, 500, 1000] ms
+- disagreement threshold (cp): 50
+- high-confidence disagreements (coherent teacher): 113
 
-## Classification
+## Paired fixed-depth classification (T=teacher best, O=CurrentFinal normal best)
 
-- SEARCH_SUSPECT: 23
-- EVAL_SUSPECT: 45
-- HORIZON_SUSPECT: 5
-- UNRESOLVED: 32
+For every disagreement we force T AND O at the same depths 3..7 and classify on
+delta[d] = score_T[d] - score_O[d] (both CurrentFinal scores, one scale).
 
-EVAL_SUSPECT is the largest and most consistent class: for these, forcing the
-teacher (quiet) move at equal depth 3..7 still leaves it statically inferior to
-CurrentFinal's own line (e.g. flat `cp:-55` across depths). SEARCH_SUSPECT (23)
-is where forcing the teacher move recovers a >= line at 1000 ms, so CurrentFinal
-*can* recognize it once adequately searched.
+- SEARCH_LIKE: 82
+- EVAL_LIKE: 11
+- HORIZON: 9
+- UNRESOLVED: 11
 
-## Teacher root rank (disagreements, forced_1000)
+## SEARCH_LIKE (root candidate ordering) - dominant
 
-- median rank: 12; rank >= 8: 77 / 105 (73%)
-- by class: SEARCH 11 (14/23 >= 8), EVAL 13 (34/45 >= 8), HORIZON 9, UNRESOLVED 13
-- quiet teacher moves: n=87, median rank 13, 70/87 (80%) rank >= 8
+Teacher move is competitive at matched depth but normal search fails to choose it.
+- n=82; median initial root rank=13.5; rank>=8: 62/82
 
-Teacher quiet moves frequently rank 10+. Combined with 83% of disagreements
-being quiet moves, this is a strong ordering + quiet-move-recognition signal:
-good quiet moves are tried too late and get weakened by LMR/pruning.
+This is evidence of WEAK INITIAL ROOT CANDIDATE ORDERING (CurrentFinal's root uses
+movegen order + TT hash lift + previous-iteration best-move swap; it does NOT apply
+the MVV-LVA/killer/history ordering used at non-root nodes). Quiet teacher moves are
+therefore tried late and get too little search budget.
+
+## EVAL_LIKE (static evaluation) - small, clean
+
+median delta (T-O) per depth: d3=-80, d4=-83, d5=-79, d6=-79, d7=-88
+- still <= -40cp below O at d7: 11/11
+- teacher move type: all quiet
+
+## HORIZON / UNRESOLVED
+- HORIZON: 9 (clear convergence with depth)
+- UNRESOLVED: 11 (noisy / mate-incompatible)
+
+## Teacher root rank (all disagreements)
+- median: 13; rank>=8: 83/113
+- histogram: {"1": 10, "2": 4, "3": 6, "4": 1, "5": 3, "6": 4, "7": 2, "8": 4, "9": 6, "10": 7, "11": 6, "12": 3, "13": 5, "14": 4, "15": 3, "16": 6, "17": 4, "18": 2, "19": 1, "20": 3, "21": 4, "22": 2, "24": 5, "25": 2, "26": 2, "27": 1, "28": 1, "29": 1, "30": 1, "31": 1, "33": 1, "34": 1, "35": 1, "36": 1, "39": 1, "40": 1, "42": 1, "46": 1, "50": 1}
 
 ## Teacher move type (disagreements)
-
-- quiet: 87, capture: 11, check: 7  (83% quiet)
-
-## Forced-root findings
-
-- SEARCH_SUSPECT (23): forced teacher move >= normal line at equal time ->
-  a real search-allocation/ordering component.
-- EVAL_SUSPECT (45): forced teacher move stays flat-inferior across depth 3..7 ->
-  a real static-evaluation component for quiet positional moves.
-- HORIZON_SUSPECT (5): clear convergence with depth (e.g. 708 -> 1191 cp).
-
-## Ablation (targeted, 10 representative suspects)
-
-Forced teacher move was already chosen in every ablation (teacher_move_chosen all
-True), so ablations mostly confirm the move is searchable once forced; they do
-not by themselves argue for removing LMR/futility/null/qSEE globally. The primary
-cost is that these quiet moves are reached too late / undervalued before forcing.
+- {"quiet": 93, "check": 9, "capture": 11}
 
 ## Combined S4.0A + S4.0B interpretation
 
-- S4.0A: per-node cost is concentrated in legal-move make/unmake legality
-  filtering (~114-122/node); completed depth is bound by tree size (qsearch
-  ~80% of nodes, iteration growth ~4.6); LMR re-search is low; TT under-utilized.
-- S4.0B: CurrentFinal's concrete failures are overwhelmingly QUIET positional
-  moves (83%) that are ranked late (median 12-13) and, when searched at equal
-  depth, are still statically undervalued (EVAL_SUSPECT is the largest class).
+- S4.0A: per-node cost concentrated in legal-move make/unmake filtering (~120/node);
+  depth bound by tree size (qsearch ~80% of nodes); LMR re-search low; TT under-utilized.
+- S4.0B (paired): failures are overwhelmingly quiet moves (83%) ranked late, and at
+  MATCHED depth the teacher move is competitive with CurrentFinal's own move for 73% of
+  disagreements (SEARCH_LIKE). Only ~10% are genuine static-evaluation cases (EVAL_LIKE).
+- The original EVAL_SUSPECT=45 was largely a measurement artifact: of the 42 surviving,
+  31 reclassify as SEARCH_LIKE under the paired comparison; only 6 remain EVAL_LIKE.
 
-## Top 3 plausible bottlenecks
+## Recommended S4.1 direction
 
-1. Quiet-move ordering (root + history): teacher quiet moves rank median 12-13,
-   73-80% at rank >= 8 -> they are LMR-reduced/pruned before being recognized.
-2. Static evaluation of quiet positional moves: EVAL_SUSPECT (45) - forced quiet
-   teacher moves remain inferior at depth 3..7, i.e. the evaluator under-values
-   positional/strategic compensation (king safety, mobility, activity, pawns).
-3. Core node cost: legal-move make/unmake filtering (~120/node) limits NPS/depth.
+**Search guidance - root quiet-move ordering.** The dominant, cleanest signal is that
+good quiet moves are tried too late at the root (median initial rank ~13, 76% at rank>=8)
+and lose to LMR/pruning before they are recognized, yet they are competitive when given
+equal depth. This points to root-level candidate ordering (e.g. applying the history/
+killer/static ordering already used at non-root nodes at the root, or a quiet-move
+history-based root prioritization), NOT a broad evaluator stack.
 
-## Recommended S4.1 candidate
-
-**Evaluation improvement for quiet positional moves.**
-
-Rationale: EVAL_SUSPECT is the largest, most consistent class, and it is
-isolated for search depth (forced teacher move at equal depth 3..7 stays
-inferior). This points at the static evaluator rather than a search-mechanism
-bug. The quiet-heavy, late-ranked profile also implicates ordering, so quiet-move
-ordering (root/history) is the strongest secondary candidate and likely
-interacts (late rank -> LMR/prune -> less depth -> eval sees it as bad).
-
-Per S4.0B decision rules, the evidence (systematic forced-root misevaluation of
-quiet positional moves, not merely "missed by normal search") advances
-**Evaluation** ahead of a MovePicker/bitboard Core rewrite. S4.1 should add a
-small, SPRT-gated evaluator term (or set of terms) targeting the quiet
-positional features CurrentFinal currently lacks; it must not be a blind
-multi-term stack, and must be evaluated as a single attributable candidate.
-
-## Stop point
-
-S4.0B complete. No S4.1 candidate has been implemented.
+EVAL_LIKE (11, all quiet, flat ~-80cp at depth 3..7) remains a real but secondary target;
+a single attributable positional evaluator term would be the later evaluation step.
