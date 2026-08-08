@@ -49,6 +49,12 @@
       {% endfor %}
     </select>
   </label>
+  <label>Opening plies <span class="muted">(PGN books only — 16 plies = 8 full moves, 12 plies = 6 full moves)</span>
+    <input type="number" name="opening_plies" min="1" placeholder="16 (book default)">
+  </label>
+  <label>Opening seed <span class="muted">(optional — deterministic reproducible selection)</span>
+    <input type="number" name="opening_seed" min="0" placeholder="random">
+  </label>
   <label>Time control
     <select name="time_control" required>
       {% for key, tc in time_controls.items() %}

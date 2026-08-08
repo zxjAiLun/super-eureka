@@ -55,6 +55,9 @@ class TournamentCreate(BaseModel):
     time_control: str
     pairs: int = Field(ge=1)
     allow_intentional_self_play: bool = False
+    # Phase C: PGN book depth (plies) and deterministic selection seed.
+    opening_plies: Optional[int] = Field(default=None, ge=1)
+    opening_seed: Optional[int] = Field(default=None, ge=0)
 
 
 class GameOut(BaseModel):

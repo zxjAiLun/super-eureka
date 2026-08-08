@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Validate and register an opening set (section 8).
+"""Validate and register an opening set (section 8 / P4.F1 Phase C).
 
 Usage:
-    python scripts/register_openings.py <openings.epd> <manifest.json>
+    python scripts/register_openings.py <openings.file> <manifest.json>
 
-Validation performed with python-chess:
-- every line parses as an EPD position,
-- every position has at least one legal move (non-terminal),
-- position keys are unique,
-- the file SHA-256 and position count match the manifest.
+Supports two formats (from the manifest ``format`` key):
+- ``epd``: every line parses as a non-terminal EPD position; unique keys.
+- ``pgn``: a multi-game book (e.g. the official Stockfish 8moves_v3 suite);
+  every game must parse and have a legal mainline; the position count is the
+  number of games.
+
+The file SHA-256 and position count must match the manifest.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import chess  # noqa: E402
+import chess.pgn  # noqa: E402
 
 from chessarena.config import get_settings  # noqa: E402
 from chessarena.db import make_engine, make_session_factory  # noqa: E402
@@ -35,6 +38,18 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _count_pgn_games(path: Path) -> int:
+    count = 0
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        while True:
+            game = chess.pgn.read_game(fh)
+            if game is None:
+                break
+            list(game.mainline_moves())  # must be legal/parsable
+            count += 1
+    return count
 
 
 def read_positions(path: Path) -> list[str]:
@@ -71,7 +86,7 @@ def validate(lines: list[str], expected_sha: str, expected_count: int) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("epd_file", type=Path)
+    parser.add_argument("opening_file", type=Path)
     parser.add_argument("manifest_file", type=Path)
     parser.add_argument(
         "--overwrite", action="store_true",
@@ -79,10 +94,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    epd_file = args.epd_file.resolve()
+    opening_file = args.opening_file.resolve()
     manifest_file = args.manifest_file.resolve()
-    if not epd_file.exists():
-        sys.exit(f"error: opening file not found: {epd_file}")
+    if not opening_file.exists():
+        sys.exit(f"error: opening file not found: {opening_file}")
     if not manifest_file.exists():
         sys.exit(f"error: manifest not found: {manifest_file}")
 
@@ -92,14 +107,27 @@ def main() -> int:
         if key not in manifest:
             sys.exit(f"error: manifest missing key {key!r}")
 
-    actual_sha = sha256_file(epd_file)
+    fmt = manifest["format"]
+    if fmt not in ("epd", "pgn"):
+        sys.exit(f"error: unsupported format {fmt!r}")
+
+    actual_sha = sha256_file(opening_file)
     if actual_sha != manifest["sha256"]:
         sys.exit(
             f"error: SHA mismatch: manifest {manifest['sha256']} actual {actual_sha}"
         )
 
-    lines = read_positions(epd_file)
-    validate(lines, manifest["sha256"], manifest["count"])
+    if fmt == "pgn":
+        count = _count_pgn_games(opening_file)
+        if count != manifest["count"]:
+            sys.exit(
+                f"error: PGN game count {count} does not match manifest "
+                f"{manifest['count']}"
+            )
+    else:
+        lines = read_positions(opening_file)
+        validate(lines, manifest["sha256"], manifest["count"])
+        count = len(lines)
 
     settings = get_settings()
     engine = make_engine(settings.db_url)
@@ -118,21 +146,25 @@ def main() -> int:
         if existing is None:
             existing = OpeningSet(
                 opening_set_id=manifest["opening_set_id"],
-                file_path=str(epd_file),
+                file_path=str(opening_file),
                 sha256=actual_sha,
-                position_count=len(lines),
+                position_count=count,
+                format=fmt,
+                source=manifest.get("source"),
                 manifest=manifest,
                 enabled=True,
             )
             session.add(existing)
         else:
-            existing.file_path = str(epd_file)
+            existing.file_path = str(opening_file)
             existing.sha256 = actual_sha
-            existing.position_count = len(lines)
+            existing.position_count = count
+            existing.format = fmt
+            existing.source = manifest.get("source")
             existing.manifest = manifest
             existing.enabled = True
         session.commit()
-    print(f"registered opening set {manifest['opening_set_id']}: {len(lines)} positions")
+    print(f"registered opening set {manifest['opening_set_id']}: {count} positions ({fmt})")
     print(f"  sha256: {actual_sha}")
     return 0
 

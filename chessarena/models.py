@@ -149,6 +149,11 @@ class OpeningSet(Base):
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     position_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Book format: "epd" (legacy single-line positions) or "pgn" (multi-game
+    # book such as the official Stockfish 8moves_v3 suite).
+    format: Mapped[str] = mapped_column(String, default="epd", nullable=False)
+    # Source provenance (repository/commit/license) for auditable books.
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)
     manifest: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
