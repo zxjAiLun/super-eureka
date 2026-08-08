@@ -647,6 +647,15 @@ class Scheduler:
         ).first()
         if opening_set is None:
             raise cc.CutechessLaunchError("referenced opening not found")
+        snapshot_opening = (tournament.config_snapshot or {}).get("opening_set") or {}
+        if (
+            snapshot_opening.get("sha256")
+            and snapshot_opening["sha256"] != opening_set.sha256
+        ):
+            raise cc.CutechessLaunchError(
+                "opening set SHA changed since tournament creation; "
+                "execution contract is frozen"
+            )
 
         from ..config import ENGINE_A_NAME, ENGINE_B_NAME
 
@@ -700,7 +709,13 @@ class Scheduler:
         hash_mb = snapshot.get("hash_mb", self.settings.hash_mb)
         threads = snapshot.get("threads", self.settings.threads)
 
-        opening_fen = _opening_fen_for_index(opening_set, pair.opening_index)
+        from ..services import openings
+
+        opening_set_snap = snapshot.get("opening_set") or {}
+        opening_plies = opening_set_snap.get("plies")
+        opening_fen = openings.opening_fen_for_index(
+            opening_set, pair.opening_index, opening_plies
+        )
         opening_epd = run_dir / "opening.epd"
         opening_epd.write_text(opening_fen + "\n", encoding="utf-8")
 
@@ -832,15 +847,3 @@ class Scheduler:
             "pid": self.active_proc.pid if self.active_proc else None,
         }
 
-
-def _opening_fen_for_index(opening_set, opening_index: int) -> str:
-    lines = [
-        ln.strip()
-        for ln in Path(opening_set.file_path).read_text(encoding="utf-8").splitlines()
-        if ln.strip() and not ln.lstrip().startswith("#")
-    ]
-    if opening_index >= len(lines):
-        raise cc.CutechessLaunchError(
-            f"opening_index {opening_index} out of range ({len(lines)} lines)"
-        )
-    return lines[opening_index].split(";")[0].strip()

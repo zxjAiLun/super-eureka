@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import random
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -245,6 +246,27 @@ def create_tournament(
             ),
         )
 
+    # Phase C: deterministic opening selection.  plies only applies to PGN
+    # books; seed drives reproducible sampling without replacement.
+    from ..services import openings
+
+    opening_plies = body.opening_plies
+    fmt = (opening.manifest or {}).get("format") or opening.format
+    if opening_plies is not None and fmt != "pgn":
+        raise HTTPException(
+            status_code=422,
+            detail="opening_plies only applies to PGN opening sets",
+        )
+    opening_seed = body.opening_seed
+    if opening_seed is None:
+        opening_seed = random.randrange(1 << 31)
+    try:
+        opening_indices = openings.select_opening_indices(
+            opening, body.pairs, opening_plies, opening_seed
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     def _snapshot_engine(preset, build) -> dict:
         args = list(preset.command_args or [])
         if len(args) >= 2:
@@ -275,6 +297,10 @@ def create_tournament(
         "opening_set": {
             "opening_set_id": opening.opening_set_id,
             "sha256": opening.sha256,
+            "format": fmt,
+            "plies": opening_plies,
+            "seed": opening_seed,
+            "indices": opening_indices,
         },
         "time_control": body.time_control,
         "hash_mb": settings.hash_mb,
@@ -305,7 +331,7 @@ def create_tournament(
             PairJob(
                 tournament_id=tournament.id,
                 pair_index=pair_index,
-                opening_index=pair_index,
+                opening_index=opening_indices[pair_index],
                 status=PENDING,
                 attempt=1,
             )
@@ -677,6 +703,16 @@ async def admin_tournament_create(request: Request, session: Session = Depends(g
         time_control=form["time_control"],
         pairs=int(form["pairs"]),
         allow_intentional_self_play=form.get("allow_intentional_self_play") == "on",
+        opening_plies=(
+            int(form["opening_plies"])
+            if form.get("opening_plies")
+            else None
+        ),
+        opening_seed=(
+            int(form["opening_seed"])
+            if form.get("opening_seed")
+            else None
+        ),
     )
     # Reuse the API creation logic by calling it directly.
     created = create_tournament(body, session, request.app.state.settings)
