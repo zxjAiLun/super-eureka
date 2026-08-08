@@ -4,12 +4,21 @@ import { Chess } from "chess.js";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+// Tournaments start from a non-initial FEN when an opening book is used, and
+// chess.js loadPgn() honors that [FEN] header.  Navigation must therefore
+// replay from the same start position, not from the standard array.
+function pgnStartFen(pgn) {
+  const m = pgn.match(/^\[FEN "([^"]+)"\]/m);
+  return m ? m[1] : null;
+}
+
 function useReplay({ gameId, tournamentId, basePath }) {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
   const [moves, setMoves] = useState([]);
   const [meta, setMeta] = useState(null);
   const [pgn, setPgn] = useState("");
+  const [startFen, setStartFen] = useState(START_FEN);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +43,7 @@ function useReplay({ gameId, tournamentId, basePath }) {
         if (cancelled) return;
         setMoves(ms);
         setPgn(pgnText);
+        setStartFen(pgnStartFen(pgnText) || START_FEN);
         setMeta({ game, timeControl: match.time_control, matchName: match.name });
         setStatus("ready");
       } catch (e) {
@@ -48,11 +58,11 @@ function useReplay({ gameId, tournamentId, basePath }) {
     };
   }, [gameId, tournamentId, basePath]);
 
-  return { status, error, moves, meta, pgn };
+  return { status, error, moves, meta, pgn, startFen };
 }
 
 export default function App({ gameId, tournamentId, basePath, pairIndex }) {
-  const { status, error, moves, meta, pgn } = useReplay({
+  const { status, error, moves, meta, pgn, startFen } = useReplay({
     gameId,
     tournamentId,
     basePath,
@@ -64,8 +74,8 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
   }, [status]);
 
   const fen = useMemo(() => {
-    if (moves.length === 0) return START_FEN;
-    const c = new Chess();
+    if (moves.length === 0) return startFen;
+    const c = new Chess(startFen);
     for (let i = 0; i < ply; i++) {
       // Apply by source/target squares (verbose object), not by SAN:
       // re-parsing SAN can hit disambiguation errors on real tournament
@@ -74,7 +84,7 @@ export default function App({ gameId, tournamentId, basePath, pairIndex }) {
       c.move({ from: m.from, to: m.to, promotion: m.promotion });
     }
     return c.fen();
-  }, [moves, ply]);
+  }, [moves, ply, startFen]);
 
   useEffect(() => {
     if (status !== "ready") return undefined;
