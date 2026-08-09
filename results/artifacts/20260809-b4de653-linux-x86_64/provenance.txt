@@ -1,0 +1,53 @@
+S4.3B Immutable EngineArtifact - provenance record
+==================================================
+
+candidate profile:      current-final-legality-fast
+candidate source SHA:   b4de6532bc239d0ae4c5729a41dea890b2e0a815
+baseline profile:       current-final
+baseline production:    CurrentFinal
+
+source SHA:             b4de6532bc239d0ae4c5729a41dea890b2e0a815
+build ID:               20260809-b4de653-linux-x86_64
+
+binary path:            results/artifacts/20260809-b4de653-linux-x86_64/engine/engine
+binary SHA-256:         c6a08996d14c4746df77a783a81d660ba9f0db0ae8fc1bcd1239896f8c7e607f
+Cargo.lock SHA-256:     370d4ebcacd639d0bad97efc2d7c4f1eb419ef13ce9a518d1d8b2f836d64e9ee
+rustc version:          1.94.1 (e408947bf 2026-03-25)
+cargo version:          1.94.1 (29ea6fb6a 2026-03-24)
+platform:               linux-x86_64 (ELF 64-bit LSB pie, x86-64, GNU/Linux)
+target:                 target/release/chess-engine-demo (built --release --locked)
+
+supported_profiles:     current-final-legality-fast, current-final, current
+uci id name:            ChessEngineDemo
+uci id author:          Rust-learner
+created_utc:            2026-08-09T12:38:29Z
+
+gate (Linux, WSL Ubuntu, rustc 1.94.1):
+  cargo fmt --all -- --check                 PASS
+  cargo clippy --all-targets -- -D warnings  PASS
+  cargo test                                  PASS (22 binaries, 0 failed)
+  cargo test --release                        PASS (0 failed)
+  cargo build --release --locked              PASS
+
+probes:
+  default UCI probe (uci/isready/quit)                 PASS
+    id name ChessEngineDemo, id author Rust-learner,
+    info string search profile current-final, uciok, readyok
+  candidate-profile UCI probe (--profile current-final-legality-fast,
+    uci/isready/position startpos/go depth 1/quit)     PASS
+    info string search profile current-final-legality-fast,
+    uciok, readyok, bestmove b1c3
+
+integrity:
+  sha256sum engine/engine == manifest.binary_sha256      PASS
+  test -x engine/engine                                  PASS
+  python3 -m json.tool engine/manifest.json              PASS
+  archive: build-20260809-b4de653-linux-x86_64.tar.gz
+  archive SHA-256: ec49faaa8d08f03172888e6ecabff1c6480743f75844dd3d5b94724a2102b256
+  unpack-and-rehash == binary SHA-256                    PASS
+
+working tree state (engine repo): clean except untracked
+  server-bootstrap-evidence-20260806.md (unrelated, not part of the artifact)
+
+NOT deployed. NOT registered in Arena. No tournament started.
+The candidate implementation is unchanged since the local gate.

@@ -22,6 +22,8 @@
 !/results/s3-promotion/**
 !/results/s4-attribution/
 !/results/s4-attribution/**
+!/results/artifacts/
+!/results/artifacts/**
 
 # D1.14 local tournament-manager cache (the executable is never committed)
 /tools/.cache/
