@@ -1,0 +1,96 @@
+{
+  "depth": 6,
+  "positions": 30,
+  "total_nodes": 3637042,
+  "total_elapsed_us": 18836634,
+  "legality_probe_make": 203640212,
+  "legality_probe_make_per_node": 55.990613251098004,
+  "search_edge_make": 3635563,
+  "search_edge_make_per_node": 0.999593350860397,
+  "legality_fraction_of_make": 0.982460260973575,
+  "buckets_ns": {
+    "movegen_legal": 12008145961.861189,
+    "movegen_tactical": 1437580767.903365,
+    "movegen_evasion": 505145724.8803828,
+    "movegen_has_any": 225371242.88659793,
+    "eval": 986754213.7327845,
+    "ordering": 1272383916.3471742,
+    "see": 1342786416.838077,
+    "tt": 374837776.0660248
+  },
+  "bucket_share_of_elapsed": {
+    "movegen_legal": 0.637488946372329,
+    "movegen_tactical": 0.07631834689272855,
+    "movegen_evasion": 0.026817197004538218,
+    "movegen_has_any": 0.011964517805389112,
+    "eval": 0.05238484825541466,
+    "ordering": 0.06754836964752695,
+    "see": 0.07128590048721428,
+    "tt": 0.019899403262070323
+  },
+  "other_ns": 683627979.4844055,
+  "other_share": 0.036292470272788944,
+  "bucket_calls_samples": {
+    "movegen_legal": [
+      5613489,
+      21857
+    ],
+    "movegen_tactical": [
+      2676556,
+      10431
+    ],
+    "movegen_evasion": [
+      318238,
+      1254
+    ],
+    "movegen_has_any": [
+      495041,
+      1940
+    ],
+    "eval": [
+      3243399,
+      12634
+    ],
+    "ordering": [
+      3629258,
+      14137
+    ],
+    "see": [
+      2145441,
+      8362
+    ],
+    "tt": [
+      2612008,
+      10178
+    ]
+  },
+  "overhead_pct": -0.4897032794594685,
+  "overhead_rows": [
+    {
+      "id": "opening_01",
+      "elapsed_us_off": 258883,
+      "elapsed_us_on": 259105
+    },
+    {
+      "id": "opening_02",
+      "elapsed_us_off": 662249,
+      "elapsed_us_on": 656738
+    },
+    {
+      "id": "opening_03",
+      "elapsed_us_off": 705815,
+      "elapsed_us_on": 695875
+    },
+    {
+      "id": "opening_04",
+      "elapsed_us_off": 781836,
+      "elapsed_us_on": 779536
+    },
+    {
+      "id": "opening_05",
+      "elapsed_us_off": 1127440,
+      "elapsed_us_on": 1127652
+    }
+  ],
+  "sample_rate": 256
+}

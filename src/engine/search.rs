@@ -451,6 +451,34 @@ pub(crate) struct SearchDiagnostics {
 /// S4.0B: the initial (pre-filter) root rank of the diagnostic target move.
 /// Resolved at search start; read back by the bench harness after the search.
 pub(crate) const TARGET_ROOT_RANK_NONE: u32 = 0;
+
+/// S4.3A: deterministic sparse sampler for coarse hot-path operations. Each
+/// counter samples ~1 in `rate` calls of one operation type; `calls` counts
+/// every call while timing is enabled. Bench-only: `sampled_timing` is never
+/// set on the production UCI path, and `sample_begin` returns None immediately
+/// when disabled (zero production overhead).
+#[derive(Debug, Default)]
+pub(crate) struct SampledCounter {
+    pub(crate) calls: AtomicU64,
+    pub(crate) samples: AtomicU64,
+    pub(crate) elapsed_ns: AtomicU64,
+    gate: AtomicU32,
+}
+
+/// S4.3A: snapshot of the sampled wall-time accumulators.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct SampledTimings {
+    /// (calls, samples, elapsed_ns)
+    pub(crate) movegen_legal: (u64, u64, u64),
+    pub(crate) movegen_tactical: (u64, u64, u64),
+    pub(crate) movegen_evasion: (u64, u64, u64),
+    pub(crate) movegen_has_any: (u64, u64, u64),
+    pub(crate) eval: (u64, u64, u64),
+    pub(crate) ordering: (u64, u64, u64),
+    pub(crate) see: (u64, u64, u64),
+    pub(crate) tt: (u64, u64, u64),
+}
+
 /// Live, *shared* state for one search run. `stop` and `nodes` are
 /// atomic because the search runs on its own thread (M1.2) while the UCI
 /// main thread flips `stop` and reads `nodes`. The deadlines come from the
@@ -520,6 +548,22 @@ pub struct SearchContext {
     /// normal root ordering (before forced-root filtering). 0 = target not in
     /// the legal move list.
     pub(crate) target_root_rank: AtomicU32,
+    /// S4.3A: bench-only sampled wall-time attribution. `sampled_timing` is
+    /// never set on the production UCI path.
+    pub(crate) sampled_timing: bool,
+    pub(crate) sample_rate: u32,
+    pub(crate) timing_movegen_legal: SampledCounter,
+    pub(crate) timing_movegen_tactical: SampledCounter,
+    pub(crate) timing_movegen_evasion: SampledCounter,
+    pub(crate) timing_movegen_has_any: SampledCounter,
+    pub(crate) timing_eval: SampledCounter,
+    pub(crate) timing_ordering: SampledCounter,
+    pub(crate) timing_see: SampledCounter,
+    pub(crate) timing_tt: SampledCounter,
+    /// S4.3A: legality-probe make/unmake (from MovegenStats), split from
+    /// recursive search edges. search_edge = total make_moves - these.
+    pub(crate) legality_probe_make: AtomicU64,
+    pub(crate) legality_probe_unmake: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -626,6 +670,18 @@ impl SearchContext {
             features_mask: AtomicU32::new(0),
             diagnostics: None,
             target_root_rank: AtomicU32::new(TARGET_ROOT_RANK_NONE),
+            sampled_timing: false,
+            sample_rate: 0,
+            timing_movegen_legal: SampledCounter::default(),
+            timing_movegen_tactical: SampledCounter::default(),
+            timing_movegen_evasion: SampledCounter::default(),
+            timing_movegen_has_any: SampledCounter::default(),
+            timing_eval: SampledCounter::default(),
+            timing_ordering: SampledCounter::default(),
+            timing_see: SampledCounter::default(),
+            timing_tt: SampledCounter::default(),
+            legality_probe_make: AtomicU64::new(0),
+            legality_probe_unmake: AtomicU64::new(0),
         }
     }
 
@@ -692,6 +748,18 @@ impl SearchContext {
             features_mask: AtomicU32::new(0),
             diagnostics: None,
             target_root_rank: AtomicU32::new(TARGET_ROOT_RANK_NONE),
+            sampled_timing: false,
+            sample_rate: 0,
+            timing_movegen_legal: SampledCounter::default(),
+            timing_movegen_tactical: SampledCounter::default(),
+            timing_movegen_evasion: SampledCounter::default(),
+            timing_movegen_has_any: SampledCounter::default(),
+            timing_eval: SampledCounter::default(),
+            timing_ordering: SampledCounter::default(),
+            timing_see: SampledCounter::default(),
+            timing_tt: SampledCounter::default(),
+            legality_probe_make: AtomicU64::new(0),
+            legality_probe_unmake: AtomicU64::new(0),
         }
     }
 
@@ -768,11 +836,93 @@ impl SearchContext {
     pub(crate) fn features(&self) -> SearchFeaturePolicy {
         SearchFeaturePolicy::from_bits(self.features_mask.load(Ordering::Relaxed))
     }
+
+    /// S4.3A: begin a sampled timing window for one coarse operation. Returns
+    /// None when sampling is disabled (production) or when this call is not
+    /// the sampled one. `calls` is only counted while sampling is enabled.
+    #[inline]
+    pub(crate) fn sample_begin(&self, counter: &SampledCounter) -> Option<std::time::Instant> {
+        if !self.sampled_timing {
+            return None;
+        }
+        counter.calls.fetch_add(1, Ordering::Relaxed);
+        let gate = counter.gate.fetch_sub(1, Ordering::Relaxed);
+        if gate == 0 {
+            counter.gate.store(self.sample_rate, Ordering::Relaxed);
+            Some(std::time::Instant::now())
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub(crate) fn sample_end(&self, counter: &SampledCounter, start: std::time::Instant) {
+        counter.samples.fetch_add(1, Ordering::Relaxed);
+        counter
+            .elapsed_ns
+            .fetch_add(start.elapsed().as_nanos() as u64, Ordering::Relaxed);
+    }
+
+    /// S4.3A: snapshot all sampled timers (calls, samples, elapsed_ns).
+    pub(crate) fn sampled_timings(&self) -> SampledTimings {
+        SampledTimings {
+            movegen_legal: (
+                self.timing_movegen_legal.calls.load(Ordering::Relaxed),
+                self.timing_movegen_legal.samples.load(Ordering::Relaxed),
+                self.timing_movegen_legal.elapsed_ns.load(Ordering::Relaxed),
+            ),
+            movegen_tactical: (
+                self.timing_movegen_tactical.calls.load(Ordering::Relaxed),
+                self.timing_movegen_tactical.samples.load(Ordering::Relaxed),
+                self.timing_movegen_tactical
+                    .elapsed_ns
+                    .load(Ordering::Relaxed),
+            ),
+            movegen_evasion: (
+                self.timing_movegen_evasion.calls.load(Ordering::Relaxed),
+                self.timing_movegen_evasion.samples.load(Ordering::Relaxed),
+                self.timing_movegen_evasion
+                    .elapsed_ns
+                    .load(Ordering::Relaxed),
+            ),
+            movegen_has_any: (
+                self.timing_movegen_has_any.calls.load(Ordering::Relaxed),
+                self.timing_movegen_has_any.samples.load(Ordering::Relaxed),
+                self.timing_movegen_has_any
+                    .elapsed_ns
+                    .load(Ordering::Relaxed),
+            ),
+            eval: (
+                self.timing_eval.calls.load(Ordering::Relaxed),
+                self.timing_eval.samples.load(Ordering::Relaxed),
+                self.timing_eval.elapsed_ns.load(Ordering::Relaxed),
+            ),
+            ordering: (
+                self.timing_ordering.calls.load(Ordering::Relaxed),
+                self.timing_ordering.samples.load(Ordering::Relaxed),
+                self.timing_ordering.elapsed_ns.load(Ordering::Relaxed),
+            ),
+            see: (
+                self.timing_see.calls.load(Ordering::Relaxed),
+                self.timing_see.samples.load(Ordering::Relaxed),
+                self.timing_see.elapsed_ns.load(Ordering::Relaxed),
+            ),
+            tt: (
+                self.timing_tt.calls.load(Ordering::Relaxed),
+                self.timing_tt.samples.load(Ordering::Relaxed),
+                self.timing_tt.elapsed_ns.load(Ordering::Relaxed),
+            ),
+        }
+    }
 }
 
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let start = ctx.sample_begin(&ctx.timing_movegen_legal);
     let (moves, stats) = generate_legal_moves_with_stats(pos);
+    if let Some(start) = start {
+        ctx.sample_end(&ctx.timing_movegen_legal, start);
+    }
     add_movegen_profile(ctx, stats);
     moves
 }
@@ -784,25 +934,40 @@ fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats) {
     ctx.add_profile_counter(&ctx.legal_moves, stats.legal_moves);
     ctx.add_profile_counter(&ctx.make_moves, stats.make_moves);
     ctx.add_profile_counter(&ctx.unmake_moves, stats.unmake_moves);
+    // S4.3A: legality-probe make/unmake split from recursive search edges.
+    ctx.add_profile_counter(&ctx.legality_probe_make, stats.make_moves);
+    ctx.add_profile_counter(&ctx.legality_probe_unmake, stats.unmake_moves);
 }
 
 #[inline]
 fn generate_legal_tactical_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let start = ctx.sample_begin(&ctx.timing_movegen_tactical);
     let (moves, stats) = generate_legal_tactical_moves_with_stats(pos);
+    if let Some(start) = start {
+        ctx.sample_end(&ctx.timing_movegen_tactical, start);
+    }
     add_movegen_profile(ctx, stats);
     moves
 }
 
 #[inline]
 fn generate_legal_evasions_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    let start = ctx.sample_begin(&ctx.timing_movegen_evasion);
     let (moves, stats) = generate_legal_evasions_with_stats(pos);
+    if let Some(start) = start {
+        ctx.sample_end(&ctx.timing_movegen_evasion, start);
+    }
     add_movegen_profile(ctx, stats);
     moves
 }
 
 #[inline]
 fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool {
+    let start = ctx.sample_begin(&ctx.timing_movegen_has_any);
     let (has_move, stats) = has_any_legal_move_with_stats(pos);
+    if let Some(start) = start {
+        ctx.sample_end(&ctx.timing_movegen_has_any, start);
+    }
     add_movegen_profile(ctx, stats);
     has_move
 }
@@ -810,13 +975,18 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
 #[inline]
 fn evaluate_profiled(pos: &Position, ctx: &SearchContext, profile: SearchProfile) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
-    if profile.uses_eval2() {
+    let start = ctx.sample_begin(&ctx.timing_eval);
+    let result = if profile.uses_eval2() {
         evaluate_integrated_positional(pos)
     } else if profile.uses_threat_aware_eval() {
         evaluate_threat_aware(pos)
     } else {
         evaluate(pos)
+    };
+    if let Some(start) = start {
+        ctx.sample_end(&ctx.timing_eval, start);
     }
+    result
 }
 
 #[inline]
@@ -2299,11 +2469,15 @@ fn negamax_entered_impl_with_null_and_extensions(
         current_tt_key(pos, path)
     };
     ctx.add_profile_counter(&ctx.tt_probes, 1);
+    let tt_start = ctx.sample_begin(&ctx.timing_tt);
     let tt_probe = if _profile.uses_forcing_search() {
         probe_tt_for_search_exact_depth(tt, key, depth, ply, alpha, beta)
     } else {
         probe_tt_for_search(tt, key, depth, ply, alpha, beta)
     };
+    if let Some(start) = tt_start {
+        ctx.sample_end(&ctx.timing_tt, start);
+    }
     if tt_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
@@ -2445,6 +2619,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // Killers are read from this `ply` (grown lazily; empty until a quiet
     // cutoff records one in a prior iteration); history is the per-search
     // table carried in `heur`.
+    let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
     if _profile.uses_threat_ordering() {
         order_moves_with_threats(
             pos,
@@ -2467,6 +2642,9 @@ fn negamax_entered_impl_with_null_and_extensions(
         // move (if legal and present) to index 0 without disturbing the
         // relative order of the other moves.
         order_moves_with_hash(pos, &mut moves, tt_probe.hash_move);
+    }
+    if let Some(start) = ordering_start {
+        ctx.sample_end(&ctx.timing_ordering, start);
     }
 
     let mut node_best_move: Option<Move> = None;
@@ -2813,6 +2991,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // Store one entry under the caller window; a deeper abort never reaches
     // here, so no partial node is ever cached.
     let bound = classify_tt_bound(returned_score, caller_alpha, caller_beta);
+    let tt_store_start = ctx.sample_begin(&ctx.timing_tt);
     store_tt_score_profiled(
         tt,
         key,
@@ -2823,6 +3002,9 @@ fn negamax_entered_impl_with_null_and_extensions(
         node_best_move,
         ctx,
     );
+    if let Some(start) = tt_store_start {
+        ctx.sample_end(&ctx.timing_tt, start);
+    }
     Some(returned_score)
 }
 
@@ -2908,11 +3090,15 @@ fn prune_qsearch_captures_by_see_impl(
         // capture. If a future move flag or generator violates that contract,
         // it reaches the fail-open path above instead of being pruned.
         ctx.add_profile_counter(&ctx.qsearch_see_tests, 1);
+        let see_start = ctx.sample_begin(&ctx.timing_see);
         let see_ge = if fast_see {
             see_ge_for_pruning(pos, m, 0)
         } else {
             static_exchange_eval_for_pruning(pos, m).map(|value| value >= 0)
         };
+        if let Some(start) = see_start {
+            ctx.sample_end(&ctx.timing_see, start);
+        }
         match see_ge {
             Some(false) => {
                 ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
@@ -3902,10 +4088,14 @@ fn quiescence_entered_impl_with_profile(
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
+    let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
     if profile.uses_threat_ordering() {
         order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
     } else {
         order_moves(pos, &mut legal);
+    }
+    if let Some(start) = ordering_start {
+        ctx.sample_end(&ctx.timing_ordering, start);
     }
 
     // Termination cap.

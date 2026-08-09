@@ -1,0 +1,11 @@
+{
+  "git_sha": "583ee7674b2f69b9dc1a4d4a63d19f93c5f3a051",
+  "engine": "E:\\AUbuntuProject\\project\\chessenginedemo\\target\\release\\chess-engine-demo.exe",
+  "profile": "current-final",
+  "hash_mb": 16,
+  "threads": 1,
+  "tt": "cold",
+  "corpus": "tools\\data\\s4_compute_positions.epd",
+  "method": "bench-only sampled timing",
+  "sample_rate": 256
+}

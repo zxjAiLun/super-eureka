@@ -35,6 +35,8 @@ import chess.pgn
 
 from run_s21_practical_gate import git_sha, parse_key_values, sha256_file
 
+from s4_attribution import load_epd
+
 PROFILE = "current-final"
 QUALITY_DIR = Path("results/s4-attribution/quality")
 MATE_CUTOFF = 30000  # |score| >= this is treated as a mate distance, not cp
@@ -1000,6 +1002,115 @@ def phase_s42a(args: argparse.Namespace) -> None:
     print(f"s42a: -> {QUALITY_DIR / 's42a_components.jsonl'}")
 
 
+def phase_s43a(args: argparse.Namespace) -> None:
+    """S4.3A Core wall-time attribution: run the S4.0A 30-position corpus at
+    fixed depth with bench-only sampled timing (--timing-sample), aggregate the
+    sampled wall-time buckets, and estimate profiling overhead."""
+    import collections
+    engine = Path(args.engine).resolve()
+    corpus = load_epd(Path(args.epd).resolve())
+    out_dir = QUALITY_DIR.parent / "core"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    buckets = ["movegen_legal", "movegen_tactical", "movegen_evasion",
+               "movegen_has_any", "eval", "ordering", "see", "tt"]
+
+    def run_one(fen: str, timing: bool) -> tuple[dict, dict]:
+        argv = [str(engine), "bench", "profile", "--mode", "cold", "--depth",
+                str(args.s43a_depth), "--profile", "current-final", "--fen", fen]
+        if timing:
+            argv += ["--timing-sample", str(args.s43a_sample_rate)]
+        completed = subprocess.run(argv, capture_output=True, text=True,
+                                   timeout=max(60, args.s43a_depth * 30), check=False)
+        if completed.returncode != 0:
+            raise RuntimeError(f"s43a bench failed: {completed.stderr}")
+        result = {}
+        timing_row = {}
+        for line in completed.stdout.splitlines():
+            if line.startswith("bench_result "):
+                result = {k: v for k, v in parse_kv(line).items()
+                          if k in ("nodes", "elapsed_us", "score", "bestmove")}
+            elif line.startswith("bench_timing "):
+                timing_row = parse_kv(line)
+        if not result:
+            raise RuntimeError("s43a: no bench_result line")
+        return result, timing_row
+
+    rows = []
+    for pos in corpus:
+        fen = pos["fen"]
+        res, timing = run_one(fen, timing=True)
+        rows.append({"id": pos["id"], "class": pos["group"], "fen": fen,
+                     "result": res, "timing": timing})
+
+    # aggregate sampled wall-time per bucket (sum of extrapolated ns)
+    agg: dict[str, dict] = {}
+    total_extrap_ns = 0
+    for b in buckets:
+        calls = sum(int(r["timing"].get(f"{b}_calls", 0)) for r in rows)
+        samples = sum(int(r["timing"].get(f"{b}_samples", 0)) for r in rows)
+        ns = sum(int(r["timing"].get(f"{b}_ns", 0)) for r in rows)
+        extrap = (ns * calls / samples) if samples else 0
+        agg[b] = {"calls": calls, "samples": samples, "sampled_ns": ns,
+                  "extrapolated_ns": extrap}
+        total_extrap_ns += extrap
+    total_elapsed_us = sum(int(r["result"]["elapsed_us"]) for r in rows)
+    total_elapsed_ns = total_elapsed_us * 1000
+    other_ns = max(0, total_elapsed_ns - total_extrap_ns)
+    total_nodes = sum(int(r["result"]["nodes"]) for r in rows)
+    legality_make = sum(int(r["timing"]["legality_probe_make"]) for r in rows)
+    search_edge_make = sum(int(r["timing"]["search_edge_make"]) for r in rows)
+
+    # overhead: timing on vs off on a few positions
+    overhead_rows = []
+    for pos in corpus[: args.s43a_overhead_positions]:
+        off, _ = run_one(pos["fen"], timing=False)
+        on, _ = run_one(pos["fen"], timing=True)
+        overhead_rows.append({"id": pos["id"], "elapsed_us_off": int(off["elapsed_us"]),
+                              "elapsed_us_on": int(on["elapsed_us"])})
+    overhead_pct = 0.0
+    if overhead_rows:
+        off = sum(r["elapsed_us_off"] for r in overhead_rows)
+        on = sum(r["elapsed_us_on"] for r in overhead_rows)
+        overhead_pct = (on - off) / off * 100 if off else 0.0
+
+    wall = {"depth": args.s43a_depth, "positions": len(rows), "total_nodes": total_nodes,
+            "total_elapsed_us": total_elapsed_us,
+            "legality_probe_make": legality_make,
+            "legality_probe_make_per_node": legality_make / max(1, total_nodes),
+            "search_edge_make": search_edge_make,
+            "search_edge_make_per_node": search_edge_make / max(1, total_nodes),
+            "legality_fraction_of_make": legality_make / max(1, legality_make + search_edge_make),
+            "buckets_ns": {b: agg[b]["extrapolated_ns"] for b in buckets},
+            "bucket_share_of_elapsed": {b: agg[b]["extrapolated_ns"] / max(1, total_elapsed_ns)
+                                        for b in buckets},
+            "other_ns": other_ns,
+            "other_share": other_ns / max(1, total_elapsed_ns),
+            "bucket_calls_samples": {b: (agg[b]["calls"], agg[b]["samples"]) for b in buckets},
+            "overhead_pct": overhead_pct,
+            "overhead_rows": overhead_rows,
+            "sample_rate": args.s43a_sample_rate,
+        }
+    (out_dir / "wall_profile.json").write_text(json.dumps(wall, indent=2) + "\n", encoding="utf-8")
+    write_jsonl(out_dir / "raw_samples.jsonl", rows)
+    provenance = {"git_sha": git_sha(Path(__file__).resolve().parents[1]),
+                  "engine": str(engine), "profile": "current-final",
+                  "hash_mb": 16, "threads": 1, "tt": "cold",
+                  "corpus": str(args.epd), "method": "bench-only sampled timing",
+                  "sample_rate": args.s43a_sample_rate}
+    (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+
+    print("=== S4.3A wall-time buckets (extrapolated, share of total elapsed) ===")
+    for b in buckets:
+        print(f"{b:20s} {agg[b]['extrapolated_ns']/1e6:8.1f} ms  {wall['bucket_share_of_elapsed'][b]*100:5.1f}%")
+    print(f"{'other/unattributed':20s} {other_ns/1e6:8.1f} ms  {wall['other_share']*100:5.1f}%")
+    print(f"total elapsed: {total_elapsed_ns/1e6:.0f} ms")
+    print(f"legality probe make/node: {wall['legality_probe_make_per_node']:.1f}  "
+          f"search-edge make/node: {wall['search_edge_make_per_node']:.1f}  "
+          f"(legality = {wall['legality_fraction_of_make']*100:.1f}% of all make)")
+    print(f"timing overhead: {overhead_pct:+.1f}%")
+    print(f"-> {out_dir}")
+
+
 def phase_summary(args: argparse.Namespace) -> None:
     import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
@@ -1166,6 +1277,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--s41-confirm-nodes", type=int, default=40000)
     p.add_argument("--s41-candidate", default="current-final-root-history")
     p.add_argument("--s41c-depths", type=int, nargs="+", default=[5, 6, 7])
+    p.add_argument("--epd", type=Path, default=Path("tools/data/s4_compute_positions.epd"))
+    p.add_argument("--s43a-depth", type=int, default=6)
+    p.add_argument("--s43a-sample-rate", type=int, default=256)
+    p.add_argument("--s43a-overhead-positions", type=int, default=5)
     return p.parse_args()
 
 
@@ -1205,6 +1320,8 @@ def main() -> int:
             phase_s41c(args)
         elif ph == "s42a":
             phase_s42a(args)
+        elif ph == "s43a":
+            phase_s43a(args)
         elif ph == "summary":
             phase_summary(args)
         else:

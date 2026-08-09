@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 use crate::chess::fen::{parse_fen, to_fen};
 use crate::chess::move_to_uci;
-use crate::chess::movegen::generate_legal_moves;
+use crate::chess::movegen::{generate_legal_moves, generate_pseudo_moves};
 use crate::chess::position::Position;
 use crate::chess::types::START_FEN;
 use crate::chess::Move;
@@ -146,6 +146,9 @@ struct BenchArgs {
     /// S4.1c Phase B: every root move gets a full-window child search (no
     /// root scout + conditional re-search). Diagnostic only.
     diag_root_full_window: bool,
+    /// S4.3A: sampled wall-time attribution rate (e.g. 256 = 1/256 calls).
+    /// Profile suite only; never set on the production UCI path.
+    timing_sample: Option<u32>,
     /// S4.0B: force the root to search only this move (UCI), e.g. the teacher move.
     forced_root: Option<String>,
     /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
@@ -257,6 +260,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut diag_null = false;
     let mut diag_qsee = false;
     let mut diag_root_full_window = false;
+    let mut timing_sample: Option<u32> = None;
     let mut forced_root: Option<String> = None;
     let mut target_root: Option<String> = None;
 
@@ -537,6 +541,25 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 }
                 target_root = Some(v);
             }
+            "--timing-sample" => {
+                if suite != Suite::Profile {
+                    return Err("bench: --timing-sample is only valid for profile".to_string());
+                }
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --timing-sample requires a value".to_string())?
+                    .clone();
+                let n: u32 = v.parse().map_err(|_| {
+                    format!("bench: --timing-sample '{}' is not a positive integer", v)
+                })?;
+                if n == 0 {
+                    return Err("bench: --timing-sample must be >= 1".to_string());
+                }
+                if timing_sample.is_some() {
+                    return Err("bench: --timing-sample may be specified only once".to_string());
+                }
+                timing_sample = Some(n);
+            }
             other => {
                 return Err(format!("bench: unknown argument '{}'", other));
             }
@@ -572,6 +595,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         diag_root_full_window,
         forced_root,
         target_root,
+        timing_sample,
     })
 }
 
@@ -1226,6 +1250,12 @@ fn run_one(
         });
     }
 
+    // S4.3A: sampled wall-time attribution (bench-only, never UCI).
+    if let Some(rate) = cfg.timing_sample {
+        ctx.sampled_timing = true;
+        ctx.sample_rate = rate;
+    }
+
     let limits = limits_for(actual_limit);
 
     let start = Instant::now();
@@ -1234,6 +1264,47 @@ fn run_one(
     let elapsed = start.elapsed();
     let nodes = ctx.nodes.load(Ordering::Relaxed);
     let stats = ctx.stats();
+
+    if let Some(_rate) = cfg.timing_sample {
+        let t = ctx.sampled_timings();
+        let legality_make = ctx.legality_probe_make.load(Ordering::Relaxed);
+        let legality_unmake = ctx.legality_probe_unmake.load(Ordering::Relaxed);
+        let search_edge_make = stats.make_moves.saturating_sub(legality_make);
+        let search_edge_unmake = stats.unmake_moves.saturating_sub(legality_unmake);
+        println!(
+            "bench_timing nodes={} elapsed_us={} legality_probe_make={} legality_probe_unmake={} search_edge_make={} search_edge_unmake={} movegen_legal_calls={} movegen_legal_samples={} movegen_legal_ns={} movegen_tactical_calls={} movegen_tactical_samples={} movegen_tactical_ns={} movegen_evasion_calls={} movegen_evasion_samples={} movegen_evasion_ns={} movegen_has_any_calls={} movegen_has_any_samples={} movegen_has_any_ns={} eval_calls={} eval_samples={} eval_ns={} ordering_calls={} ordering_samples={} ordering_ns={} see_calls={} see_samples={} see_ns={} tt_calls={} tt_samples={} tt_ns={}",
+            nodes,
+            elapsed.as_micros(),
+            legality_make,
+            legality_unmake,
+            search_edge_make,
+            search_edge_unmake,
+            t.movegen_legal.0,
+            t.movegen_legal.1,
+            t.movegen_legal.2,
+            t.movegen_tactical.0,
+            t.movegen_tactical.1,
+            t.movegen_tactical.2,
+            t.movegen_evasion.0,
+            t.movegen_evasion.1,
+            t.movegen_evasion.2,
+            t.movegen_has_any.0,
+            t.movegen_has_any.1,
+            t.movegen_has_any.2,
+            t.eval.0,
+            t.eval.1,
+            t.eval.2,
+            t.ordering.0,
+            t.ordering.1,
+            t.ordering.2,
+            t.see.0,
+            t.see.1,
+            t.see.2,
+            t.tt.0,
+            t.tt.1,
+            t.tt.2,
+        );
+    }
 
     validate(
         fx,
@@ -1278,6 +1349,118 @@ fn run_one(
         target_root_rank: ctx.target_root_rank.load(Ordering::Relaxed),
         stats,
     })
+}
+
+/// S4.3A movegen sub-attribution microbench: isolate pseudo generation,
+/// make+unmake pair, is_square_attacked, and per-move legality filtering on
+/// ONE representative FEN. Supporting evidence only (cache/context differs
+/// from real search).
+fn run_microbench(args: &[String]) -> Result<(), String> {
+    let mut fen: Option<String> = None;
+    let mut repeats: u64 = 200_000;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "microbench: --fen requires a value".to_string())?
+                    .clone();
+                if fen.is_some() {
+                    return Err("microbench: --fen may be specified only once".to_string());
+                }
+                fen = Some(value);
+            }
+            "--repeats" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "microbench: --repeats requires a value".to_string())?
+                    .clone();
+                let n: u64 = value.parse().map_err(|_| {
+                    format!(
+                        "microbench: --repeats '{}' is not a positive integer",
+                        value
+                    )
+                })?;
+                if n == 0 {
+                    return Err("microbench: --repeats must be >= 1".to_string());
+                }
+                repeats = n;
+            }
+            other => {
+                return Err(format!(
+                    "microbench: unknown argument '{}' (expected --fen <fen> [--repeats N])",
+                    other
+                ));
+            }
+        }
+    }
+    let fen = fen.ok_or_else(|| "microbench: --fen is required".to_string())?;
+    let mut pos = parse_fen(&fen).map_err(|e| format!("microbench: invalid FEN: {}", e))?;
+    let enemy = pos.side.opposite();
+    let king_sq = pos.king_square(pos.side);
+    let mut moves: Vec<Move> = Vec::with_capacity(64);
+
+    // warmup
+    for _ in 0..10_000 {
+        moves.clear();
+        generate_pseudo_moves(&pos, &mut moves);
+    }
+    let first = moves[0];
+    std::hint::black_box(first);
+
+    // a) pseudo move generation only
+    let t0 = Instant::now();
+    for _ in 0..repeats {
+        moves.clear();
+        generate_pseudo_moves(&pos, &mut moves);
+    }
+    let pseudo_ns = t0.elapsed().as_nanos() as f64 / repeats as f64;
+
+    // b) make+unmake pair alone
+    let t0 = Instant::now();
+    for _ in 0..repeats {
+        let undo = pos.make_move(first);
+        pos.unmake_move(undo);
+    }
+    let make_pair_ns = t0.elapsed().as_nanos() as f64 / repeats as f64;
+
+    // c) is_square_attacked alone
+    let t0 = Instant::now();
+    for _ in 0..repeats {
+        std::hint::black_box(pos.is_square_attacked(king_sq, enemy));
+    }
+    let attack_ns = t0.elapsed().as_nanos() as f64 / repeats as f64;
+
+    // d) legality filtering over a fixed subset of the pseudo list:
+    //    make -> king-attack test -> unmake, averaged per move
+    let subset: Vec<Move> = moves.iter().take(8).copied().collect();
+    let filter_reps = repeats / 8;
+    let t0 = Instant::now();
+    let mut ok = 0u64;
+    for _ in 0..filter_reps {
+        for &m in &subset {
+            let undo = pos.make_move(m);
+            if !pos.is_square_attacked(pos.king_square(pos.side), pos.side.opposite()) {
+                ok += 1;
+            }
+            pos.unmake_move(undo);
+        }
+    }
+    std::hint::black_box(ok);
+    let filter_per_move_ns =
+        t0.elapsed().as_nanos() as f64 / (filter_reps as f64 * subset.len() as f64);
+
+    println!(
+        "microbench fen=\"{}\" pseudo_moves={} pseudo_ns={:.1} make_pair_ns={:.1} attack_ns={:.1} filter_per_move_ns={:.1}",
+        fen,
+        moves.len(),
+        pseudo_ns,
+        make_pair_ns,
+        attack_ns,
+        filter_per_move_ns
+    );
+    Ok(())
 }
 
 /// S4.2A: `bench eval-breakdown --fen <fen> [--repeats N]` emits every dormant
@@ -1492,6 +1675,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     if args[0] == "eval-breakdown" {
         return run_eval_breakdown(&args[1..]);
+    }
+    if args[0] == "microbench" {
+        return run_microbench(&args[1..]);
     }
     let cfg = parse_args(args)?;
     let fixtures = fixtures_for(&cfg);
@@ -2186,6 +2372,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            timing_sample: None,
             forced_root: None,
             target_root: None,
         };
@@ -2218,6 +2405,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            timing_sample: None,
             forced_root: forced_root.map(|s| s.to_string()),
             target_root: target_root.map(|s| s.to_string()),
         }
@@ -2297,6 +2485,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            timing_sample: None,
             forced_root: None,
             target_root: None,
         };
@@ -2354,6 +2543,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            timing_sample: None,
             forced_root: None,
             target_root: None,
         };
@@ -2410,6 +2600,7 @@ mod tests {
                 diag_null: false,
                 diag_qsee: false,
                 diag_root_full_window: false,
+                timing_sample: None,
                 forced_root: None,
                 target_root: None,
             };
@@ -2450,6 +2641,7 @@ mod tests {
                 diag_null: false,
                 diag_qsee: false,
                 diag_root_full_window: false,
+                timing_sample: None,
                 forced_root: None,
                 target_root: None,
             };
@@ -2584,6 +2776,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            timing_sample: None,
             forced_root: None,
             target_root: None,
         };
