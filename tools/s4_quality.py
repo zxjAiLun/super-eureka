@@ -914,6 +914,92 @@ def phase_s41c(args: argparse.Namespace) -> None:
     print(f"s41c: {len(rows)} -> {QUALITY_DIR / 's41c_attribution.jsonl'}")
 
 
+def parse_kv(line: str) -> dict[str, str]:
+    import shlex
+    fields: dict[str, str] = {}
+    for tok in shlex.split(line):
+        key, separator, value = tok.partition("=")
+        if separator:
+            fields[key] = value
+    return fields
+
+
+def phase_s42a(args: argparse.Namespace) -> None:
+    """S4.2A Evaluation Residual Attribution: one-ply T-vs-O component deltas
+    on the 11 EVAL_LIKE positions (and the broader 113 disagreements), using
+    `bench eval-breakdown` (dormant E2 component lanes, white perspective)."""
+    import collections
+    engine = Path(args.engine).resolve()
+    paired = read_jsonl(QUALITY_DIR / "paired.jsonl")
+    eval_like = [r for r in paired if r["class"] == "EVAL_LIKE"]
+    components = ["material_pst", "pawn_structure", "mobility", "piece_activity",
+                  "rook_activity", "development_space", "king_safety"]
+
+    def components_of(fen: str) -> dict[str, int]:
+        completed = subprocess.run(
+            [str(engine), "bench", "eval-breakdown", "--fen", fen],
+            capture_output=True, text=True, timeout=30, check=False)
+        if completed.returncode != 0:
+            raise RuntimeError(f"eval-breakdown failed: {completed.stderr}")
+        line = next((l for l in completed.stdout.splitlines()
+                     if l.startswith("eval_breakdown ")), None)
+        if line is None:
+            raise RuntimeError("eval-breakdown produced no output")
+        fields = parse_kv(line)
+        return {c: int(fields[c]) for c in components}
+
+    def position_row(r: dict) -> dict:
+        fen, T, O = r["fen"], r["teacher_best"], r["normal_best"]
+        root_white = chess.Board(fen).turn == chess.WHITE
+        sign = 1 if root_white else -1
+        bT = chess.Board(fen); bT.push(chess.Move.from_uci(T))
+        bO = chess.Board(fen); bO.push(chess.Move.from_uci(O))
+        cT = components_of(bT.fen()); cO = components_of(bO.fen())
+        return {
+            "fen": fen, "teacher_best": T, "normal_best": O,
+            "teacher_best_score": r.get("teacher_best_score"),
+            "deltas_d": {k: r["deltas"].get(k) for k in ("3", "4", "5", "6", "7")},
+            "component_delta_root": {c: (cT[c] - cO[c]) * sign for c in components},
+        }
+
+    rows11 = [position_row(r) for r in eval_like]
+    rows113 = [position_row(r) for r in paired]
+
+    def agg(rows: list[dict]) -> dict[str, dict]:
+        out = {}
+        for c in components:
+            d = [x["component_delta_root"][c] for x in rows]
+            out[c] = {
+                "pos": sum(1 for v in d if v > 0),
+                "neg": sum(1 for v in d if v < 0),
+                "zero": sum(1 for v in d if v == 0),
+                "median_delta": statistics.median(d),
+                "median_abs_delta": statistics.median([abs(v) for v in d]),
+            }
+        return out
+
+    result = {
+        "eval_like_n": len(rows11),
+        "broader_n": len(rows113),
+        "rows_11": rows11,
+        "rows_113": rows113,
+        "agg_11": agg(rows11),
+        "agg_113": agg(rows113),
+    }
+    write_jsonl(QUALITY_DIR / "s42a_components.jsonl", [result])
+    print("=== EVAL_LIKE (11) component deltas (T-O, root perspective) ===")
+    for c in components:
+        a = result["agg_11"][c]
+        print(f"{c:18s} pos={a['pos']:2d} neg={a['neg']:2d} zero={a['zero']:2d} "
+              f"median={a['median_delta']:+.1f} median|d|={a['median_abs_delta']:.1f}")
+    print("=== broader (113) ===")
+    for c in components:
+        a = result["agg_113"][c]
+        print(f"{c:18s} pos={a['pos']:3d} neg={a['neg']:3d} zero={a['zero']:3d} "
+              f"median={a['median_delta']:+.1f} median|d|={a['median_abs_delta']:.1f}")
+    print(f"s42a: -> {QUALITY_DIR / 's42a_components.jsonl'}")
+
+
 def phase_summary(args: argparse.Namespace) -> None:
     import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
@@ -1117,6 +1203,8 @@ def main() -> int:
             phase_s41_ab(args)
         elif ph == "s41c":
             phase_s41c(args)
+        elif ph == "s42a":
+            phase_s42a(args)
         elif ph == "summary":
             phase_summary(args)
         else:

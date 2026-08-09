@@ -32,6 +32,7 @@ use crate::chess::position::Position;
 use crate::chess::types::START_FEN;
 use crate::chess::Move;
 use crate::chess::ZobristKey;
+use crate::engine::eval::evaluate_components_white;
 use crate::engine::search::{
     search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
     SearchContext, SearchDiagnostics, SearchLimits, SearchOutcome, SearchProfile, SearchStats,
@@ -1279,6 +1280,104 @@ fn run_one(
     })
 }
 
+/// S4.2A: `bench eval-breakdown --fen <fen> [--repeats N]` emits every dormant
+/// positional evaluation component in WHITE perspective (positive = favours
+/// White), phase-interpolated, plus the base material/PST lane. With
+/// `--repeats N` it also times N calls of the base `evaluate` vs the full
+/// component breakdown (relative eval cost estimate). Diagnostic only.
+fn run_eval_breakdown(args: &[String]) -> Result<(), String> {
+    let mut fen: Option<String> = None;
+    let mut repeats: Option<u32> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-breakdown: --fen requires a value".to_string())?
+                    .clone();
+                if fen.is_some() {
+                    return Err("eval-breakdown: --fen may be specified only once".to_string());
+                }
+                fen = Some(value);
+            }
+            "--repeats" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-breakdown: --repeats requires a value".to_string())?
+                    .clone();
+                let n: u32 = value.parse().map_err(|_| {
+                    format!(
+                        "eval-breakdown: --repeats '{}' is not a positive integer",
+                        value
+                    )
+                })?;
+                if n == 0 {
+                    return Err("eval-breakdown: --repeats must be >= 1".to_string());
+                }
+                if repeats.is_some() {
+                    return Err("eval-breakdown: --repeats may be specified only once".to_string());
+                }
+                repeats = Some(n);
+            }
+            other => {
+                return Err(format!(
+                    "eval-breakdown: unknown argument '{}' (expected --fen <fen> [--repeats N])",
+                    other
+                ));
+            }
+        }
+    }
+    let fen = fen.ok_or_else(|| "eval-breakdown: --fen is required".to_string())?;
+    let pos = parse_fen(&fen).map_err(|e| format!("eval-breakdown: invalid FEN: {}", e))?;
+    let cps = evaluate_components_white(&pos);
+    let side = if pos.side == crate::chess::types::Color::White {
+        "w"
+    } else {
+        "b"
+    };
+    println!(
+        "eval_breakdown fen=\"{}\" side={} phase={} material_pst={} pawn_structure={} mobility={} piece_activity={} rook_activity={} development_space={} king_safety={}",
+        fen,
+        side,
+        cps.phase,
+        cps.material_pst,
+        cps.pawn_structure,
+        cps.mobility,
+        cps.piece_activity,
+        cps.rook_activity,
+        cps.development_space,
+        cps.king_safety,
+    );
+    if let Some(n) = repeats {
+        let base_start = std::time::Instant::now();
+        let mut acc = 0i64;
+        for _ in 0..n {
+            acc = acc.wrapping_add(i64::from(crate::engine::eval::evaluate(&pos)));
+        }
+        let base_ms = base_start.elapsed().as_millis();
+        let comp_start = std::time::Instant::now();
+        let mut cacc = 0i64;
+        for _ in 0..n {
+            let c = evaluate_components_white(&pos);
+            cacc = cacc.wrapping_add(
+                i64::from(c.material_pst) + i64::from(c.mobility) + i64::from(c.pawn_structure),
+            );
+        }
+        let comp_ms = comp_start.elapsed().as_millis();
+        let ratio = if base_ms > 0 {
+            comp_ms as f64 / base_ms as f64
+        } else {
+            0.0
+        };
+        println!(
+            "eval_timing repeats={} base_eval_ms={} components_ms={} ratio={:.3} acc={} cacc={}",
+            n, base_ms, comp_ms, ratio, acc, cacc
+        );
+    }
+    Ok(())
+}
+
 /// Check deterministic fields for consistency across repeats of the same
 /// (fixture, mode). On mismatch, emit a clear bench_error (warning).
 fn check_determinism(results: &[BenchResult]) {
@@ -1390,6 +1489,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args.is_empty() || args[0] == "help" {
         print_help();
         return Ok(());
+    }
+    if args[0] == "eval-breakdown" {
+        return run_eval_breakdown(&args[1..]);
     }
     let cfg = parse_args(args)?;
     let fixtures = fixtures_for(&cfg);

@@ -610,6 +610,51 @@ pub(crate) struct EvalBreakdown {
     pub(crate) final_score: i32,
 }
 
+/// S4.2A: white-perspective, phase-interpolated cp values of the base
+/// material/PST lane and every dormant positional component. Diagnostic only;
+/// no production search uses these.
+pub(crate) struct ComponentCps {
+    pub(crate) phase: i32,
+    pub(crate) material_pst: i32,
+    pub(crate) pawn_structure: i32,
+    pub(crate) mobility: i32,
+    pub(crate) piece_activity: i32,
+    pub(crate) rook_activity: i32,
+    pub(crate) development_space: i32,
+    pub(crate) king_safety: i32,
+}
+
+/// Compute every component in WHITE perspective (positive = favours White),
+/// interpolated to the current game phase, for a diagnostic FEN breakdown.
+/// The side-to-move marker is not needed here: callers re-sign deltas.
+pub(crate) fn evaluate_components_white(pos: &Position) -> ComponentCps {
+    let mut context = EvalContext::from_position(pos);
+    let phase = context.phase;
+    let side_material = context.terms.material_pst;
+    let white_terms = integrated_positional_terms(pos, &mut context);
+    let to_white = |s: Score| {
+        if pos.side == Color::White {
+            s
+        } else {
+            Score {
+                mg: -s.mg,
+                eg: -s.eg,
+            }
+        }
+    };
+    let c = |s: Score| interpolate(s.mg, s.eg, phase);
+    ComponentCps {
+        phase,
+        material_pst: c(to_white(side_material)),
+        pawn_structure: c(white_terms.pawn_structure),
+        mobility: c(white_terms.mobility),
+        piece_activity: c(white_terms.piece_activity),
+        rook_activity: c(white_terms.rook_activity),
+        development_space: c(white_terms.development_space),
+        king_safety: c(white_terms.king_safety),
+    }
+}
+
 #[inline]
 fn white_difference(white: Score, black: Score) -> Score {
     Score {
