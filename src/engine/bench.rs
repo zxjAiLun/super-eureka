@@ -185,6 +185,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinal => "current-final",
         SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
         SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
+        SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
     }
 }
 
@@ -429,6 +430,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final" => SearchProfile::CurrentFinal,
                     "current-final-root-history" => SearchProfile::CurrentFinalRootHistory,
                     "current-final-root-prev-score" => SearchProfile::CurrentFinalRootPrevScore,
+                    "current-final-legality-fast" => SearchProfile::CurrentFinalLegalityFast,
                     other => {
                         return Err(format!(
                             "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score)",
@@ -867,7 +869,7 @@ fn format_result_line(r: &BenchResult) -> String {
     };
     if r.suite == "profile" || r.suite == "ablation" {
         format!(
-            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} qsearch_see_tests={} qsearch_see_pruned={} qsearch_see_fail_open_promotions={} qsearch_checking_captures_kept={} qsearch_promotions_kept={} qsearch_en_passant_kept={} check_extensions={} single_evasion_extensions={} qsearch_check_moves={} threat_ordered_moves={} root_reorders={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={}",
+            "{} total_nodes={} completed_iterations={} nodes_per_completed_depth={} qsearch_ratio={:.6} effective_branching_factor={:.6} last_completed_iteration_ms={} last_completed_iteration_nodes={} aborted_iteration_depth={} aborted_iteration_nodes={} qsearch_nodes={} eval_calls={} legal_move_generations={} pseudo_moves={} legal_moves={} make_moves={} unmake_moves={} tt_probes={} tt_hits={} tt_cutoffs={} tt_rejected_depth={} tt_rejected_bound={} tt_rejected_decode={} tt_stores={} see_calls={} see_pruned={} qsearch_see_tests={} qsearch_see_pruned={} qsearch_see_fail_open_promotions={} qsearch_checking_captures_kept={} qsearch_promotions_kept={} qsearch_en_passant_kept={} check_extensions={} single_evasion_extensions={} qsearch_check_moves={} threat_ordered_moves={} root_reorders={} aspiration_retries={} aspiration_fail_low={} aspiration_fail_high={} lmr_reductions={} lmr_researches={} null_move_attempts={} null_move_fail_highs={} null_move_researches={} futility_pruned={} legality_fast_accepts={} legality_fallback_probes={} legality_fallback_in_check={} legality_fallback_king={} legality_fallback_pinned={} legality_fallback_en_passant={} legality_fallback_castle={}",
             line,
             r.nodes,
             r.stats.completed_iterations,
@@ -914,6 +916,13 @@ fn format_result_line(r: &BenchResult) -> String {
             r.stats.null_move_fail_highs,
             r.stats.null_move_researches,
             r.stats.futility_pruned,
+            r.stats.legality_fast_accepts,
+            r.stats.legality_fallback_probes,
+            r.stats.legality_fallback_in_check,
+            r.stats.legality_fallback_king,
+            r.stats.legality_fallback_pinned,
+            r.stats.legality_fallback_en_passant,
+            r.stats.legality_fallback_castle,
         )
     } else {
         line

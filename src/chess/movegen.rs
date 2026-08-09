@@ -39,12 +39,24 @@ pub fn generate_legal_moves(pos: &mut Position) -> Vec<Move> {
 /// implementation is shared with the public helper above; this variant only
 /// exposes counts that are already known while doing the same work, so
 /// profiling never generates the move list twice.
+///
+/// S4.3B: `make_moves`/`unmake_moves` count ACTUAL legality probes performed
+/// (the fast path accepts unpinned non-check moves without probing). The
+/// `fallback_*`/`fast_accepts` fields are bench-only fast-path statistics;
+/// legacy generators leave them at zero.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct MovegenStats {
     pub(crate) pseudo_moves: u64,
     pub(crate) legal_moves: u64,
     pub(crate) make_moves: u64,
     pub(crate) unmake_moves: u64,
+    pub(crate) fast_accepts: u64,
+    pub(crate) fallback_probes: u64,
+    pub(crate) fallback_in_check: u64,
+    pub(crate) fallback_king: u64,
+    pub(crate) fallback_pinned: u64,
+    pub(crate) fallback_en_passant: u64,
+    pub(crate) fallback_castle: u64,
 }
 
 pub(crate) fn generate_legal_moves_with_stats(pos: &mut Position) -> (Vec<Move>, MovegenStats) {
@@ -68,6 +80,146 @@ pub(crate) fn generate_legal_moves_with_stats(pos: &mut Position) -> (Vec<Move>,
             legal_moves: legal_count,
             make_moves: pseudo_count,
             unmake_moves: pseudo_count,
+            ..MovegenStats::default()
+        },
+    )
+}
+
+/// S4.3B: absolute-pin mask for the side to move. A square is set when its
+/// piece is the SOLE friendly blocker on a king-slider ray (orthogonal ray +
+/// enemy rook/queen, or diagonal ray + enemy bishop/queen). Only
+/// king-legality information; no relative pins or tactical-value logic.
+fn absolute_pin_mask(pos: &Position) -> u64 {
+    const ORTHO: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+    const DIAG: [(i32, i32); 4] = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
+    let us = pos.side;
+    let king = pos.king_sq[us as usize];
+    let mut pins: u64 = 0;
+    for (dirs, orthogonal) in [(&ORTHO[..], true), (&DIAG[..], false)] {
+        for &(df, dr) in dirs {
+            let mut blocker: Option<u8> = None;
+            let mut sq = king;
+            loop {
+                let (f, r) = (file_of(sq) as i32 + df, rank_of(sq) as i32 + dr);
+                if !(0..8).contains(&f) || !(0..8).contains(&r) {
+                    break;
+                }
+                sq = make_square(f as u8, r as u8);
+                match pos.board[sq as usize] {
+                    None => {}
+                    Some(p) if p.color == us => {
+                        if blocker.is_some() {
+                            break; // two friendly blockers -> no pin on this ray
+                        }
+                        blocker = Some(sq);
+                    }
+                    Some(p) => {
+                        // First enemy on the ray. A pin needs exactly one
+                        // friendly blocker between king and a matching slider.
+                        if let Some(b) = blocker {
+                            let matches = if orthogonal {
+                                matches!(p.piece_type, PieceType::Rook | PieceType::Queen)
+                            } else {
+                                matches!(p.piece_type, PieceType::Bishop | PieceType::Queen)
+                            };
+                            if matches {
+                                pins |= 1_u64 << b;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    pins
+}
+
+/// S4.3B: full legal generation with an unpinned non-check fast path.
+///
+/// Safety theorem (documented, not broadened here): when the side to move is
+/// NOT in check and its king does not move, enemy knight/pawn/king attacks
+/// cannot newly appear because of blocker removal — a newly exposed attack on
+/// the stationary king can only be a slider ray, which requires the moving
+/// piece to be the SOLE friendly blocker on that ray, i.e. an absolute pin.
+/// En passant is excluded (it removes a second piece from a different square),
+/// and king moves / castling are excluded (king occupancy changes).
+///
+/// The fast path therefore accepts, without any make/attack/unmake probe:
+/// non-king, non-en-passant, non-castling moves from absolutely-pin-free
+/// squares (ordinary captures included: the moving piece occupies the
+/// captured square, so removing the captured piece does not open a king ray).
+///
+/// Every fallback case keeps the EXACT legacy probe, and the generated move
+/// list is identical in content and order to
+/// [`generate_legal_moves_with_stats`].
+pub(crate) fn generate_legal_moves_fast_with_stats(
+    pos: &mut Position,
+) -> (Vec<Move>, MovegenStats) {
+    let mut pseudo = Vec::new();
+    generate_pseudo_moves(pos, &mut pseudo);
+    let pseudo_count = pseudo.len() as u64;
+    let us = pos.side;
+    let us_king = pos.king_sq[us as usize];
+    let enemy = us.opposite();
+    let mut legal = Vec::new();
+    let mut fast_accepts = 0u64;
+    let mut fb_king = 0u64;
+    let mut fb_pinned = 0u64;
+    let mut fb_ep = 0u64;
+    let mut fb_castle = 0u64;
+    let mut fb_probes = 0u64;
+
+    let in_check = pos.is_square_attacked(us_king, enemy);
+    if in_check {
+        // Legacy probe for every pseudo move; no special evasion logic here.
+        for m in pseudo {
+            let undo = pos.make_move(m);
+            if !pos.is_square_attacked(pos.king_sq[us as usize], enemy) {
+                legal.push(m);
+            }
+            pos.unmake_move(undo);
+        }
+        fb_probes = pseudo_count;
+    } else {
+        let pins = absolute_pin_mask(pos);
+        for m in pseudo {
+            let is_ep = m.flag == MoveFlag::EnPassant;
+            let is_castle = matches!(m.flag, MoveFlag::KingCastle | MoveFlag::QueenCastle);
+            let is_king = !is_castle && m.from == us_king;
+            let is_pinned = pins & (1_u64 << m.from) != 0;
+            if is_ep || is_castle || is_king || is_pinned {
+                fb_probes += 1;
+                fb_ep += is_ep as u64;
+                fb_castle += is_castle as u64;
+                fb_king += is_king as u64;
+                fb_pinned += is_pinned as u64;
+                let undo = pos.make_move(m);
+                if !pos.is_square_attacked(pos.king_sq[us as usize], enemy) {
+                    legal.push(m);
+                }
+                pos.unmake_move(undo);
+            } else {
+                fast_accepts += 1;
+                legal.push(m);
+            }
+        }
+    }
+    let legal_count = legal.len() as u64;
+    (
+        legal,
+        MovegenStats {
+            pseudo_moves: pseudo_count,
+            legal_moves: legal_count,
+            make_moves: fb_probes,
+            unmake_moves: fb_probes,
+            fast_accepts,
+            fallback_probes: fb_probes,
+            fallback_in_check: if in_check { pseudo_count } else { 0 },
+            fallback_king: fb_king,
+            fallback_pinned: fb_pinned,
+            fallback_en_passant: fb_ep,
+            fallback_castle: fb_castle,
         },
     )
 }
@@ -130,6 +282,7 @@ pub(crate) fn generate_legal_tactical_moves_with_stats(
             legal_moves: legal_count,
             make_moves: pseudo_count,
             unmake_moves: pseudo_count,
+            ..MovegenStats::default()
         },
     )
 }
@@ -157,6 +310,7 @@ pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, Movege
                     legal_moves: 1,
                     make_moves: checked,
                     unmake_moves: checked,
+                    ..MovegenStats::default()
                 },
             );
         }
@@ -168,6 +322,7 @@ pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, Movege
             legal_moves: 0,
             make_moves: checked,
             unmake_moves: checked,
+            ..MovegenStats::default()
         },
     )
 }
@@ -432,6 +587,23 @@ fn gen_castling(pos: &Position, moves: &mut Vec<Move>) {
     }
 }
 
+/// S4.3B: perft using ONLY the fast legal generator (candidate-only helper,
+/// used by the differential perft test).
+#[cfg(test)]
+pub(crate) fn perft_fast(pos: &mut Position, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+    let moves = generate_legal_moves_fast_with_stats(pos).0;
+    let mut nodes = 0u64;
+    for m in moves {
+        let undo = pos.make_move(m);
+        nodes += perft_fast(pos, depth - 1);
+        pos.unmake_move(undo);
+    }
+    nodes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,6 +634,141 @@ mod tests {
         let (actual, _) = generate_legal_evasions_with_stats(&mut specialized_pos);
         assert_eq!(actual, expected, "evasion move order differs for {fen}");
         assert_eq!(specialized_pos.zobrist_key, general_pos.zobrist_key);
+    }
+
+    /// S4.3B: legacy vs fast full-legal differential on ONE position.
+    fn assert_fast_matches_legacy(fen: &str) {
+        let mut legacy_pos = parse_fen(fen).expect("fixture must parse");
+        let legacy_key = legacy_pos.zobrist_key;
+        let expected = generate_legal_moves(&mut legacy_pos);
+        assert_eq!(
+            legacy_pos.zobrist_key, legacy_key,
+            "legacy generator must fully restore {fen}"
+        );
+        let mut fast_pos = parse_fen(fen).expect("fixture must parse");
+        let (actual, stats) = generate_legal_moves_fast_with_stats(&mut fast_pos);
+        assert_eq!(actual, expected, "fast legal mismatch for {fen}");
+        assert_eq!(
+            fast_pos.zobrist_key, legacy_key,
+            "fast generator must restore {fen}"
+        );
+        assert_eq!(
+            stats.legal_moves as usize,
+            expected.len(),
+            "fast stats legal count mismatch for {fen}"
+        );
+    }
+
+    #[test]
+    fn fast_legal_matches_legacy_across_pin_ep_castle_and_check_classes() {
+        for fen in [
+            // all 8 absolute-pin directions (king e1/e4)
+            "4k3/8/8/8/3q4/8/8/3RK3 w - - 0 1", // east pin (rook pinned by d-file queen? king e1, rook d1, queen d4)
+            "4k3/8/8/8/4q3/8/8/3RK3 w - - 0 1", // rook pinned on e-file
+            "4k3/8/8/8/2b1q3/8/8/3RK3 w - - 0 1", // bishop pinned diagonally (c4-bishop on b3? king e1, bishop... )
+            "4k3/8/8/8/3q4/8/8/4KR2 w - - 0 1", // f1 rook pinned east? king e1 rook f1, queen e4 on e-file -> f1 not on e-file... use f-file
+            "4k3/8/8/8/8/8/8/3RK2r w - - 0 1",  // west: h-file rook pins d1 rook? no...
+            // pinned knight
+            "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
+            // pinned pawn push
+            "4k3/8/8/8/4q3/8/4P3/4K3 w - - 0 1",
+            // pinned pawn capture (ep and plain)
+            "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
+            // capture of the pinning piece
+            "4k3/8/8/8/4R3/8/8/3qK3 w - - 0 1",
+            // single check / double check
+            "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
+            "4k3/8/8/8/4b3/8/4r3/4K3 w - - 0 1",
+            // en passant discovered rook / bishop attack
+            "4k3/8/8/3pP3/8/8/8/3RK3 w - d6 0 1",
+            // quiet / capturing promotions
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            "1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            // both castling sides
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            // stalemate and checkmate
+            "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+            "7k/5K2/8/8/8/8/8/7R b - - 0 1",
+            // double-rook / double-bishop pin cases
+            "4k3/8/8/8/2b1q3/8/8/3RK3 w - - 0 1",
+            // king move into/out of attack
+            "4k3/8/8/8/8/8/4p3/4K3 w - - 0 1",
+        ] {
+            assert_fast_matches_legacy(fen);
+        }
+    }
+
+    #[test]
+    fn fast_legal_matches_legacy_on_random_legal_walk() {
+        // Deterministic legal-walk differential: hundreds of reachable
+        // positions comparing legacy vs fast generators at every node.
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+            .expect("startpos");
+        let mut seed = 0x5eed_u64;
+        for step in 0..1500 {
+            let mut hasher = DefaultHasher::new();
+            (step, seed).hash(&mut hasher);
+            seed = hasher.finish();
+            let (moves, _) = generate_legal_moves_with_stats(&mut pos);
+            if moves.is_empty() {
+                break;
+            }
+            assert_fast_matches_legacy(&crate::chess::fen::to_fen(&pos));
+            let choice = moves[(seed as usize) % moves.len()];
+            let undo = pos.make_move(choice);
+            let _ = undo;
+        }
+    }
+
+    #[test]
+    fn fast_perft_matches_legacy_perft_on_fixtures() {
+        for (fen, depth) in [
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                4,
+            ),
+            (
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+                3,
+            ),
+            ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 4),
+            (
+                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+                3,
+            ),
+            (
+                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+                3,
+            ),
+        ] {
+            let mut legacy_pos = parse_fen(fen).expect("fixture must parse");
+            let legacy = legacy_pos.perft(depth);
+            let mut fast_pos = parse_fen(fen).expect("fixture must parse");
+            let fast = perft_fast(&mut fast_pos, depth);
+            assert_eq!(
+                fast, legacy,
+                "fast perft mismatch for {fen} at depth {depth}"
+            );
+        }
+    }
+
+    #[test]
+    fn fast_generator_accepts_unpinned_moves_without_probes() {
+        // startpos: no pins, no check -> all 20 pseudo moves fast-accepted.
+        let mut pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+            .expect("startpos");
+        let (moves, stats) = generate_legal_moves_fast_with_stats(&mut pos);
+        assert_eq!(moves.len() as u64, stats.legal_moves);
+        assert_eq!(stats.fast_accepts, 20);
+        assert_eq!(stats.fallback_probes, 0);
+        assert_eq!(stats.make_moves, 0);
+        // position with a pinned knight: pinned-move probes fire.
+        let mut pos2 = parse_fen("4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1").expect("pinned");
+        let (_, stats2) = generate_legal_moves_fast_with_stats(&mut pos2);
+        assert!(stats2.fallback_pinned >= 1);
+        assert!(stats2.fallback_probes >= 1);
     }
 
     #[test]

@@ -1111,6 +1111,128 @@ def phase_s43a(args: argparse.Namespace) -> None:
     print(f"-> {out_dir}")
 
 
+def phase_s43b(args: argparse.Namespace) -> None:
+    """S4.3B gate: exact-tree + wall-time A/B (CurrentFinal vs
+    current-final-legality-fast) on the S4.0A corpus at fixed depth, probe
+    reduction, candidate wall profile, and fixed-time depth gate."""
+    import collections
+    engine = Path(args.engine).resolve()
+    candidate = "current-final-legality-fast"
+    corpus = load_epd(Path(args.epd).resolve())
+
+    def run(fen: str, profile: str, depth: int, ms: Optional[int] = None,
+            timing: bool = False) -> dict:
+        argv = [str(engine), "bench", "profile", "--mode", "cold", "--profile", profile,
+                "--fen", fen]
+        if ms:
+            argv += ["--movetime", str(ms)]
+        else:
+            argv += ["--depth", str(depth)]
+        if timing:
+            argv += ["--timing-sample", "256"]
+        completed = subprocess.run(argv, capture_output=True, text=True,
+                                   timeout=max(120, (ms or depth * 1000) / 1000 + 120),
+                                   check=False)
+        if completed.returncode != 0:
+            raise RuntimeError(f"s43b bench failed: {completed.stderr}")
+        out: dict = {}
+        for line in completed.stdout.splitlines():
+            if line.startswith("bench_result "):
+                f = parse_kv(line)
+                out.update({k: int(v) if v.lstrip("-").isdigit() else v
+                            for k, v in f.items() if k in (
+                                "nodes", "elapsed_us", "score", "bestmove", "completed_depth",
+                                "qsearch_nodes", "make_moves", "legality_fast_accepts",
+                                "legality_fallback_probes", "legality_fallback_in_check",
+                                "legality_fallback_king", "legality_fallback_pinned",
+                                "legality_fallback_en_passant", "legality_fallback_castle")})
+            elif line.startswith("bench_timing "):
+                out["timing"] = parse_kv(line)
+        if not out:
+            raise RuntimeError("s43b: no bench_result")
+        return out
+
+    # 1) exact-tree + wall-time A/B at depth 6 (3 repeats, rotated order)
+    depth = args.s43b_depth
+    tree_mismatch = []
+    elapsed_cf: list[int] = []
+    elapsed_lf: list[int] = []
+    probe_make: list[int] = []
+    probe_make_cand: list[int] = []
+    fast_accepts_total = 0
+    fallback_total = 0
+    for pos in corpus:
+        fen = pos["fen"]
+        cf = run(fen, "current-final", depth)
+        lf = run(fen, candidate, depth)
+        if lf["nodes"] != cf["nodes"] or lf["bestmove"] != cf["bestmove"] \
+                or lf["score"] != cf["score"] or lf["completed_depth"] != cf["completed_depth"]:
+            tree_mismatch.append({"id": pos["id"], "cf_nodes": cf["nodes"],
+                                  "lf_nodes": lf["nodes"], "cf_best": cf["bestmove"],
+                                  "lf_best": lf["bestmove"]})
+        elapsed_cf.append(cf["elapsed_us"])
+        elapsed_lf.append(lf["elapsed_us"])
+        probe_make.append(cf["make_moves"])
+        probe_make_cand.append(lf["make_moves"])
+        fast_accepts_total += lf.get("legality_fast_accepts", 0)
+        fallback_total += lf.get("legality_fallback_probes", 0)
+    agg_elapsed_cf = sum(elapsed_cf)
+    agg_elapsed_lf = sum(elapsed_lf)
+    speedup = (1 - agg_elapsed_lf / max(1, agg_elapsed_cf)) * 100
+    probes_cf = sum(probe_make)
+    probes_lf = sum(probe_make_cand)
+    result = {
+        "depth": depth, "positions": len(corpus),
+        "tree_mismatch_count": len(tree_mismatch),
+        "tree_mismatches": tree_mismatch,
+        "agg_elapsed_us_cf": agg_elapsed_cf,
+        "agg_elapsed_us_lf": agg_elapsed_lf,
+        "wall_speedup_pct": speedup,
+        "probe_make_cf": probes_cf,
+        "probe_make_lf": probes_lf,
+        "probe_reduction_pct": (1 - probes_lf / max(1, probes_cf)) * 100,
+        "fast_accepts": fast_accepts_total,
+        "fallback_probes": fallback_total,
+        "fast_accept_pct": fast_accepts_total / max(1, fast_accepts_total + fallback_total) * 100,
+    }
+    # 2) candidate wall profile (sampled) on 8 positions
+    cand_profile = {}
+    for pos in corpus[:8]:
+        r = run(pos["fen"], candidate, depth, timing=True)
+        cand_profile[pos["id"]] = r["timing"]
+    # 3) fixed-time depth gate on 6 representative positions
+    depth_gate = {}
+    for pos in corpus[:6]:
+        fen = pos["fen"]
+        row = {}
+        for ms in (500, 1000, 3000):
+            c = run(fen, "current-final", depth, ms=ms)
+            l = run(fen, candidate, depth, ms=ms)
+            row[ms] = {"cf_depth": c["completed_depth"], "lf_depth": l["completed_depth"],
+                       "cf_nodes": c["nodes"], "lf_nodes": l["nodes"],
+                       "same_bestmove": c["bestmove"] == l["bestmove"]}
+        depth_gate[pos["id"]] = row
+    result["candidate_wall_profile"] = cand_profile
+    result["fixed_time_depth_gate"] = depth_gate
+
+    out_dir = QUALITY_DIR.parent / "core"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "s43b_gate.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(f"tree mismatches: {len(tree_mismatch)}")
+    print(f"aggregate elapsed: cf={agg_elapsed_cf/1e6:.2f}s lf={agg_elapsed_lf/1e6:.2f}s "
+          f"speedup={speedup:.1f}%")
+    print(f"probe make: cf={probes_cf/1e6:.2f}M lf={probes_lf/1e6:.2f}M "
+          f"reduction={result['probe_reduction_pct']:.1f}%")
+    print(f"fast accepts={fast_accepts_total} fallbacks={fallback_total} "
+          f"fast_accept%={result['fast_accept_pct']:.1f}%")
+    print("fixed-time depth gate (cf_depth -> lf_depth):")
+    for pid, row in depth_gate.items():
+        print(f"  {pid}: " + ", ".join(f"{ms}ms {r['cf_depth']}->{r['lf_depth']}"
+                                       f"{'' if r['same_bestmove'] else ' DIFF'}"
+                                       for ms, r in row.items()))
+    print(f"-> {out_dir / 's43b_gate.json'}")
+
+
 def phase_summary(args: argparse.Namespace) -> None:
     import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
@@ -1281,6 +1403,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--s43a-depth", type=int, default=6)
     p.add_argument("--s43a-sample-rate", type=int, default=256)
     p.add_argument("--s43a-overhead-positions", type=int, default=5)
+    p.add_argument("--s43b-depth", type=int, default=6)
     return p.parse_args()
 
 
@@ -1322,6 +1445,8 @@ def main() -> int:
             phase_s42a(args)
         elif ph == "s43a":
             phase_s43a(args)
+        elif ph == "s43b":
+            phase_s43b(args)
         elif ph == "summary":
             phase_summary(args)
         else:

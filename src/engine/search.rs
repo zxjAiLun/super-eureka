@@ -30,8 +30,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::chess::movegen::{
-    generate_legal_evasions_with_stats, generate_legal_moves_with_stats,
-    generate_legal_tactical_moves_with_stats, has_any_legal_move_with_stats, MovegenStats,
+    generate_legal_evasions_with_stats, generate_legal_moves_fast_with_stats,
+    generate_legal_moves_with_stats, generate_legal_tactical_moves_with_stats,
+    has_any_legal_move_with_stats, MovegenStats,
 };
 use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
@@ -160,6 +161,10 @@ pub(crate) enum SearchProfile {
     /// stays first; no history/killer/static-eval/threat signal; no PVS or
     /// re-search changes).
     CurrentFinalRootPrevScore,
+    /// S4.3B candidate: exactly CurrentFinal plus the unpinned non-check
+    /// legality fast path in the FULL legal generator. Identical move lists,
+    /// order and search tree; only the legality probe count changes.
+    CurrentFinalLegalityFast,
 }
 
 impl SearchProfile {
@@ -188,6 +193,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
         )
     }
 
@@ -203,6 +209,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
         )
     }
 
@@ -214,6 +221,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
         )
     }
 
@@ -227,6 +235,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
         )
     }
 
@@ -249,6 +258,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -264,6 +274,7 @@ impl SearchProfile {
                 | Self::CurrentFinal
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
         )
     }
 
@@ -297,6 +308,13 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_root_prev_score(self) -> bool {
         matches!(self, Self::CurrentFinalRootPrevScore)
+    }
+
+    /// S4.3B: the candidate uses the unpinned non-check legality fast path in
+    /// the FULL legal generator (identical move lists and order).
+    #[inline]
+    pub(crate) const fn uses_legality_fast(self) -> bool {
+        matches!(self, Self::CurrentFinalLegalityFast)
     }
 
     #[inline]
@@ -564,6 +582,17 @@ pub struct SearchContext {
     /// recursive search edges. search_edge = total make_moves - these.
     pub(crate) legality_probe_make: AtomicU64,
     pub(crate) legality_probe_unmake: AtomicU64,
+    /// S4.3B: unpinned non-check legality fast path enabled (set at search
+    /// start from the profile; bench-only candidate, never the UCI default).
+    pub(crate) legality_fast: AtomicBool,
+    /// S4.3B: fast-path / fallback statistics (profiling-enabled only).
+    pub(crate) legality_fast_accepts: AtomicU64,
+    pub(crate) legality_fallback_probes: AtomicU64,
+    pub(crate) legality_fallback_in_check: AtomicU64,
+    pub(crate) legality_fallback_king: AtomicU64,
+    pub(crate) legality_fallback_pinned: AtomicU64,
+    pub(crate) legality_fallback_en_passant: AtomicU64,
+    pub(crate) legality_fallback_castle: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -612,6 +641,14 @@ pub struct SearchStats {
     pub aborted_iteration_nodes: u64,
     /// S4.0B: 1-based root rank of the diagnostic target move, 0 = unset/absent.
     pub target_root_rank: u32,
+    /// S4.3B: unpinned non-check legality fast path statistics.
+    pub legality_fast_accepts: u64,
+    pub legality_fallback_probes: u64,
+    pub legality_fallback_in_check: u64,
+    pub legality_fallback_king: u64,
+    pub legality_fallback_pinned: u64,
+    pub legality_fallback_en_passant: u64,
+    pub legality_fallback_castle: u64,
 }
 
 impl SearchContext {
@@ -682,6 +719,14 @@ impl SearchContext {
             timing_tt: SampledCounter::default(),
             legality_probe_make: AtomicU64::new(0),
             legality_probe_unmake: AtomicU64::new(0),
+            legality_fast: AtomicBool::new(false),
+            legality_fast_accepts: AtomicU64::new(0),
+            legality_fallback_probes: AtomicU64::new(0),
+            legality_fallback_in_check: AtomicU64::new(0),
+            legality_fallback_king: AtomicU64::new(0),
+            legality_fallback_pinned: AtomicU64::new(0),
+            legality_fallback_en_passant: AtomicU64::new(0),
+            legality_fallback_castle: AtomicU64::new(0),
         }
     }
 
@@ -760,6 +805,14 @@ impl SearchContext {
             timing_tt: SampledCounter::default(),
             legality_probe_make: AtomicU64::new(0),
             legality_probe_unmake: AtomicU64::new(0),
+            legality_fast: AtomicBool::new(false),
+            legality_fast_accepts: AtomicU64::new(0),
+            legality_fallback_probes: AtomicU64::new(0),
+            legality_fallback_in_check: AtomicU64::new(0),
+            legality_fallback_king: AtomicU64::new(0),
+            legality_fallback_pinned: AtomicU64::new(0),
+            legality_fallback_en_passant: AtomicU64::new(0),
+            legality_fallback_castle: AtomicU64::new(0),
         }
     }
 
@@ -814,6 +867,13 @@ impl SearchContext {
             aborted_iteration_depth: self.aborted_iteration_depth.load(Ordering::Relaxed),
             aborted_iteration_nodes: self.aborted_iteration_nodes.load(Ordering::Relaxed),
             target_root_rank: self.target_root_rank.load(Ordering::Relaxed),
+            legality_fast_accepts: self.legality_fast_accepts.load(Ordering::Relaxed),
+            legality_fallback_probes: self.legality_fallback_probes.load(Ordering::Relaxed),
+            legality_fallback_in_check: self.legality_fallback_in_check.load(Ordering::Relaxed),
+            legality_fallback_king: self.legality_fallback_king.load(Ordering::Relaxed),
+            legality_fallback_pinned: self.legality_fallback_pinned.load(Ordering::Relaxed),
+            legality_fallback_en_passant: self.legality_fallback_en_passant.load(Ordering::Relaxed),
+            legality_fallback_castle: self.legality_fallback_castle.load(Ordering::Relaxed),
         }
     }
 
@@ -919,7 +979,11 @@ impl SearchContext {
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
     let start = ctx.sample_begin(&ctx.timing_movegen_legal);
-    let (moves, stats) = generate_legal_moves_with_stats(pos);
+    let (moves, stats) = if ctx.legality_fast.load(Ordering::Relaxed) {
+        generate_legal_moves_fast_with_stats(pos)
+    } else {
+        generate_legal_moves_with_stats(pos)
+    };
     if let Some(start) = start {
         ctx.sample_end(&ctx.timing_movegen_legal, start);
     }
@@ -937,6 +1001,14 @@ fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats) {
     // S4.3A: legality-probe make/unmake split from recursive search edges.
     ctx.add_profile_counter(&ctx.legality_probe_make, stats.make_moves);
     ctx.add_profile_counter(&ctx.legality_probe_unmake, stats.unmake_moves);
+    // S4.3B: fast-path / fallback statistics (zero for legacy generators).
+    ctx.add_profile_counter(&ctx.legality_fast_accepts, stats.fast_accepts);
+    ctx.add_profile_counter(&ctx.legality_fallback_probes, stats.fallback_probes);
+    ctx.add_profile_counter(&ctx.legality_fallback_in_check, stats.fallback_in_check);
+    ctx.add_profile_counter(&ctx.legality_fallback_king, stats.fallback_king);
+    ctx.add_profile_counter(&ctx.legality_fallback_pinned, stats.fallback_pinned);
+    ctx.add_profile_counter(&ctx.legality_fallback_en_passant, stats.fallback_en_passant);
+    ctx.add_profile_counter(&ctx.legality_fallback_castle, stats.fallback_castle);
 }
 
 #[inline]
@@ -5084,6 +5156,8 @@ fn search_best_move_impl(
         SearchFeaturePolicy::for_profile(_profile, ctx.diagnostics.as_ref()).to_bits(),
         Ordering::Relaxed,
     );
+    ctx.legality_fast
+        .store(_profile.uses_legality_fast(), Ordering::Relaxed);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -6047,6 +6121,40 @@ mod tests {
         assert_eq!(ps.best_move, cf.best_move, "same best move at fixed depth");
         assert_eq!(ps.completed_depth, cf.completed_depth);
         assert!(!ps.stopped && !cf.stopped);
+    }
+
+    #[test]
+    fn legality_fast_profile_matches_current_final_search_tree() {
+        // S4.3B: identical legal lists and order -> identical fixed-depth
+        // search tree (nodes, score, bestmove).
+        let pos = parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+        let hist = vec![pos.zobrist_key()];
+        let limits = SearchLimits {
+            depth: Some(4),
+            ..Default::default()
+        };
+        let run = |profile: SearchProfile| -> (SearchOutcome, u64) {
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let mut tt = TranspositionTable::disabled();
+            let out = search_best_move_with_history_tt_and_profile(
+                &mut pos.clone(),
+                &hist,
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            )
+            .expect("outcome");
+            (out, ctx.nodes.load(Ordering::Relaxed))
+        };
+        let (cf, cf_nodes) = run(SearchProfile::CurrentFinal);
+        let (lf, lf_nodes) = run(SearchProfile::CurrentFinalLegalityFast);
+        assert_eq!(lf_nodes, cf_nodes, "identical node count at fixed depth");
+        assert_eq!(lf.score, cf.score, "identical score");
+        assert_eq!(lf.best_move, cf.best_move, "identical best move");
+        assert_eq!(lf.completed_depth, cf.completed_depth);
+        assert_eq!(lf.pv, cf.pv, "identical PV");
     }
 
     #[test]
