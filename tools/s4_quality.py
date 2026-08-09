@@ -84,8 +84,9 @@ def run_bench(
     depth: Optional[int] = None,
     forced_root: Optional[str] = None,
     target_root: Optional[str] = None,
+    profile: str = PROFILE,
 ) -> dict[str, Any]:
-    argv = [str(engine), "bench", "profile", "--mode", "cold", "--profile", PROFILE, "--fen", fen]
+    argv = [str(engine), "bench", "profile", "--mode", "cold", "--profile", profile, "--fen", fen]
     if ms is not None:
         argv += ["--movetime", str(ms)]
     if depth is not None:
@@ -706,6 +707,92 @@ def run_bench_diag(engine: Path, fen: str, ms: int, forced_root: str, diag: str)
             "null_move_researches": int(f["null_move_researches"])}
 
 
+def phase_s41_ab(args: argparse.Namespace) -> None:
+    """S4.1 local A/B: CurrentFinal vs CurrentFinalRootHistory on the strict
+    SEARCH_LIKE cohort plus a broad untouched sample, at 100/500/1000 ms."""
+    import collections
+    engine = Path(args.engine).resolve()
+    candidate = "current-final-root-history"
+    teacher = {p["fen"]: p for p in read_jsonl(QUALITY_DIR / "teacher.jsonl")}
+    dis_fens = {p["fen"] for p in read_jsonl(QUALITY_DIR / "disagreements.jsonl")}
+    paired = read_jsonl(QUALITY_DIR / "paired.jsonl")
+
+    def teacher_quiet(r: dict) -> bool:
+        b = chess.Board(r["fen"]); m = chess.Move.from_uci(r["teacher_best"])
+        return not b.is_capture(m) and not b.gives_check(m) and not m.promotion
+
+    cohort_fens = [r["fen"] for r in paired
+                   if r["class"] == "SEARCH_LIKE" and teacher_quiet(r)
+                   and r["target_root_rank"] >= 8]
+    sampled = read_jsonl(QUALITY_DIR / "sampled_positions.jsonl")
+    pool = [p for p in sampled if p["fen"] not in dis_fens and p["fen"] not in set(cohort_fens)]
+    step = max(1, len(pool) // args.s41_broad_n)
+    broad = [p["fen"] for p in pool[::step]][: args.s41_broad_n]
+    print(f"cohort={len(cohort_fens)} broad={len(broad)}", flush=True)
+
+    def teacher_loss(sf: StockfishTeacher, fen: str, move: str) -> Optional[int]:
+        t = teacher.get(fen)
+        if not t or not t.get("teacher_multipv"):
+            return None
+        top = t["teacher_multipv"]
+        tb = parse_score(top[0]["score"])
+        for m in top:
+            if m["move"] == move:
+                return cp_loss(tb, parse_score(m["score"]))
+        sc = sf.searchmoves_score(fen, move, args.s41_confirm_nodes)
+        return cp_loss(tb, sc)
+
+    rows = []
+    with StockfishTeacher(args.stockfish, multipv=1, timeout_s=args.teacher_timeout) as sf:
+        for label, fens in (("cohort", cohort_fens), ("broad", broad)):
+            for ms in args.normal_budgets:
+                losses = {"current-final": [], candidate: []}
+                top1 = {"current-final": 0, candidate: 0}
+                top3 = {"current-final": 0, candidate: 0}
+                depth = {"current-final": [], candidate: []}
+                loss_by_pos: dict[tuple[str, str], Optional[int]] = {}
+                for fen in fens:
+                    t = teacher.get(fen)
+                    top_moves = [m["move"] for m in t["teacher_multipv"]] if t and t.get("teacher_multipv") else []
+                    tb = top_moves[0] if top_moves else None
+                    for prof in ("current-final", candidate):
+                        r = run_bench(engine, fen, ms=ms, profile=prof)
+                        mv = r["bestmove"]
+                        if tb and mv == tb:
+                            top1[prof] += 1
+                        if mv in top_moves:
+                            top3[prof] += 1
+                        loss = teacher_loss(sf, fen, mv)
+                        loss_by_pos[(fen, prof)] = loss
+                        if loss is not None:
+                            losses[prof].append(loss)
+                        depth[prof].append(r["completed_depth"])
+                pos_counts = collections.Counter()
+                for fen in fens:
+                    b = loss_by_pos.get((fen, "current-final"))
+                    c = loss_by_pos.get((fen, candidate))
+                    if b is None or c is None:
+                        continue
+                    delta = b - c
+                    if delta >= 30:
+                        pos_counts["candidate_improves"] += 1
+                    elif delta <= -30:
+                        pos_counts["candidate_regresses"] += 1
+                    else:
+                        pos_counts["unchanged"] += 1
+                row = {
+                    "group": label, "budget_ms": ms, "positions": len(fens),
+                    "top1": top1, "top3": top3,
+                    "median_loss_cp": {p: (statistics.median(v) if v else None) for p, v in losses.items()},
+                    "median_depth": {p: statistics.median(v) if v else None for p, v in depth.items()},
+                    "position_deltas": dict(pos_counts),
+                }
+                rows.append(row)
+                print(json.dumps(row), flush=True)
+    write_jsonl(QUALITY_DIR / "s41_ab.jsonl", rows)
+    print(f"s41_ab: {len(rows)} -> {QUALITY_DIR / 's41_ab.jsonl'}")
+
+
 def phase_summary(args: argparse.Namespace) -> None:
     import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
@@ -868,6 +955,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--normal-budgets", type=int, nargs="+", default=[100, 500, 1000])
     p.add_argument("--threshold-cp", type=int, default=50)
     p.add_argument("--ablation-max", type=int, default=10)
+    p.add_argument("--s41-broad-n", type=int, default=150)
+    p.add_argument("--s41-confirm-nodes", type=int, default=40000)
     return p.parse_args()
 
 
@@ -901,6 +990,8 @@ def main() -> int:
             phase_paired(args)
         elif ph == "ablation":
             phase_ablation(args)
+        elif ph == "s41_ab":
+            phase_s41_ab(args)
         elif ph == "summary":
             phase_summary(args)
         else:

@@ -151,9 +151,9 @@ def load_epd(path: Path) -> list[dict[str, Any]]:
 
 
 def parse_run(
-    engine: Path, position: dict[str, Any], budget_ms: int, repo: Path
+    engine: Path, position: dict[str, Any], budget_ms: int, repo: Path, profile: str = PROFILE
 ) -> dict[str, Any]:
-    row = run_search(engine, PROFILE, position, budget_ms, repo)
+    row = run_search(engine, profile, position, budget_ms, repo)
     raw = parse_key_values(row["raw_result"])
     rec: dict[str, Any] = {
         "position_id": position["id"],
@@ -480,6 +480,7 @@ def cmd_compute(argv: list[str]) -> int:
         "--budgets", type=int, nargs="+", default=list(DEFAULT_BUDGETS_MS)
     )
     parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT)
+    parser.add_argument("--profile", default=PROFILE)
     parser.add_argument(
         "--out", type=Path, default=Path("results/s4-attribution/compute")
     )
@@ -495,7 +496,7 @@ def cmd_compute(argv: list[str]) -> int:
         raise SystemExit("--repeat must be >= 1")
 
     positions = load_epd(args.epd.resolve())
-    probe_uci(engine, PROFILE)
+    probe_uci(engine, args.profile)
 
     budgets = sorted(args.budgets)
     out_dir = args.out.resolve()
@@ -509,10 +510,10 @@ def cmd_compute(argv: list[str]) -> int:
             for _ in range(args.repeat):
                 print(
                     f"s4a position={position['id']} class={position['group']} "
-                    f"budget_ms={budget}",
+                    f"budget_ms={budget} profile={args.profile}",
                     flush=True,
                 )
-                runs.append(parse_run(engine, position, budget, repo))
+                runs.append(parse_run(engine, position, budget, repo, args.profile))
                 done += 1
     print(f"s4a done {done}/{total} runs", flush=True)
 
