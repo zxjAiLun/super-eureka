@@ -156,6 +156,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         }
         search::SearchProfile::CurrentFinal => "current-final",
         search::SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
+        search::SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -428,6 +429,9 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     "current-final" => search::SearchProfile::CurrentFinal,
                     "current-final-root-history" => search::SearchProfile::CurrentFinalRootHistory,
+                    "current-final-root-prev-score" => {
+                        search::SearchProfile::CurrentFinalRootPrevScore
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(

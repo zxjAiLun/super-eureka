@@ -708,11 +708,11 @@ def run_bench_diag(engine: Path, fen: str, ms: int, forced_root: str, diag: str)
 
 
 def phase_s41_ab(args: argparse.Namespace) -> None:
-    """S4.1 local A/B: CurrentFinal vs CurrentFinalRootHistory on the strict
+    """S4.1 local A/B: CurrentFinal vs a candidate profile on the strict
     SEARCH_LIKE cohort plus a broad untouched sample, at 100/500/1000 ms."""
     import collections
     engine = Path(args.engine).resolve()
-    candidate = "current-final-root-history"
+    candidate = args.s41_candidate
     teacher = {p["fen"]: p for p in read_jsonl(QUALITY_DIR / "teacher.jsonl")}
     dis_fens = {p["fen"] for p in read_jsonl(QUALITY_DIR / "disagreements.jsonl")}
     paired = read_jsonl(QUALITY_DIR / "paired.jsonl")
@@ -957,6 +957,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ablation-max", type=int, default=10)
     p.add_argument("--s41-broad-n", type=int, default=150)
     p.add_argument("--s41-confirm-nodes", type=int, default=40000)
+    p.add_argument("--s41-candidate", default="current-final-root-history")
     return p.parse_args()
 
 
