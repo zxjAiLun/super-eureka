@@ -142,6 +142,9 @@ struct BenchArgs {
     diag_futility: bool,
     diag_null: bool,
     diag_qsee: bool,
+    /// S4.1c Phase B: every root move gets a full-window child search (no
+    /// root scout + conditional re-search). Diagnostic only.
+    diag_root_full_window: bool,
     /// S4.0B: force the root to search only this move (UCI), e.g. the teacher move.
     forced_root: Option<String>,
     /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
@@ -252,6 +255,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut diag_futility = false;
     let mut diag_null = false;
     let mut diag_qsee = false;
+    let mut diag_root_full_window = false;
     let mut forced_root: Option<String> = None;
     let mut target_root: Option<String> = None;
 
@@ -497,9 +501,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "no-futility" => diag_futility = true,
                     "no-null" => diag_null = true,
                     "no-qsee" => diag_qsee = true,
+                    "root-full-window" => diag_root_full_window = true,
                     other => {
                         return Err(format!(
-                            "bench: invalid --diag '{}' (expected no-lmr|no-futility|no-null|no-qsee)",
+                            "bench: invalid --diag '{}' (expected no-lmr|no-futility|no-null|no-qsee|root-full-window)",
                             other
                         ));
                     }
@@ -563,6 +568,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         diag_futility,
         diag_null,
         diag_qsee,
+        diag_root_full_window,
         forced_root,
         target_root,
     })
@@ -1186,6 +1192,7 @@ fn run_one(
         || cfg.diag_futility
         || cfg.diag_null
         || cfg.diag_qsee
+        || cfg.diag_root_full_window
         || cfg.forced_root.is_some()
         || cfg.target_root.is_some()
     {
@@ -1210,6 +1217,7 @@ fn run_one(
         ctx.diagnostics = Some(SearchDiagnostics {
             forced_root_move,
             target_root_move,
+            root_full_window: cfg.diag_root_full_window,
             disable_lmr: cfg.diag_lmr,
             disable_futility: cfg.diag_futility,
             disable_null_move: cfg.diag_null,
@@ -2075,6 +2083,7 @@ mod tests {
             diag_futility: false,
             diag_null: false,
             diag_qsee: false,
+            diag_root_full_window: false,
             forced_root: None,
             target_root: None,
         };
@@ -2106,6 +2115,7 @@ mod tests {
             diag_futility: false,
             diag_null: false,
             diag_qsee: false,
+            diag_root_full_window: false,
             forced_root: forced_root.map(|s| s.to_string()),
             target_root: target_root.map(|s| s.to_string()),
         }
@@ -2184,6 +2194,7 @@ mod tests {
             diag_futility: false,
             diag_null: false,
             diag_qsee: false,
+            diag_root_full_window: false,
             forced_root: None,
             target_root: None,
         };
@@ -2240,6 +2251,7 @@ mod tests {
             diag_futility: false,
             diag_null: false,
             diag_qsee: false,
+            diag_root_full_window: false,
             forced_root: None,
             target_root: None,
         };
@@ -2295,6 +2307,7 @@ mod tests {
                 diag_futility: false,
                 diag_null: false,
                 diag_qsee: false,
+                diag_root_full_window: false,
                 forced_root: None,
                 target_root: None,
             };
@@ -2334,6 +2347,7 @@ mod tests {
                 diag_futility: false,
                 diag_null: false,
                 diag_qsee: false,
+                diag_root_full_window: false,
                 forced_root: None,
                 target_root: None,
             };
@@ -2467,6 +2481,7 @@ mod tests {
             diag_futility: false,
             diag_null: false,
             diag_qsee: false,
+            diag_root_full_window: false,
             forced_root: None,
             target_root: None,
         };

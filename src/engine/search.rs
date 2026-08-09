@@ -438,6 +438,10 @@ pub(crate) struct SearchDiagnostics {
     /// Record the 1-based rank of this move in the normal root ordering,
     /// BEFORE any forced-root filtering.
     pub(crate) target_root_move: Option<Move>,
+    /// S4.1c Phase B diagnostic: give EVERY root move a full-window child
+    /// search (no root scout + conditional re-search). Non-root PVS,
+    /// LMR/futility/null/qSEE all unchanged. Diagnostic only.
+    pub(crate) root_full_window: bool,
     pub(crate) disable_lmr: bool,
     pub(crate) disable_futility: bool,
     pub(crate) disable_null_move: bool,
@@ -4382,7 +4386,14 @@ fn root_search_with_window(
                 // child. Root PVS uses the SAME window helper as a non-root
                 // node (its behavior is unchanged): first move / reference
                 // profile -> Full; a later `Current` move -> Scout.
-                match pvs_child_window(profile, move_idx == 0, depth, alpha_before_move, beta) {
+                // S4.1c Phase B diagnostic: every root move gets a full-window
+                // child search (no root scout + conditional re-search).
+                let diag_full = ctx.diagnostics.is_some_and(|d| d.root_full_window);
+                match if diag_full {
+                    ChildWindow::Full
+                } else {
+                    pvs_child_window(profile, move_idx == 0, depth, alpha_before_move, beta)
+                } {
                     ChildWindow::Full => {
                         #[cfg(test)]
                         if move_idx == 0 && profile == SearchProfile::Current {
