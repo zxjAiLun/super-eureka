@@ -176,6 +176,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
         SearchProfile::CurrentAspirationLmrFutilitySee => "current-aspiration-lmr-futility-see",
         SearchProfile::CurrentFinal => "current-final",
+        SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
     }
 }
 
@@ -416,9 +417,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                         SearchProfile::CurrentAspirationLmrFutilitySee
                     }
                     "current-final" => SearchProfile::CurrentFinal,
+                    "current-final-root-history" => SearchProfile::CurrentFinalRootHistory,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history)",
                             other
                         ));
                     }

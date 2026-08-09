@@ -151,6 +151,10 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmrFutility,
     CurrentAspirationLmrFutilitySee,
     CurrentFinal,
+    /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
+    /// the existing history heuristic (previous best stays first; no root
+    /// killers; no static-eval ordering; no history-update changes).
+    CurrentFinalRootHistory,
 }
 
 impl SearchProfile {
@@ -177,6 +181,7 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
                 | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
         )
     }
 
@@ -190,12 +195,16 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
                 | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
         )
     }
 
     #[inline]
     pub(crate) const fn uses_null_move(self) -> bool {
-        matches!(self, Self::NullMoveCandidate | Self::CurrentFinal)
+        matches!(
+            self,
+            Self::NullMoveCandidate | Self::CurrentFinal | Self::CurrentFinalRootHistory
+        )
     }
 
     #[inline]
@@ -206,6 +215,7 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
                 | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
         )
     }
 
@@ -226,6 +236,7 @@ impl SearchProfile {
                 | Self::CurrentAspirationLmrFutility
                 | Self::CurrentAspirationLmrFutilitySee
                 | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -236,7 +247,10 @@ impl SearchProfile {
     pub(crate) const fn uses_qsearch_pruning(self) -> bool {
         matches!(
             self,
-            Self::CurrentQsearchPruning | Self::CurrentQsearchFastPruning | Self::CurrentFinal
+            Self::CurrentQsearchPruning
+                | Self::CurrentQsearchFastPruning
+                | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
         )
     }
 
@@ -254,6 +268,14 @@ impl SearchProfile {
                 | Self::CurrentThreatAwareEvalOrder
                 | Self::CurrentThreatAwareEvalOnly
         )
+    }
+
+    /// S4.1: the candidate reorders root QUIET moves by the existing history
+    /// heuristic (previous best stays first; no root killers; no static-eval
+    /// ordering; history update rules unchanged).
+    #[inline]
+    pub(crate) const fn uses_root_quiet_history(self) -> bool {
+        matches!(self, Self::CurrentFinalRootHistory)
     }
 
     #[inline]
@@ -1728,6 +1750,47 @@ fn order_moves_with_hash_and_killers(
     });
     for (i, (_, _, _, _, m)) in keyed.into_iter().enumerate() {
         moves[i] = m;
+    }
+}
+
+/// S4.1: reorder the root's QUIET moves (indices 1..) by the existing history
+/// heuristic `history[color][from][to]`, descending, stable for equal scores.
+///
+/// Contract:
+/// - root_moves[0] (the previous iteration's best move) is preserved;
+/// - no root killers, no static-eval ordering, no history-update changes;
+/// - tactical moves (captures / promotions / en passant) keep their slots;
+/// - only the quiet slots are sorted, so quiet-vs-quiet prioritization is the
+///   entire experiment (not a general root MovePicker);
+/// - every legal move appears exactly once (pure permutation).
+fn order_root_quiets_by_history(
+    pos: &Position,
+    root_moves: &mut [Move],
+    heur: Option<&SearchHeuristics>,
+) {
+    let quiet_slots: Vec<usize> = (1..root_moves.len())
+        .filter(|&i| !is_tactical(pos, root_moves[i]))
+        .collect();
+    if quiet_slots.len() < 2 {
+        return;
+    }
+    let mut keyed: Vec<(i32, usize, Move)> = quiet_slots
+        .iter()
+        .map(|&i| {
+            let m = root_moves[i];
+            let hist = if let Some(hh) = heur {
+                let color = pos.side_to_move() as usize;
+                hh.history[color][m.from as usize][m.to as usize]
+            } else {
+                0
+            };
+            (hist, i, m)
+        })
+        .collect();
+    // Descending history, then ascending original index (stable).
+    keyed.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    for (slot, (_, _, m)) in keyed.into_iter().enumerate() {
+        root_moves[quiet_slots[slot]] = m;
     }
 }
 
@@ -4939,6 +5002,13 @@ fn search_best_move_impl(
                 } else if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
                     root_moves.swap(0, idx);
                 }
+                // S4.1 candidate: after the previous best is lifted to index 0,
+                // sort only the remaining QUIET root moves by the existing
+                // history heuristic (descending, stable). No root killers, no
+                // static-eval ordering, no history-update changes.
+                if _profile.uses_root_quiet_history() {
+                    order_root_quiets_by_history(pos, &mut root_moves, heuristics.as_ref());
+                }
                 // Standard UCI info: nodes from the atomic counter, time
                 // from the search start, nps = nodes*1000/ms. nps is guarded
                 // against time == 0 (no divide-by-zero) and computed in u128
@@ -5567,6 +5637,88 @@ mod tests {
             0,
             "checking quiet moves must never be reduced"
         );
+    }
+
+    #[test]
+    fn root_quiet_history_orders_only_quiet_slots() {
+        let pos = parse_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5")
+            .unwrap();
+        let cap1 = find_move(&pos, "f3e5");
+        let cap2 = find_move(&pos, "c4f7");
+        let q1 = find_move(&pos, "d3d4");
+        let q2 = find_move(&pos, "a2a3");
+        let q3 = find_move(&pos, "c2c3");
+        assert!(is_tactical(&pos, cap1) && is_tactical(&pos, cap2));
+        assert!(!is_tactical(&pos, q1) && !is_tactical(&pos, q2) && !is_tactical(&pos, q3));
+
+        let mut h = SearchHeuristics::new();
+        let color = pos.side_to_move() as usize;
+        h.history[color][q1.from as usize][q1.to as usize] = 100;
+        h.history[color][q2.from as usize][q2.to as usize] = 9000;
+        h.history[color][q3.from as usize][q3.to as usize] = 100;
+
+        let mut moves = vec![cap1, q1, cap2, q2, q3];
+        let mut before: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
+        before.sort();
+        order_root_quiets_by_history(&pos, &mut moves, Some(&h));
+        let mut after: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
+        after.sort();
+        assert_eq!(before, after, "no move is added or dropped");
+        assert_eq!(moves[0], cap1, "previous best at index 0 is preserved");
+        assert_eq!(moves[1], q2, "highest-history quiet is searched first");
+        assert_eq!(moves[2], cap2, "tactical move keeps its slot");
+        assert_eq!(
+            moves[3], q1,
+            "equal-history quiets keep input order (q1 before q3)"
+        );
+        assert_eq!(moves[4], q3);
+    }
+
+    #[test]
+    fn root_quiet_history_keeps_tactical_slots_and_previous_best() {
+        let pos = parse_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5")
+            .unwrap();
+        let cap1 = find_move(&pos, "f3e5");
+        let q1 = find_move(&pos, "d3d4");
+        let q2 = find_move(&pos, "a2a3");
+
+        // Empty history: the quiet sort must be a no-op permutation.
+        let h = SearchHeuristics::new();
+        let mut moves = vec![cap1, q1, q2];
+        let before = moves.clone();
+        order_root_quiets_by_history(&pos, &mut moves, Some(&h));
+        assert_eq!(moves, before, "zero history leaves the order untouched");
+    }
+
+    #[test]
+    fn root_quiet_history_profile_matches_current_final_at_fixed_depth() {
+        // The candidate inherits every CurrentFinal feature; only root quiet
+        // ordering differs, which does not change the minimax value.
+        let pos = parse_fen(START_FEN).unwrap();
+        let hist = vec![pos.zobrist_key()];
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..Default::default()
+        };
+        let run = |profile: SearchProfile| -> SearchOutcome {
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let mut tt = TranspositionTable::disabled();
+            search_best_move_with_history_tt_and_profile(
+                &mut pos.clone(),
+                &hist,
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            )
+            .expect("outcome")
+        };
+        let cf = run(SearchProfile::CurrentFinal);
+        let rh = run(SearchProfile::CurrentFinalRootHistory);
+        assert_eq!(rh.score, cf.score, "same minimax score at fixed depth");
+        assert_eq!(rh.best_move, cf.best_move, "same best move at fixed depth");
+        assert_eq!(rh.completed_depth, cf.completed_depth);
+        assert!(!rh.stopped && !cf.stopped);
     }
 
     #[test]

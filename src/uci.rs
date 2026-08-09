@@ -155,6 +155,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
             "current-aspiration-lmr-futility-see"
         }
         search::SearchProfile::CurrentFinal => "current-final",
+        search::SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -426,6 +427,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                         search::SearchProfile::CurrentAspirationLmrFutilitySee
                     }
                     "current-final" => search::SearchProfile::CurrentFinal,
+                    "current-final-root-history" => search::SearchProfile::CurrentFinalRootHistory,
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
