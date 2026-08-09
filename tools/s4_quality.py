@@ -85,6 +85,7 @@ def run_bench(
     forced_root: Optional[str] = None,
     target_root: Optional[str] = None,
     profile: str = PROFILE,
+    diag: Optional[str] = None,
 ) -> dict[str, Any]:
     argv = [str(engine), "bench", "profile", "--mode", "cold", "--profile", profile, "--fen", fen]
     if ms is not None:
@@ -95,6 +96,8 @@ def run_bench(
         argv += ["--forced-root", forced_root]
     if target_root:
         argv += ["--target-root", target_root]
+    if diag:
+        argv += ["--diag", diag]
     completed = subprocess.run(
         argv,
         capture_output=True,
@@ -793,6 +796,124 @@ def phase_s41_ab(args: argparse.Namespace) -> None:
     print(f"s41_ab: {len(rows)} -> {QUALITY_DIR / 's41_ab.jsonl'}")
 
 
+def phase_s41c(args: argparse.Namespace) -> None:
+    """S4.1cA Non-PV Selectivity Attribution: normal (unforced) fixed-depth
+    search with each bench-only diagnostic disabled, on the strict SEARCH_LIKE
+    cohort. No --forced-root, no --target-root (no diagnostic ordering)."""
+    import collections
+    engine = Path(args.engine).resolve()
+    teacher = {p["fen"]: p for p in read_jsonl(QUALITY_DIR / "teacher.jsonl")}
+    paired = read_jsonl(QUALITY_DIR / "paired.jsonl")
+
+    def teacher_quiet(r: dict) -> bool:
+        b = chess.Board(r["fen"]); m = chess.Move.from_uci(r["teacher_best"])
+        return not b.is_capture(m) and not b.gives_check(m) and not m.promotion
+
+    cohort = [r["fen"] for r in paired
+              if r["class"] == "SEARCH_LIKE" and teacher_quiet(r)
+              and r["target_root_rank"] >= 8]
+    stricter = [r["fen"] for r in paired
+                if r["class"] == "SEARCH_LIKE" and teacher_quiet(r)
+                and r["target_root_rank"] >= 8
+                and r["deltas"].get("7") is not None and r["deltas"].get("7") >= -30]
+    # (config label, --diag value); None = baseline
+    configs = [
+        ("baseline", None),
+        ("no-lmr", "no-lmr"),
+        ("no-futility", "no-futility"),
+        ("no-null", "no-null"),
+        ("no-qsee", "no-qsee"),
+        ("root-full-window", "root-full-window"),
+    ]
+    print(f"s41c cohort={len(cohort)} stricter={len(stricter)} depths={args.s41c_depths}", flush=True)
+
+    def teacher_loss(sf: StockfishTeacher, fen: str, move: str) -> Optional[int]:
+        t = teacher.get(fen)
+        if not t or not t.get("teacher_multipv"):
+            return None
+        top = t["teacher_multipv"]
+        tb = parse_score(top[0]["score"])
+        for m in top:
+            if m["move"] == move:
+                return cp_loss(tb, parse_score(m["score"]))
+        sc = sf.searchmoves_score(fen, move, args.s41_confirm_nodes)
+        return cp_loss(tb, sc)
+
+    rows: list[dict[str, Any]] = []
+    stricter_set = set(stricter)
+    with StockfishTeacher(args.stockfish, multipv=1, timeout_s=args.teacher_timeout) as sf:
+        for depth in args.s41c_depths:
+            agg = {c: {"top1": 0, "top3": 0, "losses": [], "nodes": [], "qsearch_share": [],
+                       "lmr_red": 0, "lmr_rsch": 0, "fut": 0, "null_att": 0, "null_rsch": 0,
+                       "qsee_t": 0, "qsee_p": 0, "recovered": 0, "recovered_stricter": 0,
+                       "loss_improve_50": 0, "loss_regress_100": 0}
+                   for c, _ in configs}
+            for fen in cohort:
+                t = teacher.get(fen)
+                top_moves = [m["move"] for m in t["teacher_multipv"]] if t and t.get("teacher_multipv") else []
+                tb = top_moves[0] if top_moves else None
+                runs = {}
+                for c, diag in configs:
+                    runs[c] = run_bench(engine, fen, depth=depth, diag=diag)
+                loss = {}
+                for c, _ in configs:
+                    mv = runs[c]["bestmove"]
+                    loss[c] = teacher_loss(sf, fen, mv)
+                    a = agg[c]
+                    a["top1"] += 1 if (tb and mv == tb) else 0
+                    a["top3"] += 1 if mv in top_moves else 0
+                    if loss[c] is not None:
+                        a["losses"].append(loss[c])
+                    a["nodes"].append(runs[c]["nodes"])
+                    a["qsearch_share"].append(runs[c]["qsearch_nodes"] / max(1, runs[c]["nodes"]))
+                    a["lmr_red"] += runs[c]["lmr_reductions"]
+                    a["lmr_rsch"] += runs[c]["lmr_researches"]
+                    a["fut"] += runs[c]["futility_pruned"]
+                    a["null_att"] += runs[c]["null_move_attempts"]
+                    a["null_rsch"] += runs[c]["null_move_researches"]
+                    a["qsee_t"] += runs[c].get("qsearch_see_tests", 0)
+                    a["qsee_p"] += runs[c].get("qsearch_see_pruned", 0)
+                # recovery vs baseline (teacher/top3 restored in NORMAL search)
+                base_top3 = runs["baseline"]["bestmove"] in top_moves
+                base_loss = loss["baseline"]
+                for c, _ in configs:
+                    if c == "baseline":
+                        continue
+                    a = agg[c]
+                    mv = runs[c]["bestmove"]
+                    if (not base_top3) and mv in top_moves:
+                        a["recovered"] += 1
+                        if fen in stricter_set:
+                            a["recovered_stricter"] += 1
+                    if base_loss is not None and loss[c] is not None:
+                        delta = base_loss - loss[c]  # positive = config improves
+                        if delta >= 50:
+                            a["loss_improve_50"] += 1
+                        if delta <= -100:
+                            a["loss_regress_100"] += 1
+            out_row = {"depth": depth, "configs": {}}
+            for c, _ in configs:
+                a = agg[c]
+                out_row["configs"][c] = {
+                    "top1": a["top1"], "top3": a["top3"],
+                    "median_loss": statistics.median(a["losses"]) if a["losses"] else None,
+                    "median_nodes": statistics.median(a["nodes"]) if a["nodes"] else None,
+                    "median_qsearch_share": statistics.median(a["qsearch_share"]) if a["qsearch_share"] else None,
+                    "lmr_reductions": a["lmr_red"], "lmr_researches": a["lmr_rsch"],
+                    "futility_pruned": a["fut"], "null_attempts": a["null_att"],
+                    "null_researches": a["null_rsch"], "qsee_tests": a["qsee_t"],
+                    "qsee_pruned": a["qsee_p"],
+                    "recovered_vs_baseline": a["recovered"],
+                    "recovered_stricter49": a["recovered_stricter"],
+                    "loss_improve_50cp": a["loss_improve_50"],
+                    "loss_regress_100cp": a["loss_regress_100"],
+                }
+            rows.append(out_row)
+            print(json.dumps(out_row), flush=True)
+    write_jsonl(QUALITY_DIR / "s41c_attribution.jsonl", rows)
+    print(f"s41c: {len(rows)} -> {QUALITY_DIR / 's41c_attribution.jsonl'}")
+
+
 def phase_summary(args: argparse.Namespace) -> None:
     import collections
     teacher = read_jsonl(QUALITY_DIR / "teacher.jsonl")
@@ -958,6 +1079,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--s41-broad-n", type=int, default=150)
     p.add_argument("--s41-confirm-nodes", type=int, default=40000)
     p.add_argument("--s41-candidate", default="current-final-root-history")
+    p.add_argument("--s41c-depths", type=int, nargs="+", default=[5, 6, 7])
     return p.parse_args()
 
 
@@ -993,6 +1115,8 @@ def main() -> int:
             phase_ablation(args)
         elif ph == "s41_ab":
             phase_s41_ab(args)
+        elif ph == "s41c":
+            phase_s41c(args)
         elif ph == "summary":
             phase_summary(args)
         else:
