@@ -1,0 +1,3708 @@
+{
+  "tournament_id": "86835da4-bdb4-4514-a950-7a5ecf1f132a",
+  "name": "s43d-formal-sprt",
+  "status": "SPRT_ACCEPT_H1",
+  "time_control": "blitz_10_01",
+  "requested_pairs": 2000,
+  "completed_pairs": 263,
+  "engine_a": {
+    "build_id": "20260809-b4de653-linux-x86_64",
+    "profile": "current-final-legality-fast"
+  },
+  "engine_b": {
+    "build_id": "20260809-b4de653-linux-x86_64",
+    "profile": "current-final"
+  },
+  "candidate_perspective": {
+    "wins": 249,
+    "losses": 180,
+    "draws": 97,
+    "games": 526,
+    "score_percent": 56.56
+  },
+  "games": [
+    {
+      "game_number": 1,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 2,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 3,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 4,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 5,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 6,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 7,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 8,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 9,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 10,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 11,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 12,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 13,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 14,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 15,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 16,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 17,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 18,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 19,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 20,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 21,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 22,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 23,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 24,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 25,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 26,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 27,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 28,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 29,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 30,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 31,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 32,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 33,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 34,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 35,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 36,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 37,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 38,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 39,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 40,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 41,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 42,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 43,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 44,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 45,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 46,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 47,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 48,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 49,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 50,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 51,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 52,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 53,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 54,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 55,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 56,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 57,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 58,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 59,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 60,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 61,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 62,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 63,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 64,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 65,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 66,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 67,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 68,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 69,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 70,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 71,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 72,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 73,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 74,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 75,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 76,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 77,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 78,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 79,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 80,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 81,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 82,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 83,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 84,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 85,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 86,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 87,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 88,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 89,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 90,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 91,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 92,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 93,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 94,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 95,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 96,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 97,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 98,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 99,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 100,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 101,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 102,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 103,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 104,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 105,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 106,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 107,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 108,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 109,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 110,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 111,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 112,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 113,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 114,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 115,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 116,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 117,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 118,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 119,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 120,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 121,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 122,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 123,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 124,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 125,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 126,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 127,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 128,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 129,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 130,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 131,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 132,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 133,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 134,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 135,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 136,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 137,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 138,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 139,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 140,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 141,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 142,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 143,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 144,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 145,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 146,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 147,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 148,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 149,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 150,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 151,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 152,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 153,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 154,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 155,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 156,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 157,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 158,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 159,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 160,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 161,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 162,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 163,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 164,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 165,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 166,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 167,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 168,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 169,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 170,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 171,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 172,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 173,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 174,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 175,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 176,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 177,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 178,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 179,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 180,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 181,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 182,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 183,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 184,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 185,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 186,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 187,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 188,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 189,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 190,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 191,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 192,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 193,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 194,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 195,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 196,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 197,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 198,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 199,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 200,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 201,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 202,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 203,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 204,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 205,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 206,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 207,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 208,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 209,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 210,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 211,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 212,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 213,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 214,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 215,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 216,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 217,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 218,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 219,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 220,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 221,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 222,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 223,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 224,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 225,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 226,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 227,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 228,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 229,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 230,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 231,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 232,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 233,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 234,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 235,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 236,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 237,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 238,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 239,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 240,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 241,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 242,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 243,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 244,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 245,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 246,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 247,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 248,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 249,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 250,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 251,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 252,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 253,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 254,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 255,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 256,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 257,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 258,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 259,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 260,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 261,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 262,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 263,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 264,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 265,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 266,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 267,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 268,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 269,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 270,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 271,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 272,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 273,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 274,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 275,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 276,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 277,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 278,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 279,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 280,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 281,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 282,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 283,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 284,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 285,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 286,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 287,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 288,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 289,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 290,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 291,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 292,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 293,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 294,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 295,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 296,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 297,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 298,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 299,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 300,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 301,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 302,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 303,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 304,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 305,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 306,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 307,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 308,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 309,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 310,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 311,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 312,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 313,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 314,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 315,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 316,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 317,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 318,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 319,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 320,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 321,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 322,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 323,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 324,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 325,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 326,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 327,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 328,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 329,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 330,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 331,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 332,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 333,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 334,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 335,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 336,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 337,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 338,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 339,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 340,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 341,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 342,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 343,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 344,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 345,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 346,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 347,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 348,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 349,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 350,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 351,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 352,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 353,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 354,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 355,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 356,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 357,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 358,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 359,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 360,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 361,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 362,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 363,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 364,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 365,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 366,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 367,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 368,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 369,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 370,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 371,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 372,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 373,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 374,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 375,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 376,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 377,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 378,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 379,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 380,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 381,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 382,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 383,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 384,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 385,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 386,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 387,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 388,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 389,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 390,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 391,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 392,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 393,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 394,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 395,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 396,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 397,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 398,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 399,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 400,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 401,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 402,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 403,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 404,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 405,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 406,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 407,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 408,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 409,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 410,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 411,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 412,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 413,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 414,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 415,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 416,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 417,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 418,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 419,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 420,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 421,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 422,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 423,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 424,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 425,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 426,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 427,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 428,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 429,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 430,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 431,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 432,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 433,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 434,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 435,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 436,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 437,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 438,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 439,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 440,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 441,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 442,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 443,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 444,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 445,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 446,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 447,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 448,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 449,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 450,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 451,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 452,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 453,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 454,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 455,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 456,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 457,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 458,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 459,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 460,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 461,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 462,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 463,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 464,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 465,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 466,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 467,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 468,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 469,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 470,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 471,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 472,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 473,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 474,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 475,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 476,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 477,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 478,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 479,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 480,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 481,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 482,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 483,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 484,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 485,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 486,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 487,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 488,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 489,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 490,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 491,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 492,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 493,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 494,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 495,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 496,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 497,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 498,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 499,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 500,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 501,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 502,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 503,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 504,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 505,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 506,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 507,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 508,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 509,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 510,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 511,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 512,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 513,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 514,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 515,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 516,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 517,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 518,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 519,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 520,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 521,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 522,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 523,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 524,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 525,
+      "white": "CurrentFinal LegalityFast",
+      "black": "CurrentFinal",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 526,
+      "white": "CurrentFinal",
+      "black": "CurrentFinal LegalityFast",
+      "result": "0-1",
+      "termination": null
+    }
+  ],
+  "generated_utc": null
+}
