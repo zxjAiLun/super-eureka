@@ -151,6 +151,8 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
     CurrentAspirationLmrFutilitySee,
+    /// S3 production search configuration plus the S4.3E promoted unpinned
+    /// non-check full-legality fast path. Default UCI startup profile.
     CurrentFinal,
     /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
     /// the existing history heuristic (previous best stays first; no root
@@ -161,9 +163,10 @@ pub(crate) enum SearchProfile {
     /// stays first; no history/killer/static-eval/threat signal; no PVS or
     /// re-search changes).
     CurrentFinalRootPrevScore,
-    /// S4.3B candidate: exactly CurrentFinal plus the unpinned non-check
-    /// legality fast path in the FULL legal generator. Identical move lists,
-    /// order and search tree; only the legality probe count changes.
+    /// S4.3B candidate: unpinned non-check legality fast path in the FULL
+    /// legal generator. After the S4.3E promotion its search behavior is
+    /// equivalent to CurrentFinal; retained as a historical/compatibility
+    /// alias for the S4.3B/S4.3C/S4.3D experiment artifact.
     CurrentFinalLegalityFast,
 }
 
@@ -310,11 +313,19 @@ impl SearchProfile {
         matches!(self, Self::CurrentFinalRootPrevScore)
     }
 
-    /// S4.3B: the candidate uses the unpinned non-check legality fast path in
-    /// the FULL legal generator (identical move lists and order).
+    /// S4.3E promoted: the unpinned non-check legality fast path in the FULL
+    /// legal generator (identical move lists and order) is PRODUCTION policy
+    /// for CurrentFinal and everything defined as "exactly CurrentFinal plus
+    /// X" (RootHistory, RootPrevScore), plus the S4.3B compatibility alias.
     #[inline]
     pub(crate) const fn uses_legality_fast(self) -> bool {
-        matches!(self, Self::CurrentFinalLegalityFast)
+        matches!(
+            self,
+            Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+        )
     }
 
     #[inline]
@@ -6155,6 +6166,24 @@ mod tests {
         assert_eq!(lf.best_move, cf.best_move, "identical best move");
         assert_eq!(lf.completed_depth, cf.completed_depth);
         assert_eq!(lf.pv, cf.pv, "identical PV");
+    }
+
+    #[test]
+    fn legality_fast_promotion_policy() {
+        // S4.3E: the unpinned non-check legality fast path is production
+        // policy for CurrentFinal and its "exactly CurrentFinal + X"
+        // derivatives; historical/experimental profiles keep legacy behavior.
+        assert!(SearchProfile::CurrentFinal.uses_legality_fast());
+        assert!(SearchProfile::CurrentFinalRootHistory.uses_legality_fast());
+        assert!(SearchProfile::CurrentFinalRootPrevScore.uses_legality_fast());
+        assert!(SearchProfile::CurrentFinalLegalityFast.uses_legality_fast());
+        assert!(!SearchProfile::Current.uses_legality_fast());
+        assert!(!SearchProfile::CurrentLmr.uses_legality_fast());
+        assert!(!SearchProfile::CurrentEval2.uses_legality_fast());
+        assert!(!SearchProfile::M4Reference.uses_legality_fast());
+        assert!(!SearchProfile::CurrentThreatAware.uses_legality_fast());
+        assert!(!SearchProfile::CurrentAspiration.uses_legality_fast());
+        assert!(!SearchProfile::CurrentQsearchPruning.uses_legality_fast());
     }
 
     #[test]
