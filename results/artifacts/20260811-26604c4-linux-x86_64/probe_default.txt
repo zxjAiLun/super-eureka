@@ -1,1 +1,7 @@
-bash: line 4:  : command not found
+id name ChessEngineDemo
+id author Rust-learner
+option name Hash type spin default 16 min 1 max 1024
+info string search profile current-final
+uciok
+readyok
+bestmove b1c3

@@ -1,7 +1,7 @@
-S4.3E production EngineArtifact - provenance record
-====================================================
+S4.3E production EngineArtifact - provenance record (REPAIRED)
+================================================================
 
-promotion source SHA:   26604c4 (git_sha in manifest)
+promotion source SHA:   26604c425625d69e5b7e7b967db8926f4da01b8a (manifest git_sha)
 build ID:               20260811-26604c4-linux-x86_64
 binary SHA-256:         f0e8f91a3a0828a158672cecdf7859dbd9a3c9bac36b965bdcc90db31b51189d
 Cargo.lock SHA-256:     370d4ebcacd639d0bad97efc2d7c4f1eb419ef13ce9a518d1d8b2f836d64e9ee
@@ -10,18 +10,35 @@ cargo:                  1.94.1 (29ea6fb6a 2026-03-24)
 platform:               linux-x86_64
 default profile:        current-final (production, legality fast path ON)
 supported profiles:     ["current-final", "current"]
-source tree:            git archive 26604c4 (clean), cargo build --release --locked
+source tree:            git archive 26604c425625d69e5b7e7b967db8926f4da01b8a
+                        (clean), cargo build --release --locked
+created_utc:            2026-08-10T18:37:15Z
+                        (binary mtime, durable filesystem evidence of the
+                        actual artifact creation; NOT an invented value)
 
 tarball:                build-20260811-26604c4-linux-x86_64.tar.gz
-tarball SHA-256:        34db8dce82886beaf8b69c8b631b46250a621ac7aeca63ff2b302607973ae253
+tarball SHA-256:        74fdacaffc8167b3cdbd768bcd33aadcf891a44d6e40ba9691371696c88bcaf8
 unpack-rehash:          f0e8f91a... (matches manifest binary_sha256) PASS
 executable bit:         PASS
 manifest JSON:          PASS
+manifest git_sha:       26604c425625d69e5b7e7b967db8926f4da01b8a
+manifest binary_sha256: f0e8f91a... (matches actual binary) PASS
 
 cross-artifact check:   OLD 20260809-b4de653 --profile current-final-legality-fast
                         vs NEW default/current-final, depth 6 cold:
                         bestmove/score/nodes/PV identical on 6/6 positions
 
-probes:                 default PASS (search profile current-final)
+probes (regenerated from the exact binary via subprocess, rc=0, no stderr):
+                        default PASS (search profile current-final)
                         --profile current-final PASS
                         --profile current (rollback) PASS
+
+artifact record repair:
+                        supersedes broken records from c5dc6cf
+                        reason: committed probe files contained shell
+                        invocation errors; created_utc provenance was invalid
+                        (was 2026-08-11T00:00:00Z, invented); git_sha was
+                        short. Repair regenerated probes from the exact
+                        binary, restored the real created_utc from the binary
+                        mtime, and repacked the tarball with the corrected
+                        manifest around the SAME byte-identical binary.

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "build_id": "20260811-26604c4-linux-x86_64",
   "engine_name": "ChessEngineDemo",
-  "git_sha": "26604c4",
+  "git_sha": "26604c425625d69e5b7e7b967db8926f4da01b8a",
   "binary_sha256": "f0e8f91a3a0828a158672cecdf7859dbd9a3c9bac36b965bdcc90db31b51189d",
   "platform": "linux-x86_64",
   "rustc_version": "rustc 1.94.1 (e408947bf 2026-03-25)",
@@ -10,5 +10,5 @@
   "supported_profiles": ["current-final", "current"],
   "uci_id_name": "ChessEngineDemo",
   "uci_id_author": "Rust-learner",
-  "created_utc": "2026-08-11T00:00:00Z"
+  "created_utc": "2026-08-10T18:37:15Z"
 }
