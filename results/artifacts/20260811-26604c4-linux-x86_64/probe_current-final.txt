@@ -1,0 +1,1 @@
+bash: line 5:  --profile: command not found
