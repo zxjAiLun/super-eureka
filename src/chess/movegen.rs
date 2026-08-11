@@ -59,6 +59,10 @@ pub(crate) struct MovegenStats {
     pub(crate) fallback_pinned: u64,
     pub(crate) fallback_en_passant: u64,
     pub(crate) fallback_castle: u64,
+    /// S4.4B: single-buffer compaction moved a legal move from index `read`
+    /// to `write != read` (out-of-place writes). Zero for the two-buffer
+    /// generators.
+    pub(crate) compaction_writes: u64,
 }
 
 pub(crate) fn generate_legal_moves_with_stats(pos: &mut Position) -> (Vec<Move>, MovegenStats) {
@@ -343,6 +347,133 @@ pub(crate) fn generate_legal_moves_fast_with_stats(
             fallback_pinned: fb_pinned,
             fallback_en_passant: fb_ep,
             fallback_castle: fb_castle,
+            compaction_writes: 0,
+        },
+    )
+}
+
+/// S4.4B candidate: EXACTLY the promoted full-legal generator (same pseudo
+/// move order, same LegalityFast eligibility/fallback rules, same probes),
+/// but materializing ONE move buffer instead of two: pseudo moves are
+/// generated into a single `Vec<Move>` and the legality filter compacts it
+/// IN PLACE with read/write indices (stable; legal moves keep their exact
+/// pseudo order), then `truncate`s.
+///
+/// Safety of the in-place compaction: the write index never overtakes the
+/// read index (writes land at `write <= read`), so `moves[read]` always
+/// still holds the original pseudo move when it is consumed. All legality
+/// probes, counters and the position-restoration contract are identical to
+/// [`generate_legal_moves_fast_with_stats`]; the produced ordered `Vec<Move>`
+/// is byte-for-byte equal to it.
+///
+/// `sub` is the S4.4A sparse sub-attribution sink (None on production).
+pub(crate) fn generate_legal_moves_fast_single_buffer_with_stats(
+    pos: &mut Position,
+    sub: Option<&FullLegalSub>,
+) -> (Vec<Move>, MovegenStats) {
+    let mut moves = Vec::new();
+    let sampled = sub.is_some_and(|s| s.begin());
+    let mut t = sampled.then(Instant::now);
+    generate_pseudo_moves(pos, &mut moves);
+    if let (Some(s), Some(from)) = (sub, t) {
+        t = Some(s.acc(&s.pseudo_gen_ns, from));
+    }
+    let pseudo_count = moves.len() as u64;
+    let us = pos.side;
+    let us_king = pos.king_sq[us as usize];
+    let enemy = us.opposite();
+    let mut fast_accepts = 0u64;
+    let mut fb_king = 0u64;
+    let mut fb_pinned = 0u64;
+    let mut fb_ep = 0u64;
+    let mut fb_castle = 0u64;
+    let mut fb_probes = 0u64;
+    let mut write = 0u64;
+    let mut compaction_writes = 0u64;
+
+    let in_check = pos.is_square_attacked(us_king, enemy);
+    if let Some(s) = sub {
+        if let Some(from) = t {
+            t = Some(s.acc(&s.check_state_ns, from));
+        }
+    }
+    if in_check {
+        if let Some(s) = sub {
+            s.in_check_calls.fetch_add(1, Ordering::Relaxed);
+        }
+        // Legacy probe for every pseudo move; no special evasion logic here.
+        for read in 0..pseudo_count {
+            let m = moves[read as usize];
+            let undo = pos.make_move(m);
+            let legal = !pos.is_square_attacked(pos.king_sq[us as usize], enemy);
+            pos.unmake_move(undo);
+            if legal {
+                if write != read {
+                    moves[write as usize] = m;
+                    compaction_writes += 1;
+                }
+                write += 1;
+            }
+        }
+        fb_probes = pseudo_count;
+    } else {
+        let pins = absolute_pin_mask(pos);
+        if let Some(s) = sub {
+            s.pin_scan_calls.fetch_add(1, Ordering::Relaxed);
+            if let Some(from) = t {
+                s.pin_scan_ns
+                    .fetch_add(from.elapsed().as_nanos() as u64, Ordering::Relaxed);
+            }
+        }
+        for read in 0..pseudo_count {
+            let m = moves[read as usize];
+            let is_ep = m.flag == MoveFlag::EnPassant;
+            let is_castle = matches!(m.flag, MoveFlag::KingCastle | MoveFlag::QueenCastle);
+            let is_king = !is_castle && m.from == us_king;
+            let is_pinned = pins & (1_u64 << m.from) != 0;
+            if is_ep || is_castle || is_king || is_pinned {
+                fb_probes += 1;
+                fb_ep += is_ep as u64;
+                fb_castle += is_castle as u64;
+                fb_king += is_king as u64;
+                fb_pinned += is_pinned as u64;
+                let undo = pos.make_move(m);
+                let legal = !pos.is_square_attacked(pos.king_sq[us as usize], enemy);
+                pos.unmake_move(undo);
+                if legal {
+                    if write != read {
+                        moves[write as usize] = m;
+                        compaction_writes += 1;
+                    }
+                    write += 1;
+                }
+            } else {
+                fast_accepts += 1;
+                if write != read {
+                    moves[write as usize] = m;
+                    compaction_writes += 1;
+                }
+                write += 1;
+            }
+        }
+    }
+    moves.truncate(write as usize);
+    let legal_count = moves.len() as u64;
+    (
+        moves,
+        MovegenStats {
+            pseudo_moves: pseudo_count,
+            legal_moves: legal_count,
+            make_moves: fb_probes,
+            unmake_moves: fb_probes,
+            fast_accepts,
+            fallback_probes: fb_probes,
+            fallback_in_check: if in_check { pseudo_count } else { 0 },
+            fallback_king: fb_king,
+            fallback_pinned: fb_pinned,
+            fallback_en_passant: fb_ep,
+            fallback_castle: fb_castle,
+            compaction_writes,
         },
     )
 }
@@ -727,6 +858,22 @@ pub(crate) fn perft_fast(pos: &mut Position, depth: u32) -> u64 {
     nodes
 }
 
+/// S4.4B: perft using ONLY the single-buffer generator (candidate helper).
+#[cfg(test)]
+pub(crate) fn perft_single_buffer(pos: &mut Position, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+    let moves = generate_legal_moves_fast_single_buffer_with_stats(pos, None).0;
+    let mut nodes = 0u64;
+    for m in moves {
+        let undo = pos.make_move(m);
+        nodes += perft_single_buffer(pos, depth - 1);
+        pos.unmake_move(undo);
+    }
+    nodes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -780,6 +927,185 @@ mod tests {
             expected.len(),
             "fast stats legal count mismatch for {fen}"
         );
+    }
+
+    /// S4.4B: single-buffer vs promoted fast full-legal differential on ONE
+    /// position. Requires exact ordered equality AND full restoration of
+    /// every Position field (board, side, castling, ep_target, halfmove,
+    /// fullmove, king_sq, zobrist).
+    fn assert_single_buffer_matches_fast(fen: &str) {
+        let mut ref_pos = parse_fen(fen).expect("fixture must parse");
+        let (expected, ref_stats) = generate_legal_moves_fast_with_stats(&mut ref_pos, None);
+        let pristine = parse_fen(fen).expect("fixture must parse");
+        let mut sb_pos = parse_fen(fen).expect("fixture must parse");
+        let (actual, stats) = generate_legal_moves_fast_single_buffer_with_stats(&mut sb_pos, None);
+        assert_eq!(
+            actual, expected,
+            "single-buffer legal order/content mismatch for {fen}"
+        );
+        assert_eq!(sb_pos.board, pristine.board, "board restore {fen}");
+        assert_eq!(sb_pos.side, pristine.side, "side restore {fen}");
+        assert_eq!(sb_pos.castling, pristine.castling, "castling restore {fen}");
+        assert_eq!(
+            sb_pos.ep_target, pristine.ep_target,
+            "ep_target restore {fen}"
+        );
+        assert_eq!(sb_pos.halfmove, pristine.halfmove, "halfmove restore {fen}");
+        assert_eq!(sb_pos.fullmove, pristine.fullmove, "fullmove restore {fen}");
+        assert_eq!(sb_pos.king_sq, pristine.king_sq, "king_sq restore {fen}");
+        assert_eq!(
+            sb_pos.zobrist_key, pristine.zobrist_key,
+            "zobrist restore {fen}"
+        );
+        // Identical legality work (same probes/fast accepts as two-buffer).
+        assert_eq!(stats.legal_moves, ref_stats.legal_moves, "{fen}");
+        assert_eq!(stats.make_moves, ref_stats.make_moves, "{fen}");
+        assert_eq!(stats.unmake_moves, ref_stats.unmake_moves, "{fen}");
+        assert_eq!(stats.fast_accepts, ref_stats.fast_accepts, "{fen}");
+        assert_eq!(stats.fallback_probes, ref_stats.fallback_probes, "{fen}");
+        assert_eq!(
+            stats.pseudo_moves, ref_stats.pseudo_moves,
+            "same pseudo count {fen}"
+        );
+        // Mechanism: one buffer, truncation to legal count, out-of-place
+        // writes only when rejections happened.
+        assert_eq!(stats.legal_moves, actual.len() as u64, "{fen}");
+        assert!(
+            stats.compaction_writes <= stats.pseudo_moves,
+            "compaction writes bounded by pseudo moves {fen}"
+        );
+    }
+
+    /// S4.4B: exact ordered move-list equivalence fixtures (S4.3B class list
+    /// plus high-mobility positions).
+    const SINGLE_BUFFER_FIXTURES: [&str; 21] = [
+        // all 8 absolute-pin directions
+        "4k3/8/8/8/3q4/8/8/3RK3 w - - 0 1",
+        "4k3/8/8/8/4q3/8/8/3RK3 w - - 0 1",
+        "4k3/8/8/8/2b1q3/8/8/3RK3 w - - 0 1",
+        "4k3/8/8/8/3q4/8/8/4KR2 w - - 0 1",
+        "4k3/8/8/8/8/8/8/3RK2r w - - 0 1",
+        // pinned knight
+        "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
+        // pinned pawn push
+        "4k3/8/8/8/4q3/8/4P3/4K3 w - - 0 1",
+        // pinned pawn capture (ep and plain)
+        "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
+        // capture of the pinning piece
+        "4k3/8/8/8/4R3/8/8/3qK3 w - - 0 1",
+        // single check / double check
+        "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
+        "4k3/8/8/8/4b3/8/4r3/4K3 w - - 0 1",
+        // en passant discovered rook / bishop attack
+        "4k3/8/8/3pP3/8/8/8/3RK3 w - d6 0 1",
+        // quiet / capturing promotions
+        "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+        "1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+        // both castling sides
+        "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+        // stalemate and checkmate
+        "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+        "7k/5K2/8/8/8/8/8/7R b - - 0 1",
+        // double-rook / double-bishop pin cases
+        "4k3/8/8/8/2b1q3/8/8/3RK3 w - - 0 1",
+        // king move into/out of attack
+        "4k3/8/8/8/8/8/4p3/4K3 w - - 0 1",
+        // high-mobility middlegame
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+    ];
+
+    #[test]
+    fn single_buffer_matches_fast_across_pin_ep_castle_and_check_classes() {
+        for fen in SINGLE_BUFFER_FIXTURES {
+            assert_single_buffer_matches_fast(fen);
+        }
+    }
+
+    #[test]
+    fn single_buffer_matches_fast_on_random_legal_walk() {
+        // Deterministic legal-walk differential: 1500 reachable positions,
+        // single-buffer vs promoted fast generator at every node.
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+            .expect("startpos");
+        let mut seed = 0x5eed_u64;
+        for step in 0..1500 {
+            let mut hasher = DefaultHasher::new();
+            (step, seed).hash(&mut hasher);
+            seed = hasher.finish();
+            let (moves, _) = generate_legal_moves_with_stats(&mut pos);
+            if moves.is_empty() {
+                break;
+            }
+            assert_single_buffer_matches_fast(&crate::chess::fen::to_fen(&pos));
+            let choice = moves[(seed as usize) % moves.len()];
+            let undo = pos.make_move(choice);
+            let _ = undo;
+        }
+    }
+
+    #[test]
+    fn single_buffer_perft_matches_fast_perft_on_fixtures() {
+        for (fen, depth) in [
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                4,
+            ),
+            (
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+                3,
+            ),
+            ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 4),
+            (
+                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+                3,
+            ),
+            (
+                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+                3,
+            ),
+        ] {
+            let mut fast_pos = parse_fen(fen).expect("fixture must parse");
+            let fast = perft_fast(&mut fast_pos, depth);
+            let mut sb_pos = parse_fen(fen).expect("fixture must parse");
+            let sb = perft_single_buffer(&mut sb_pos, depth);
+            assert_eq!(
+                sb, fast,
+                "single-buffer perft mismatch for {fen} at depth {depth}"
+            );
+        }
+    }
+
+    #[test]
+    fn single_buffer_mechanism_counters() {
+        // startpos: every pseudo move accepted in place -> no out-of-place
+        // compaction writes, one buffer, no probes.
+        let mut pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+            .expect("startpos");
+        let (moves, stats) = generate_legal_moves_fast_single_buffer_with_stats(&mut pos, None);
+        assert_eq!(moves.len() as u64, stats.legal_moves);
+        assert_eq!(stats.fast_accepts, 20);
+        assert_eq!(stats.fallback_probes, 0);
+        assert_eq!(stats.compaction_writes, 0);
+        // Ke2 is attacked by the c3 knight -> rejected AFTER accepted king
+        // moves, so the rook's later accepted moves compact out of place.
+        let mut pos2 = parse_fen("4k3/8/8/8/8/2n5/8/4K1R1 w - - 0 1").expect("rejection");
+        let (moves2, stats2) = generate_legal_moves_fast_single_buffer_with_stats(&mut pos2, None);
+        assert_eq!(moves2.len() as u64, stats2.legal_moves);
+        assert!(stats2.fallback_probes >= 1, "Ke2 must be probed");
+        assert!(
+            stats2.compaction_writes >= 1,
+            "rook moves compact out of place"
+        );
+        assert!(stats2.compaction_writes <= stats2.pseudo_moves);
+        // Same rejection behaviour as the two-buffer fast generator.
+        let mut ref_pos = parse_fen("4k3/8/8/8/8/2n5/8/4K1R1 w - - 0 1").expect("rejection");
+        let (ref_moves, ref_stats) = generate_legal_moves_fast_with_stats(&mut ref_pos, None);
+        assert_eq!(moves2, ref_moves, "identical ordered list");
+        assert_eq!(stats2.legal_moves, ref_stats.legal_moves);
+        assert_eq!(stats2.make_moves, ref_stats.make_moves);
     }
 
     #[test]

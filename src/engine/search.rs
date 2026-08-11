@@ -30,9 +30,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::chess::movegen::{
-    generate_legal_evasions_with_stats, generate_legal_moves_fast_with_stats,
-    generate_legal_moves_with_stats, generate_legal_tactical_moves_with_stats,
-    has_any_legal_move_with_stats, FullLegalSub, MovegenStats,
+    generate_legal_evasions_with_stats, generate_legal_moves_fast_single_buffer_with_stats,
+    generate_legal_moves_fast_with_stats, generate_legal_moves_with_stats,
+    generate_legal_tactical_moves_with_stats, has_any_legal_move_with_stats, FullLegalSub,
+    MovegenStats,
 };
 use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
@@ -168,6 +169,10 @@ pub(crate) enum SearchProfile {
     /// equivalent to CurrentFinal; retained as a historical/compatibility
     /// alias for the S4.3B/S4.3C/S4.3D experiment artifact.
     CurrentFinalLegalityFast,
+    /// S4.4B candidate: EXACTLY CurrentFinal (including the promoted
+    /// legality fast path) plus single-buffer full-legal materialization
+    /// (stable in-place legal compaction, one `Vec<Move>` instead of two).
+    CurrentFinalSingleBuffer,
 }
 
 impl SearchProfile {
@@ -197,6 +202,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
     }
 
@@ -213,6 +219,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
     }
 
@@ -225,6 +232,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
     }
 
@@ -239,6 +247,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
     }
 
@@ -262,6 +271,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -278,6 +288,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
     }
 
@@ -325,7 +336,16 @@ impl SearchProfile {
                 | Self::CurrentFinalRootHistory
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
         )
+    }
+
+    /// S4.4B: the single-buffer full-legal materialization candidate. Only
+    /// the candidate returns true; everything else (including CurrentFinal
+    /// and the S4.3B alias) uses the two-buffer generators.
+    #[inline]
+    pub(crate) const fn uses_single_buffer_legal(self) -> bool {
+        matches!(self, Self::CurrentFinalSingleBuffer)
     }
 
     #[inline]
@@ -596,6 +616,11 @@ pub struct SearchContext {
     /// S4.3B: unpinned non-check legality fast path enabled (set at search
     /// start from the profile; bench-only candidate, never the UCI default).
     pub(crate) legality_fast: AtomicBool,
+    /// S4.4B: single-buffer full-legal materialization enabled (set at search
+    /// start from the profile; candidate only, never the UCI default).
+    pub(crate) single_buffer_legal: AtomicBool,
+    /// S4.4B: compaction writes where `write != read` (mechanism counter).
+    pub(crate) single_buffer_writes: AtomicU64,
     /// S4.3B: fast-path / fallback statistics (profiling-enabled only).
     pub(crate) legality_fast_accepts: AtomicU64,
     pub(crate) legality_fallback_probes: AtomicU64,
@@ -673,6 +698,8 @@ pub struct SearchStats {
     pub legality_fallback_pinned: u64,
     pub legality_fallback_en_passant: u64,
     pub legality_fallback_castle: u64,
+    /// S4.4B: single-buffer compaction writes (zero for two-buffer profiles).
+    pub single_buffer_writes: u64,
 }
 
 impl SearchContext {
@@ -744,6 +771,8 @@ impl SearchContext {
             legality_probe_make: AtomicU64::new(0),
             legality_probe_unmake: AtomicU64::new(0),
             legality_fast: AtomicBool::new(false),
+            single_buffer_legal: AtomicBool::new(false),
+            single_buffer_writes: AtomicU64::new(0),
             legality_fast_accepts: AtomicU64::new(0),
             legality_fallback_probes: AtomicU64::new(0),
             legality_fallback_in_check: AtomicU64::new(0),
@@ -839,6 +868,8 @@ impl SearchContext {
             legality_probe_make: AtomicU64::new(0),
             legality_probe_unmake: AtomicU64::new(0),
             legality_fast: AtomicBool::new(false),
+            single_buffer_legal: AtomicBool::new(false),
+            single_buffer_writes: AtomicU64::new(0),
             legality_fast_accepts: AtomicU64::new(0),
             legality_fallback_probes: AtomicU64::new(0),
             legality_fallback_in_check: AtomicU64::new(0),
@@ -916,6 +947,7 @@ impl SearchContext {
             legality_fallback_pinned: self.legality_fallback_pinned.load(Ordering::Relaxed),
             legality_fallback_en_passant: self.legality_fallback_en_passant.load(Ordering::Relaxed),
             legality_fallback_castle: self.legality_fallback_castle.load(Ordering::Relaxed),
+            single_buffer_writes: self.single_buffer_writes.load(Ordering::Relaxed),
         }
     }
 
@@ -1031,7 +1063,13 @@ enum MovegenKind {
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
     let start = ctx.sample_begin(&ctx.timing_movegen_legal);
-    let (moves, stats) = if ctx.legality_fast.load(Ordering::Relaxed) {
+    let (moves, stats) = if ctx.single_buffer_legal.load(Ordering::Relaxed) {
+        // S4.4B: single-buffer full-legal materialization (candidate only).
+        generate_legal_moves_fast_single_buffer_with_stats(
+            pos,
+            ctx.sampled_timing.then_some(&ctx.full_legal_sub),
+        )
+    } else if ctx.legality_fast.load(Ordering::Relaxed) {
         // S4.4A: sparse sub-attribution inside the promoted generator.
         generate_legal_moves_fast_with_stats(pos, ctx.sampled_timing.then_some(&ctx.full_legal_sub))
     } else {
@@ -1071,6 +1109,8 @@ fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats, kind: MovegenKi
     ctx.add_profile_counter(&ctx.legality_fallback_pinned, stats.fallback_pinned);
     ctx.add_profile_counter(&ctx.legality_fallback_en_passant, stats.fallback_en_passant);
     ctx.add_profile_counter(&ctx.legality_fallback_castle, stats.fallback_castle);
+    // S4.4B: single-buffer compaction writes (zero for two-buffer generators).
+    ctx.add_profile_counter(&ctx.single_buffer_writes, stats.compaction_writes);
 }
 
 #[inline]
@@ -5220,6 +5260,8 @@ fn search_best_move_impl(
     );
     ctx.legality_fast
         .store(_profile.uses_legality_fast(), Ordering::Relaxed);
+    ctx.single_buffer_legal
+        .store(_profile.uses_single_buffer_legal(), Ordering::Relaxed);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -6217,6 +6259,51 @@ mod tests {
         assert_eq!(lf.best_move, cf.best_move, "identical best move");
         assert_eq!(lf.completed_depth, cf.completed_depth);
         assert_eq!(lf.pv, cf.pv, "identical PV");
+    }
+
+    #[test]
+    fn single_buffer_profile_matches_current_final_search_tree() {
+        // S4.4B: single-buffer full-legal materialization produces identical
+        // ordered move lists -> identical fixed-depth search tree (nodes,
+        // score, bestmove, PV) on every corpus-class position.
+        let positions = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
+            "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/8/4r3/4K3/8 w - - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        ];
+        let run = |pos: &Position, profile: SearchProfile| -> (SearchOutcome, u64) {
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let mut tt = TranspositionTable::disabled();
+            let hist = vec![pos.zobrist_key()];
+            let limits = SearchLimits {
+                depth: Some(4),
+                ..Default::default()
+            };
+            let out = search_best_move_with_history_tt_and_profile(
+                &mut pos.clone(),
+                &hist,
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            )
+            .expect("outcome");
+            (out, ctx.nodes.load(Ordering::Relaxed))
+        };
+        for fen in positions {
+            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            let (cf, cf_nodes) = run(&pos, SearchProfile::CurrentFinal);
+            let (sb, sb_nodes) = run(&pos, SearchProfile::CurrentFinalSingleBuffer);
+            assert_eq!(sb_nodes, cf_nodes, "identical node count for {fen}");
+            assert_eq!(sb.score, cf.score, "identical score for {fen}");
+            assert_eq!(sb.best_move, cf.best_move, "identical best move for {fen}");
+            assert_eq!(sb.completed_depth, cf.completed_depth, "for {fen}");
+            assert_eq!(sb.pv, cf.pv, "identical PV for {fen}");
+        }
     }
 
     #[test]
