@@ -29,7 +29,7 @@ use crate::chess::fen::{parse_fen, to_fen};
 use crate::chess::move_to_uci;
 use crate::chess::movegen::{generate_legal_moves, generate_pseudo_moves};
 use crate::chess::position::Position;
-use crate::chess::types::START_FEN;
+use crate::chess::types::{MoveFlag, START_FEN};
 use crate::chess::Move;
 use crate::chess::ZobristKey;
 use crate::engine::eval::evaluate_components_white;
@@ -1263,6 +1263,7 @@ fn run_one(
     if let Some(rate) = cfg.timing_sample {
         ctx.sampled_timing = true;
         ctx.sample_rate = rate;
+        ctx.full_legal_sub.sample_rate = rate;
     }
 
     let limits = limits_for(actual_limit);
@@ -1280,14 +1281,23 @@ fn run_one(
         let legality_unmake = ctx.legality_probe_unmake.load(Ordering::Relaxed);
         let search_edge_make = stats.make_moves.saturating_sub(legality_make);
         let search_edge_unmake = stats.unmake_moves.saturating_sub(legality_unmake);
+        let fl_sub = ctx.full_legal_sub.snapshot();
         println!(
-            "bench_timing nodes={} elapsed_us={} legality_probe_make={} legality_probe_unmake={} search_edge_make={} search_edge_unmake={} movegen_legal_calls={} movegen_legal_samples={} movegen_legal_ns={} movegen_tactical_calls={} movegen_tactical_samples={} movegen_tactical_ns={} movegen_evasion_calls={} movegen_evasion_samples={} movegen_evasion_ns={} movegen_has_any_calls={} movegen_has_any_samples={} movegen_has_any_ns={} eval_calls={} eval_samples={} eval_ns={} ordering_calls={} ordering_samples={} ordering_ns={} see_calls={} see_samples={} see_ns={} tt_calls={} tt_samples={} tt_ns={}",
+            "bench_timing nodes={} elapsed_us={} legality_probe_make={} legality_probe_unmake={} search_edge_make={} search_edge_unmake={} full_legal_probe_make={} full_legal_probe_unmake={} tactical_probe_make={} tactical_probe_unmake={} evasion_probe_make={} evasion_probe_unmake={} has_any_probe_make={} has_any_probe_unmake={} movegen_legal_calls={} movegen_legal_samples={} movegen_legal_ns={} movegen_tactical_calls={} movegen_tactical_samples={} movegen_tactical_ns={} movegen_evasion_calls={} movegen_evasion_samples={} movegen_evasion_ns={} movegen_has_any_calls={} movegen_has_any_samples={} movegen_has_any_ns={} eval_calls={} eval_samples={} eval_ns={} ordering_calls={} ordering_samples={} ordering_ns={} see_calls={} see_samples={} see_ns={} tt_calls={} tt_samples={} tt_ns={} fl_sub_calls={} fl_sub_samples={} fl_pseudo_gen_ns={} fl_check_state_ns={} fl_pin_scan_ns={} fl_pin_scan_calls={} fl_in_check_calls={}",
             nodes,
             elapsed.as_micros(),
             legality_make,
             legality_unmake,
             search_edge_make,
             search_edge_unmake,
+            ctx.full_legal_probe_make.load(Ordering::Relaxed),
+            ctx.full_legal_probe_unmake.load(Ordering::Relaxed),
+            ctx.tactical_probe_make.load(Ordering::Relaxed),
+            ctx.tactical_probe_unmake.load(Ordering::Relaxed),
+            ctx.evasion_probe_make.load(Ordering::Relaxed),
+            ctx.evasion_probe_unmake.load(Ordering::Relaxed),
+            ctx.has_any_probe_make.load(Ordering::Relaxed),
+            ctx.has_any_probe_unmake.load(Ordering::Relaxed),
             t.movegen_legal.0,
             t.movegen_legal.1,
             t.movegen_legal.2,
@@ -1312,6 +1322,13 @@ fn run_one(
             t.tt.0,
             t.tt.1,
             t.tt.2,
+            fl_sub.calls,
+            fl_sub.samples,
+            fl_sub.pseudo_gen_ns,
+            fl_sub.check_state_ns,
+            fl_sub.pin_scan_ns,
+            fl_sub.pin_scan_calls,
+            fl_sub.in_check_calls,
         );
     }
 
@@ -1460,14 +1477,41 @@ fn run_microbench(args: &[String]) -> Result<(), String> {
     let filter_per_move_ns =
         t0.elapsed().as_nanos() as f64 / (filter_reps as f64 * subset.len() as f64);
 
+    // S4.4A e) promoted fast path: eligibility tests + legal-Vec push per
+    // move, no make/unmake. Mirrors the generator's non-check branch (the
+    // pin bit test is a single AND, ~1ns, omitted from the model).
+    let fast_reps = repeats / 8;
+    let mut acc: Vec<Move> = Vec::with_capacity(64);
+    let t0 = Instant::now();
+    let mut accepted = 0u64;
+    for _ in 0..fast_reps {
+        for &m in &subset {
+            let is_ep = m.flag == MoveFlag::EnPassant;
+            let is_castle = matches!(m.flag, MoveFlag::KingCastle | MoveFlag::QueenCastle);
+            let is_king = !is_castle && m.from == king_sq;
+            let _is_pinned = false;
+            if is_ep || is_castle || is_king {
+                accepted += 1;
+            } else {
+                acc.push(m);
+            }
+        }
+        acc.clear();
+    }
+    std::hint::black_box(accepted);
+    std::hint::black_box(acc.len());
+    let fast_accept_per_move_ns =
+        t0.elapsed().as_nanos() as f64 / (fast_reps as f64 * subset.len() as f64);
+
     println!(
-        "microbench fen=\"{}\" pseudo_moves={} pseudo_ns={:.1} make_pair_ns={:.1} attack_ns={:.1} filter_per_move_ns={:.1}",
+        "microbench fen=\"{}\" pseudo_moves={} pseudo_ns={:.1} make_pair_ns={:.1} attack_ns={:.1} filter_per_move_ns={:.1} fast_accept_per_move_ns={:.1}",
         fen,
         moves.len(),
         pseudo_ns,
         make_pair_ns,
         attack_ns,
-        filter_per_move_ns
+        filter_per_move_ns,
+        fast_accept_per_move_ns
     );
     Ok(())
 }

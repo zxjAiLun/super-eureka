@@ -32,7 +32,7 @@ use std::time::Instant;
 use crate::chess::movegen::{
     generate_legal_evasions_with_stats, generate_legal_moves_fast_with_stats,
     generate_legal_moves_with_stats, generate_legal_tactical_moves_with_stats,
-    has_any_legal_move_with_stats, MovegenStats,
+    has_any_legal_move_with_stats, FullLegalSub, MovegenStats,
 };
 use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
@@ -604,6 +604,19 @@ pub struct SearchContext {
     pub(crate) legality_fallback_pinned: AtomicU64,
     pub(crate) legality_fallback_en_passant: AtomicU64,
     pub(crate) legality_fallback_castle: AtomicU64,
+    /// S4.4A: sparse sub-attribution inside the full legal generator (bench
+    /// only; `sampled_timing` gate as the S4.3A sampler).
+    pub(crate) full_legal_sub: FullLegalSub,
+    /// S4.4A: per-generator legality-probe counts (split of the S4.3A
+    /// `legality_probe_make/unmake` totals). Bench-only, profiling-gated.
+    pub(crate) full_legal_probe_make: AtomicU64,
+    pub(crate) full_legal_probe_unmake: AtomicU64,
+    pub(crate) tactical_probe_make: AtomicU64,
+    pub(crate) tactical_probe_unmake: AtomicU64,
+    pub(crate) evasion_probe_make: AtomicU64,
+    pub(crate) evasion_probe_unmake: AtomicU64,
+    pub(crate) has_any_probe_make: AtomicU64,
+    pub(crate) has_any_probe_unmake: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -738,6 +751,15 @@ impl SearchContext {
             legality_fallback_pinned: AtomicU64::new(0),
             legality_fallback_en_passant: AtomicU64::new(0),
             legality_fallback_castle: AtomicU64::new(0),
+            full_legal_sub: FullLegalSub::new(0),
+            full_legal_probe_make: AtomicU64::new(0),
+            full_legal_probe_unmake: AtomicU64::new(0),
+            tactical_probe_make: AtomicU64::new(0),
+            tactical_probe_unmake: AtomicU64::new(0),
+            evasion_probe_make: AtomicU64::new(0),
+            evasion_probe_unmake: AtomicU64::new(0),
+            has_any_probe_make: AtomicU64::new(0),
+            has_any_probe_unmake: AtomicU64::new(0),
         }
     }
 
@@ -824,6 +846,15 @@ impl SearchContext {
             legality_fallback_pinned: AtomicU64::new(0),
             legality_fallback_en_passant: AtomicU64::new(0),
             legality_fallback_castle: AtomicU64::new(0),
+            full_legal_sub: FullLegalSub::new(0),
+            full_legal_probe_make: AtomicU64::new(0),
+            full_legal_probe_unmake: AtomicU64::new(0),
+            tactical_probe_make: AtomicU64::new(0),
+            tactical_probe_unmake: AtomicU64::new(0),
+            evasion_probe_make: AtomicU64::new(0),
+            evasion_probe_unmake: AtomicU64::new(0),
+            has_any_probe_make: AtomicU64::new(0),
+            has_any_probe_unmake: AtomicU64::new(0),
         }
     }
 
@@ -987,23 +1018,34 @@ impl SearchContext {
     }
 }
 
+/// S4.4A: which generator produced a `MovegenStats` (per-generator probe
+/// split of the S4.3A legality totals).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MovegenKind {
+    FullLegal,
+    Tactical,
+    Evasion,
+    HasAny,
+}
+
 #[inline]
 fn generate_legal_moves_profiled(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
     let start = ctx.sample_begin(&ctx.timing_movegen_legal);
     let (moves, stats) = if ctx.legality_fast.load(Ordering::Relaxed) {
-        generate_legal_moves_fast_with_stats(pos)
+        // S4.4A: sparse sub-attribution inside the promoted generator.
+        generate_legal_moves_fast_with_stats(pos, ctx.sampled_timing.then_some(&ctx.full_legal_sub))
     } else {
         generate_legal_moves_with_stats(pos)
     };
     if let Some(start) = start {
         ctx.sample_end(&ctx.timing_movegen_legal, start);
     }
-    add_movegen_profile(ctx, stats);
+    add_movegen_profile(ctx, stats, MovegenKind::FullLegal);
     moves
 }
 
 #[inline]
-fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats) {
+fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats, kind: MovegenKind) {
     ctx.add_profile_counter(&ctx.legal_move_generations, 1);
     ctx.add_profile_counter(&ctx.pseudo_moves, stats.pseudo_moves);
     ctx.add_profile_counter(&ctx.legal_moves, stats.legal_moves);
@@ -1012,6 +1054,15 @@ fn add_movegen_profile(ctx: &SearchContext, stats: MovegenStats) {
     // S4.3A: legality-probe make/unmake split from recursive search edges.
     ctx.add_profile_counter(&ctx.legality_probe_make, stats.make_moves);
     ctx.add_profile_counter(&ctx.legality_probe_unmake, stats.unmake_moves);
+    // S4.4A: per-generator probe split.
+    let (pm, pu) = match kind {
+        MovegenKind::FullLegal => (&ctx.full_legal_probe_make, &ctx.full_legal_probe_unmake),
+        MovegenKind::Tactical => (&ctx.tactical_probe_make, &ctx.tactical_probe_unmake),
+        MovegenKind::Evasion => (&ctx.evasion_probe_make, &ctx.evasion_probe_unmake),
+        MovegenKind::HasAny => (&ctx.has_any_probe_make, &ctx.has_any_probe_unmake),
+    };
+    ctx.add_profile_counter(pm, stats.make_moves);
+    ctx.add_profile_counter(pu, stats.unmake_moves);
     // S4.3B: fast-path / fallback statistics (zero for legacy generators).
     ctx.add_profile_counter(&ctx.legality_fast_accepts, stats.fast_accepts);
     ctx.add_profile_counter(&ctx.legality_fallback_probes, stats.fallback_probes);
@@ -1029,7 +1080,7 @@ fn generate_legal_tactical_moves_profiled(pos: &mut Position, ctx: &SearchContex
     if let Some(start) = start {
         ctx.sample_end(&ctx.timing_movegen_tactical, start);
     }
-    add_movegen_profile(ctx, stats);
+    add_movegen_profile(ctx, stats, MovegenKind::Tactical);
     moves
 }
 
@@ -1040,7 +1091,7 @@ fn generate_legal_evasions_profiled(pos: &mut Position, ctx: &SearchContext) -> 
     if let Some(start) = start {
         ctx.sample_end(&ctx.timing_movegen_evasion, start);
     }
-    add_movegen_profile(ctx, stats);
+    add_movegen_profile(ctx, stats, MovegenKind::Evasion);
     moves
 }
 
@@ -1051,7 +1102,7 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
     if let Some(start) = start {
         ctx.sample_end(&ctx.timing_movegen_has_any, start);
     }
-    add_movegen_profile(ctx, stats);
+    add_movegen_profile(ctx, stats, MovegenKind::HasAny);
     has_move
 }
 

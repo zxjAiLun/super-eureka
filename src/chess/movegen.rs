@@ -6,6 +6,8 @@
 
 use crate::chess::position::Position;
 use crate::chess::types::*;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::time::Instant;
 
 /// Fill `moves` with every pseudo-legal move for the side to move.
 pub fn generate_pseudo_moves(pos: &Position, moves: &mut Vec<Move>) {
@@ -85,6 +87,98 @@ pub(crate) fn generate_legal_moves_with_stats(pos: &mut Position) -> (Vec<Move>,
     )
 }
 
+/// S4.4A: bench-only sparse sub-attribution INSIDE the promoted full legal
+/// generator. The engine wrapper passes `Some(sub)` only when the S4.3A
+/// sampled-timing mode is enabled; the production path passes `None`, so a
+/// single `Option::is_some` test is the only per-call cost.
+///
+/// Gating mirrors the engine's `SampledCounter` (1/rate calls are timed; the
+/// `calls`/`samples` counts expose sampling uncertainty). Wall time is split
+/// into: pseudo move generation, king/check-state setup (the in-check test),
+/// the absolute-pin scan, per-move eligibility testing, fast accepts, and
+/// legacy fallback probes (make -> king-attacked test -> unmake). Exact
+/// counters (pin_scan_calls / in_check_calls) are also maintained so the
+/// wall split can be normalized per event.
+#[derive(Debug)]
+pub(crate) struct FullLegalSub {
+    calls: AtomicU64,
+    samples: AtomicU64,
+    gate: AtomicU32,
+    pub(crate) sample_rate: u32,
+    pub(crate) pseudo_gen_ns: AtomicU64,
+    pub(crate) check_state_ns: AtomicU64,
+    pub(crate) pin_scan_ns: AtomicU64,
+    /// Exact: pin scan actually ran (generator entered the non-check branch).
+    pub(crate) pin_scan_calls: AtomicU64,
+    /// Exact: generator entered the in-check (all-legacy-probe) branch.
+    pub(crate) in_check_calls: AtomicU64,
+}
+
+impl FullLegalSub {
+    pub(crate) fn new(sample_rate: u32) -> Self {
+        Self {
+            calls: AtomicU64::new(0),
+            samples: AtomicU64::new(0),
+            gate: AtomicU32::new(0),
+            sample_rate,
+            pseudo_gen_ns: AtomicU64::new(0),
+            check_state_ns: AtomicU64::new(0),
+            pin_scan_ns: AtomicU64::new(0),
+            pin_scan_calls: AtomicU64::new(0),
+            in_check_calls: AtomicU64::new(0),
+        }
+    }
+
+    /// Sparse gate: true when THIS call should be wall-timed. Counts calls
+    /// on every invocation (so `calls` == full-legal generator calls).
+    #[inline]
+    pub(crate) fn begin(&self) -> bool {
+        if self.sample_rate == 0 {
+            return false;
+        }
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        if self.gate.fetch_sub(1, Ordering::Relaxed) == 0 {
+            self.gate.store(self.sample_rate, Ordering::Relaxed);
+            self.samples.fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Accumulate the wall time since `from` into `counter` and return the
+    /// new phase start. Only invoked on a sampled call.
+    #[inline]
+    pub(crate) fn acc(&self, counter: &AtomicU64, from: Instant) -> Instant {
+        counter.fetch_add(from.elapsed().as_nanos() as u64, Ordering::Relaxed);
+        Instant::now()
+    }
+
+    pub(crate) fn snapshot(&self) -> FullLegalSubSnapshot {
+        FullLegalSubSnapshot {
+            calls: self.calls.load(Ordering::Relaxed),
+            samples: self.samples.load(Ordering::Relaxed),
+            pseudo_gen_ns: self.pseudo_gen_ns.load(Ordering::Relaxed),
+            check_state_ns: self.check_state_ns.load(Ordering::Relaxed),
+            pin_scan_ns: self.pin_scan_ns.load(Ordering::Relaxed),
+            pin_scan_calls: self.pin_scan_calls.load(Ordering::Relaxed),
+            in_check_calls: self.in_check_calls.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// S4.4A: plain snapshot of the sparse full-legal sub-attribution.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FullLegalSubSnapshot {
+    pub(crate) calls: u64,
+    pub(crate) samples: u64,
+    pub(crate) pseudo_gen_ns: u64,
+    pub(crate) check_state_ns: u64,
+    pub(crate) pin_scan_ns: u64,
+    pub(crate) pin_scan_calls: u64,
+    pub(crate) in_check_calls: u64,
+}
+
 /// S4.3B: absolute-pin mask for the side to move. A square is set when its
 /// piece is the SOLE friendly blocker on a king-slider ray (orthogonal ray +
 /// enemy rook/queen, or diagonal ray + enemy bishop/queen). Only
@@ -155,9 +249,23 @@ fn absolute_pin_mask(pos: &Position) -> u64 {
 /// [`generate_legal_moves_with_stats`].
 pub(crate) fn generate_legal_moves_fast_with_stats(
     pos: &mut Position,
+    sub: Option<&FullLegalSub>,
 ) -> (Vec<Move>, MovegenStats) {
     let mut pseudo = Vec::new();
+    // S4.4A: sparse sub-attribution. `sub` is None on the production path
+    // (one `is_some` test per call, zero further cost). When present, the
+    // 1/rate gate decides whether THIS call is wall-timed phase by phase.
+    // Phases are call-granular (pseudo gen / check-state / pin scan): per-move
+    // wall timing is NOT used because the instrumentation would be the same
+    // order of magnitude as a move's own work and would pollute the sampled
+    // measurement. The loop is split instead by exact counters x per-op costs
+    // from the bench microbench (see S4.4A report).
+    let sampled = sub.is_some_and(|s| s.begin());
+    let mut t = sampled.then(Instant::now);
     generate_pseudo_moves(pos, &mut pseudo);
+    if let (Some(s), Some(from)) = (sub, t) {
+        t = Some(s.acc(&s.pseudo_gen_ns, from));
+    }
     let pseudo_count = pseudo.len() as u64;
     let us = pos.side;
     let us_king = pos.king_sq[us as usize];
@@ -171,7 +279,15 @@ pub(crate) fn generate_legal_moves_fast_with_stats(
     let mut fb_probes = 0u64;
 
     let in_check = pos.is_square_attacked(us_king, enemy);
+    if let Some(s) = sub {
+        if let Some(from) = t {
+            t = Some(s.acc(&s.check_state_ns, from));
+        }
+    }
     if in_check {
+        if let Some(s) = sub {
+            s.in_check_calls.fetch_add(1, Ordering::Relaxed);
+        }
         // Legacy probe for every pseudo move; no special evasion logic here.
         for m in pseudo {
             let undo = pos.make_move(m);
@@ -183,6 +299,13 @@ pub(crate) fn generate_legal_moves_fast_with_stats(
         fb_probes = pseudo_count;
     } else {
         let pins = absolute_pin_mask(pos);
+        if let Some(s) = sub {
+            s.pin_scan_calls.fetch_add(1, Ordering::Relaxed);
+            if let Some(from) = t {
+                s.pin_scan_ns
+                    .fetch_add(from.elapsed().as_nanos() as u64, Ordering::Relaxed);
+            }
+        }
         for m in pseudo {
             let is_ep = m.flag == MoveFlag::EnPassant;
             let is_castle = matches!(m.flag, MoveFlag::KingCastle | MoveFlag::QueenCastle);
@@ -594,7 +717,7 @@ pub(crate) fn perft_fast(pos: &mut Position, depth: u32) -> u64 {
     if depth == 0 {
         return 1;
     }
-    let moves = generate_legal_moves_fast_with_stats(pos).0;
+    let moves = generate_legal_moves_fast_with_stats(pos, None).0;
     let mut nodes = 0u64;
     for m in moves {
         let undo = pos.make_move(m);
@@ -646,7 +769,7 @@ mod tests {
             "legacy generator must fully restore {fen}"
         );
         let mut fast_pos = parse_fen(fen).expect("fixture must parse");
-        let (actual, stats) = generate_legal_moves_fast_with_stats(&mut fast_pos);
+        let (actual, stats) = generate_legal_moves_fast_with_stats(&mut fast_pos, None);
         assert_eq!(actual, expected, "fast legal mismatch for {fen}");
         assert_eq!(
             fast_pos.zobrist_key, legacy_key,
@@ -759,14 +882,14 @@ mod tests {
         // startpos: no pins, no check -> all 20 pseudo moves fast-accepted.
         let mut pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
             .expect("startpos");
-        let (moves, stats) = generate_legal_moves_fast_with_stats(&mut pos);
+        let (moves, stats) = generate_legal_moves_fast_with_stats(&mut pos, None);
         assert_eq!(moves.len() as u64, stats.legal_moves);
         assert_eq!(stats.fast_accepts, 20);
         assert_eq!(stats.fallback_probes, 0);
         assert_eq!(stats.make_moves, 0);
         // position with a pinned knight: pinned-move probes fire.
         let mut pos2 = parse_fen("4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1").expect("pinned");
-        let (_, stats2) = generate_legal_moves_fast_with_stats(&mut pos2);
+        let (_, stats2) = generate_legal_moves_fast_with_stats(&mut pos2, None);
         assert!(stats2.fallback_pinned >= 1);
         assert!(stats2.fallback_probes >= 1);
     }
