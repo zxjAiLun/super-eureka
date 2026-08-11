@@ -1,0 +1,4558 @@
+{
+  "contract": {
+    "corpus": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\data\\s4_compute_positions.epd",
+    "depth": 6,
+    "hash_mb": 16,
+    "threads": 1,
+    "tt": "cold",
+    "timing_sampler": "disabled",
+    "reps": 5,
+    "pairing": "per-position adjacent, within-pair order alternates per rep"
+  },
+  "tree_equivalence": {
+    "ok": true,
+    "fields": [
+      "nodes",
+      "score",
+      "bestmove",
+      "pv"
+    ]
+  },
+  "aggregate": {
+    "wall_a_s": 65.474112,
+    "wall_b_s": 60.924106,
+    "wall_delta": -0.06949320671962687,
+    "nps_a": 277746.56951437535,
+    "nps_b": 298489.56667497096,
+    "nps_delta": 0.0746831804146622,
+    "median_paired_delta": -0.07059919918225599
+  },
+  "per_rep": [
+    {
+      "rep": 1,
+      "wall_a_s": 12.64695,
+      "wall_b_s": 11.652664,
+      "wall_delta": -0.0786186392766636,
+      "nps_a": 287582.53966371337,
+      "nps_b": 312121.07377334486
+    },
+    {
+      "rep": 2,
+      "wall_a_s": 12.693491,
+      "wall_b_s": 11.817143,
+      "wall_delta": -0.06903916345786988,
+      "nps_a": 286528.111139796,
+      "nps_b": 307776.7612696233
+    },
+    {
+      "rep": 3,
+      "wall_a_s": 12.774768,
+      "wall_b_s": 12.085805,
+      "wall_delta": -0.05393154693689931,
+      "nps_a": 284705.13123995677,
+      "nps_b": 300935.0225326323
+    },
+    {
+      "rep": 4,
+      "wall_a_s": 13.169382,
+      "wall_b_s": 12.299269,
+      "wall_delta": -0.06607090598480626,
+      "nps_a": 276174.08318780636,
+      "nps_b": 295712.04597606574
+    },
+    {
+      "rep": 5,
+      "wall_a_s": 14.189521,
+      "wall_b_s": 13.069225,
+      "wall_delta": -0.07895234800385438,
+      "nps_a": 256318.87080613928,
+      "nps_b": 278290.5642836511
+    }
+  ],
+  "per_position": {
+    "opening_01": {
+      "median_delta": -0.07423984891406987,
+      "n_pairs": 5
+    },
+    "opening_02": {
+      "median_delta": -0.08763515765695554,
+      "n_pairs": 5
+    },
+    "opening_03": {
+      "median_delta": -0.08696244252820504,
+      "n_pairs": 5
+    },
+    "opening_04": {
+      "median_delta": -0.056974640699139795,
+      "n_pairs": 5
+    },
+    "opening_05": {
+      "median_delta": -0.06419058648358011,
+      "n_pairs": 5
+    },
+    "mid_01": {
+      "median_delta": -0.05905134934001802,
+      "n_pairs": 5
+    },
+    "mid_02": {
+      "median_delta": -0.09045549368525248,
+      "n_pairs": 5
+    },
+    "mid_03": {
+      "median_delta": -0.07630035298049975,
+      "n_pairs": 5
+    },
+    "mid_04": {
+      "median_delta": -0.07225585265843786,
+      "n_pairs": 5
+    },
+    "mid_05": {
+      "median_delta": -0.05524887188766979,
+      "n_pairs": 5
+    },
+    "mid_06": {
+      "median_delta": -0.07089694258162897,
+      "n_pairs": 5
+    },
+    "mid_07": {
+      "median_delta": -0.08344234303621567,
+      "n_pairs": 5
+    },
+    "mid_08": {
+      "median_delta": -0.09657923546437516,
+      "n_pairs": 5
+    },
+    "tac_01": {
+      "median_delta": -0.06677100738140056,
+      "n_pairs": 5
+    },
+    "tac_02": {
+      "median_delta": -0.026427252280503286,
+      "n_pairs": 5
+    },
+    "tac_03": {
+      "median_delta": -0.07408922386033315,
+      "n_pairs": 5
+    },
+    "tac_04": {
+      "median_delta": -0.04559289193296657,
+      "n_pairs": 5
+    },
+    "tac_05": {
+      "median_delta": -0.052720475543639685,
+      "n_pairs": 5
+    },
+    "closed_01": {
+      "median_delta": -0.06801281486053552,
+      "n_pairs": 5
+    },
+    "closed_02": {
+      "median_delta": -0.10272422029146042,
+      "n_pairs": 5
+    },
+    "closed_03": {
+      "median_delta": -0.07313961887876705,
+      "n_pairs": 5
+    },
+    "closed_04": {
+      "median_delta": -0.07381197760640017,
+      "n_pairs": 5
+    },
+    "qless_01": {
+      "median_delta": -0.06036046665978378,
+      "n_pairs": 5
+    },
+    "qless_02": {
+      "median_delta": -0.1084586739716646,
+      "n_pairs": 5
+    },
+    "qless_03": {
+      "median_delta": -0.09498975600670516,
+      "n_pairs": 5
+    },
+    "piece_01": {
+      "median_delta": -0.0064422357126074385,
+      "n_pairs": 5
+    },
+    "piece_02": {
+      "median_delta": -0.0024412829362740972,
+      "n_pairs": 5
+    },
+    "piece_03": {
+      "median_delta": 0.016600666711412398,
+      "n_pairs": 5
+    },
+    "pawn_01": {
+      "median_delta": -0.02611408199643494,
+      "n_pairs": 5
+    },
+    "pawn_02": {
+      "median_delta": -0.08630338733431517,
+      "n_pairs": 5
+    }
+  },
+  "mechanism": {
+    "full_legal_calls": 45516620,
+    "pseudo_moves": 1081176005,
+    "legal_moves": 885082740,
+    "single_buffer_writes": 98044775,
+    "baseline_legal_calls": 45516620,
+    "baseline_writes": 0,
+    "baseline_pseudo_vecs": 45516620,
+    "baseline_legal_vecs": 45516620,
+    "candidate_vecs": 45516620,
+    "truncations": 45516620
+  },
+  "rows": [
+    {
+      "rep": 1,
+      "position_id": "opening_01",
+      "class": "opening",
+      "current-final": {
+        "nodes": 56175,
+        "elapsed_us": 161174,
+        "nps": 348536,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      },
+      "current-final-single-buffer": {
+        "nodes": 56175,
+        "elapsed_us": 152128,
+        "nps": 369261,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 60285,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "opening_02",
+      "class": "opening",
+      "current-final": {
+        "nodes": 131468,
+        "elapsed_us": 451245,
+        "nps": 291345,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      },
+      "current-final-single-buffer": {
+        "nodes": 131468,
+        "elapsed_us": 423013,
+        "nps": 310789,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 354787,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "opening_03",
+      "class": "opening",
+      "current-final": {
+        "nodes": 139929,
+        "elapsed_us": 450002,
+        "nps": 310951,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      },
+      "current-final-single-buffer": {
+        "nodes": 139929,
+        "elapsed_us": 407906,
+        "nps": 343042,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 459330,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "opening_04",
+      "class": "opening",
+      "current-final": {
+        "nodes": 142557,
+        "elapsed_us": 510227,
+        "nps": 279399,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      },
+      "current-final-single-buffer": {
+        "nodes": 142557,
+        "elapsed_us": 481157,
+        "nps": 296279,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 656289,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "opening_05",
+      "class": "opening",
+      "current-final": {
+        "nodes": 208529,
+        "elapsed_us": 770268,
+        "nps": 270722,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      },
+      "current-final-single-buffer": {
+        "nodes": 208529,
+        "elapsed_us": 720142,
+        "nps": 289566,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 996095,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_01",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 202475,
+        "elapsed_us": 645345,
+        "nps": 313746,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      },
+      "current-final-single-buffer": {
+        "nodes": 202475,
+        "elapsed_us": 591541,
+        "nps": 342283,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 527208,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_02",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 175806,
+        "elapsed_us": 620294,
+        "nps": 283423,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      },
+      "current-final-single-buffer": {
+        "nodes": 175806,
+        "elapsed_us": 564185,
+        "nps": 311610,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 1290045,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_03",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 158107,
+        "elapsed_us": 510609,
+        "nps": 309643,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      },
+      "current-final-single-buffer": {
+        "nodes": 158107,
+        "elapsed_us": 461458,
+        "nps": 342624,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 548194,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_04",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 118986,
+        "elapsed_us": 384349,
+        "nps": 309578,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      },
+      "current-final-single-buffer": {
+        "nodes": 118986,
+        "elapsed_us": 350542,
+        "nps": 339434,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 432499,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_05",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 24184,
+        "elapsed_us": 84562,
+        "nps": 285991,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      },
+      "current-final-single-buffer": {
+        "nodes": 24184,
+        "elapsed_us": 80366,
+        "nps": 300923,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 171246,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_06",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 215264,
+        "elapsed_us": 807037,
+        "nps": 266733,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      },
+      "current-final-single-buffer": {
+        "nodes": 215264,
+        "elapsed_us": 754802,
+        "nps": 285192,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 1633565,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_07",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 73281,
+        "elapsed_us": 245391,
+        "nps": 298629,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      },
+      "current-final-single-buffer": {
+        "nodes": 73281,
+        "elapsed_us": 224915,
+        "nps": 325816,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 128519,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "mid_08",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 16524,
+        "elapsed_us": 63932,
+        "nps": 258462,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      },
+      "current-final-single-buffer": {
+        "nodes": 16524,
+        "elapsed_us": 59131,
+        "nps": 279447,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 281983,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "tac_01",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 50241,
+        "elapsed_us": 171032,
+        "nps": 293752,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      },
+      "current-final-single-buffer": {
+        "nodes": 50241,
+        "elapsed_us": 167419,
+        "nps": 300091,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 698243,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "tac_02",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 285778,
+        "elapsed_us": 1226585,
+        "nps": 232986,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      },
+      "current-final-single-buffer": {
+        "nodes": 285778,
+        "elapsed_us": 1131958,
+        "nps": 252463,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 2500834,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "tac_03",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 27530,
+        "elapsed_us": 98243,
+        "nps": 280223,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      },
+      "current-final-single-buffer": {
+        "nodes": 27530,
+        "elapsed_us": 91629,
+        "nps": 300450,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 221444,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "tac_04",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 190005,
+        "elapsed_us": 742239,
+        "nps": 255988,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      },
+      "current-final-single-buffer": {
+        "nodes": 190005,
+        "elapsed_us": 687279,
+        "nps": 276459,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 1934223,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "tac_05",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 145001,
+        "elapsed_us": 513278,
+        "nps": 282499,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      },
+      "current-final-single-buffer": {
+        "nodes": 145001,
+        "elapsed_us": 484093,
+        "nps": 299531,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 2259546,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "closed_01",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 117081,
+        "elapsed_us": 381274,
+        "nps": 307078,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      },
+      "current-final-single-buffer": {
+        "nodes": 117081,
+        "elapsed_us": 348737,
+        "nps": 335728,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 291832,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "closed_02",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 260602,
+        "elapsed_us": 958018,
+        "nps": 272022,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      },
+      "current-final-single-buffer": {
+        "nodes": 260602,
+        "elapsed_us": 810331,
+        "nps": 321599,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 915208,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "closed_03",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 225369,
+        "elapsed_us": 807968,
+        "nps": 278933,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      },
+      "current-final-single-buffer": {
+        "nodes": 225369,
+        "elapsed_us": 789745,
+        "nps": 285369,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 1033184,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "closed_04",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 137242,
+        "elapsed_us": 456238,
+        "nps": 300812,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      },
+      "current-final-single-buffer": {
+        "nodes": 137242,
+        "elapsed_us": 415812,
+        "nps": 330057,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 95907,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "qless_01",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 160271,
+        "elapsed_us": 542408,
+        "nps": 295480,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      },
+      "current-final-single-buffer": {
+        "nodes": 160271,
+        "elapsed_us": 509668,
+        "nps": 314461,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 1644545,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "qless_02",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 199822,
+        "elapsed_us": 609226,
+        "nps": 327993,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      },
+      "current-final-single-buffer": {
+        "nodes": 199822,
+        "elapsed_us": 526340,
+        "nps": 379644,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 62997,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "qless_03",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 53982,
+        "elapsed_us": 152036,
+        "nps": 355060,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      },
+      "current-final-single-buffer": {
+        "nodes": 53982,
+        "elapsed_us": 139352,
+        "nps": 387378,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 137826,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "piece_01",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 71891,
+        "elapsed_us": 163762,
+        "nps": 438996,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      },
+      "current-final-single-buffer": {
+        "nodes": 71891,
+        "elapsed_us": 164143,
+        "nps": 437977,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 145910,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "piece_02",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 23258,
+        "elapsed_us": 58985,
+        "nps": 394303,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      },
+      "current-final-single-buffer": {
+        "nodes": 23258,
+        "elapsed_us": 56185,
+        "nps": 413953,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 34320,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "piece_03",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 18943,
+        "elapsed_us": 46196,
+        "nps": 410057,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      },
+      "current-final-single-buffer": {
+        "nodes": 18943,
+        "elapsed_us": 44186,
+        "nps": 428710,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 78425,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "pawn_01",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 4926,
+        "elapsed_us": 11632,
+        "nps": 423486,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      },
+      "current-final-single-buffer": {
+        "nodes": 4926,
+        "elapsed_us": 11399,
+        "nps": 432143,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 11390,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      }
+    },
+    {
+      "rep": 1,
+      "position_id": "pawn_02",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 1815,
+        "elapsed_us": 3395,
+        "nps": 534609,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      },
+      "current-final-single-buffer": {
+        "nodes": 1815,
+        "elapsed_us": 3102,
+        "nps": 585106,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 3076,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "opening_01",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 56175,
+        "elapsed_us": 142169,
+        "nps": 395128,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 60285,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      },
+      "current-final": {
+        "nodes": 56175,
+        "elapsed_us": 157922,
+        "nps": 355713,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "opening_02",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 131468,
+        "elapsed_us": 380468,
+        "nps": 345542,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 354787,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      },
+      "current-final": {
+        "nodes": 131468,
+        "elapsed_us": 417013,
+        "nps": 315261,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "opening_03",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 139929,
+        "elapsed_us": 395579,
+        "nps": 353732,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 459330,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      },
+      "current-final": {
+        "nodes": 139929,
+        "elapsed_us": 433256,
+        "nps": 322970,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "opening_04",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 142557,
+        "elapsed_us": 472781,
+        "nps": 301528,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 656289,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      },
+      "current-final": {
+        "nodes": 142557,
+        "elapsed_us": 503843,
+        "nps": 282939,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "opening_05",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 208529,
+        "elapsed_us": 712719,
+        "nps": 292582,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 996095,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      },
+      "current-final": {
+        "nodes": 208529,
+        "elapsed_us": 761607,
+        "nps": 273801,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_01",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 202475,
+        "elapsed_us": 618692,
+        "nps": 327263,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 527208,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      },
+      "current-final": {
+        "nodes": 202475,
+        "elapsed_us": 703179,
+        "nps": 287942,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_02",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 175806,
+        "elapsed_us": 578540,
+        "nps": 303878,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 1290045,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      },
+      "current-final": {
+        "nodes": 175806,
+        "elapsed_us": 617651,
+        "nps": 284636,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_03",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 158107,
+        "elapsed_us": 472573,
+        "nps": 334566,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 548194,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      },
+      "current-final": {
+        "nodes": 158107,
+        "elapsed_us": 508026,
+        "nps": 311218,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_04",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 118986,
+        "elapsed_us": 353413,
+        "nps": 336676,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 432499,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      },
+      "current-final": {
+        "nodes": 118986,
+        "elapsed_us": 380938,
+        "nps": 312350,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_05",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 24184,
+        "elapsed_us": 79754,
+        "nps": 303232,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 171246,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      },
+      "current-final": {
+        "nodes": 24184,
+        "elapsed_us": 86177,
+        "nps": 280631,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_06",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 215264,
+        "elapsed_us": 756734,
+        "nps": 284464,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 1633565,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      },
+      "current-final": {
+        "nodes": 215264,
+        "elapsed_us": 814478,
+        "nps": 264296,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_07",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 73281,
+        "elapsed_us": 225665,
+        "nps": 324733,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 128519,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      },
+      "current-final": {
+        "nodes": 73281,
+        "elapsed_us": 250455,
+        "nps": 292591,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "mid_08",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 16524,
+        "elapsed_us": 62669,
+        "nps": 263671,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 281983,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      },
+      "current-final": {
+        "nodes": 16524,
+        "elapsed_us": 76949,
+        "nps": 214739,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "tac_01",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 50241,
+        "elapsed_us": 176496,
+        "nps": 284658,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 698243,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      },
+      "current-final": {
+        "nodes": 50241,
+        "elapsed_us": 189124,
+        "nps": 265651,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "tac_02",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 285778,
+        "elapsed_us": 1234094,
+        "nps": 231569,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 2500834,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      },
+      "current-final": {
+        "nodes": 285778,
+        "elapsed_us": 1267593,
+        "nps": 225449,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "tac_03",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 27530,
+        "elapsed_us": 106389,
+        "nps": 258767,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 221444,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      },
+      "current-final": {
+        "nodes": 27530,
+        "elapsed_us": 114902,
+        "nps": 239595,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "tac_04",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 190005,
+        "elapsed_us": 716095,
+        "nps": 265334,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 1934223,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      },
+      "current-final": {
+        "nodes": 190005,
+        "elapsed_us": 739095,
+        "nps": 257077,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "tac_05",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 145001,
+        "elapsed_us": 490209,
+        "nps": 295794,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 2259546,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      },
+      "current-final": {
+        "nodes": 145001,
+        "elapsed_us": 553167,
+        "nps": 262128,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "closed_01",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 117081,
+        "elapsed_us": 362821,
+        "nps": 322696,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 291832,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      },
+      "current-final": {
+        "nodes": 117081,
+        "elapsed_us": 375940,
+        "nps": 311435,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "closed_02",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 260602,
+        "elapsed_us": 828404,
+        "nps": 314583,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 915208,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      },
+      "current-final": {
+        "nodes": 260602,
+        "elapsed_us": 927095,
+        "nps": 281095,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "closed_03",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 225369,
+        "elapsed_us": 745484,
+        "nps": 302312,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 1033184,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      },
+      "current-final": {
+        "nodes": 225369,
+        "elapsed_us": 804311,
+        "nps": 280201,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "closed_04",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 137242,
+        "elapsed_us": 421556,
+        "nps": 325560,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 95907,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      },
+      "current-final": {
+        "nodes": 137242,
+        "elapsed_us": 453433,
+        "nps": 302673,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "qless_01",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 160271,
+        "elapsed_us": 548048,
+        "nps": 292439,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 1644545,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      },
+      "current-final": {
+        "nodes": 160271,
+        "elapsed_us": 540961,
+        "nps": 296270,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "qless_02",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 199822,
+        "elapsed_us": 520727,
+        "nps": 383736,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 62997,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      },
+      "current-final": {
+        "nodes": 199822,
+        "elapsed_us": 584075,
+        "nps": 342117,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "qless_03",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 53982,
+        "elapsed_us": 136052,
+        "nps": 396774,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 137826,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      },
+      "current-final": {
+        "nodes": 53982,
+        "elapsed_us": 150332,
+        "nps": 359085,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "piece_01",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 71891,
+        "elapsed_us": 160230,
+        "nps": 448673,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 145910,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      },
+      "current-final": {
+        "nodes": 71891,
+        "elapsed_us": 164157,
+        "nps": 437940,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "piece_02",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 23258,
+        "elapsed_us": 57912,
+        "nps": 401609,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 34320,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      },
+      "current-final": {
+        "nodes": 23258,
+        "elapsed_us": 57710,
+        "nps": 403015,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "piece_03",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 18943,
+        "elapsed_us": 46498,
+        "nps": 407393,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 78425,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      },
+      "current-final": {
+        "nodes": 18943,
+        "elapsed_us": 45210,
+        "nps": 419000,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "pawn_01",
+      "class": "pawn_endgame",
+      "current-final-single-buffer": {
+        "nodes": 4926,
+        "elapsed_us": 11350,
+        "nps": 434008,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 11390,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      },
+      "current-final": {
+        "nodes": 4926,
+        "elapsed_us": 11217,
+        "nps": 439154,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      }
+    },
+    {
+      "rep": 2,
+      "position_id": "pawn_02",
+      "class": "pawn_endgame",
+      "current-final-single-buffer": {
+        "nodes": 1815,
+        "elapsed_us": 3022,
+        "nps": 600595,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 3076,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      },
+      "current-final": {
+        "nodes": 1815,
+        "elapsed_us": 3675,
+        "nps": 493877,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "opening_01",
+      "class": "opening",
+      "current-final": {
+        "nodes": 56175,
+        "elapsed_us": 157267,
+        "nps": 357195,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      },
+      "current-final-single-buffer": {
+        "nodes": 56175,
+        "elapsed_us": 142870,
+        "nps": 393189,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 60285,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "opening_02",
+      "class": "opening",
+      "current-final": {
+        "nodes": 131468,
+        "elapsed_us": 416057,
+        "nps": 315985,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      },
+      "current-final-single-buffer": {
+        "nodes": 131468,
+        "elapsed_us": 385862,
+        "nps": 340712,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 354787,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "opening_03",
+      "class": "opening",
+      "current-final": {
+        "nodes": 139929,
+        "elapsed_us": 434695,
+        "nps": 321901,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      },
+      "current-final-single-buffer": {
+        "nodes": 139929,
+        "elapsed_us": 395103,
+        "nps": 354158,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 459330,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "opening_04",
+      "class": "opening",
+      "current-final": {
+        "nodes": 142557,
+        "elapsed_us": 501307,
+        "nps": 284370,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      },
+      "current-final-single-buffer": {
+        "nodes": 142557,
+        "elapsed_us": 485482,
+        "nps": 293640,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 656289,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "opening_05",
+      "class": "opening",
+      "current-final": {
+        "nodes": 208529,
+        "elapsed_us": 767499,
+        "nps": 271699,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      },
+      "current-final-single-buffer": {
+        "nodes": 208529,
+        "elapsed_us": 776956,
+        "nps": 268392,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 996095,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_01",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 202475,
+        "elapsed_us": 638275,
+        "nps": 317222,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      },
+      "current-final-single-buffer": {
+        "nodes": 202475,
+        "elapsed_us": 600584,
+        "nps": 337130,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 527208,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_02",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 175806,
+        "elapsed_us": 616039,
+        "nps": 285381,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      },
+      "current-final-single-buffer": {
+        "nodes": 175806,
+        "elapsed_us": 640351,
+        "nps": 274546,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 1290045,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_03",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 158107,
+        "elapsed_us": 544506,
+        "nps": 290367,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      },
+      "current-final-single-buffer": {
+        "nodes": 158107,
+        "elapsed_us": 502960,
+        "nps": 314353,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 548194,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_04",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 118986,
+        "elapsed_us": 402608,
+        "nps": 295538,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      },
+      "current-final-single-buffer": {
+        "nodes": 118986,
+        "elapsed_us": 373612,
+        "nps": 318474,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 432499,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_05",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 24184,
+        "elapsed_us": 103502,
+        "nps": 233657,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      },
+      "current-final-single-buffer": {
+        "nodes": 24184,
+        "elapsed_us": 102380,
+        "nps": 236218,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 171246,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_06",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 215264,
+        "elapsed_us": 917912,
+        "nps": 234514,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      },
+      "current-final-single-buffer": {
+        "nodes": 215264,
+        "elapsed_us": 801370,
+        "nps": 268619,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 1633565,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_07",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 73281,
+        "elapsed_us": 254987,
+        "nps": 287391,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      },
+      "current-final-single-buffer": {
+        "nodes": 73281,
+        "elapsed_us": 239874,
+        "nps": 305497,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 128519,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "mid_08",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 16524,
+        "elapsed_us": 66681,
+        "nps": 247806,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      },
+      "current-final-single-buffer": {
+        "nodes": 16524,
+        "elapsed_us": 60241,
+        "nps": 274298,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 281983,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "tac_01",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 50241,
+        "elapsed_us": 179490,
+        "nps": 279909,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      },
+      "current-final-single-buffer": {
+        "nodes": 50241,
+        "elapsed_us": 177144,
+        "nps": 283616,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 698243,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "tac_02",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 285778,
+        "elapsed_us": 1246396,
+        "nps": 229283,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      },
+      "current-final-single-buffer": {
+        "nodes": 285778,
+        "elapsed_us": 1245542,
+        "nps": 229440,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 2500834,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "tac_03",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 27530,
+        "elapsed_us": 100718,
+        "nps": 273337,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      },
+      "current-final-single-buffer": {
+        "nodes": 27530,
+        "elapsed_us": 93163,
+        "nps": 295503,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 221444,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "tac_04",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 190005,
+        "elapsed_us": 732351,
+        "nps": 259445,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      },
+      "current-final-single-buffer": {
+        "nodes": 190005,
+        "elapsed_us": 698961,
+        "nps": 271839,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 1934223,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "tac_05",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 145001,
+        "elapsed_us": 505022,
+        "nps": 287118,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      },
+      "current-final-single-buffer": {
+        "nodes": 145001,
+        "elapsed_us": 478397,
+        "nps": 303097,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 2259546,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "closed_01",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 117081,
+        "elapsed_us": 374253,
+        "nps": 312839,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      },
+      "current-final-single-buffer": {
+        "nodes": 117081,
+        "elapsed_us": 348799,
+        "nps": 335668,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 291832,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "closed_02",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 260602,
+        "elapsed_us": 887523,
+        "nps": 293628,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      },
+      "current-final-single-buffer": {
+        "nodes": 260602,
+        "elapsed_us": 818718,
+        "nps": 318304,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 915208,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "closed_03",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 225369,
+        "elapsed_us": 818724,
+        "nps": 275268,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      },
+      "current-final-single-buffer": {
+        "nodes": 225369,
+        "elapsed_us": 740871,
+        "nps": 304194,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 1033184,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "closed_04",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 137242,
+        "elapsed_us": 457988,
+        "nps": 299662,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      },
+      "current-final-single-buffer": {
+        "nodes": 137242,
+        "elapsed_us": 424183,
+        "nps": 323544,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 95907,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "qless_01",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 160271,
+        "elapsed_us": 549367,
+        "nps": 291737,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      },
+      "current-final-single-buffer": {
+        "nodes": 160271,
+        "elapsed_us": 524590,
+        "nps": 305516,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 1644545,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "qless_02",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 199822,
+        "elapsed_us": 622742,
+        "nps": 320874,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      },
+      "current-final-single-buffer": {
+        "nodes": 199822,
+        "elapsed_us": 567216,
+        "nps": 352285,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 62997,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "qless_03",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 53982,
+        "elapsed_us": 156652,
+        "nps": 344598,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      },
+      "current-final-single-buffer": {
+        "nodes": 53982,
+        "elapsed_us": 156981,
+        "nps": 343876,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 137826,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "piece_01",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 71891,
+        "elapsed_us": 202569,
+        "nps": 354896,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      },
+      "current-final-single-buffer": {
+        "nodes": 71891,
+        "elapsed_us": 184526,
+        "nps": 389598,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 145910,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "piece_02",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 23258,
+        "elapsed_us": 59395,
+        "nps": 391581,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      },
+      "current-final-single-buffer": {
+        "nodes": 23258,
+        "elapsed_us": 59250,
+        "nps": 392540,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 34320,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "piece_03",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 18943,
+        "elapsed_us": 44697,
+        "nps": 423809,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      },
+      "current-final-single-buffer": {
+        "nodes": 18943,
+        "elapsed_us": 45439,
+        "nps": 416888,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 78425,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "pawn_01",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 4926,
+        "elapsed_us": 11220,
+        "nps": 439037,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      },
+      "current-final-single-buffer": {
+        "nodes": 4926,
+        "elapsed_us": 10927,
+        "nps": 450809,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 11390,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      }
+    },
+    {
+      "rep": 3,
+      "position_id": "pawn_02",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 1815,
+        "elapsed_us": 4326,
+        "nps": 419556,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      },
+      "current-final-single-buffer": {
+        "nodes": 1815,
+        "elapsed_us": 3453,
+        "nps": 525629,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 3076,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "opening_01",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 56175,
+        "elapsed_us": 147057,
+        "nps": 381994,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 60285,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      },
+      "current-final": {
+        "nodes": 56175,
+        "elapsed_us": 158850,
+        "nps": 353635,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "opening_02",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 131468,
+        "elapsed_us": 392232,
+        "nps": 335179,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 354787,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      },
+      "current-final": {
+        "nodes": 131468,
+        "elapsed_us": 434689,
+        "nps": 302441,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "opening_03",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 139929,
+        "elapsed_us": 411603,
+        "nps": 339961,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 459330,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      },
+      "current-final": {
+        "nodes": 139929,
+        "elapsed_us": 447004,
+        "nps": 313037,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "opening_04",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 142557,
+        "elapsed_us": 491483,
+        "nps": 290054,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 656289,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      },
+      "current-final": {
+        "nodes": 142557,
+        "elapsed_us": 516254,
+        "nps": 276137,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "opening_05",
+      "class": "opening",
+      "current-final-single-buffer": {
+        "nodes": 208529,
+        "elapsed_us": 785568,
+        "nps": 265449,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 996095,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      },
+      "current-final": {
+        "nodes": 208529,
+        "elapsed_us": 812378,
+        "nps": 256689,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_01",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 202475,
+        "elapsed_us": 665251,
+        "nps": 304358,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 527208,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      },
+      "current-final": {
+        "nodes": 202475,
+        "elapsed_us": 656801,
+        "nps": 308274,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_02",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 175806,
+        "elapsed_us": 598288,
+        "nps": 293848,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 1290045,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      },
+      "current-final": {
+        "nodes": 175806,
+        "elapsed_us": 668520,
+        "nps": 262977,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_03",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 158107,
+        "elapsed_us": 496703,
+        "nps": 318312,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 548194,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      },
+      "current-final": {
+        "nodes": 158107,
+        "elapsed_us": 572331,
+        "nps": 276250,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_04",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 118986,
+        "elapsed_us": 388182,
+        "nps": 306521,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 432499,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      },
+      "current-final": {
+        "nodes": 118986,
+        "elapsed_us": 395834,
+        "nps": 300595,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_05",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 24184,
+        "elapsed_us": 82490,
+        "nps": 293174,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 171246,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      },
+      "current-final": {
+        "nodes": 24184,
+        "elapsed_us": 87314,
+        "nps": 276977,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_06",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 215264,
+        "elapsed_us": 793027,
+        "nps": 271445,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 1633565,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      },
+      "current-final": {
+        "nodes": 215264,
+        "elapsed_us": 828579,
+        "nps": 259799,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_07",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 73281,
+        "elapsed_us": 234209,
+        "nps": 312887,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 128519,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      },
+      "current-final": {
+        "nodes": 73281,
+        "elapsed_us": 255662,
+        "nps": 286632,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "mid_08",
+      "class": "normal_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 16524,
+        "elapsed_us": 57451,
+        "nps": 287619,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 281983,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      },
+      "current-final": {
+        "nodes": 16524,
+        "elapsed_us": 66256,
+        "nps": 249396,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "tac_01",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 50241,
+        "elapsed_us": 163221,
+        "nps": 307809,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 698243,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      },
+      "current-final": {
+        "nodes": 50241,
+        "elapsed_us": 188187,
+        "nps": 266973,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "tac_02",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 285778,
+        "elapsed_us": 1278719,
+        "nps": 223487,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 2500834,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      },
+      "current-final": {
+        "nodes": 285778,
+        "elapsed_us": 1273587,
+        "nps": 224388,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "tac_03",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 27530,
+        "elapsed_us": 90525,
+        "nps": 304114,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 221444,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      },
+      "current-final": {
+        "nodes": 27530,
+        "elapsed_us": 96051,
+        "nps": 286618,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "tac_04",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 190005,
+        "elapsed_us": 705061,
+        "nps": 269487,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 1934223,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      },
+      "current-final": {
+        "nodes": 190005,
+        "elapsed_us": 737286,
+        "nps": 257708,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "tac_05",
+      "class": "tactical_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 145001,
+        "elapsed_us": 486896,
+        "nps": 297806,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 2259546,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      },
+      "current-final": {
+        "nodes": 145001,
+        "elapsed_us": 510813,
+        "nps": 283863,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "closed_01",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 117081,
+        "elapsed_us": 369794,
+        "nps": 316611,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 291832,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      },
+      "current-final": {
+        "nodes": 117081,
+        "elapsed_us": 401580,
+        "nps": 291550,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "closed_02",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 260602,
+        "elapsed_us": 884139,
+        "nps": 294752,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 915208,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      },
+      "current-final": {
+        "nodes": 260602,
+        "elapsed_us": 932614,
+        "nps": 279431,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "closed_03",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 225369,
+        "elapsed_us": 770400,
+        "nps": 292535,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 1033184,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      },
+      "current-final": {
+        "nodes": 225369,
+        "elapsed_us": 827537,
+        "nps": 272337,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "closed_04",
+      "class": "closed_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 137242,
+        "elapsed_us": 446558,
+        "nps": 307332,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 95907,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      },
+      "current-final": {
+        "nodes": 137242,
+        "elapsed_us": 497448,
+        "nps": 275892,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "qless_01",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 160271,
+        "elapsed_us": 539715,
+        "nps": 296954,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 1644545,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      },
+      "current-final": {
+        "nodes": 160271,
+        "elapsed_us": 611504,
+        "nps": 262093,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "qless_02",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 199822,
+        "elapsed_us": 541021,
+        "nps": 369342,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 62997,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      },
+      "current-final": {
+        "nodes": 199822,
+        "elapsed_us": 679442,
+        "nps": 294097,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "qless_03",
+      "class": "queenless_middlegame",
+      "current-final-single-buffer": {
+        "nodes": 53982,
+        "elapsed_us": 165594,
+        "nps": 325990,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 137826,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      },
+      "current-final": {
+        "nodes": 53982,
+        "elapsed_us": 193513,
+        "nps": 278958,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "piece_01",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 71891,
+        "elapsed_us": 181832,
+        "nps": 395370,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 145910,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      },
+      "current-final": {
+        "nodes": 71891,
+        "elapsed_us": 183011,
+        "nps": 392823,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "piece_02",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 23258,
+        "elapsed_us": 67523,
+        "nps": 344445,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 34320,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      },
+      "current-final": {
+        "nodes": 23258,
+        "elapsed_us": 67685,
+        "nps": 343621,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "piece_03",
+      "class": "piece_endgame",
+      "current-final-single-buffer": {
+        "nodes": 18943,
+        "elapsed_us": 48743,
+        "nps": 388630,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 78425,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      },
+      "current-final": {
+        "nodes": 18943,
+        "elapsed_us": 49124,
+        "nps": 385615,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "pawn_01",
+      "class": "pawn_endgame",
+      "current-final-single-buffer": {
+        "nodes": 4926,
+        "elapsed_us": 11778,
+        "nps": 418237,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 11390,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      },
+      "current-final": {
+        "nodes": 4926,
+        "elapsed_us": 15614,
+        "nps": 315486,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      }
+    },
+    {
+      "rep": 4,
+      "position_id": "pawn_02",
+      "class": "pawn_endgame",
+      "current-final-single-buffer": {
+        "nodes": 1815,
+        "elapsed_us": 4206,
+        "nps": 431526,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 3076,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      },
+      "current-final": {
+        "nodes": 1815,
+        "elapsed_us": 3914,
+        "nps": 463719,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "opening_01",
+      "class": "opening",
+      "current-final": {
+        "nodes": 56175,
+        "elapsed_us": 189674,
+        "nps": 296166,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      },
+      "current-final-single-buffer": {
+        "nodes": 56175,
+        "elapsed_us": 179070,
+        "nps": 313704,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 d2d4 d7d5",
+        "single_buffer_writes": 60285,
+        "legal_move_generations": 164570,
+        "pseudo_moves": 3148196,
+        "legal_moves": 2560934
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "opening_02",
+      "class": "opening",
+      "current-final": {
+        "nodes": 131468,
+        "elapsed_us": 514799,
+        "nps": 255377,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      },
+      "current-final-single-buffer": {
+        "nodes": 131468,
+        "elapsed_us": 425943,
+        "nps": 308651,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 f8c5 f1d3 g8f6",
+        "single_buffer_writes": 354787,
+        "legal_move_generations": 357336,
+        "pseudo_moves": 8018109,
+        "legal_moves": 6630083
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "opening_03",
+      "class": "opening",
+      "current-final": {
+        "nodes": 139929,
+        "elapsed_us": 473628,
+        "nps": 295440,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      },
+      "current-final-single-buffer": {
+        "nodes": 139929,
+        "elapsed_us": 439303,
+        "nps": 318525,
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 e7e5 f1d3 g8f6",
+        "single_buffer_writes": 459330,
+        "legal_move_generations": 388756,
+        "pseudo_moves": 8773460,
+        "legal_moves": 7054048
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "opening_04",
+      "class": "opening",
+      "current-final": {
+        "nodes": 142557,
+        "elapsed_us": 587328,
+        "nps": 242721,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      },
+      "current-final-single-buffer": {
+        "nodes": 142557,
+        "elapsed_us": 545447,
+        "nps": 261358,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 g8f6 d2d4 f8b4 c1g5 d7d6",
+        "single_buffer_writes": 656289,
+        "legal_move_generations": 358931,
+        "pseudo_moves": 8333898,
+        "legal_moves": 7007437
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "opening_05",
+      "class": "opening",
+      "current-final": {
+        "nodes": 208529,
+        "elapsed_us": 936776,
+        "nps": 222602,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      },
+      "current-final-single-buffer": {
+        "nodes": 208529,
+        "elapsed_us": 875032,
+        "nps": 238310,
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "d2d4 e5d4 f3d4 c6d4 d1d4 g8f6",
+        "single_buffer_writes": 996095,
+        "legal_move_generations": 515460,
+        "pseudo_moves": 12491247,
+        "legal_moves": 9426684
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_01",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 202475,
+        "elapsed_us": 748548,
+        "nps": 270490,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      },
+      "current-final-single-buffer": {
+        "nodes": 202475,
+        "elapsed_us": 717475,
+        "nps": 282204,
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 527208,
+        "legal_move_generations": 487100,
+        "pseudo_moves": 11392932,
+        "legal_moves": 9453637
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_02",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 175806,
+        "elapsed_us": 722098,
+        "nps": 243465,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      },
+      "current-final-single-buffer": {
+        "nodes": 175806,
+        "elapsed_us": 628916,
+        "nps": 279538,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 f8c5 e1g1 e8g8 c1e3 d7d6",
+        "single_buffer_writes": 1290045,
+        "legal_move_generations": 412653,
+        "pseudo_moves": 10491510,
+        "legal_moves": 8338332
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_03",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 158107,
+        "elapsed_us": 542609,
+        "nps": 291382,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      },
+      "current-final-single-buffer": {
+        "nodes": 158107,
+        "elapsed_us": 535453,
+        "nps": 295277,
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "b1c3 d7d6 c1e3 c8e6 c4e6 f7e6",
+        "single_buffer_writes": 548194,
+        "legal_move_generations": 375613,
+        "pseudo_moves": 8740591,
+        "legal_moves": 7273338
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_04",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 118986,
+        "elapsed_us": 438238,
+        "nps": 271510,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      },
+      "current-final-single-buffer": {
+        "nodes": 118986,
+        "elapsed_us": 376360,
+        "nps": 316149,
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "d4d5 c6e7 c1e3 c8g4 h2h3 g4d7",
+        "single_buffer_writes": 432499,
+        "legal_move_generations": 272861,
+        "pseudo_moves": 6733188,
+        "legal_moves": 5662542
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_05",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 24184,
+        "elapsed_us": 99568,
+        "nps": 242889,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      },
+      "current-final-single-buffer": {
+        "nodes": 24184,
+        "elapsed_us": 84184,
+        "nps": 287275,
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "e4d5 c6d4 e3d4 e5d4 c3b5 c7c6 d5c6",
+        "single_buffer_writes": 171246,
+        "legal_move_generations": 55291,
+        "pseudo_moves": 1392674,
+        "legal_moves": 1225289
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_06",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 215264,
+        "elapsed_us": 913700,
+        "nps": 235595,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      },
+      "current-final-single-buffer": {
+        "nodes": 215264,
+        "elapsed_us": 817582,
+        "nps": 263293,
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "b1c3 e8g8 e1g1 d7d6 c1e3 c8g4",
+        "single_buffer_writes": 1633565,
+        "legal_move_generations": 502943,
+        "pseudo_moves": 13411933,
+        "legal_moves": 9813221
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_07",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 73281,
+        "elapsed_us": 247207,
+        "nps": 296435,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      },
+      "current-final-single-buffer": {
+        "nodes": 73281,
+        "elapsed_us": 236549,
+        "nps": 309792,
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "e3d4 f8f3 e2f3 e5d4 d5e6 d7c5",
+        "single_buffer_writes": 128519,
+        "legal_move_generations": 165851,
+        "pseudo_moves": 4421824,
+        "legal_moves": 3978612
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "mid_08",
+      "class": "normal_middlegame",
+      "current-final": {
+        "nodes": 16524,
+        "elapsed_us": 67105,
+        "nps": 246240,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      },
+      "current-final-single-buffer": {
+        "nodes": 16524,
+        "elapsed_us": 63966,
+        "nps": 258324,
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "f1b5 b4c2 d1c2 f8b4 e1e2 e4g3 h2g3 c6b5 a3b5 f5c2 b5c7 e8d7 c7a8 h8a8",
+        "single_buffer_writes": 281983,
+        "legal_move_generations": 38103,
+        "pseudo_moves": 1058923,
+        "legal_moves": 803056
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "tac_01",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 50241,
+        "elapsed_us": 191305,
+        "nps": 262622,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      },
+      "current-final-single-buffer": {
+        "nodes": 50241,
+        "elapsed_us": 177017,
+        "nps": 283820,
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "d7c8r d8c8 e1f2 e7c5 e2d4 b8d7",
+        "single_buffer_writes": 698243,
+        "legal_move_generations": 117052,
+        "pseudo_moves": 3058312,
+        "legal_moves": 2481858
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "tac_02",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 285778,
+        "elapsed_us": 1274952,
+        "nps": 224148,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      },
+      "current-final-single-buffer": {
+        "nodes": 285778,
+        "elapsed_us": 1230219,
+        "nps": 232298,
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 b6d5",
+        "single_buffer_writes": 2500834,
+        "legal_move_generations": 621162,
+        "pseudo_moves": 18132218,
+        "legal_moves": 15633055
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "tac_03",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 27530,
+        "elapsed_us": 108847,
+        "nps": 252923,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      },
+      "current-final-single-buffer": {
+        "nodes": 27530,
+        "elapsed_us": 100489,
+        "nps": 273960,
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "c4c5 a3b4 a1b1 b6c5 d2d4 g7h6 d4c5 b4c5 f3d4 f6e4 b1b2 a8a7",
+        "single_buffer_writes": 221444,
+        "legal_move_generations": 60347,
+        "pseudo_moves": 1500346,
+        "legal_moves": 1258193
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "tac_04",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 190005,
+        "elapsed_us": 951503,
+        "nps": 199689,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      },
+      "current-final-single-buffer": {
+        "nodes": 190005,
+        "elapsed_us": 756974,
+        "nps": 251005,
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "f7f6 g4g5 f6e7 e6c5 e7f7 c5b7 c6d4",
+        "single_buffer_writes": 1934223,
+        "legal_move_generations": 417551,
+        "pseudo_moves": 10561442,
+        "legal_moves": 6763383
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "tac_05",
+      "class": "tactical_middlegame",
+      "current-final": {
+        "nodes": 145001,
+        "elapsed_us": 594421,
+        "nps": 243936,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      },
+      "current-final-single-buffer": {
+        "nodes": 145001,
+        "elapsed_us": 601518,
+        "nps": 241058,
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "c8e6 e1e6 e7f7 d4d7 f7g8 e6h6 f8f7 d7f7",
+        "single_buffer_writes": 2259546,
+        "legal_move_generations": 357003,
+        "pseudo_moves": 9504750,
+        "legal_moves": 6474990
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "closed_01",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 117081,
+        "elapsed_us": 426683,
+        "nps": 274398,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      },
+      "current-final-single-buffer": {
+        "nodes": 117081,
+        "elapsed_us": 433856,
+        "nps": 269861,
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "b1c3 b8c6 g1f3 g8f6 c1e3 e7e6",
+        "single_buffer_writes": 291832,
+        "legal_move_generations": 321150,
+        "pseudo_moves": 7034606,
+        "legal_moves": 6050883
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "closed_02",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 260602,
+        "elapsed_us": 1011115,
+        "nps": 257737,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      },
+      "current-final-single-buffer": {
+        "nodes": 260602,
+        "elapsed_us": 907249,
+        "nps": 287244,
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 d7b6 c4d5 e6d5",
+        "single_buffer_writes": 915208,
+        "legal_move_generations": 654407,
+        "pseudo_moves": 15936044,
+        "legal_moves": 14516087
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "closed_03",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 225369,
+        "elapsed_us": 900429,
+        "nps": 250290,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      },
+      "current-final-single-buffer": {
+        "nodes": 225369,
+        "elapsed_us": 833718,
+        "nps": 270318,
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "e2e3 b8d7 f1d3 f8b4 e1g1 e8g8",
+        "single_buffer_writes": 1033184,
+        "legal_move_generations": 577725,
+        "pseudo_moves": 14526661,
+        "legal_moves": 12830217
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "closed_04",
+      "class": "closed_middlegame",
+      "current-final": {
+        "nodes": 137242,
+        "elapsed_us": 495754,
+        "nps": 276834,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      },
+      "current-final-single-buffer": {
+        "nodes": 137242,
+        "elapsed_us": 470979,
+        "nps": 291397,
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "c3d5 a8b8 d1b3 c6d4 f3d4 e5d4",
+        "single_buffer_writes": 95907,
+        "legal_move_generations": 338900,
+        "pseudo_moves": 7985640,
+        "legal_moves": 7343178
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "qless_01",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 160271,
+        "elapsed_us": 626515,
+        "nps": 255813,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      },
+      "current-final-single-buffer": {
+        "nodes": 160271,
+        "elapsed_us": 581852,
+        "nps": 275449,
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "e1e2 e8d7 a1e1 a8d8 e2d3 d7d6",
+        "single_buffer_writes": 1644545,
+        "legal_move_generations": 427628,
+        "pseudo_moves": 10045353,
+        "legal_moves": 8655902
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "qless_02",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 199822,
+        "elapsed_us": 644389,
+        "nps": 310095,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      },
+      "current-final-single-buffer": {
+        "nodes": 199822,
+        "elapsed_us": 592260,
+        "nps": 337388,
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "d1d7 b7b5 b3c5 b5b4 c3e2 c6e5",
+        "single_buffer_writes": 62997,
+        "legal_move_generations": 587403,
+        "pseudo_moves": 12670414,
+        "legal_moves": 10577679
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "qless_03",
+      "class": "queenless_middlegame",
+      "current-final": {
+        "nodes": 53982,
+        "elapsed_us": 180329,
+        "nps": 299352,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      },
+      "current-final-single-buffer": {
+        "nodes": 53982,
+        "elapsed_us": 146208,
+        "nps": 369213,
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "e3e4 d5e4 c3e4 f6e4 e1e4 a8d8",
+        "single_buffer_writes": 137826,
+        "legal_move_generations": 146380,
+        "pseudo_moves": 2725825,
+        "legal_moves": 2423329
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "piece_01",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 71891,
+        "elapsed_us": 171014,
+        "nps": 420380,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      },
+      "current-final-single-buffer": {
+        "nodes": 71891,
+        "elapsed_us": 180776,
+        "nps": 397680,
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "d2g5 h8h7 e2d3 h7h8 d3e4 h8h7",
+        "single_buffer_writes": 145910,
+        "legal_move_generations": 226045,
+        "pseudo_moves": 2675014,
+        "legal_moves": 1773953
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "piece_02",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 23258,
+        "elapsed_us": 67678,
+        "nps": 343656,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      },
+      "current-final-single-buffer": {
+        "nodes": 23258,
+        "elapsed_us": 63135,
+        "nps": 368385,
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "d2d7 h8g8 e2d3 g8f8 d7b7 f8e8",
+        "single_buffer_writes": 34320,
+        "legal_move_generations": 73868,
+        "pseudo_moves": 738216,
+        "legal_moves": 521671
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "piece_03",
+      "class": "piece_endgame",
+      "current-final": {
+        "nodes": 18943,
+        "elapsed_us": 46978,
+        "nps": 403231,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      },
+      "current-final-single-buffer": {
+        "nodes": 18943,
+        "elapsed_us": 52687,
+        "nps": 359538,
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "g1e1 f3g4 h2g2 g4f4 e1e7 f4f5",
+        "single_buffer_writes": 78425,
+        "legal_move_generations": 60396,
+        "pseudo_moves": 586468,
+        "legal_moves": 383336
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "pawn_01",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 4926,
+        "elapsed_us": 12675,
+        "nps": 388639,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      },
+      "current-final-single-buffer": {
+        "nodes": 4926,
+        "elapsed_us": 11583,
+        "nps": 425278,
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "e1d2 d4e4 d2c3 e4d5 c3d3 d5e5",
+        "single_buffer_writes": 11390,
+        "legal_move_generations": 15599,
+        "pseudo_moves": 117886,
+        "legal_moves": 81230
+      }
+    },
+    {
+      "rep": 5,
+      "position_id": "pawn_02",
+      "class": "pawn_endgame",
+      "current-final": {
+        "nodes": 1815,
+        "elapsed_us": 3656,
+        "nps": 496444,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 0,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      },
+      "current-final-single-buffer": {
+        "nodes": 1815,
+        "elapsed_us": 3425,
+        "nps": 529927,
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "e1d1 e8d7 d1c2 d7d6 c2d3 d6d5 d3e3",
+        "single_buffer_writes": 3076,
+        "legal_move_generations": 5240,
+        "pseudo_moves": 27521,
+        "legal_moves": 20391
+      }
+    }
+  ]
+}
