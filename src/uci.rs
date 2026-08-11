@@ -436,10 +436,13 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-legality-fast" => {
                         search::SearchProfile::CurrentFinalLegalityFast
                     }
+                    "current-final-single-buffer" => {
+                        search::SearchProfile::CurrentFinalSingleBuffer
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer)",
                             other
                         ));
                     }
@@ -924,6 +927,10 @@ mod tests {
         assert_eq!(
             startup_profile(&["--profile", "current-final"]),
             search::SearchProfile::CurrentFinal
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-final-single-buffer"]),
+            search::SearchProfile::CurrentFinalSingleBuffer
         );
     }
 
