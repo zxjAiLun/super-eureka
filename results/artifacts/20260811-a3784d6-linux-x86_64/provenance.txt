@@ -1,0 +1,58 @@
+S4.4C experimental EngineArtifact - provenance record
+=====================================================
+
+candidate source:    2db6f6a73156eb945f80e9276bc69be8b95473e9 (S4.4B gate)
+artifact source SHA: a3784d6947da1b4fa0d4c5594c45c875c50583c1 (manifest git_sha)
+build ID:            20260811-a3784d6-linux-x86_64
+binary SHA-256:      753962f0f5381c41b36d73d150529eb739a4a90fa3bb41863594ac81d88f4fd0
+Cargo.lock SHA-256:  370d4ebcacd639d0bad97efc2d7c4f1eb419ef13ce9a518d1d8b2f836d64e9ee
+rustc:               1.94.1 (e408947bf 2026-03-25)
+cargo:               1.94.1 (29ea6fb6a 2026-03-24)
+platform:            linux-x86_64
+default profile:     current-final (production semantics)
+supported profiles:  ["current-final-single-buffer", "current-final", "current"]
+source tree:         git archive a3784d6947da1b4fa0d4c5594c45c875c50583c1
+                     (clean), cargo build --release --locked
+created_utc:         2026-08-11T13:08:51Z
+                     (binary mtime, durable filesystem evidence)
+
+SOURCE IDENTITY NOTE (deviation from the S4.4C spec pin):
+  The spec pins the artifact source to 2db6f6a. That commit's candidate
+  profile was bench-only: the UCI startup --profile allowlist did not map
+  "current-final-single-buffer" (nor did the uci-handshake identity string),
+  so the S4.4C screen could not invoke the candidate through cutechess.
+  Phase B probing of the 2db6f6a build exposed this before any Arena work.
+  Two wiring-only commits were therefore added and the artifact built from
+  the result:
+      9f88e67 fix(uci): expose S4.4B single-buffer profile to UCI startup args
+      a3784d6 fix(uci): report S4.4B single-buffer profile identity in handshake
+  Neither commit touches search/movegen/eval/Position/TT semantics; the
+  chess semantics of this artifact are byte-for-byte 2db6f6a's candidate.
+
+tarball:              build-20260811-a3784d6-linux-x86_64.tar.gz
+tarball SHA-256:      331403418b8dc9fc80ebb33ab20b13a3164dc7c51cbf604fe7960a5edb1eff7d
+unpack-rehash:        753962f0... (matches manifest binary_sha256) PASS
+executable bit:       PASS
+manifest JSON:        PASS
+manifest git_sha:     a3784d6947da1b4fa0d4c5594c45c875c50583c1
+manifest binary_sha256: 753962f0... (matches actual binary) PASS
+
+cross-artifact check: OLD production artifact 20260811-26604c4-linux-x86_64
+                      (binary f0e8f91a...)
+                      vs NEW artifact --profile current-final, depth 6 cold:
+                      nodes/score/bestmove/PV identical on 30/30 positions
+                      (S4 corpus) PASS
+
+probes (from the exact binary via subprocess, rc=0):
+                      default PASS (search profile current-final)
+                      --profile current-final PASS
+                      --profile current (rollback) PASS
+                      --profile current-final-single-buffer PASS
+
+S4.4B local-gate evidence (measured on the 2db6f6a binary; the two wiring
+commits do not change search semantics):
+                      30-position corpus, depth 6, cold 16 MB TT, 1 thread,
+                      5 interleaved repetitions: tree 150/150 exact,
+                      aggregate wall -6.9493%, NPS +7.4683%,
+                      median paired wall -7.0599%
+                      (results/s4-attribution/core/s44b_report.md)

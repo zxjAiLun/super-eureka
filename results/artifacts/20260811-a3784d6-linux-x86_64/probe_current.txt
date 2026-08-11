@@ -1,0 +1,6 @@
+id name ChessEngineDemo
+option name Hash type spin default 16 min 1 max 1024
+info string search profile current
+uciok
+readyok
+bestmove b1c3
