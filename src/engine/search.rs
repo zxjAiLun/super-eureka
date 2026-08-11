@@ -621,6 +621,20 @@ pub struct SearchContext {
     pub(crate) single_buffer_legal: AtomicBool,
     /// S4.4B: compaction writes where `write != read` (mechanism counter).
     pub(crate) single_buffer_writes: AtomicU64,
+    /// S5.0A: duplicate child full-legal generation attribution. The child
+    /// probe generates a full legal list for every edge (terminal + intended
+    /// claim detection) and DISCARDS it on Continue; the negamax entered body
+    /// then regenerates the SAME position's list. `probe_child_generations`
+    /// totals the discarded probe lists (by caller kind), and
+    /// `negamax_body_generations` counts the duplicate regeneration. Bench
+    /// only, profiling-gated.
+    pub(crate) probe_child_generations: AtomicU64,
+    pub(crate) main_edge_probe_generations: AtomicU64,
+    pub(crate) qsearch_edge_probe_generations: AtomicU64,
+    pub(crate) root_edge_probe_generations: AtomicU64,
+    pub(crate) negamax_body_generations: AtomicU64,
+    pub(crate) root_generations: AtomicU64,
+    pub(crate) final_evasion_generations: AtomicU64,
     /// S4.3B: fast-path / fallback statistics (profiling-enabled only).
     pub(crate) legality_fast_accepts: AtomicU64,
     pub(crate) legality_fallback_probes: AtomicU64,
@@ -773,6 +787,13 @@ impl SearchContext {
             legality_fast: AtomicBool::new(false),
             single_buffer_legal: AtomicBool::new(false),
             single_buffer_writes: AtomicU64::new(0),
+            probe_child_generations: AtomicU64::new(0),
+            main_edge_probe_generations: AtomicU64::new(0),
+            qsearch_edge_probe_generations: AtomicU64::new(0),
+            root_edge_probe_generations: AtomicU64::new(0),
+            negamax_body_generations: AtomicU64::new(0),
+            root_generations: AtomicU64::new(0),
+            final_evasion_generations: AtomicU64::new(0),
             legality_fast_accepts: AtomicU64::new(0),
             legality_fallback_probes: AtomicU64::new(0),
             legality_fallback_in_check: AtomicU64::new(0),
@@ -870,6 +891,13 @@ impl SearchContext {
             legality_fast: AtomicBool::new(false),
             single_buffer_legal: AtomicBool::new(false),
             single_buffer_writes: AtomicU64::new(0),
+            probe_child_generations: AtomicU64::new(0),
+            main_edge_probe_generations: AtomicU64::new(0),
+            qsearch_edge_probe_generations: AtomicU64::new(0),
+            root_edge_probe_generations: AtomicU64::new(0),
+            negamax_body_generations: AtomicU64::new(0),
+            root_generations: AtomicU64::new(0),
+            final_evasion_generations: AtomicU64::new(0),
             legality_fast_accepts: AtomicU64::new(0),
             legality_fallback_probes: AtomicU64::new(0),
             legality_fallback_in_check: AtomicU64::new(0),
@@ -1350,6 +1378,14 @@ enum ChildProbe {
     Continue,
 }
 
+/// S5.0A: which search path owns a child probe (per-caller generation split).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProbeKind {
+    Main,
+    Qsearch,
+    Root,
+}
+
 /// Shared manual-child probe used by the negamax, qsearch, and root move
 /// edges. It performs the exact-once node accounting (the only `try_enter_node`
 /// for this child), clears the child PV row, and classifies the child as
@@ -1372,10 +1408,20 @@ fn probe_child_draw(
     ctx: &SearchContext,
     limits: &SearchLimits,
     pv: &mut PvTable,
+    kind: ProbeKind,
 ) -> Option<ChildProbe> {
     // Exactly ONE node acquisition for this child.
     if !try_enter_node(ctx, limits) {
         return None;
+    }
+    // S5.0A: this full-legal list is generated ONLY for terminal + intended
+    // claim detection and discarded on Continue (the entered body regenerates
+    // the same position). Counted by caller kind.
+    ctx.add_profile_counter(&ctx.probe_child_generations, 1);
+    match kind {
+        ProbeKind::Main => ctx.add_profile_counter(&ctx.main_edge_probe_generations, 1),
+        ProbeKind::Qsearch => ctx.add_profile_counter(&ctx.qsearch_edge_probe_generations, 1),
+        ProbeKind::Root => ctx.add_profile_counter(&ctx.root_edge_probe_generations, 1),
     }
     // The probe is the sole owner of the child PV row's initial clear.
     pv.clear_at(child_ply);
@@ -2600,6 +2646,9 @@ fn negamax_entered_impl_with_null_and_extensions(
 
     // Terminal-node check MUST run before the depth==0 evaluation.
     let node_in_check = pos.is_in_check(pos.side);
+    // S5.0A: every negamax entered body generation duplicates the Continue
+    // child probe's discarded list for the same position.
+    ctx.add_profile_counter(&ctx.negamax_body_generations, 1);
     let mut moves = generate_legal_moves_profiled(pos, ctx);
     if moves.is_empty() {
         if node_in_check {
@@ -2860,7 +2909,9 @@ fn negamax_entered_impl_with_null_and_extensions(
         );
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_draw(pos, path.keys(), ply + 1, ply, ctx, limits, pv) {
+        let probe = match probe_child_draw(
+            pos, path.keys(), ply + 1, ply, ctx, limits, pv, ProbeKind::Main,
+        ) {
             Some(p) => p,
             None => {
                 path.pop();
@@ -4337,7 +4388,9 @@ fn quiescence_entered_impl_with_profile(
         path.push_child(pos);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_draw(pos, path.keys(), ply + 1, ply, ctx, limits, pv) {
+        let probe = match probe_child_draw(
+            pos, path.keys(), ply + 1, ply, ctx, limits, pv, ProbeKind::Qsearch,
+        ) {
             Some(p) => p,
             None => {
                 path.pop();
@@ -4499,6 +4552,9 @@ fn search_final_evasion_ply_with_profile(
         //     fifty-move or threefold intended claim -> 0 (mover secures draw);
         //   - otherwise approximate with the static eval (safe cap estimate).
         let child_in_check = pos.is_in_check(pos.side);
+        // S5.0A: single-use generation in the final-evasion ply (not a probe
+        // duplicate, but counted so the full-legal call accounting closes).
+        ctx.add_profile_counter(&ctx.final_evasion_generations, 1);
         let child_legal = generate_legal_moves_profiled(pos, ctx);
         let score = if child_legal.is_empty() {
             terminal_child_score_for_parent(child_in_check, ply)
@@ -4721,7 +4777,9 @@ fn root_search_with_window(
         );
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
-        let probe = match probe_child_draw(pos, path.keys(), 1, 0, ctx, limits, &mut pv) {
+        let probe = match probe_child_draw(
+            pos, path.keys(), 1, 0, ctx, limits, &mut pv, ProbeKind::Root,
+        ) {
             Some(p) => p,
             None => {
                 path.pop();
@@ -5262,6 +5320,8 @@ fn search_best_move_impl(
         .store(_profile.uses_legality_fast(), Ordering::Relaxed);
     ctx.single_buffer_legal
         .store(_profile.uses_single_buffer_legal(), Ordering::Relaxed);
+    // S5.0A: the root's own legal list (generated once; not duplicated).
+    ctx.add_profile_counter(&ctx.root_generations, 1);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
     if root_moves.is_empty() {
         return None; // already terminal (checkmate / stalemate)
@@ -7649,7 +7709,7 @@ mod tests {
     ) -> Option<ChildProbe> {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let r = probe_child_draw(pos, path.keys(), child_ply, parent_ply, ctx, limits, pv);
+        let r = probe_child_draw(pos, path.keys(), child_ply, parent_ply, ctx, limits, pv, ProbeKind::Main);
         path.pop();
         pos.unmake_move(undo);
         r
@@ -7675,7 +7735,7 @@ mod tests {
         let mut path = SearchPath::new(history);
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let probe = probe_child_draw(pos, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+        let probe = probe_child_draw(pos, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
         let score = match probe {
             Some(ChildProbe::Terminal(s)) => s,
             Some(ChildProbe::IntendedClaim) => 0, // mover claims on this move
@@ -8254,7 +8314,7 @@ mod tests {
                 claim_available_by_intended_move(&p, path.keys()),
                 "after g1f3 the child is an intended threefold claim"
             );
-            let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+            let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
             assert_eq!(
                 probe,
                 Some(ChildProbe::IntendedClaim),
@@ -8393,7 +8453,7 @@ mod tests {
         let mut p = pos;
         let undo = p.make_move(m);
         path.push_child(&p);
-        let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv);
+        let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
         assert_eq!(
             probe,
             Some(ChildProbe::Terminal(MATE - 1)),

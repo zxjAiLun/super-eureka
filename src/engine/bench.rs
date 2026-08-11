@@ -1285,8 +1285,17 @@ fn run_one(
         let search_edge_make = stats.make_moves.saturating_sub(legality_make);
         let search_edge_unmake = stats.unmake_moves.saturating_sub(legality_unmake);
         let fl_sub = ctx.full_legal_sub.snapshot();
+        let s5 = (
+            ctx.probe_child_generations.load(Ordering::Relaxed),
+            ctx.main_edge_probe_generations.load(Ordering::Relaxed),
+            ctx.qsearch_edge_probe_generations.load(Ordering::Relaxed),
+            ctx.root_edge_probe_generations.load(Ordering::Relaxed),
+            ctx.negamax_body_generations.load(Ordering::Relaxed),
+            ctx.root_generations.load(Ordering::Relaxed),
+            ctx.final_evasion_generations.load(Ordering::Relaxed),
+        );
         println!(
-            "bench_timing nodes={} elapsed_us={} legality_probe_make={} legality_probe_unmake={} search_edge_make={} search_edge_unmake={} full_legal_probe_make={} full_legal_probe_unmake={} tactical_probe_make={} tactical_probe_unmake={} evasion_probe_make={} evasion_probe_unmake={} has_any_probe_make={} has_any_probe_unmake={} movegen_legal_calls={} movegen_legal_samples={} movegen_legal_ns={} movegen_tactical_calls={} movegen_tactical_samples={} movegen_tactical_ns={} movegen_evasion_calls={} movegen_evasion_samples={} movegen_evasion_ns={} movegen_has_any_calls={} movegen_has_any_samples={} movegen_has_any_ns={} eval_calls={} eval_samples={} eval_ns={} ordering_calls={} ordering_samples={} ordering_ns={} see_calls={} see_samples={} see_ns={} tt_calls={} tt_samples={} tt_ns={} fl_sub_calls={} fl_sub_samples={} fl_pseudo_gen_ns={} fl_check_state_ns={} fl_pin_scan_ns={} fl_pin_scan_calls={} fl_in_check_calls={}",
+            "bench_timing nodes={} elapsed_us={} legality_probe_make={} legality_probe_unmake={} search_edge_make={} search_edge_unmake={} full_legal_probe_make={} full_legal_probe_unmake={} tactical_probe_make={} tactical_probe_unmake={} evasion_probe_make={} evasion_probe_unmake={} has_any_probe_make={} has_any_probe_unmake={} movegen_legal_calls={} movegen_legal_samples={} movegen_legal_ns={} movegen_tactical_calls={} movegen_tactical_samples={} movegen_tactical_ns={} movegen_evasion_calls={} movegen_evasion_samples={} movegen_evasion_ns={} movegen_has_any_calls={} movegen_has_any_samples={} movegen_has_any_ns={} eval_calls={} eval_samples={} eval_ns={} ordering_calls={} ordering_samples={} ordering_ns={} see_calls={} see_samples={} see_ns={} tt_calls={} tt_samples={} tt_ns={} fl_sub_calls={} fl_sub_samples={} fl_pseudo_gen_ns={} fl_check_state_ns={} fl_pin_scan_ns={} fl_pin_scan_calls={} fl_in_check_calls={} probe_child_generations={} main_edge_probe_generations={} qsearch_edge_probe_generations={} root_edge_probe_generations={} negamax_body_generations={} root_generations={} final_evasion_generations={}",
             nodes,
             elapsed.as_micros(),
             legality_make,
@@ -1332,6 +1341,13 @@ fn run_one(
             fl_sub.pin_scan_ns,
             fl_sub.pin_scan_calls,
             fl_sub.in_check_calls,
+            s5.0,
+            s5.1,
+            s5.2,
+            s5.3,
+            s5.4,
+            s5.5,
+            s5.6,
         );
     }
 
