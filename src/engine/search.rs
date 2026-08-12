@@ -173,10 +173,12 @@ pub(crate) enum SearchProfile {
     /// legality fast path) plus single-buffer full-legal materialization
     /// (stable in-place legal compaction, one `Vec<Move>` instead of two).
     CurrentFinalSingleBuffer,
-    /// S5.0B candidate: EXACTLY CurrentFinal (incl. legality fast path and
-    /// single-buffer materialization) plus the child probe using
-    /// has-any-legal instead of full legal generation (S5.0A: 64.8% of
-    /// full-legal calls are probe lists discarded on Continue).
+    /// S5.0B candidate: EXACTLY CurrentFinal (promoted legality fast path,
+    /// two-buffer full-legal materialization) PLUS the child probe using
+    /// has-any-legal instead of a full legal list (S5.0A: 64.8% of full-legal
+    /// calls are probe lists discarded on Continue). Deliberately NOT stacked
+    /// on the S4.4B single-buffer candidate: the two throughput optimizations
+    /// keep independent attribution until the S4.4D formal test terminates.
     CurrentFinalSingleGeneration,
 }
 
