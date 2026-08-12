@@ -159,6 +159,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
         search::SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
         search::SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
+        search::SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -440,10 +441,13 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-single-buffer" => {
                         search::SearchProfile::CurrentFinalSingleBuffer
                     }
+                    "current-final-single-generation" => {
+                        search::SearchProfile::CurrentFinalSingleGeneration
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation)",
                             other
                         ));
                     }

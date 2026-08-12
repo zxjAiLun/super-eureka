@@ -173,6 +173,11 @@ pub(crate) enum SearchProfile {
     /// legality fast path) plus single-buffer full-legal materialization
     /// (stable in-place legal compaction, one `Vec<Move>` instead of two).
     CurrentFinalSingleBuffer,
+    /// S5.0B candidate: EXACTLY CurrentFinal (incl. legality fast path and
+    /// single-buffer materialization) plus the child probe using
+    /// has-any-legal instead of full legal generation (S5.0A: 64.8% of
+    /// full-legal calls are probe lists discarded on Continue).
+    CurrentFinalSingleGeneration,
 }
 
 impl SearchProfile {
@@ -203,6 +208,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -220,6 +226,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -233,6 +240,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -248,6 +256,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -272,6 +281,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -289,6 +299,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -337,6 +348,7 @@ impl SearchProfile {
                 | Self::CurrentFinalRootPrevScore
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
         )
     }
 
@@ -346,6 +358,14 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_single_buffer_legal(self) -> bool {
         matches!(self, Self::CurrentFinalSingleBuffer)
+    }
+
+    /// S5.0B: the child probe uses has-any-legal instead of a discarded full
+    /// legal list (S5.0A: 64.8% of full-legal calls were probe lists). Only
+    /// the candidate returns true.
+    #[inline]
+    pub(crate) const fn uses_single_generation_probe(self) -> bool {
+        matches!(self, Self::CurrentFinalSingleGeneration)
     }
 
     #[inline]
@@ -619,6 +639,9 @@ pub struct SearchContext {
     /// S4.4B: single-buffer full-legal materialization enabled (set at search
     /// start from the profile; candidate only, never the UCI default).
     pub(crate) single_buffer_legal: AtomicBool,
+    /// S5.0B: child probe uses has-any-legal instead of a discarded full
+    /// legal list (candidate only).
+    pub(crate) single_generation_probe: AtomicBool,
     /// S4.4B: compaction writes where `write != read` (mechanism counter).
     pub(crate) single_buffer_writes: AtomicU64,
     /// S5.0A: duplicate child full-legal generation attribution. The child
@@ -786,6 +809,7 @@ impl SearchContext {
             legality_probe_unmake: AtomicU64::new(0),
             legality_fast: AtomicBool::new(false),
             single_buffer_legal: AtomicBool::new(false),
+            single_generation_probe: AtomicBool::new(false),
             single_buffer_writes: AtomicU64::new(0),
             probe_child_generations: AtomicU64::new(0),
             main_edge_probe_generations: AtomicU64::new(0),
@@ -890,6 +914,7 @@ impl SearchContext {
             legality_probe_unmake: AtomicU64::new(0),
             legality_fast: AtomicBool::new(false),
             single_buffer_legal: AtomicBool::new(false),
+            single_generation_probe: AtomicBool::new(false),
             single_buffer_writes: AtomicU64::new(0),
             probe_child_generations: AtomicU64::new(0),
             main_edge_probe_generations: AtomicU64::new(0),
@@ -1400,6 +1425,7 @@ enum ProbeKind {
 /// `make_move` + `push_child` before the call and the `pop` + `unmake_move`
 /// after. A `None` return means the node budget / stop / deadline was
 /// exhausted and the caller must restore its own state and propagate `None`.
+#[allow(clippy::too_many_arguments)]
 fn probe_child_draw(
     pos: &mut Position,
     child_keys: &[ZobristKey],
@@ -1414,20 +1440,26 @@ fn probe_child_draw(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    // S5.0A: this full-legal list is generated ONLY for terminal + intended
-    // claim detection and discarded on Continue (the entered body regenerates
-    // the same position). Counted by caller kind.
-    ctx.add_profile_counter(&ctx.probe_child_generations, 1);
-    match kind {
-        ProbeKind::Main => ctx.add_profile_counter(&ctx.main_edge_probe_generations, 1),
-        ProbeKind::Qsearch => ctx.add_profile_counter(&ctx.qsearch_edge_probe_generations, 1),
-        ProbeKind::Root => ctx.add_profile_counter(&ctx.root_edge_probe_generations, 1),
-    }
     // The probe is the sole owner of the child PV row's initial clear.
     pv.clear_at(child_ply);
 
-    let child_legal = generate_legal_moves_profiled(pos, ctx);
-    if child_legal.is_empty() {
+    // S5.0B: the probe only needs the EMPTINESS boolean (terminal) and the
+    // claim check (list-independent). `has_any_legal_move` is exactly
+    // equivalent: false iff no legal move. The entered body keeps its single
+    // full generation. The S5.0A counters count ACTUAL full-legal probe
+    // generations (zero in the single-generation candidate).
+    let child_has_any = if ctx.single_generation_probe.load(Ordering::Relaxed) {
+        has_any_legal_move_profiled(pos, ctx)
+    } else {
+        ctx.add_profile_counter(&ctx.probe_child_generations, 1);
+        match kind {
+            ProbeKind::Main => ctx.add_profile_counter(&ctx.main_edge_probe_generations, 1),
+            ProbeKind::Qsearch => ctx.add_profile_counter(&ctx.qsearch_edge_probe_generations, 1),
+            ProbeKind::Root => ctx.add_profile_counter(&ctx.root_edge_probe_generations, 1),
+        }
+        !generate_legal_moves_profiled(pos, ctx).is_empty()
+    };
+    if !child_has_any {
         return Some(ChildProbe::Terminal(terminal_child_score_for_parent(
             pos.is_in_check(pos.side),
             parent_ply,
@@ -2910,7 +2942,14 @@ fn negamax_entered_impl_with_null_and_extensions(
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
-            pos, path.keys(), ply + 1, ply, ctx, limits, pv, ProbeKind::Main,
+            pos,
+            path.keys(),
+            ply + 1,
+            ply,
+            ctx,
+            limits,
+            pv,
+            ProbeKind::Main,
         ) {
             Some(p) => p,
             None => {
@@ -4389,7 +4428,14 @@ fn quiescence_entered_impl_with_profile(
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
-            pos, path.keys(), ply + 1, ply, ctx, limits, pv, ProbeKind::Qsearch,
+            pos,
+            path.keys(),
+            ply + 1,
+            ply,
+            ctx,
+            limits,
+            pv,
+            ProbeKind::Qsearch,
         ) {
             Some(p) => p,
             None => {
@@ -4778,7 +4824,14 @@ fn root_search_with_window(
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
-            pos, path.keys(), 1, 0, ctx, limits, &mut pv, ProbeKind::Root,
+            pos,
+            path.keys(),
+            1,
+            0,
+            ctx,
+            limits,
+            &mut pv,
+            ProbeKind::Root,
         ) {
             Some(p) => p,
             None => {
@@ -5320,6 +5373,8 @@ fn search_best_move_impl(
         .store(_profile.uses_legality_fast(), Ordering::Relaxed);
     ctx.single_buffer_legal
         .store(_profile.uses_single_buffer_legal(), Ordering::Relaxed);
+    ctx.single_generation_probe
+        .store(_profile.uses_single_generation_probe(), Ordering::Relaxed);
     // S5.0A: the root's own legal list (generated once; not duplicated).
     ctx.add_profile_counter(&ctx.root_generations, 1);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
@@ -6363,6 +6418,51 @@ mod tests {
             assert_eq!(sb.best_move, cf.best_move, "identical best move for {fen}");
             assert_eq!(sb.completed_depth, cf.completed_depth, "for {fen}");
             assert_eq!(sb.pv, cf.pv, "identical PV for {fen}");
+        }
+    }
+
+    #[test]
+    fn single_generation_profile_matches_current_final_search_tree() {
+        // S5.0B: probe uses has-any instead of a discarded full legal list ->
+        // identical emptiness decision -> identical fixed-depth search tree.
+        let positions = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
+            "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/8/4r3/4K3/8 w - - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/8/4q3/8/4P3/4K3 w - - 0 1", // mate/claim-adjacent lines
+        ];
+        let run = |pos: &Position, profile: SearchProfile| -> (SearchOutcome, u64) {
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let mut tt = TranspositionTable::disabled();
+            let hist = vec![pos.zobrist_key()];
+            let limits = SearchLimits {
+                depth: Some(4),
+                ..Default::default()
+            };
+            let out = search_best_move_with_history_tt_and_profile(
+                &mut pos.clone(),
+                &hist,
+                &limits,
+                &ctx,
+                &mut tt,
+                profile,
+            )
+            .expect("outcome");
+            (out, ctx.nodes.load(Ordering::Relaxed))
+        };
+        for fen in positions {
+            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            let (cf, cf_nodes) = run(&pos, SearchProfile::CurrentFinal);
+            let (sg, sg_nodes) = run(&pos, SearchProfile::CurrentFinalSingleGeneration);
+            assert_eq!(sg_nodes, cf_nodes, "identical node count for {fen}");
+            assert_eq!(sg.score, cf.score, "identical score for {fen}");
+            assert_eq!(sg.best_move, cf.best_move, "identical best move for {fen}");
+            assert_eq!(sg.completed_depth, cf.completed_depth, "for {fen}");
+            assert_eq!(sg.pv, cf.pv, "identical PV for {fen}");
         }
     }
 
@@ -7709,7 +7809,16 @@ mod tests {
     ) -> Option<ChildProbe> {
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let r = probe_child_draw(pos, path.keys(), child_ply, parent_ply, ctx, limits, pv, ProbeKind::Main);
+        let r = probe_child_draw(
+            pos,
+            path.keys(),
+            child_ply,
+            parent_ply,
+            ctx,
+            limits,
+            pv,
+            ProbeKind::Main,
+        );
         path.pop();
         pos.unmake_move(undo);
         r
@@ -7735,7 +7844,16 @@ mod tests {
         let mut path = SearchPath::new(history);
         let undo = pos.make_move(m);
         path.push_child(pos);
-        let probe = probe_child_draw(pos, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
+        let probe = probe_child_draw(
+            pos,
+            path.keys(),
+            1,
+            0,
+            &ctx,
+            &limits,
+            &mut pv,
+            ProbeKind::Main,
+        );
         let score = match probe {
             Some(ChildProbe::Terminal(s)) => s,
             Some(ChildProbe::IntendedClaim) => 0, // mover claims on this move
@@ -8314,7 +8432,16 @@ mod tests {
                 claim_available_by_intended_move(&p, path.keys()),
                 "after g1f3 the child is an intended threefold claim"
             );
-            let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
+            let probe = probe_child_draw(
+                &mut p,
+                path.keys(),
+                1,
+                0,
+                &ctx,
+                &limits,
+                &mut pv,
+                ProbeKind::Main,
+            );
             assert_eq!(
                 probe,
                 Some(ChildProbe::IntendedClaim),
@@ -8453,7 +8580,16 @@ mod tests {
         let mut p = pos;
         let undo = p.make_move(m);
         path.push_child(&p);
-        let probe = probe_child_draw(&mut p, path.keys(), 1, 0, &ctx, &limits, &mut pv, ProbeKind::Main);
+        let probe = probe_child_draw(
+            &mut p,
+            path.keys(),
+            1,
+            0,
+            &ctx,
+            &limits,
+            &mut pv,
+            ProbeKind::Main,
+        );
         assert_eq!(
             probe,
             Some(ChildProbe::Terminal(MATE - 1)),

@@ -187,6 +187,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
         SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
         SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
+        SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
     }
 }
 
@@ -433,9 +434,12 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-root-prev-score" => SearchProfile::CurrentFinalRootPrevScore,
                     "current-final-legality-fast" => SearchProfile::CurrentFinalLegalityFast,
                     "current-final-single-buffer" => SearchProfile::CurrentFinalSingleBuffer,
+                    "current-final-single-generation" => {
+                        SearchProfile::CurrentFinalSingleGeneration
+                    }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation)",
                             other
                         ));
                     }
