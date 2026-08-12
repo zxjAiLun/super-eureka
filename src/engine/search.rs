@@ -153,9 +153,10 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmrFutility,
     CurrentAspirationLmrFutilitySee,
     /// S4.4E production search configuration: S3 production search plus the
-    /// S4.3E promoted unpinned non-check full-legality fast path AND the
-    /// S4.4E promoted single-buffer full-legal materialization (identical
-    /// move lists and order). Default UCI startup profile.
+    /// S4.3E promoted unpinned non-check full-legality fast path, the S4.4E
+    /// promoted single-buffer full-legal materialization, and the S5.0D
+    /// promoted has-any child terminal probe (identical move lists, order
+    /// and search tree). Default UCI startup profile.
     CurrentFinal,
     /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
     /// the existing history heuristic (previous best stays first; no root
@@ -176,11 +177,9 @@ pub(crate) enum SearchProfile {
     /// historical/compatibility alias for the S4.4B/S4.4C/S4.4D experiment
     /// artifact (search behavior identical to CurrentFinal).
     CurrentFinalSingleBuffer,
-    /// S5.0B candidate: production CurrentFinal (legality fast path AND the
-    /// promoted single-buffer materialization) PLUS the child probe using
-    /// has-any-legal instead of a full legal list (S5.0A: 64.8% of full-legal
-    /// calls were probe lists discarded on Continue). Since the S4.4E
-    /// promotion this candidate inherits SingleBuffer.
+    /// S5.0B candidate, PROMOTED into production CurrentFinal at S5.0D.
+    /// Retained as a historical/compatibility alias (search behavior
+    /// identical to CurrentFinal).
     CurrentFinalSingleGeneration,
 }
 
@@ -378,12 +377,23 @@ impl SearchProfile {
         )
     }
 
-    /// S5.0B: the child probe uses has-any-legal instead of a discarded full
-    /// legal list (S5.0A: 64.8% of full-legal calls were probe lists). Only
-    /// the candidate returns true.
+    /// S5.0B candidate, PROMOTED into production CurrentFinal at S5.0D: the
+    /// child probe uses has-any-legal instead of a discarded full legal list
+    /// (S5.0A: 64.8% of full-legal calls were probe lists). Production policy
+    /// for CurrentFinal and every profile whose base semantics are defined as
+    /// CurrentFinal; the experimental alias is retained as a historical/
+    /// compatibility identity.
     #[inline]
     pub(crate) const fn uses_single_generation_probe(self) -> bool {
-        matches!(self, Self::CurrentFinalSingleGeneration)
+        matches!(
+            self,
+            Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
+        )
     }
 
     #[inline]
@@ -6532,9 +6542,17 @@ mod tests {
                 "{p:?} must NOT use single-buffer"
             );
         }
-        // S5.0B's has-any probe stays candidate-only.
-        assert!(!SearchProfile::CurrentFinal.uses_single_generation_probe());
+        // S5.0D: the has-any probe is production policy for CurrentFinal and
+        // its family; the S5.0B alias is a historical identity.
+        assert!(SearchProfile::CurrentFinal.uses_single_generation_probe());
+        assert!(SearchProfile::CurrentFinalRootHistory.uses_single_generation_probe());
+        assert!(SearchProfile::CurrentFinalRootPrevScore.uses_single_generation_probe());
+        assert!(SearchProfile::CurrentFinalLegalityFast.uses_single_generation_probe());
+        assert!(SearchProfile::CurrentFinalSingleBuffer.uses_single_generation_probe());
         assert!(SearchProfile::CurrentFinalSingleGeneration.uses_single_generation_probe());
+        assert!(!SearchProfile::Current.uses_single_generation_probe());
+        assert!(!SearchProfile::CurrentLmr.uses_single_generation_probe());
+        assert!(!SearchProfile::M4Reference.uses_single_generation_probe());
     }
 
     #[test]
