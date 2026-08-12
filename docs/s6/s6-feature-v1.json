@@ -33,11 +33,11 @@
   },
   {
    "id": 7,
-   "name": "psqt.pawn.f1"
+   "name": "psqt.pawn.c1"
   },
   {
    "id": 8,
-   "name": "psqt.pawn.e1"
+   "name": "psqt.pawn.d1"
   },
   {
    "id": 9,
@@ -49,11 +49,11 @@
   },
   {
    "id": 11,
-   "name": "psqt.pawn.f2"
+   "name": "psqt.pawn.c2"
   },
   {
    "id": 12,
-   "name": "psqt.pawn.e2"
+   "name": "psqt.pawn.d2"
   },
   {
    "id": 13,
@@ -65,11 +65,11 @@
   },
   {
    "id": 15,
-   "name": "psqt.pawn.f3"
+   "name": "psqt.pawn.c3"
   },
   {
    "id": 16,
-   "name": "psqt.pawn.e3"
+   "name": "psqt.pawn.d3"
   },
   {
    "id": 17,
@@ -81,11 +81,11 @@
   },
   {
    "id": 19,
-   "name": "psqt.pawn.f4"
+   "name": "psqt.pawn.c4"
   },
   {
    "id": 20,
-   "name": "psqt.pawn.e4"
+   "name": "psqt.pawn.d4"
   },
   {
    "id": 21,
@@ -97,11 +97,11 @@
   },
   {
    "id": 23,
-   "name": "psqt.pawn.f5"
+   "name": "psqt.pawn.c5"
   },
   {
    "id": 24,
-   "name": "psqt.pawn.e5"
+   "name": "psqt.pawn.d5"
   },
   {
    "id": 25,
@@ -113,11 +113,11 @@
   },
   {
    "id": 27,
-   "name": "psqt.pawn.f6"
+   "name": "psqt.pawn.c6"
   },
   {
    "id": 28,
-   "name": "psqt.pawn.e6"
+   "name": "psqt.pawn.d6"
   },
   {
    "id": 29,
@@ -129,11 +129,11 @@
   },
   {
    "id": 31,
-   "name": "psqt.pawn.f7"
+   "name": "psqt.pawn.c7"
   },
   {
    "id": 32,
-   "name": "psqt.pawn.e7"
+   "name": "psqt.pawn.d7"
   },
   {
    "id": 33,
@@ -145,11 +145,11 @@
   },
   {
    "id": 35,
-   "name": "psqt.pawn.f8"
+   "name": "psqt.pawn.c8"
   },
   {
    "id": 36,
-   "name": "psqt.pawn.e8"
+   "name": "psqt.pawn.d8"
   },
   {
    "id": 37,
@@ -161,11 +161,11 @@
   },
   {
    "id": 39,
-   "name": "psqt.knight.f1"
+   "name": "psqt.knight.c1"
   },
   {
    "id": 40,
-   "name": "psqt.knight.e1"
+   "name": "psqt.knight.d1"
   },
   {
    "id": 41,
@@ -177,11 +177,11 @@
   },
   {
    "id": 43,
-   "name": "psqt.knight.f2"
+   "name": "psqt.knight.c2"
   },
   {
    "id": 44,
-   "name": "psqt.knight.e2"
+   "name": "psqt.knight.d2"
   },
   {
    "id": 45,
@@ -193,11 +193,11 @@
   },
   {
    "id": 47,
-   "name": "psqt.knight.f3"
+   "name": "psqt.knight.c3"
   },
   {
    "id": 48,
-   "name": "psqt.knight.e3"
+   "name": "psqt.knight.d3"
   },
   {
    "id": 49,
@@ -209,11 +209,11 @@
   },
   {
    "id": 51,
-   "name": "psqt.knight.f4"
+   "name": "psqt.knight.c4"
   },
   {
    "id": 52,
-   "name": "psqt.knight.e4"
+   "name": "psqt.knight.d4"
   },
   {
    "id": 53,
@@ -225,11 +225,11 @@
   },
   {
    "id": 55,
-   "name": "psqt.knight.f5"
+   "name": "psqt.knight.c5"
   },
   {
    "id": 56,
-   "name": "psqt.knight.e5"
+   "name": "psqt.knight.d5"
   },
   {
    "id": 57,
@@ -241,11 +241,11 @@
   },
   {
    "id": 59,
-   "name": "psqt.knight.f6"
+   "name": "psqt.knight.c6"
   },
   {
    "id": 60,
-   "name": "psqt.knight.e6"
+   "name": "psqt.knight.d6"
   },
   {
    "id": 61,
@@ -257,11 +257,11 @@
   },
   {
    "id": 63,
-   "name": "psqt.knight.f7"
+   "name": "psqt.knight.c7"
   },
   {
    "id": 64,
-   "name": "psqt.knight.e7"
+   "name": "psqt.knight.d7"
   },
   {
    "id": 65,
@@ -273,11 +273,11 @@
   },
   {
    "id": 67,
-   "name": "psqt.knight.f8"
+   "name": "psqt.knight.c8"
   },
   {
    "id": 68,
-   "name": "psqt.knight.e8"
+   "name": "psqt.knight.d8"
   },
   {
    "id": 69,
@@ -289,11 +289,11 @@
   },
   {
    "id": 71,
-   "name": "psqt.bishop.f1"
+   "name": "psqt.bishop.c1"
   },
   {
    "id": 72,
-   "name": "psqt.bishop.e1"
+   "name": "psqt.bishop.d1"
   },
   {
    "id": 73,
@@ -305,11 +305,11 @@
   },
   {
    "id": 75,
-   "name": "psqt.bishop.f2"
+   "name": "psqt.bishop.c2"
   },
   {
    "id": 76,
-   "name": "psqt.bishop.e2"
+   "name": "psqt.bishop.d2"
   },
   {
    "id": 77,
@@ -321,11 +321,11 @@
   },
   {
    "id": 79,
-   "name": "psqt.bishop.f3"
+   "name": "psqt.bishop.c3"
   },
   {
    "id": 80,
-   "name": "psqt.bishop.e3"
+   "name": "psqt.bishop.d3"
   },
   {
    "id": 81,
@@ -337,11 +337,11 @@
   },
   {
    "id": 83,
-   "name": "psqt.bishop.f4"
+   "name": "psqt.bishop.c4"
   },
   {
    "id": 84,
-   "name": "psqt.bishop.e4"
+   "name": "psqt.bishop.d4"
   },
   {
    "id": 85,
@@ -353,11 +353,11 @@
   },
   {
    "id": 87,
-   "name": "psqt.bishop.f5"
+   "name": "psqt.bishop.c5"
   },
   {
    "id": 88,
-   "name": "psqt.bishop.e5"
+   "name": "psqt.bishop.d5"
   },
   {
    "id": 89,
@@ -369,11 +369,11 @@
   },
   {
    "id": 91,
-   "name": "psqt.bishop.f6"
+   "name": "psqt.bishop.c6"
   },
   {
    "id": 92,
-   "name": "psqt.bishop.e6"
+   "name": "psqt.bishop.d6"
   },
   {
    "id": 93,
@@ -385,11 +385,11 @@
   },
   {
    "id": 95,
-   "name": "psqt.bishop.f7"
+   "name": "psqt.bishop.c7"
   },
   {
    "id": 96,
-   "name": "psqt.bishop.e7"
+   "name": "psqt.bishop.d7"
   },
   {
    "id": 97,
@@ -401,11 +401,11 @@
   },
   {
    "id": 99,
-   "name": "psqt.bishop.f8"
+   "name": "psqt.bishop.c8"
   },
   {
    "id": 100,
-   "name": "psqt.bishop.e8"
+   "name": "psqt.bishop.d8"
   },
   {
    "id": 101,
@@ -417,11 +417,11 @@
   },
   {
    "id": 103,
-   "name": "psqt.rook.f1"
+   "name": "psqt.rook.c1"
   },
   {
    "id": 104,
-   "name": "psqt.rook.e1"
+   "name": "psqt.rook.d1"
   },
   {
    "id": 105,
@@ -433,11 +433,11 @@
   },
   {
    "id": 107,
-   "name": "psqt.rook.f2"
+   "name": "psqt.rook.c2"
   },
   {
    "id": 108,
-   "name": "psqt.rook.e2"
+   "name": "psqt.rook.d2"
   },
   {
    "id": 109,
@@ -449,11 +449,11 @@
   },
   {
    "id": 111,
-   "name": "psqt.rook.f3"
+   "name": "psqt.rook.c3"
   },
   {
    "id": 112,
-   "name": "psqt.rook.e3"
+   "name": "psqt.rook.d3"
   },
   {
    "id": 113,
@@ -465,11 +465,11 @@
   },
   {
    "id": 115,
-   "name": "psqt.rook.f4"
+   "name": "psqt.rook.c4"
   },
   {
    "id": 116,
-   "name": "psqt.rook.e4"
+   "name": "psqt.rook.d4"
   },
   {
    "id": 117,
@@ -481,11 +481,11 @@
   },
   {
    "id": 119,
-   "name": "psqt.rook.f5"
+   "name": "psqt.rook.c5"
   },
   {
    "id": 120,
-   "name": "psqt.rook.e5"
+   "name": "psqt.rook.d5"
   },
   {
    "id": 121,
@@ -497,11 +497,11 @@
   },
   {
    "id": 123,
-   "name": "psqt.rook.f6"
+   "name": "psqt.rook.c6"
   },
   {
    "id": 124,
-   "name": "psqt.rook.e6"
+   "name": "psqt.rook.d6"
   },
   {
    "id": 125,
@@ -513,11 +513,11 @@
   },
   {
    "id": 127,
-   "name": "psqt.rook.f7"
+   "name": "psqt.rook.c7"
   },
   {
    "id": 128,
-   "name": "psqt.rook.e7"
+   "name": "psqt.rook.d7"
   },
   {
    "id": 129,
@@ -529,11 +529,11 @@
   },
   {
    "id": 131,
-   "name": "psqt.rook.f8"
+   "name": "psqt.rook.c8"
   },
   {
    "id": 132,
-   "name": "psqt.rook.e8"
+   "name": "psqt.rook.d8"
   },
   {
    "id": 133,
@@ -545,11 +545,11 @@
   },
   {
    "id": 135,
-   "name": "psqt.queen.f1"
+   "name": "psqt.queen.c1"
   },
   {
    "id": 136,
-   "name": "psqt.queen.e1"
+   "name": "psqt.queen.d1"
   },
   {
    "id": 137,
@@ -561,11 +561,11 @@
   },
   {
    "id": 139,
-   "name": "psqt.queen.f2"
+   "name": "psqt.queen.c2"
   },
   {
    "id": 140,
-   "name": "psqt.queen.e2"
+   "name": "psqt.queen.d2"
   },
   {
    "id": 141,
@@ -577,11 +577,11 @@
   },
   {
    "id": 143,
-   "name": "psqt.queen.f3"
+   "name": "psqt.queen.c3"
   },
   {
    "id": 144,
-   "name": "psqt.queen.e3"
+   "name": "psqt.queen.d3"
   },
   {
    "id": 145,
@@ -593,11 +593,11 @@
   },
   {
    "id": 147,
-   "name": "psqt.queen.f4"
+   "name": "psqt.queen.c4"
   },
   {
    "id": 148,
-   "name": "psqt.queen.e4"
+   "name": "psqt.queen.d4"
   },
   {
    "id": 149,
@@ -609,11 +609,11 @@
   },
   {
    "id": 151,
-   "name": "psqt.queen.f5"
+   "name": "psqt.queen.c5"
   },
   {
    "id": 152,
-   "name": "psqt.queen.e5"
+   "name": "psqt.queen.d5"
   },
   {
    "id": 153,
@@ -625,11 +625,11 @@
   },
   {
    "id": 155,
-   "name": "psqt.queen.f6"
+   "name": "psqt.queen.c6"
   },
   {
    "id": 156,
-   "name": "psqt.queen.e6"
+   "name": "psqt.queen.d6"
   },
   {
    "id": 157,
@@ -641,11 +641,11 @@
   },
   {
    "id": 159,
-   "name": "psqt.queen.f7"
+   "name": "psqt.queen.c7"
   },
   {
    "id": 160,
-   "name": "psqt.queen.e7"
+   "name": "psqt.queen.d7"
   },
   {
    "id": 161,
@@ -657,11 +657,11 @@
   },
   {
    "id": 163,
-   "name": "psqt.queen.f8"
+   "name": "psqt.queen.c8"
   },
   {
    "id": 164,
-   "name": "psqt.queen.e8"
+   "name": "psqt.queen.d8"
   },
   {
    "id": 165,
@@ -673,11 +673,11 @@
   },
   {
    "id": 167,
-   "name": "psqt.king.f1"
+   "name": "psqt.king.c1"
   },
   {
    "id": 168,
-   "name": "psqt.king.e1"
+   "name": "psqt.king.d1"
   },
   {
    "id": 169,
@@ -689,11 +689,11 @@
   },
   {
    "id": 171,
-   "name": "psqt.king.f2"
+   "name": "psqt.king.c2"
   },
   {
    "id": 172,
-   "name": "psqt.king.e2"
+   "name": "psqt.king.d2"
   },
   {
    "id": 173,
@@ -705,11 +705,11 @@
   },
   {
    "id": 175,
-   "name": "psqt.king.f3"
+   "name": "psqt.king.c3"
   },
   {
    "id": 176,
-   "name": "psqt.king.e3"
+   "name": "psqt.king.d3"
   },
   {
    "id": 177,
@@ -721,11 +721,11 @@
   },
   {
    "id": 179,
-   "name": "psqt.king.f4"
+   "name": "psqt.king.c4"
   },
   {
    "id": 180,
-   "name": "psqt.king.e4"
+   "name": "psqt.king.d4"
   },
   {
    "id": 181,
@@ -737,11 +737,11 @@
   },
   {
    "id": 183,
-   "name": "psqt.king.f5"
+   "name": "psqt.king.c5"
   },
   {
    "id": 184,
-   "name": "psqt.king.e5"
+   "name": "psqt.king.d5"
   },
   {
    "id": 185,
@@ -753,11 +753,11 @@
   },
   {
    "id": 187,
-   "name": "psqt.king.f6"
+   "name": "psqt.king.c6"
   },
   {
    "id": 188,
-   "name": "psqt.king.e6"
+   "name": "psqt.king.d6"
   },
   {
    "id": 189,
@@ -769,11 +769,11 @@
   },
   {
    "id": 191,
-   "name": "psqt.king.f7"
+   "name": "psqt.king.c7"
   },
   {
    "id": 192,
-   "name": "psqt.king.e7"
+   "name": "psqt.king.d7"
   },
   {
    "id": 193,
@@ -785,11 +785,11 @@
   },
   {
    "id": 195,
-   "name": "psqt.king.f8"
+   "name": "psqt.king.c8"
   },
   {
    "id": 196,
-   "name": "psqt.king.e8"
+   "name": "psqt.king.d8"
   },
   {
    "id": 197,
@@ -912,5 +912,5 @@
    "name": "tempo"
   }
  ],
- "schema_sha256": "2d22ca8dff3275bb0789192c970bfc0086550d0fc40442a8b980c874dbb922f0"
+ "schema_sha256": "8c5c51ac1e9c33e2796d52b01b3002e9c09d714c8517f4d4f0da44d0f4e70d7e"
 }

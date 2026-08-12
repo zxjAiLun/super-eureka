@@ -167,10 +167,9 @@ fn pawn_features(pos: &Position, side: Color, v: &mut [i16]) {
         }
     }
     // connected (LOCAL semantics, decided for the frozen schema): a pawn is
-    // connected when a friendly pawn on an adjacent file stands on the SAME
-    // board rank or one rank BEHIND it in the pawn's own advance direction
-    // (that friendly pawn can protect this one). NOT mere adjacent-file
-    // presence.
+    // connected when a friendly pawn on an adjacent file stands at |rank
+    // difference| <= 1 (same rank, or one rank ahead/behind). NOT mere
+    // adjacent-file presence.
     for sq in 0u8..64u8 {
         if let Some(p) = pos.board[sq as usize] {
             if p.color == side && p.piece_type == PieceType::Pawn {
@@ -482,7 +481,7 @@ pub(crate) fn feature_name(id: u16) -> String {
         let pt = pt_names[(off / 32) as usize];
         let sq = off % 32;
         let rank = sq / 4 + 1;
-        let file = if sq % 4 < 2 { sq % 4 } else { 7 - sq % 4 };
+        let file = sq % 4; // canonical representative file: a,b,c,d
         return format!("psqt.{}.{}{}", pt, char::from(b'a' + file as u8), rank);
     }
     if id == F_BISHOP_PAIR {
@@ -536,7 +535,7 @@ pub(crate) fn feature_name(id: u16) -> String {
 /// this compiled constant). Real 64-hex, not a fingerprint.
 #[allow(dead_code)] // consumed by S6.2 model-artifact loading
 pub(crate) const FEATURE_SCHEMA_SHA256: &str =
-    "2d22ca8dff3275bb0789192c970bfc0086550d0fc40442a8b980c874dbb922f0";
+    "8c5c51ac1e9c33e2796d52b01b3002e9c09d714c8517f4d4f0da44d0f4e70d7e";
 
 #[cfg(test)]
 mod tests {
@@ -592,10 +591,13 @@ mod tests {
         );
         assert_eq!(feature_name(0), "material.pawn");
         assert_eq!(feature_name(4), "material.queen");
+        // PSQT file-symmetric buckets use canonical names a,b,c,d
         assert_eq!(feature_name(5), "psqt.pawn.a1");
-        // file-symmetric ids name the lower file of the pair (a/h, b/g, f/c, e/d)
-        assert_eq!(feature_name(193), "psqt.king.a8"); // rr7, file-sym 0
-        assert_eq!(feature_name(196), "psqt.king.e8"); // rr7, file-sym 3
+        assert_eq!(feature_name(6), "psqt.pawn.b1");
+        assert_eq!(feature_name(7), "psqt.pawn.c1");
+        assert_eq!(feature_name(8), "psqt.pawn.d1");
+        assert_eq!(feature_name(193), "psqt.king.a8"); // rr7, file 0
+        assert_eq!(feature_name(196), "psqt.king.d8"); // rr7, file 3
         assert_eq!(feature_name(197), "bishop.pair");
         assert_eq!(feature_name(198), "pawn.isolated");
         assert_eq!(feature_name(226), "tempo");
