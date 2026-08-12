@@ -1,0 +1,41 @@
+{
+  "tournament_id": "178d3f86-8877-4215-998c-fc2e897aa254",
+  "terminal": "SPRT_ACCEPT_H1",
+  "pairs": 934,
+  "games": 1868,
+  "candidate_wins": 775,
+  "candidate_draws": 393,
+  "candidate_losses": 700,
+  "candidate_score_pct": 52.00749464668094,
+  "ptnml": [
+    62,
+    84,
+    587,
+    119,
+    82
+  ],
+  "logistic_elo_point_estimate": 13.957004415039862,
+  "llr": 2.953047447812923,
+  "lower_bound": -2.9444389791664403,
+  "upper_bound": 2.9444389791664403,
+  "candidate_white": {
+    "w": 386,
+    "d": 188,
+    "l": 360
+  },
+  "candidate_black": {
+    "w": 389,
+    "d": 205,
+    "l": 340
+  },
+  "baseline_white": {
+    "w": 340,
+    "d": 205,
+    "l": 389
+  },
+  "baseline_black": {
+    "w": 360,
+    "d": 188,
+    "l": 386
+  }
+}
