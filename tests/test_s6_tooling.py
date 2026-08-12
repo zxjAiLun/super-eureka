@@ -131,3 +131,44 @@ def test_teacher_manifest_audit(dataset_dir):
 @pytest.fixture(scope="session")
 def dataset_dir():
     return Path(__file__).resolve().parents[1] / "data" / "s6" / "s6-eval-v1-core-shard01"
+
+def test_builder_family_accounting(dataset_dir):
+    manifest = json.loads((dataset_dir / "dataset_manifest.json").read_text())
+    assert manifest["source_families"] == {"arena": manifest["records_total"]}
+    assert manifest["largest_family_share"] == 1.0
+    # FINAL builds must pass --enforce-family-mix and would fail closed on
+    # this single-family shard
+    assert manifest["final"] is False
+
+
+def test_builder_fails_closed_on_foreign_target(tmp_path):
+    # an existing target dir with a DIFFERENT dataset identity must abort
+    other = tmp_path / "s6-eval-v1-core-shard01"
+    other.mkdir()
+    (other / "dataset_manifest.json").write_text(
+        json.dumps({"dataset_id": "something-else"}))
+    from pathlib import Path
+    import subprocess
+    import sys
+    r = subprocess.run(
+        [sys.executable, str(TOOLS / "build_dataset.py"),
+         "--sources", str(Path("data/s6/sources")),
+         "--sampling-version", "1",
+         "--dataset-id", "s6-eval-v1-core-shard01",
+         "--out", str(tmp_path)],
+        capture_output=True, text=True,
+    )
+    assert "FAIL CLOSED" in r.stdout, r.stdout
+    assert r.returncode == 3
+
+
+def test_builder_requires_dataset_id():
+    import subprocess
+    import sys
+    r = subprocess.run(
+        [sys.executable, str(TOOLS / "build_dataset.py"),
+         "--sources", "data/s6/sources"],
+        capture_output=True, text=True,
+    )
+    assert r.returncode != 0
+    assert "dataset-id" in r.stderr

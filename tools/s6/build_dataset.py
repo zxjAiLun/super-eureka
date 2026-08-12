@@ -132,9 +132,19 @@ def build(args) -> int:
         2: "deterministic_hash_top_k",
     }[sampling_version]
 
-    out_dir = Path(args.out) / DATASET_ID
+    out_dir = Path(args.out) / args.dataset_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    existing = out_dir / "dataset_manifest.json"
+    if existing.is_file():
+        prev = json.loads(existing.read_text(encoding="utf-8"))
+        if prev.get("dataset_id") != args.dataset_id:
+            print(
+                f"FAIL CLOSED: {out_dir} already holds dataset "
+                f"{prev.get('dataset_id')!r} (requested {args.dataset_id!r}); "
+                f"refusing to overwrite"
+            )
+            return 3
     records: list[dict] = []
     per_source: dict[str, int] = {}
     games_parsed = 0
@@ -300,8 +310,19 @@ def build(args) -> int:
     )
     dataset_sha = sha256_text(canonical)
 
+    def family_of(sid: str) -> str:
+        if sid.startswith("arena-"):
+            return "arena"
+        return sid.split("-", 1)[0]
+
+    per_family: dict[str, int] = {}
+    for r in records:
+        fam = family_of(r["source_id"])
+        per_family[fam] = per_family.get(fam, 0) + 1
+    largest_family = max(per_family.values()) if per_family else 0
+    largest_share = largest_family / n if n else 0.0
     stats = {
-        "dataset_id": DATASET_ID,
+        "dataset_id": args.dataset_id,
         "final": False,
         "final_target": TARGET,
         "not_final_reason": "single source family (Arena historical); "
@@ -359,7 +380,15 @@ def build(args) -> int:
         "shard_hashes": shard_hashes,
         "dataset_sha256": dataset_sha,
         "sources": {k: v["sha256"] for k, v in source_manifest.items()},
+        "source_families": per_family,
+        "largest_family_share": largest_share,
     }
+    if args.enforce_family_mix and largest_share > 0.70:
+        print(
+            f"FAIL CLOSED: largest source family share {largest_share:.2%} "
+            f"exceeds the 70% contract (families: {per_family})"
+        )
+        return 4
     (out_dir / "dataset_manifest.json").write_text(
         json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(stats, ensure_ascii=False, indent=2))
@@ -374,6 +403,13 @@ def main() -> int:
                         choices=(1, 2),
                         help="1 = first-8-in-time-order (frozen shard01); "
                              "2 = deterministic hash top-K (FINAL contract)")
+    parser.add_argument("--enforce-family-mix", action="store_true",
+                        help="fail closed when the largest source family "
+                             "exceeds 70% (FINAL builds)")
+    parser.add_argument("--dataset-id", required=True,
+                        help="dataset identity (e.g. s6-eval-v1-core-300k); "
+                             "REQUIRED so a run can never silently write "
+                             "into an unrelated/frozen dataset dir")
     parser.add_argument("--out", default="data/s6")
     return build(parser.parse_args(sys.argv[1:]))
 
