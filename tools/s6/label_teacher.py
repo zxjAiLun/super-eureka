@@ -49,16 +49,23 @@ class Teacher:
     + queue: blocking readline never wedges the caller) and one-shot retry
     helpers."""
 
-    def __init__(self, wsl: bool = True, binary: str | Path | None = None):
+    def __init__(self, wsl: bool = True, binary: str | Path | None = None,
+                 expected_binary_sha256: str | None = None):
         if wsl:
             cmd = ["wsl.exe", "-e", "bash", "-lc", binary or TEACHER_BIN]
         else:
             # native: "~/" must be expanded before exec
             path = Path(binary or TEACHER_BIN).expanduser()
             cmd = [str(path)]
+        # FAIL-CLOSED executable verification: hash the ACTUAL teacher
+        # binary and require it to match the expected frozen identity before
+        # any labeling happens.
+        actual_sha = _verify_binary_sha256(wsl, binary or TEACHER_BIN,
+                                           expected_binary_sha256)
         # wsl.exe bridge quirks (empirically verified): stderr must be merged
         # into stdout (DEVNULL deadlocks `go`); exactly ONE `uci` handshake;
         # `isready` must be answered before any `setoption`.
+        self.verified_binary_sha256 = actual_sha
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, bufsize=1,
@@ -168,6 +175,26 @@ class Teacher:
             self.proc.kill()
 
 
+def _verify_binary_sha256(wsl: bool, binary: str | Path,
+                          expected: str | None) -> str:
+    """Hash the ACTUAL teacher executable and fail closed on mismatch."""
+    if wsl:
+        out = subprocess.run(
+            ["wsl.exe", "-e", "bash", "-lc", f"sha256sum {binary}"],
+            capture_output=True, text=True, timeout=60)
+        if out.returncode != 0 or not out.stdout.strip():
+            raise RuntimeError(f"cannot hash teacher binary via wsl: {out.stderr}")
+        actual = out.stdout.split()[0]
+    else:
+        path = Path(binary).expanduser()
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if expected and actual != expected:
+        raise RuntimeError(
+            f"teacher binary SHA mismatch: expected {expected}, "
+            f"actual {actual} - FAIL CLOSED")
+    return actual
+
+
 def respawn(teacher: Teacher, wsl: bool) -> Teacher:
     try:
         teacher.close()
@@ -215,8 +242,11 @@ def main() -> int:
     group.add_argument("--native", dest="wsl", action="store_false",
                        help="run the teacher binary natively (expanduser applied)")
     parser.set_defaults(wsl=True)
-    parser.add_argument("--binary-sha256", default=DEFAULT_BINARY_SHA256,
-                        help="frozen teacher binary SHA-256 for the manifest")
+    parser.add_argument("--teacher-binary", default=TEACHER_BIN,
+                        help="actual teacher executable path")
+    parser.add_argument("--expected-binary-sha256", default=DEFAULT_BINARY_SHA256,
+                        help="frozen teacher binary SHA-256; the driver hashes "
+                             "the ACTUAL executable and fails closed on mismatch")
     args = parser.parse_args(sys.argv[1:])
 
     dataset_dir = Path(args.dataset)
@@ -224,7 +254,8 @@ def main() -> int:
     stored = load_stored_labels(dataset_dir)
     print(f"labeling {len(records)} positions (wsl={args.wsl})")
 
-    teacher = Teacher(wsl=args.wsl)
+    teacher = Teacher(wsl=args.wsl, binary=args.teacher_binary,
+                      expected_binary_sha256=args.expected_binary_sha256)
     labels: dict[str, dict] = {}
     for i, rec in enumerate(records):
         if i % 500 == 0:
@@ -294,10 +325,11 @@ def main() -> int:
 
     teacher_manifest = {
         "engine": teacher.uci_id_name,
+        "verified_binary_sha256": teacher.verified_binary_sha256,
         "uci_id_name": teacher.uci_id_name,
         "uci_id_author": teacher.uci_id_author,
         "binary_path": TEACHER_BIN,
-        "binary_sha256": args.binary_sha256,
+        "binary_sha256": args.expected_binary_sha256,
         "nodes": TEACHER_NODES,
         "options": dict(TEACHER_OPTIONS),
         "uci_options_seen": list(teacher.uci_options.keys()),

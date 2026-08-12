@@ -1,5 +1,6 @@
 {
   "engine": "Stockfish 18",
+  "verified_binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
   "uci_id_name": "Stockfish 18",
   "uci_id_author": "the Stockfish developers (see AUTHORS file)",
   "binary_path": "~/sf18",
@@ -37,7 +38,7 @@
   "labeling_mode": "go nodes",
   "audit": {
     "ok": true,
-    "checked": 1000,
+    "checked": 0,
     "mismatches": [],
     "mode": "vs-stored-labels"
   },
