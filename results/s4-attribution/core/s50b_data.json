@@ -1,0 +1,86 @@
+{
+  "contract": {
+    "corpus": "E:\\AUbuntuProject\\project\\chessenginedemo\\tools\\data\\s4_compute_positions.epd",
+    "depth": 6,
+    "hash_mb": 16,
+    "threads": 1,
+    "tt": "cold",
+    "sampler": "disabled (perf)",
+    "reps": 5,
+    "pairing": "per-position adjacent, alternating order"
+  },
+  "tree_equivalence": {
+    "ok": true,
+    "fields": [
+      "nodes",
+      "score",
+      "bestmove",
+      "pv"
+    ]
+  },
+  "aggregate": {
+    "wall_a_s": 88.768429,
+    "wall_b_s": 76.350116,
+    "wall_delta": -0.13989560410041726,
+    "nps_a": 204861.23506815694,
+    "nps_b": 238181.82542119516,
+    "nps_delta": 0.1626495629685749,
+    "median_paired_delta": -0.1391892737394739
+  },
+  "per_rep": [
+    {
+      "rep": 1,
+      "wall_a_s": 13.619772,
+      "wall_b_s": 11.541044,
+      "wall_delta": -0.15262575614334806,
+      "nps_a": 267041.32785776444,
+      "nps_b": 315139.7741833408
+    },
+    {
+      "rep": 2,
+      "wall_a_s": 16.160209,
+      "wall_b_s": 13.815628,
+      "wall_delta": -0.14508358153041204,
+      "nps_a": 225061.56943886064,
+      "nps_b": 263255.64064116374
+    },
+    {
+      "rep": 3,
+      "wall_a_s": 20.338421,
+      "wall_b_s": 17.234828,
+      "wall_delta": -0.15259753940583687,
+      "nps_a": 178826.17337894617,
+      "nps_b": 211028.62181160148
+    },
+    {
+      "rep": 4,
+      "wall_a_s": 17.643988,
+      "wall_b_s": 15.588075,
+      "wall_delta": -0.11652201305056432,
+      "nps_a": 206134.9168906712,
+      "nps_b": 233322.07472699485
+    },
+    {
+      "rep": 5,
+      "wall_a_s": 21.006039,
+      "wall_b_s": 18.170541,
+      "wall_delta": -0.13498489648619624,
+      "nps_a": 173142.68530111745,
+      "nps_b": 200161.45914422692
+    }
+  ],
+  "mechanism": {
+    "current-final": {
+      "movegen_legal_calls": 5613489,
+      "movegen_has_any_calls": 495041,
+      "probe_child_generations": 3635563,
+      "negamax_body_generations": 1977896
+    },
+    "current-final-single-generation": {
+      "movegen_legal_calls": 1977926,
+      "movegen_has_any_calls": 4130604,
+      "probe_child_generations": 0,
+      "negamax_body_generations": 1977896
+    }
+  }
+}
