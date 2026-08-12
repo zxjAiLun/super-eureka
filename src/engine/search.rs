@@ -152,8 +152,10 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmr,
     CurrentAspirationLmrFutility,
     CurrentAspirationLmrFutilitySee,
-    /// S3 production search configuration plus the S4.3E promoted unpinned
-    /// non-check full-legality fast path. Default UCI startup profile.
+    /// S4.4E production search configuration: S3 production search plus the
+    /// S4.3E promoted unpinned non-check full-legality fast path AND the
+    /// S4.4E promoted single-buffer full-legal materialization (identical
+    /// move lists and order). Default UCI startup profile.
     CurrentFinal,
     /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
     /// the existing history heuristic (previous best stays first; no root
@@ -169,16 +171,16 @@ pub(crate) enum SearchProfile {
     /// equivalent to CurrentFinal; retained as a historical/compatibility
     /// alias for the S4.3B/S4.3C/S4.3D experiment artifact.
     CurrentFinalLegalityFast,
-    /// S4.4B candidate: EXACTLY CurrentFinal (including the promoted
-    /// legality fast path) plus single-buffer full-legal materialization
-    /// (stable in-place legal compaction, one `Vec<Move>` instead of two).
+    /// S4.4B candidate, PROMOTED into production CurrentFinal at S4.4E
+    /// (single-buffer full-legal materialization). Retained as a
+    /// historical/compatibility alias for the S4.4B/S4.4C/S4.4D experiment
+    /// artifact (search behavior identical to CurrentFinal).
     CurrentFinalSingleBuffer,
-    /// S5.0B candidate: EXACTLY CurrentFinal (promoted legality fast path,
-    /// two-buffer full-legal materialization) PLUS the child probe using
+    /// S5.0B candidate: production CurrentFinal (legality fast path AND the
+    /// promoted single-buffer materialization) PLUS the child probe using
     /// has-any-legal instead of a full legal list (S5.0A: 64.8% of full-legal
-    /// calls are probe lists discarded on Continue). Deliberately NOT stacked
-    /// on the S4.4B single-buffer candidate: the two throughput optimizations
-    /// keep independent attribution until the S4.4D formal test terminates.
+    /// calls were probe lists discarded on Continue). Since the S4.4E
+    /// promotion this candidate inherits SingleBuffer.
     CurrentFinalSingleGeneration,
 }
 
@@ -337,10 +339,13 @@ impl SearchProfile {
         matches!(self, Self::CurrentFinalRootPrevScore)
     }
 
-    /// S4.3E promoted: the unpinned non-check legality fast path in the FULL
-    /// legal generator (identical move lists and order) is PRODUCTION policy
-    /// for CurrentFinal and everything defined as "exactly CurrentFinal plus
-    /// X" (RootHistory, RootPrevScore), plus the S4.3B compatibility alias.
+    /// S4.3E/S4.4E promoted: production `CurrentFinal` is defined as the
+    /// unpinned non-check legality fast path (S4.3B/S4.3E) AND the
+    /// single-buffer full-legal materialization (S4.4B/S4.4E), producing
+    /// identical move lists and order. `uses_legality_fast` is production
+    /// policy for CurrentFinal and everything defined as "exactly
+    /// CurrentFinal plus X" (RootHistory, RootPrevScore), plus the S4.3B /
+    /// S4.4B compatibility aliases.
     #[inline]
     pub(crate) const fn uses_legality_fast(self) -> bool {
         matches!(
@@ -354,12 +359,23 @@ impl SearchProfile {
         )
     }
 
-    /// S4.4B: the single-buffer full-legal materialization candidate. Only
-    /// the candidate returns true; everything else (including CurrentFinal
-    /// and the S4.3B alias) uses the two-buffer generators.
+    /// S4.4B: the single-buffer full-legal materialization policy. Promoted
+    /// into production CurrentFinal at S4.4E: EVERY profile whose base
+    /// semantics are defined as CurrentFinal uses it (CurrentFinal itself,
+    /// the "CurrentFinal + X" candidates, the S4.3B compatibility alias, the
+    /// S4.4B experimental alias, and the S5.0B candidate which is now
+    /// "promoted CurrentFinal + has-any probe").
     #[inline]
     pub(crate) const fn uses_single_buffer_legal(self) -> bool {
-        matches!(self, Self::CurrentFinalSingleBuffer)
+        matches!(
+            self,
+            Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
+        )
     }
 
     /// S5.0B: the child probe uses has-any-legal instead of a discarded full
@@ -6484,6 +6500,41 @@ mod tests {
         assert!(!SearchProfile::CurrentThreatAware.uses_legality_fast());
         assert!(!SearchProfile::CurrentAspiration.uses_legality_fast());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_legality_fast());
+    }
+
+    #[test]
+    fn single_buffer_promotion_policy() {
+        // S4.4E: single-buffer full-legal materialization is production
+        // policy for CurrentFinal and every profile whose base semantics are
+        // defined as CurrentFinal. The S5.0B candidate inherits it (it is
+        // now "promoted CurrentFinal + has-any probe").
+        for p in [
+            SearchProfile::CurrentFinal,
+            SearchProfile::CurrentFinalRootHistory,
+            SearchProfile::CurrentFinalRootPrevScore,
+            SearchProfile::CurrentFinalLegalityFast,
+            SearchProfile::CurrentFinalSingleBuffer,
+            SearchProfile::CurrentFinalSingleGeneration,
+        ] {
+            assert!(p.uses_single_buffer_legal(), "{p:?} must use single-buffer");
+        }
+        for p in [
+            SearchProfile::Current,
+            SearchProfile::CurrentLmr,
+            SearchProfile::CurrentEval2,
+            SearchProfile::M4Reference,
+            SearchProfile::CurrentThreatAware,
+            SearchProfile::CurrentAspiration,
+            SearchProfile::CurrentQsearchPruning,
+        ] {
+            assert!(
+                !p.uses_single_buffer_legal(),
+                "{p:?} must NOT use single-buffer"
+            );
+        }
+        // S5.0B's has-any probe stays candidate-only.
+        assert!(!SearchProfile::CurrentFinal.uses_single_generation_probe());
+        assert!(SearchProfile::CurrentFinalSingleGeneration.uses_single_generation_probe());
     }
 
     #[test]
