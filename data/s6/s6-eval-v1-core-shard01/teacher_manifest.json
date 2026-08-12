@@ -38,7 +38,7 @@
   "labeling_mode": "go nodes",
   "audit": {
     "ok": true,
-    "checked": 0,
+    "checked": 1000,
     "mismatches": [],
     "mode": "vs-stored-labels"
   },
