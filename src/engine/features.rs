@@ -92,8 +92,10 @@ struct PawnView {
     pawn_files: [bool; 8],
     /// count of pawns per file
     pawns_per_file: [u8; 8],
-    /// highest white-relative rank of the side's pawns per file
-    max_rel_rank: [u8; 8],
+    /// highest BOARD rank of the side's pawns per file (0-based)
+    max_rank: [u8; 8],
+    /// lowest BOARD rank of the side's pawns per file (0-based)
+    min_rank: [u8; 8],
     /// files attacked by pawns of the side
     attack_files: [bool; 8],
     /// per-square: is this square attacked by a pawn of the side
@@ -101,8 +103,11 @@ struct PawnView {
 }
 
 impl PawnView {
-    fn highest_relative_rank(&self, file: usize) -> i32 {
-        self.max_rel_rank[file] as i32
+    fn highest_rank(&self, file: usize) -> i32 {
+        self.max_rank[file] as i32
+    }
+    fn lowest_rank(&self, file: usize) -> i32 {
+        self.min_rank[file] as i32
     }
 }
 
@@ -110,27 +115,24 @@ fn pawn_view(pos: &Position, side: Color) -> PawnView {
     let mut v = PawnView {
         pawn_files: [false; 8],
         pawns_per_file: [0; 8],
-        max_rel_rank: [0; 8],
+        max_rank: [0; 8],
+        min_rank: [7; 8],
         attack_files: [false; 8],
         pawn_attacks: 0,
     };
     let dir: i32 = if side == Color::White { 1 } else { -1 };
-    // Pawn ADVANCEMENT (symmetric under mirror+swap): white_relative rank
-    // rr is 0-based; both sides' home pawn rank maps to rr 1, so
-    // advancement = rr - 1 (clamped), identical for both colors.
     for sq in 0u8..64u8 {
         if let Some(p) = pos.board[sq as usize] {
             if p.color == side && p.piece_type == PieceType::Pawn {
                 let f = file_of(sq) as usize;
-                let r = rank_of(sq) as i32;
-                let rr = white_relative(sq, side).0 as i32;
-                let adv = (rr - 1).max(0) as u8;
+                let r = rank_of(sq);
                 v.pawn_files[f] = true;
                 v.pawns_per_file[f] += 1;
-                v.max_rel_rank[f] = v.max_rel_rank[f].max(adv);
+                v.max_rank[f] = v.max_rank[f].max(r);
+                v.min_rank[f] = v.min_rank[f].min(r);
                 for df in [-1i32, 1i32] {
                     let nf = f as i32 + df;
-                    let nr = r + dir;
+                    let nr = r as i32 + dir;
                     if (0..8).contains(&nf) && (0..8).contains(&nr) {
                         v.attack_files[nf as usize] = true;
                         v.pawn_attacks |= 1_u64 << make_square(nf as u8, nr as u8);
@@ -159,11 +161,38 @@ fn pawn_features(pos: &Position, side: Color, v: &mut [i16]) {
             if !left && !right {
                 isolated += 1;
             }
-            if left || right {
-                connected += 1;
-            }
             if view.pawns_per_file[f] > 1 {
                 doubled += view.pawns_per_file[f] as i16 - 1;
+            }
+        }
+    }
+    // connected (LOCAL semantics, decided for the frozen schema): a pawn is
+    // connected when a friendly pawn on an adjacent file stands on the SAME
+    // board rank or one rank BEHIND it in the pawn's own advance direction
+    // (that friendly pawn can protect this one). NOT mere adjacent-file
+    // presence.
+    for sq in 0u8..64u8 {
+        if let Some(p) = pos.board[sq as usize] {
+            if p.color == side && p.piece_type == PieceType::Pawn {
+                let f = file_of(sq) as i32;
+                let r = rank_of(sq) as i32;
+                let mut conn = false;
+                for df in [-1i32, 1i32] {
+                    let nf = f + df;
+                    if !(0..8).contains(&nf) {
+                        continue;
+                    }
+                    for nr in (r - 1).max(0)..=(r + 1).min(7) {
+                        if let Some(q) = pos.board[square_on(nr as u8, nf as u8) as usize] {
+                            if q.color == side && q.piece_type == PieceType::Pawn {
+                                conn = true;
+                            }
+                        }
+                    }
+                }
+                if conn {
+                    connected += 1;
+                }
             }
         }
     }
@@ -179,7 +208,10 @@ fn pawn_features(pos: &Position, side: Color, v: &mut [i16]) {
     if run > 0 {
         islands += 1;
     }
-    // passed / protected-passed by advancement rank bucket 0..=5
+    // passed / protected-passed by advancement rank bucket 0..=5.
+    // PASSED uses BOARD-DIRECTION geometry (never cross-color relative
+    // advancement): an enemy pawn on the same/adjacent file strictly AHEAD
+    // in BOARD rank blocks the passer; enemy pawns behind do not.
     let mut passed = [0i16; 6];
     let mut protected_passed = [0i16; 6];
     let enemy = side.opposite();
@@ -188,33 +220,26 @@ fn pawn_features(pos: &Position, side: Color, v: &mut [i16]) {
         if let Some(p) = pos.board[sq as usize] {
             if p.color == side && p.piece_type == PieceType::Pawn {
                 let f = file_of(sq) as i32;
+                let r = rank_of(sq) as i32;
                 let rr = white_relative(sq, side).0 as i32;
                 let adv = (rr - 1).max(0) as usize;
                 let bucket = adv.min(5);
-                // passed: no enemy pawn on the SAME file at >= advancement,
-                // and none on an ADJACENT file strictly more advanced
                 let mut is_passed = true;
                 for df in -1i32..=1 {
                     let nf = f + df;
                     if !(0..8).contains(&nf) {
                         continue;
                     }
-                    let enemy_adv = ev.highest_relative_rank(nf as usize);
-                    if df == 0 {
-                        if enemy_adv >= adv as i32 {
-                            is_passed = false;
-                        }
-                    } else if enemy_adv > adv as i32 {
+                    let ahead = if side == Color::White {
+                        ev.highest_rank(nf as usize) > r
+                    } else {
+                        ev.lowest_rank(nf as usize) < r
+                    };
+                    if ahead {
                         is_passed = false;
                     }
                 }
                 if is_passed {
-                    if cfg!(test) && side == Color::White {
-                        eprintln!(
-                            "DBG passed white sq={} rr={} adv={} bucket={}",
-                            sq, rr, adv, bucket
-                        );
-                    }
                     passed[bucket] += 1;
                     if view.pawn_attacks & (1_u64 << sq) != 0 {
                         protected_passed[bucket] += 1;
@@ -505,18 +530,13 @@ pub(crate) fn feature_name(id: u16) -> String {
     format!("unknown.{id}")
 }
 
-/// SHA-256 of the canonical feature schema representation (stable identity
-/// for the committed s6-feature-v1 schema; feature id/order must never
-/// change once trained against).
-pub(crate) fn schema_sha256(canonical_schema: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    // Deterministic hex digest (no external crypto dep needed for the schema
-    // identity contract).
-    let mut hasher = DefaultHasher::new();
-    canonical_schema.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
-}
+/// SHA-256 of the canonical feature schema (frozen by
+/// tools/s6/freeze_schema.py; the engine never hashes at runtime - model
+/// artifacts declare their schema SHA and the runtime compares it against
+/// this compiled constant). Real 64-hex, not a fingerprint.
+#[allow(dead_code)] // consumed by S6.2 model-artifact loading
+pub(crate) const FEATURE_SCHEMA_SHA256: &str =
+    "2d22ca8dff3275bb0789192c970bfc0086550d0fc40442a8b980c874dbb922f0";
 
 #[cfg(test)]
 mod tests {
@@ -563,6 +583,13 @@ mod tests {
     #[test]
     fn feature_count_and_names_are_stable() {
         assert_eq!(FEATURE_COUNT, 227);
+        assert_eq!(FEATURE_SCHEMA_SHA256.len(), 64);
+        assert!(
+            FEATURE_SCHEMA_SHA256
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "FEATURE_SCHEMA_SHA256 must be 64 lowercase hex"
+        );
         assert_eq!(feature_name(0), "material.pawn");
         assert_eq!(feature_name(4), "material.queen");
         assert_eq!(feature_name(5), "psqt.pawn.a1");
@@ -609,6 +636,80 @@ mod tests {
     }
 
     #[test]
+    fn passed_pawn_board_direction_geometry() {
+        // S6.1A Repair 1: passed must use board-direction geometry, NOT
+        // cross-color relative advancement. White pawn e5:
+        //  - black e6 (same file ahead)   -> NOT passed
+        //  - black d6 / f6 (adjacent ahead) -> NOT passed
+        //  - black d4 (behind)            -> passed
+        let e5_id = F_PAWN + 3 + 3; // adv 3 -> bucket 3
+        let cases: [(&str, bool); 4] = [
+            ("k7/8/4p3/4P3/8/8/8/7K w - - 0 1", false), // e6 ahead
+            ("k7/8/3p4/4P3/8/8/8/7K w - - 0 1", false), // d6 ahead
+            ("k7/8/5p2/4P3/8/8/8/7K w - - 0 1", false), // f6 ahead
+            ("k7/8/8/4P3/8/3p4/8/7K w - - 0 1", true),  // d4 behind
+        ];
+        for (fen, expect_passed) in cases {
+            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            let f = extract_features_v1(&pos);
+            let v = f.values[e5_id as usize];
+            assert_eq!(
+                v == 1,
+                expect_passed,
+                "e5 passed={} for {fen} (got {v})",
+                expect_passed
+            );
+            // black mirror must negate AND the mirrored black pawn must have
+            // the SAME passed status
+            let mir = parse_fen(&mirror_swap(fen)).expect("mirror");
+            let g = extract_features_v1(&mir);
+            assert_eq!(
+                g.values[e5_id as usize], -v,
+                "mirror of {fen} must negate e5 passer"
+            );
+        }
+        // black e5 (0-based rank 4 -> rr 3 -> adv 2 -> bucket 2): white e4
+        // ahead for black -> NOT passed; white e6 behind for black -> passed.
+        let e5b_id = F_PAWN + 3 + 2;
+        let black_cases: [(&str, bool); 4] = [
+            ("k7/8/8/4p3/4P3/8/8/7K b - - 0 1", false), // white e4 ahead
+            ("k7/8/8/4p3/3P4/8/8/7K b - - 0 1", false), // white d4 ahead
+            ("k7/8/8/4p3/5P2/8/8/7K b - - 0 1", false), // white f4 ahead
+            ("k7/8/4P3/4p3/8/8/8/7K b - - 0 1", true),  // white e6 behind
+                                                        // e6 = 1-based rank 6 = index 2: already "4P3" at index 2 above ✓
+        ];
+        for (fen, expect_passed) in black_cases {
+            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            let f = extract_features_v1(&pos);
+            // black pawn passes are negative
+            let v = f.values[e5b_id as usize];
+            assert_eq!(
+                v == -1,
+                expect_passed,
+                "black e5 passed={} for {fen} (got {v})",
+                expect_passed
+            );
+        }
+    }
+
+    #[test]
+    fn connected_pawn_local_semantics() {
+        // connected = friendly pawn on adjacent file at same rank or one
+        // rank behind. White c4 + d3 (d3 protects c4) -> both connected.
+        let pos = parse_fen("k7/8/8/8/2P5/3P4/8/7K w - - 0 1").expect("fen");
+        let f = extract_features_v1(&pos);
+        assert_eq!(f.values[F_PAWN as usize + 2], 2, "both pawns connected");
+        // White c4 + d6 (far apart) -> NOT connected.
+        let pos2 = parse_fen("k7/8/3P4/8/2P5/8/8/7K w - - 0 1").expect("fen");
+        let f2 = extract_features_v1(&pos2);
+        assert_eq!(
+            f2.values[F_PAWN as usize + 2],
+            0,
+            "far apart: not connected"
+        );
+    }
+
+    #[test]
     fn snapshot_fens_cover_all_families() {
         // Each family must be nonzero on its dedicated snapshot.
         let cases: Vec<(&str, &[u16])> = vec![
@@ -647,10 +748,11 @@ mod tests {
             ("4k3/8/8/8/8/4r3/4P3/R3K3 w - - 0 1", &[219, 220]),
             // pawn ending (white pawn e5 isolated + passed)
             ("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1", &[198, 201 + 3]),
-            // middlegame (passed pawn c4/e4, queen mobility, king shelter)
+            // middlegame (queen mobility, king shelter; c4/e4 are NOT passed:
+            // black b7/d6/f6 are ahead on adjacent files)
             (
                 "r1bq1rk1/pp2ppbp/2np1np1/8/2PNP3/2N1B3/PP3PPP/R1BQK2R w KQ - 3 9",
-                &[201 + 2, 217, 222],
+                &[217, 222],
             ),
         ];
         for (fen, ids) in cases {

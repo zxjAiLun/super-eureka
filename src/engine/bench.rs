@@ -1904,8 +1904,10 @@ fn run_eval_features_batch(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// S6.1A: `bench eval-features-schema` - the frozen feature schema with
-/// stable ids/names and a canonical schema_sha256 (feature_count included).
+/// S6.1A: `bench eval-features-schema` - the CANONICAL schema content
+/// (stable ids/names). The real SHA-256 of this exact string is computed by
+/// the freeze tooling (tools/s6/freeze_schema.py) and compiled in as
+/// `FEATURE_SCHEMA_SHA256`; the engine never computes a hash at runtime.
 fn run_eval_features_schema(_args: &[String]) -> Result<(), String> {
     use crate::engine::features::{feature_name, FEATURE_COUNT};
     let mut features = String::new();
@@ -1925,16 +1927,7 @@ fn run_eval_features_schema(_args: &[String]) -> Result<(), String> {
     schema.push_str(",\"features\":[");
     schema.push_str(&features);
     schema.push_str("]}");
-    let sha = crate::engine::features::schema_sha256(&schema);
-    let mut out = String::from("{\"feature_schema\":\"s6-feature-v1\",");
-    out.push_str("\"schema_version\":1,\"feature_count\":");
-    out.push_str(&FEATURE_COUNT.to_string());
-    out.push_str(",\"features\":[");
-    out.push_str(&features);
-    out.push_str("],\"schema_sha256\":\"");
-    out.push_str(&sha);
-    out.push_str("\"}");
-    println!("{out}");
+    println!("{schema}");
     Ok(())
 }
 
