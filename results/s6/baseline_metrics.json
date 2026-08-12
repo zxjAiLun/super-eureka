@@ -1,0 +1,105 @@
+{
+  "dataset_id": "s6-eval-v1-core-shard01",
+  "holdout_count": 643,
+  "evaluated": 642,
+  "skipped": {
+    "mate": 1,
+    "no_label": 0,
+    "eval_fail": 0
+  },
+  "current_final": {
+    "evaluator": "current-final-material-pst",
+    "metrics": {
+      "n": 642,
+      "mae": 149.72118380062307,
+      "rmse": 227.67085946431789,
+      "median_abs": 98.0,
+      "pearson": 0.4163927408750258,
+      "spearman": 0.5254512475749397,
+      "sign_agreement": 0.6697819314641744
+    },
+    "texel_logistic_loss": 0.7341990029918553,
+    "ce_teacher_wdl": 1.031965796434653,
+    "phase_buckets": {
+      "high": {
+        "n": 294,
+        "mae": 133.45238095238096,
+        "rmse": 188.34101182348437,
+        "median_abs": 98.0,
+        "pearson": 0.4251464892090303,
+        "spearman": 0.46997641448509186,
+        "sign_agreement": 0.6224489795918368
+      },
+      "mid": {
+        "n": 332,
+        "mae": 166.49698795180723,
+        "rmse": 260.8009962376567,
+        "median_abs": 98.0,
+        "pearson": 0.4171591029143818,
+        "spearman": 0.5482907879168284,
+        "sign_agreement": 0.7048192771084337
+      },
+      "low": {
+        "n": 16,
+        "mae": 100.5625,
+        "rmse": 129.15034843158574,
+        "median_abs": 64.5,
+        "pearson": 0.834750777428576,
+        "spearman": 0.8373806534857328,
+        "sign_agreement": 0.8125
+      }
+    },
+    "sign_agreement_thresholds": {
+      "50": 0.7312,
+      "100": 0.773,
+      "200": 0.7895
+    }
+  },
+  "dormant_e2": {
+    "evaluator": "dormant-integrated-e2 (diagnostic only)",
+    "metrics": {
+      "n": 642,
+      "mae": 148.7227414330218,
+      "rmse": 230.09400083701402,
+      "median_abs": 97.0,
+      "pearson": 0.47717162343060404,
+      "spearman": 0.5856833774047365,
+      "sign_agreement": 0.7118380062305296
+    },
+    "texel_logistic_loss": 0.7453185205120741,
+    "ce_teacher_wdl": 1.0062533893160563,
+    "phase_buckets": {
+      "high": {
+        "n": 294,
+        "mae": 127.52721088435374,
+        "rmse": 184.76078485178508,
+        "median_abs": 91.0,
+        "pearson": 0.5226926012353229,
+        "spearman": 0.5593960278742082,
+        "sign_agreement": 0.6530612244897959
+      },
+      "mid": {
+        "n": 332,
+        "mae": 169.81024096385542,
+        "rmse": 266.79997358248454,
+        "median_abs": 102.5,
+        "pearson": 0.45657259113832876,
+        "spearman": 0.5891335704151786,
+        "sign_agreement": 0.7590361445783133
+      },
+      "low": {
+        "n": 16,
+        "mae": 100.625,
+        "rmse": 141.62494483670594,
+        "median_abs": 66.5,
+        "pearson": 0.8021268662380204,
+        "spearman": 0.869757409859522,
+        "sign_agreement": 0.8125
+      }
+    }
+  },
+  "challenge": {
+    "path": "data\\s6\\s6-teacher-challenge-v1.jsonl",
+    "count": 178
+  }
+}

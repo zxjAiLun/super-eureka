@@ -43,3 +43,12 @@ arena/.pytest_cache/
 # Editor/OS noise
 *.swp
 .DS_Store
+
+data/s6/sources/*.pgn
+
+data/s6/s6-eval-v1-core-shard01/part-*.jsonl
+
+data/s6/s6-eval-v1-core-shard01/labels.jsonl
+
+!/results/s6/
+!/results/s6/**
