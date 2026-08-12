@@ -51,16 +51,21 @@ class Teacher:
 
     def __init__(self, wsl: bool = True, binary: str | Path | None = None,
                  expected_binary_sha256: str | None = None):
+        # Identity contract: held for the whole teacher lifetime AND every
+        # respawn (Repair 2: a respawn must never fall back to defaults).
+        self.launch_mode_wsl = wsl
+        self.binary_arg = binary or TEACHER_BIN
+        self.expected_binary_sha256 = expected_binary_sha256
         if wsl:
-            cmd = ["wsl.exe", "-e", "bash", "-lc", binary or TEACHER_BIN]
+            cmd = ["wsl.exe", "-e", "bash", "-lc", self.binary_arg]
         else:
             # native: "~/" must be expanded before exec
-            path = Path(binary or TEACHER_BIN).expanduser()
+            path = Path(self.binary_arg).expanduser()
             cmd = [str(path)]
         # FAIL-CLOSED executable verification: hash the ACTUAL teacher
         # binary and require it to match the expected frozen identity before
         # any labeling happens.
-        actual_sha = _verify_binary_sha256(wsl, binary or TEACHER_BIN,
+        actual_sha = _verify_binary_sha256(wsl, self.binary_arg,
                                            expected_binary_sha256)
         # wsl.exe bridge quirks (empirically verified): stderr must be merged
         # into stdout (DEVNULL deadlocks `go`); exactly ONE `uci` handshake;
@@ -179,8 +184,10 @@ def _verify_binary_sha256(wsl: bool, binary: str | Path,
                           expected: str | None) -> str:
     """Hash the ACTUAL teacher executable and fail closed on mismatch."""
     if wsl:
+        import shlex
         out = subprocess.run(
-            ["wsl.exe", "-e", "bash", "-lc", f"sha256sum {binary}"],
+            ["wsl.exe", "-e", "bash", "-lc",
+             f"sha256sum {shlex.quote(str(binary))}"],
             capture_output=True, text=True, timeout=60)
         if out.returncode != 0 or not out.stdout.strip():
             raise RuntimeError(f"cannot hash teacher binary via wsl: {out.stderr}")
@@ -195,12 +202,18 @@ def _verify_binary_sha256(wsl: bool, binary: str | Path,
     return actual
 
 
-def respawn(teacher: Teacher, wsl: bool) -> Teacher:
+def respawn(teacher: Teacher) -> Teacher:
+    """Respawn with the EXACT identity contract of the original instance
+    (launch mode, binary path, expected SHA) - never defaults."""
     try:
         teacher.close()
     except Exception:
         pass
-    return Teacher(wsl)
+    return Teacher(
+        wsl=teacher.launch_mode_wsl,
+        binary=teacher.binary_arg,
+        expected_binary_sha256=teacher.expected_binary_sha256,
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -249,6 +262,13 @@ def main() -> int:
                              "the ACTUAL executable and fails closed on mismatch")
     args = parser.parse_args(sys.argv[1:])
 
+    if not re.fullmatch(r"[0-9a-f]{64}", args.expected_binary_sha256 or ""):
+        print(
+            f"FATAL: --expected-binary-sha256 must be 64 lowercase hex, "
+            f"got {args.expected_binary_sha256!r}",
+            flush=True,
+        )
+        return 4
     dataset_dir = Path(args.dataset)
     records = load_records(dataset_dir)
     stored = load_stored_labels(dataset_dir)
@@ -267,7 +287,7 @@ def main() -> int:
             # respawn and retry the SAME position once; second failure FAILS
             # CLOSED (no silent drop, no skip)
             print(f"  teacher died at {i}; respawning and retrying", flush=True)
-            teacher = respawn(teacher, args.wsl)
+            teacher = respawn(teacher)
             try:
                 labels[pid] = teacher.label(rec["fen"])
             except RuntimeError as exc:
@@ -328,7 +348,7 @@ def main() -> int:
         "verified_binary_sha256": teacher.verified_binary_sha256,
         "uci_id_name": teacher.uci_id_name,
         "uci_id_author": teacher.uci_id_author,
-        "binary_path": TEACHER_BIN,
+        "binary_path": args.teacher_binary,
         "binary_sha256": args.expected_binary_sha256,
         "nodes": TEACHER_NODES,
         "options": dict(TEACHER_OPTIONS),
