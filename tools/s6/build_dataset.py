@@ -39,6 +39,10 @@ MIN_PLY = 12
 MAX_PLY = 160
 MAX_PER_GAME = 8
 TARGET = 300_000
+FINAL_SPLIT_TARGETS = {"train": 240_000, "validation": 30_000, "holdout": 30_000}
+FINAL_PHASE_TARGETS = {"high": 75_000, "mid": 135_000, "low": 60_000, "zero": 30_000}
+MIN_FAMILIES = 2
+
 PHASE_WEIGHTS = {chess.KNIGHT: 1, chess.BISHOP: 1, chess.ROOK: 2, chess.QUEEN: 4}
 PHASE_BUCKETS = {"high": (18, 24), "mid": (8, 17), "low": (1, 7), "zero": (0, 0)}
 PHASE_QUOTAS = {"high": 0.25, "mid": 0.45, "low": 0.20, "zero": 0.10}
@@ -57,6 +61,13 @@ def phase_of(board: chess.Board) -> int:
     for sq, piece in board.piece_map().items():
         total += PHASE_WEIGHTS.get(piece.piece_type, 0)
     return min(24, total)
+
+
+def bucket_of(phase: int) -> str:
+    for name, (lo, hi) in PHASE_BUCKETS.items():
+        if lo <= phase <= hi:
+            return name
+    return "mid"
 
 
 def canonical_fen4(board: chess.Board) -> str:
@@ -269,12 +280,6 @@ def build(args) -> int:
     records = unique
 
     # --- phase-bucket stratification (quota-aware; deterministic) ---
-    def bucket_of(phase: int) -> str:
-        for name, (lo, hi) in PHASE_BUCKETS.items():
-            if lo <= phase <= hi:
-                return name
-        return "mid"
-
     n_pre = len(records)
     targets = {
         name: round(n_pre * share) for name, share in PHASE_QUOTAS.items()
@@ -310,15 +315,31 @@ def build(args) -> int:
     )
     dataset_sha = sha256_text(canonical)
 
-    def family_of(sid: str) -> str:
-        if sid.startswith("arena-"):
+    def family_of(src_id: str) -> str:
+        # FINAL contract: the family is a REQUIRED manifest field; the
+        # arena- prefix fallback exists only for legacy exploratory shards.
+        for src in source_manifest.values():
+            if src.get("source_id") == src_id:
+                fam = src.get("source_family")
+                if fam is None and args.final_mode:
+                    raise ValueError(
+                        f"source {src_id} has no source_family "
+                        f"(REQUIRED in FINAL mode)"
+                    )
+                if fam:
+                    return fam
+        if src_id.startswith("arena-"):
             return "arena"
-        return sid.split("-", 1)[0]
+        return src_id.split("-", 1)[0]
 
     per_family: dict[str, int] = {}
-    for r in records:
-        fam = family_of(r["source_id"])
-        per_family[fam] = per_family.get(fam, 0) + 1
+    try:
+        for r in records:
+            fam = family_of(r["source_id"])
+            per_family[fam] = per_family.get(fam, 0) + 1
+    except ValueError as exc:
+        print(f"FAIL CLOSED: {exc}")
+        return 5
     largest_family = max(per_family.values()) if per_family else 0
     largest_share = largest_family / n if n else 0.0
     stats = {
@@ -389,10 +410,154 @@ def build(args) -> int:
             f"exceeds the 70% contract (families: {per_family})"
         )
         return 4
+
+    # --- FINAL mode: exact split + phase targeting (deterministic) ---
+    if args.final_mode:
+        err = _final_target_and_write(records, stats, args, out_dir, shard_size)
+        return 0 if err is None else err
+
     (out_dir / "dataset_manifest.json").write_text(
         json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(stats, ensure_ascii=False, indent=2))
     return 0
+
+
+def _final_target_and_write(records, stats, args, out_dir, shard_size) -> int | None:
+    """FINAL 300k: exact per-split phase targets, gates, staging + atomic move."""
+    err = _final_gates_pre(stats, args)
+    if err:
+        print(f"FAIL CLOSED (final-mode): {err}")
+        return 5
+
+    # deterministic per-split x phase-bucket downsample to the FINAL targets
+    pools: dict[tuple[str, str], list[dict]] = {}
+    for r in records:
+        pools.setdefault((r["split"], bucket_of(r["phase"])), []).append(r)
+    selected: list[dict] = []
+    shortfalls: list[str] = []
+    for split, split_want in FINAL_SPLIT_TARGETS.items():
+        share = split_want / TARGET
+        for bucket, bucket_want in FINAL_PHASE_TARGETS.items():
+            want = round(bucket_want * share)
+            pool = sorted(pools.get((split, bucket), []),
+                          key=lambda r: r["position_id"])
+            if len(pool) < want:
+                shortfalls.append(f"{split}/{bucket}: pool {len(pool)} < {want}")
+                continue
+            selected.extend(pool[:want])
+    if shortfalls:
+        for msg in shortfalls:
+            print(f"FAIL CLOSED (final-mode): pool shortfall {msg}")
+        return 5
+
+    # rebuild stats for the selected records
+    stats = _stats_for(selected, stats, shard_size)
+    err = _final_gates_post(stats, args)
+    if err:
+        print(f"FAIL CLOSED (final-mode): {err}")
+        return 5
+    stats["final"] = True
+    stats.pop("not_final_reason", None)
+
+    if out_dir.exists():
+        print(f"FAIL CLOSED: FINAL target {out_dir} already exists; "
+              f"refusing to overwrite")
+        return 5
+    staging = Path(str(out_dir) + ".staging")
+    if staging.exists():
+        import shutil
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True, exist_ok=True)
+    _write_dataset(selected, stats, staging, shard_size)
+
+    # full verify of the staged dataset before the atomic move
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "verify_dataset", str(Path(__file__).parent / "verify_dataset.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rc = mod.verify(argparse.Namespace(dataset=str(staging)))
+    if rc != 0:
+        print("FAIL CLOSED: staged dataset failed verification")
+        return 5
+    import os
+    os.replace(staging, out_dir)
+    print(f"FINAL dataset installed at {out_dir}")
+    print(json.dumps(stats, ensure_ascii=False, indent=2))
+    return None
+
+
+def _write_dataset(records, stats, target_dir, shard_size):
+    n = len(records)
+    shard_hashes = []
+    for i in range(0, n, shard_size):
+        part = records[i:i + shard_size]
+        lines = "".join(
+            json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in part)
+        shard_path = target_dir / f"part-{i // shard_size:04d}.jsonl"
+        shard_path.write_text(lines, encoding="utf-8")
+        shard_hashes.append(sha256_text(lines))
+    stats["shards"] = [f"part-{i:04d}.jsonl"
+                       for i in range(math.ceil(n / shard_size))]
+    stats["shard_hashes"] = shard_hashes
+    stats["dataset_sha256"] = sha256_text("".join(
+        json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+        for r in records))
+    (target_dir / "dataset_manifest.json").write_text(
+        json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _stats_for(records, base, shard_size):
+    n = len(records)
+    per_family: dict[str, int] = {}
+    for r in records:
+        fam = family_of(r["source_id"])
+        per_family[fam] = per_family.get(fam, 0) + 1
+    largest_share = max(per_family.values()) / n if per_family else 0.0
+    buckets = {name: 0 for name in PHASE_BUCKETS}
+    for r in records:
+        buckets[bucket_of(r["phase"])] += 1
+    splits = {s: 0 for s in ("train", "validation", "holdout")}
+    for r in records:
+        splits[r["split"]] += 1
+    stats = dict(base)
+    stats.update({
+        "records_total": n,
+        "splits": splits,
+        "phase_buckets": buckets,
+        "source_families": per_family,
+        "largest_family_share": largest_share,
+        "shards": [],
+        "shard_hashes": [],
+    })
+    return stats
+
+
+def _final_gates_pre(stats, args):
+    if args.sampling_version != 2:
+        return "FINAL requires --sampling-version 2"
+    if args.dataset_id != "s6-eval-v1-core-300k":
+        return (f"FINAL requires --dataset-id s6-eval-v1-core-300k, "
+                f"got {args.dataset_id}")
+
+
+def _final_gates_post(stats, args):
+    if stats["records_total"] != TARGET:
+        return f"records_total {stats['records_total']} != {TARGET}"
+    for split, want in FINAL_SPLIT_TARGETS.items():
+        got = stats["splits"][split]
+        if got != want:
+            return f"split {split}={got} != {want}"
+    for bucket, want in FINAL_PHASE_TARGETS.items():
+        got = stats["phase_buckets"][bucket]
+        if got != want:
+            return f"phase bucket {bucket}={got} != {want}"
+    if len(stats["source_families"]) < MIN_FAMILIES:
+        return (f"only {len(stats['source_families'])} families "
+                f"(need >= {MIN_FAMILIES})")
+    if stats["largest_family_share"] > 0.70:
+        return f"largest family share {stats['largest_family_share']:.2%} > 70%"
+    return None
 
 
 def main() -> int:
@@ -403,6 +568,10 @@ def main() -> int:
                         choices=(1, 2),
                         help="1 = first-8-in-time-order (frozen shard01); "
                              "2 = deterministic hash top-K (FINAL contract)")
+    parser.add_argument("--final-mode", action="store_true",
+                        help="FINAL 300k contract: sampling v2, exact "
+                             "splits/phase targets, >=2 families, family "
+                             "share <=70%, staging + atomic move")
     parser.add_argument("--enforce-family-mix", action="store_true",
                         help="fail closed when the largest source family "
                              "exceeds 70% (FINAL builds)")

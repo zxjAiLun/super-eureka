@@ -4,132 +4,170 @@
     "tournament_id": "f73be112-058d-4e50-8945-21862ed5f208",
     "games": 8,
     "sha256": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
-    "bytes": 29563
+    "bytes": 29563,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-restart-recovery": {
     "source_id": "arena-smoke-restart-recovery",
     "tournament_id": "96f14997-d477-4c54-a503-6812fa03df14",
     "games": 4,
     "sha256": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
-    "bytes": 17457
+    "bytes": 17457,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-blitz": {
     "source_id": "arena-smoke-blitz",
     "tournament_id": "d2961609-8482-48d4-9049-788a4e6753ac",
     "games": 4,
     "sha256": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
-    "bytes": 13849
+    "bytes": 13849,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-rapid_5_3": {
     "source_id": "arena-smoke-rapid_5_3",
     "tournament_id": "c09f9a4a-f0db-41f9-9768-cd17d1c16e12",
     "games": 4,
     "sha256": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
-    "bytes": 11973
+    "bytes": 11973,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "sf-smoke3-1800": {
     "source_id": "arena-sf-smoke3-1800",
     "tournament_id": "487d1ba7-4d21-4d97-8a7f-668e8e12deed",
     "games": 4,
     "sha256": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
-    "bytes": 10222
+    "bytes": 10222,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "sf-smoke3-2000": {
     "source_id": "arena-sf-smoke3-2000",
     "tournament_id": "7c2721ac-ca21-44b6-939d-e49be39879cf",
     "games": 4,
     "sha256": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
-    "bytes": 12833
+    "bytes": 12833,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "sf-smoke3-2200": {
     "source_id": "arena-sf-smoke3-2200",
     "tournament_id": "02287824-d161-4e34-8545-826b00b9ea54",
     "games": 4,
     "sha256": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
-    "bytes": 11373
+    "bytes": 11373,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "sf-smoke3-2400": {
     "source_id": "arena-sf-smoke3-2400",
     "tournament_id": "e70bd1b4-a3c4-4ff3-b61e-8fca62648955",
     "games": 4,
     "sha256": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
-    "bytes": 11273
+    "bytes": 11273,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-foundation-prod-8moves-v2": {
     "source_id": "arena-smoke-foundation-prod-8moves-v2",
     "tournament_id": "76728948-6247-4d36-b1a3-cfe1a68a6786",
     "games": 4,
     "sha256": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
-    "bytes": 9752
+    "bytes": 9752,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "s43b-legality-fast-screen": {
     "source_id": "arena-s43b-legality-fast-screen",
     "tournament_id": "87e32233-eebe-456b-8cda-5673c749f684",
     "games": 100,
     "sha256": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
-    "bytes": 360129
+    "bytes": 360129,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "s43c-legality-fast-200pairs": {
     "source_id": "arena-s43c-legality-fast-200pairs",
     "tournament_id": "543510bd-979c-4341-952a-0dcca7fc06cc",
     "games": 400,
     "sha256": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
-    "bytes": 1376835
+    "bytes": 1376835,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-live-1pair": {
     "source_id": "arena-smoke-live-1pair",
     "tournament_id": "c11b90b6-604a-4d2e-80c6-41e870e0cde8",
     "games": 2,
     "sha256": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
-    "bytes": 6471
+    "bytes": 6471,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-c3-live": {
     "source_id": "arena-smoke-c3-live",
     "tournament_id": "57b91b9f-2904-4652-bc12-0516c130580d",
     "games": 2,
     "sha256": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
-    "bytes": 5670
+    "bytes": 5670,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "s43d-formal-sprt": {
     "source_id": "arena-s43d-formal-sprt",
     "tournament_id": "86835da4-bdb4-4514-a950-7a5ecf1f132a",
     "games": 526,
     "sha256": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
-    "bytes": 1787832
+    "bytes": 1787832,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-sprt-terminal": {
     "source_id": "arena-smoke-sprt-terminal",
     "tournament_id": "943901ef-7152-4dfb-9220-a36a3c8d2d78",
     "games": 0,
     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "bytes": 0
+    "bytes": 0,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-p412-live": {
     "source_id": "arena-smoke-p412-live",
     "tournament_id": "33be8620-ba73-4e4a-9b9c-9291d4e81024",
     "games": 2,
     "sha256": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
-    "bytes": 12747
+    "bytes": 12747,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "smoke-p412-rated": {
     "source_id": "arena-smoke-p412-rated",
     "tournament_id": "355c5df8-e906-431a-b65d-822c7f8da1bf",
     "games": 0,
     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "bytes": 0
+    "bytes": 0,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "08110310": {
     "source_id": "arena-08110310",
     "tournament_id": "d3bdffa2-c2a6-4d96-9d88-3a244414ad81",
     "games": 100,
     "sha256": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
-    "bytes": 244395
+    "bytes": 244395,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   },
   "s44c-single-buffer-200pairs": {
     "source_id": "arena-s44c-single-buffer-200pairs",
     "tournament_id": "e19dc52a-e0d3-4ce0-97d7-0adf339a60b9",
     "games": 400,
     "sha256": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea",
-    "bytes": 1284734
+    "bytes": 1284734,
+    "source_family": "arena",
+    "provenance": "arena-historical-tournament-pgn"
   }
 }
