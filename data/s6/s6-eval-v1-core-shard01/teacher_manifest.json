@@ -1,0 +1,43 @@
+{
+  "engine": "unknown",
+  "binary_path": "~/sf18",
+  "binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+  "nodes": 16384,
+  "options": {
+    "Threads": "1",
+    "Hash": "64",
+    "MultiPV": "1",
+    "UCI_ShowWDL": "true"
+  },
+  "uci_options_seen": [
+    "Debug",
+    "NumaPolicy",
+    "Threads",
+    "Hash",
+    "Clear",
+    "Ponder",
+    "MultiPV",
+    "Skill",
+    "Move",
+    "nodestime",
+    "UCI_Chess960",
+    "UCI_LimitStrength",
+    "UCI_Elo",
+    "UCI_ShowWDL",
+    "SyzygyPath",
+    "SyzygyProbeDepth",
+    "Syzygy50MoveRule",
+    "SyzygyProbeLimit",
+    "EvalFile",
+    "EvalFileSmall"
+  ],
+  "syzygy": "disabled (default)",
+  "labeling_mode": "go nodes",
+  "audit": {
+    "ok": true,
+    "checked": 1000,
+    "mismatches": []
+  },
+  "labels_sha256": "8cddb8ec5920750b0bcbd3588bde187d4a0dbd6ef27e41e8304251161e1ffc7a",
+  "labeled_positions": 5919
+}

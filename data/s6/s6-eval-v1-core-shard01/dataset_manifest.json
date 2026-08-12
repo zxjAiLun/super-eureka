@@ -1,0 +1,124 @@
+{
+  "dataset_id": "s6-eval-v1-core-shard01",
+  "final": false,
+  "final_target": 300000,
+  "not_final_reason": "single source family (Arena historical); second independent source required for FINAL",
+  "schema_version": 1,
+  "dataset_seed": 20260812,
+  "min_ply": 12,
+  "max_ply": 160,
+  "max_per_game": 8,
+  "records_total": 5919,
+  "games_parsed": 1572,
+  "candidates_seen": 84516,
+  "reject_stats": {
+    "terminal": 530,
+    "in_check": 8640,
+    "no_legal_move": 0,
+    "missing_king": 0,
+    "illegal_board": 0
+  },
+  "duplicates_removed": 875,
+  "per_source": {
+    "08110310": 794,
+    "s43b-legality-fast-screen": 800,
+    "s43c-legality-fast-200pairs": 3197,
+    "s43d-formal-sprt": 4194,
+    "s44c-single-buffer-200pairs": 3195,
+    "sf-smoke3-1800": 32,
+    "sf-smoke3-2000": 32,
+    "sf-smoke3-2200": 32,
+    "sf-smoke3-2400": 32,
+    "smoke-blitz": 32,
+    "smoke-c3-live": 16,
+    "smoke-foundation-prod-8moves-v2": 32,
+    "smoke-live-1pair": 16,
+    "smoke-normal-complete": 64,
+    "smoke-p412-live": 16,
+    "smoke-rapid_5_3": 32,
+    "smoke-restart-recovery": 32
+  },
+  "splits": {
+    "train": 4776,
+    "validation": 500,
+    "holdout": 643
+  },
+  "phase_buckets": {
+    "high": 2918,
+    "mid": 2890,
+    "low": 111,
+    "zero": 0
+  },
+  "phase_quotas": {
+    "high": 0.25,
+    "mid": 0.45,
+    "low": 0.2,
+    "zero": 0.1
+  },
+  "phase_targets": {
+    "high": 2918,
+    "mid": 5253,
+    "low": 2335,
+    "zero": 1167
+  },
+  "phase_quota_shortfall": {
+    "high": 0,
+    "mid": 2363,
+    "low": 2224,
+    "zero": 1167
+  },
+  "wdl": {
+    "white_wins": 2505,
+    "draws": 1125,
+    "black_wins": 2289
+  },
+  "piece_counts": {
+    "1": 75009,
+    "2": 11310,
+    "3": 14288,
+    "4": 22276,
+    "5": 6871
+  },
+  "side_to_move": {
+    "white": 3085,
+    "black": 2834
+  },
+  "castling_rights": {
+    "none": 4808,
+    "some": 1111
+  },
+  "shards": [
+    "part-0000.jsonl",
+    "part-0001.jsonl",
+    "part-0002.jsonl",
+    "part-0003.jsonl"
+  ],
+  "shard_hashes": [
+    "02d31a7ca97f44303af0980973e0acec0569abefe281327e7ea7a120b92285ef",
+    "36e9cf2f6e4d42efbfe361492aa24121ffec096b13b0092ac1d3855262b7d000",
+    "1ed35182f097f67dee47b44e7db0069347be4a6d202cba58c771552db11724d1",
+    "42d84ff5bff4feed87a583d1347fa2685852316521dd7e1c7c61a095a027bb56"
+  ],
+  "dataset_sha256": "3a3483fd46fd5a570c4c62b7d93378efc80eafbab43ec155db5ac5894fbc6a9d",
+  "sources": {
+    "smoke-normal-complete": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
+    "smoke-restart-recovery": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
+    "smoke-blitz": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
+    "smoke-rapid_5_3": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
+    "sf-smoke3-1800": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
+    "sf-smoke3-2000": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
+    "sf-smoke3-2200": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
+    "sf-smoke3-2400": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
+    "smoke-foundation-prod-8moves-v2": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
+    "s43b-legality-fast-screen": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
+    "s43c-legality-fast-200pairs": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
+    "smoke-live-1pair": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
+    "smoke-c3-live": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
+    "s43d-formal-sprt": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
+    "smoke-sprt-terminal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "smoke-p412-live": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
+    "smoke-p412-rated": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "08110310": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
+    "s44c-single-buffer-200pairs": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea"
+  }
+}
