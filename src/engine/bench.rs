@@ -1752,6 +1752,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "eval-breakdown" {
         return run_eval_breakdown(&args[1..]);
     }
+    if args[0] == "eval-features" {
+        return run_eval_features(&args[1..]);
+    }
+    if args[0] == "eval-features-batch" {
+        return run_eval_features_batch(&args[1..]);
+    }
+    if args[0] == "eval-features-schema" {
+        return run_eval_features_schema(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -1825,6 +1834,135 @@ fn print_help() {
 // ---------------------------------------------------------------------------
 // Tests — fast only; no full suites, no wall-clock assertions.
 // ---------------------------------------------------------------------------
+
+/// S6.1A: `bench eval-features --fen <fen>` - deterministic sparse
+/// FeatureSetV1 export (JSON line). Observation-only.
+fn run_eval_features(args: &[String]) -> Result<(), String> {
+    let mut fen: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-features: --fen requires a value".to_string())?
+                    .clone();
+                fen = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "eval-features: unknown argument '{}' (expected --fen <fen>)",
+                    other
+                ));
+            }
+        }
+    }
+    let fen = fen.ok_or_else(|| "eval-features: --fen is required".to_string())?;
+    let mut pos = parse_fen(&fen).map_err(|e| format!("eval-features: {e}"))?;
+    println!("{}", features_line(&mut pos, &fen));
+    Ok(())
+}
+
+/// S6.1A: `bench eval-features-batch --epd <file>` - one JSON line per
+/// position (deterministic order). Observation-only.
+fn run_eval_features_batch(args: &[String]) -> Result<(), String> {
+    let mut epd: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--epd" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-features-batch: --epd requires a value".to_string())?
+                    .clone();
+                epd = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "eval-features-batch: unknown argument '{}' (expected --epd <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let epd = epd.ok_or_else(|| "eval-features-batch: --epd is required".to_string())?;
+    let text = std::fs::read_to_string(&epd)
+        .map_err(|e| format!("eval-features-batch: cannot read {epd}: {e}"))?;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let fen = if line.contains('|') {
+            line.split('|').nth(2).unwrap_or(line).trim()
+        } else {
+            line.split(';').next().unwrap_or(line).trim()
+        };
+        let mut pos = parse_fen(fen).map_err(|e| format!("eval-features-batch: {e}"))?;
+        println!("{}", features_line(&mut pos, fen));
+    }
+    Ok(())
+}
+
+/// S6.1A: `bench eval-features-schema` - the frozen feature schema with
+/// stable ids/names and a canonical schema_sha256 (feature_count included).
+fn run_eval_features_schema(_args: &[String]) -> Result<(), String> {
+    use crate::engine::features::{feature_name, FEATURE_COUNT};
+    let mut features = String::new();
+    for id in 0..FEATURE_COUNT {
+        if id > 0 {
+            features.push(',');
+        }
+        features.push_str(&format!(
+            "{{\"id\":{},\"name\":\"{}\"}}",
+            id,
+            feature_name(id)
+        ));
+    }
+    let mut schema = String::from("{\"feature_schema\":\"s6-feature-v1\",");
+    schema.push_str("\"schema_version\":1,\"feature_count\":");
+    schema.push_str(&FEATURE_COUNT.to_string());
+    schema.push_str(",\"features\":[");
+    schema.push_str(&features);
+    schema.push_str("]}");
+    let sha = crate::engine::features::schema_sha256(&schema);
+    let mut out = String::from("{\"feature_schema\":\"s6-feature-v1\",");
+    out.push_str("\"schema_version\":1,\"feature_count\":");
+    out.push_str(&FEATURE_COUNT.to_string());
+    out.push_str(",\"features\":[");
+    out.push_str(&features);
+    out.push_str("],\"schema_sha256\":\"");
+    out.push_str(&sha);
+    out.push_str("\"}");
+    println!("{out}");
+    Ok(())
+}
+
+/// Deterministic JSON line for one position's FeatureSetV1.
+fn features_line(pos: &mut crate::chess::position::Position, fen: &str) -> String {
+    use crate::engine::features::{extract_features_v1, feature_name};
+    let f = extract_features_v1(pos);
+    let sparse = f.sparse();
+    let mut out = String::new();
+    out.push_str(&format!(
+        "{{\"fen\":\"{}\",\"phase\":{},\"features\":[",
+        fen.replace('"', "\\\""),
+        f.phase
+    ));
+    for (i, fv) in sparse.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&format!(
+            "{{\"id\":{},\"name\":\"{}\",\"value\":{}}}",
+            fv.id,
+            feature_name(fv.id),
+            fv.value
+        ));
+    }
+    out.push_str("]}");
+    out
+}
 
 #[cfg(test)]
 mod tests {
