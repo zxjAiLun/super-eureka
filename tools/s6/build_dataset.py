@@ -32,6 +32,8 @@ import chess.pgn
 
 DATASET_ID = "s6-eval-v1-core-shard01"
 SCHEMA_VERSION = 1
+SAMPLING_VERSION = 2
+SAMPLING_METHOD = "deterministic_hash_top_k"
 DATASET_SEED = 20260812
 MIN_PLY = 12
 MAX_PLY = 160
@@ -78,7 +80,20 @@ def eligible(board: chess.Board) -> tuple[bool, str]:
 
 def sample_candidates(game_id: str, ply: int, seed: int) -> bool:
     h = hashlib.sha256(f"{game_id}:{ply}:{seed}".encode("utf-8")).digest()
-    return h[0] < 0x80  # ~50% of plies sampled; max_per_game caps the rest
+    return h[0] < 0x80  # ~50% of plies sampled; top-K selection caps the rest
+
+
+def ply_priority(game_id: str, ply: int, seed: int) -> int:
+    """Sampling v2: deterministic priority for the whole-ply-range top-K.
+
+    Every eligible ply in [MIN_PLY, MAX_PLY] gets a priority from
+    sha256(game_id, ply, seed); the LOWEST-priority eligible positions
+    (up to MAX_PER_GAME) are kept. This removes the v1 front-loading bias
+    (time-order 'first 8' stopped at the opening/middlegame) so each game
+    contributes positions across its whole span."""
+    return int.from_bytes(
+        hashlib.sha256(f"{game_id}:{ply}:{seed}".encode("utf-8")).digest()[:8],
+        "big")
 
 
 def game_split(game_id: str) -> str:
@@ -111,6 +126,11 @@ def build(args) -> int:
     sources_dir = Path(args.sources)
     manifest_path = sources_dir / "source_manifest.json"
     source_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    sampling_version = args.sampling_version
+    sampling_method = {
+        1: "first_8_in_time_order",
+        2: "deterministic_hash_top_k",
+    }[sampling_version]
 
     out_dir = Path(args.out) / DATASET_ID
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -147,40 +167,82 @@ def build(args) -> int:
                 continue
             board = game.board()
             split = game_split(game_id)
-            taken = 0
-            for ply in range(1, len(moves) + 1):
-                board.push(moves[ply - 1])
-                if ply < MIN_PLY or ply > MAX_PLY:
-                    continue
-                if not sample_candidates(game_id, ply, DATASET_SEED):
-                    continue
-                candidates_seen += 1
-                ok, reason = eligible(board)
-                if not ok:
-                    reject_stats[reason] += 1
-                    continue
-                if taken >= MAX_PER_GAME:
-                    continue
-                fen4 = canonical_fen4(board)
-                pos_id = sha256_text(fen4)
-                records.append({
-                    "schema_version": SCHEMA_VERSION,
-                    "position_id": pos_id,
-                    "fen": board.fen(),
-                    "canonical_fen4": fen4,
-                    "source_id": src["source_id"],
-                    "source_game_id": game_id,
-                    "ply": ply,
-                    "game_result_white": result,
-                    "phase": phase_of(board),
-                    "split": split,
-                    "teacher_cp_stm": None,
-                    "teacher_mate": None,
-                    "teacher_bestmove": None,
-                    "teacher_wdl_stm": None,
-                })
-                taken += 1
-            per_source[source_name] = per_source.get(source_name, 0) + taken
+            if sampling_version == 2:
+                # Sampling v2: scan the WHOLE ply range, collect eligible
+                # candidates with their priorities, keep the top-K (lowest
+                # priorities) per game (deterministic). Removes the v1
+                # front-loading bias.
+                candidates: list[tuple[int, int, dict]] = []
+                for ply in range(1, len(moves) + 1):
+                    board.push(moves[ply - 1])
+                    if ply < MIN_PLY or ply > MAX_PLY:
+                        continue
+                    candidates_seen += 1
+                    ok, reason = eligible(board)
+                    if not ok:
+                        reject_stats[reason] += 1
+                        continue
+                    fen4 = canonical_fen4(board)
+                    pos_id = sha256_text(fen4)
+                    candidates.append((ply_priority(game_id, ply, DATASET_SEED),
+                                       ply, {
+                        "schema_version": SCHEMA_VERSION,
+                        "position_id": pos_id,
+                        "fen": board.fen(),
+                        "canonical_fen4": fen4,
+                        "source_id": src["source_id"],
+                        "source_game_id": game_id,
+                        "ply": ply,
+                        "game_result_white": result,
+                        "phase": phase_of(board),
+                        "split": split,
+                        "teacher_cp_stm": None,
+                        "teacher_mate": None,
+                        "teacher_bestmove": None,
+                        "teacher_wdl_stm": None,
+                    }))
+                candidates.sort(key=lambda c: (c[0], c[1]))
+                for _, _, rec in candidates[:MAX_PER_GAME]:
+                    records.append(rec)
+                per_source[source_name] = per_source.get(source_name, 0) + min(
+                    len(candidates), MAX_PER_GAME)
+            else:
+                # Sampling v1 (frozen shard01 contract): time-order, stop at
+                # the first MAX_PER_GAME eligible positions. Deterministic.
+                taken = 0
+                for ply in range(1, len(moves) + 1):
+                    board.push(moves[ply - 1])
+                    if ply < MIN_PLY or ply > MAX_PLY:
+                        continue
+                    if not sample_candidates(game_id, ply, DATASET_SEED):
+                        continue
+                    candidates_seen += 1
+                    ok, reason = eligible(board)
+                    if not ok:
+                        reject_stats[reason] += 1
+                        continue
+                    if taken >= MAX_PER_GAME:
+                        continue
+                    fen4 = canonical_fen4(board)
+                    pos_id = sha256_text(fen4)
+                    records.append({
+                        "schema_version": SCHEMA_VERSION,
+                        "position_id": pos_id,
+                        "fen": board.fen(),
+                        "canonical_fen4": fen4,
+                        "source_id": src["source_id"],
+                        "source_game_id": game_id,
+                        "ply": ply,
+                        "game_result_white": result,
+                        "phase": phase_of(board),
+                        "split": split,
+                        "teacher_cp_stm": None,
+                        "teacher_mate": None,
+                        "teacher_bestmove": None,
+                        "teacher_wdl_stm": None,
+                    })
+                    taken += 1
+                per_source[source_name] = per_source.get(source_name, 0) + taken
         print(f"{source_name}: {game_no} games -> {per_source.get(source_name, 0)} records")
 
     # --- dedup: keep ONE copy per position_id (deterministic order) ---
@@ -245,6 +307,8 @@ def build(args) -> int:
         "not_final_reason": "single source family (Arena historical); "
                             "second independent source required for FINAL",
         "schema_version": SCHEMA_VERSION,
+        "sampling_version": sampling_version,
+        "sampling_method": sampling_method,
         "dataset_seed": DATASET_SEED,
         "min_ply": MIN_PLY,
         "max_ply": MAX_PLY,
@@ -306,6 +370,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sources", required=True,
                         help="dir with PGNs + source_manifest.json")
+    parser.add_argument("--sampling-version", type=int, default=2,
+                        choices=(1, 2),
+                        help="1 = first-8-in-time-order (frozen shard01); "
+                             "2 = deterministic hash top-K (FINAL contract)")
     parser.add_argument("--out", default="data/s6")
     return build(parser.parse_args(sys.argv[1:]))
 

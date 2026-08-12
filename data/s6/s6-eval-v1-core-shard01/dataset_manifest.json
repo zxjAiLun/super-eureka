@@ -4,6 +4,8 @@
   "final_target": 300000,
   "not_final_reason": "single source family (Arena historical); second independent source required for FINAL",
   "schema_version": 1,
+  "sampling_version": 1,
+  "sampling_method": "first_8_in_time_order",
   "dataset_seed": 20260812,
   "min_ply": 12,
   "max_ply": 160,
