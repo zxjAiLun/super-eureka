@@ -1,0 +1,68 @@
+{
+  "tournament_id": "1874999f-8562-485a-95ad-94c255074a76",
+  "contract": {
+    "candidate_preset": "s50b-single-generation",
+    "candidate_profile": "current-final-single-generation",
+    "baseline_preset": "s50b-current-final",
+    "baseline_profile": "current-final",
+    "build_id": "20260812-710400a-linux-x86_64",
+    "binary_sha256": "6053901ecb786ac0ed32d23d32a4f8bffbbf6dbe0bd4d70d4173a3fdf808a310",
+    "opening_set": "stockfish-8moves-v3",
+    "opening_sha256": "5835239f88cc2c7511b177c32392a69f3ede21819cf0616f80a7f907cd21d17e",
+    "opening_plies": 16,
+    "opening_seed": 2026081202,
+    "historical_exclusion_count": 1647,
+    "time_control": "blitz_10_01 (10+0.1)",
+    "hash_mb": 16,
+    "threads": 1,
+    "concurrency": 1,
+    "color_policy": "strict reversal",
+    "arena_elo": false,
+    "pairs": 200,
+    "games": 400
+  },
+  "result": {
+    "candidate_wins": 169,
+    "candidate_draws": 79,
+    "candidate_losses": 152,
+    "candidate_score_pct": 52.125,
+    "ptnml": [
+      12,
+      28,
+      114,
+      23,
+      23
+    ],
+    "candidate_white": {
+      "w": 91,
+      "d": 34,
+      "l": 75
+    },
+    "candidate_white_score_pct": 54.0,
+    "candidate_black": {
+      "w": 78,
+      "d": 45,
+      "l": 77
+    },
+    "candidate_black_score_pct": 50.24999999999999,
+    "baseline_white": {
+      "w": 77,
+      "d": 45,
+      "l": 78
+    },
+    "baseline_black": {
+      "w": 75,
+      "d": 34,
+      "l": 91
+    }
+  },
+  "integrity": {
+    "verified_pairs": 200,
+    "verified_games": 400,
+    "crashes": 0,
+    "forfeits": 0,
+    "illegal": 0,
+    "integrity_failures": 0
+  },
+  "verdict": "SANITY_PASS"
+}
