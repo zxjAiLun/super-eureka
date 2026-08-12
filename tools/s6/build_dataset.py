@@ -63,6 +63,8 @@ def canonical_fen4(board: chess.Board) -> str:
 
 
 def eligible(board: chess.Board) -> tuple[bool, str]:
+    if not board.is_valid():
+        return False, "illegal_board"
     if board.is_game_over(claim_draw=False):
         return False, "terminal"
     if board.is_check():

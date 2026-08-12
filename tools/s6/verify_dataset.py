@@ -74,6 +74,8 @@ def verify(args) -> int:
         except ValueError:
             failures.append(f"unparseable fen {i}")
             continue
+        if not board.is_valid():
+            failures.append(f"invalid board (is_valid False) {r['position_id']}")
         if board.is_game_over(claim_draw=False) or board.is_check():
             failures.append(f"ineligible (terminal/in-check) {r['position_id']}")
         if not any(board.legal_moves):
@@ -85,6 +87,10 @@ def verify(args) -> int:
         if r["position_id"] != hashlib.sha256(
                 r["canonical_fen4"].encode("utf-8")).hexdigest():
             failures.append(f"position_id mismatch {r['position_id']}")
+    valid_count = sum(1 for r in records if chess.Board(r["fen"]).is_valid())
+    print(f"board.is_valid audit: {valid_count}/{len(records)} PASS")
+    if valid_count != len(records):
+        failures.append("board.is_valid audit failed")
     if len(failures) > 10:
         failures = failures[:10] + [f"... ({len(failures)} total)"]
 
@@ -110,7 +116,7 @@ def verify(args) -> int:
     if buckets != manifest_buckets:
         failures.append(f"phase buckets {buckets} != manifest {manifest_buckets}")
 
-    # 7. labels
+    # 7. labels + teacher manifest provenance
     labels_path = dataset_dir / "labels.jsonl"
     if labels_path.is_file():
         labels = {}
@@ -124,10 +130,20 @@ def verify(args) -> int:
             failures.append(f"{len(missing)} records without labels")
         if extra:
             failures.append(f"{len(extra)} labels without records")
+        labels_text = labels_path.read_text(encoding="utf-8")
+        labels_sha = hashlib.sha256(labels_text.encode("utf-8")).hexdigest()
         tm = json.loads(
             (dataset_dir / "teacher_manifest.json").read_text(encoding="utf-8"))
+        if tm.get("engine") == "unknown":
+            failures.append("teacher_manifest engine == 'unknown'")
+        if not tm.get("binary_sha256"):
+            failures.append("teacher_manifest binary_sha256 missing")
         if not tm.get("audit", {}).get("ok"):
             failures.append("teacher determinism audit not ok")
+        if tm.get("audit", {}).get("checked", 0) < 1000:
+            failures.append("teacher audit checked < 1000")
+        if tm.get("labels_sha256") != labels_sha:
+            failures.append(f"labels_sha256 mismatch: {labels_sha[:16]}")
     else:
         failures.append("labels.jsonl missing")
 
