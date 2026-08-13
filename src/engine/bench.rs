@@ -940,7 +940,10 @@ fn format_result_line(r: &BenchResult) -> String {
 /// the profile/ablation suites (profiling enabled). Observation-only.
 fn format_s7_attribution(stats: &SearchStats) -> String {
     format!(
-        " beta_cutoffs={} beta_cutoff_idx_0={} beta_cutoff_idx_1={} beta_cutoff_idx_2_3={} beta_cutoff_idx_4_7={} beta_cutoff_idx_8_15={} beta_cutoff_idx_16p={} cutoff_tt_move={} cutoff_tactical={} cutoff_killer={} cutoff_quiet={} moves_searched={} pv_nodes={} in_check_nodes={} depth_bucket_0={} depth_bucket_1={} depth_bucket_2={} depth_bucket_3={} depth_bucket_4_5={} depth_bucket_6_7={} depth_bucket_8p={} searched_hist_1={} searched_hist_2={} searched_hist_3_4={} searched_hist_5_8={} searched_hist_9_16={} searched_hist_17p={} tt_hit_exact={} tt_hit_lower={} tt_hit_upper={} lmr_reduction_r1={} lmr_reduction_r2={} lmr_reduced_improves_alpha={} null_fail_lows={} futility_considered={} qsearch_standpat_cutoffs={} qsearch_standpat_alpha_raises={} qsearch_moves_searched={} qsearch_in_check_entries={}",
+        " seldepth={} main_seldepth={} qsearch_seldepth={} beta_cutoffs={} beta_cutoff_idx_0={} beta_cutoff_idx_1={} beta_cutoff_idx_2_3={} beta_cutoff_idx_4_7={} beta_cutoff_idx_8_15={} beta_cutoff_idx_16p={} cutoff_tt_move={} cutoff_tactical={} cutoff_killer={} cutoff_quiet={} moves_searched={} pv_nodes={} in_check_nodes={} depth_bucket_0={} depth_bucket_1={} depth_bucket_2={} depth_bucket_3={} depth_bucket_4_5={} depth_bucket_6_7={} depth_bucket_8p={} searched_hist_1={} searched_hist_2={} searched_hist_3_4={} searched_hist_5_8={} searched_hist_9_16={} searched_hist_17p={} tt_hit_exact={} tt_hit_lower={} tt_hit_upper={} lmr_reduction_r1={} lmr_reduction_r2={} lmr_reduced_improves_alpha={} null_fail_lows={} futility_considered={} qsearch_standpat_cutoffs={} qsearch_standpat_alpha_raises={} qsearch_moves_searched={} qsearch_in_check_entries={}",
+        stats.seldepth,
+        stats.main_seldepth,
+        stats.qsearch_seldepth,
         stats.beta_cutoffs,
         stats.beta_cutoff_idx_0,
         stats.beta_cutoff_idx_1,

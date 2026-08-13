@@ -591,6 +591,10 @@ pub struct SearchContext {
     pub nodes: AtomicU64,
     /// Deepest ply reached this search (including qsearch) - UCI seldepth.
     pub seldepth: AtomicU64,
+    /// S7.0: deepest ply reached in the main search / qsearch separately
+    /// (profiling-gated split of `seldepth`).
+    pub main_seldepth: AtomicU64,
+    pub qsearch_seldepth: AtomicU64,
     pub qsearch_nodes: AtomicU64,
     pub eval_calls: AtomicU64,
     pub legal_move_generations: AtomicU64,
@@ -755,6 +759,9 @@ pub struct SearchContext {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SearchStats {
     pub nodes: u64,
+    pub seldepth: u64,
+    pub main_seldepth: u64,
+    pub qsearch_seldepth: u64,
     pub qsearch_nodes: u64,
     pub eval_calls: u64,
     pub legal_move_generations: u64,
@@ -861,6 +868,8 @@ impl SearchContext {
             hard_deadline: None,
             nodes: AtomicU64::new(0),
             seldepth: AtomicU64::new(0),
+            main_seldepth: AtomicU64::new(0),
+            qsearch_seldepth: AtomicU64::new(0),
             qsearch_nodes: AtomicU64::new(0),
             eval_calls: AtomicU64::new(0),
             legal_move_generations: AtomicU64::new(0),
@@ -1015,6 +1024,8 @@ impl SearchContext {
             hard_deadline: budget.hard_deadline,
             nodes: AtomicU64::new(0),
             seldepth: AtomicU64::new(0),
+            main_seldepth: AtomicU64::new(0),
+            qsearch_seldepth: AtomicU64::new(0),
             qsearch_nodes: AtomicU64::new(0),
             eval_calls: AtomicU64::new(0),
             legal_move_generations: AtomicU64::new(0),
@@ -1145,6 +1156,9 @@ impl SearchContext {
     pub fn stats(&self) -> SearchStats {
         SearchStats {
             nodes: self.nodes.load(Ordering::Relaxed),
+            seldepth: self.seldepth.load(Ordering::Relaxed),
+            main_seldepth: self.main_seldepth.load(Ordering::Relaxed),
+            qsearch_seldepth: self.qsearch_seldepth.load(Ordering::Relaxed),
             qsearch_nodes: self.qsearch_nodes.load(Ordering::Relaxed),
             eval_calls: self.eval_calls.load(Ordering::Relaxed),
             legal_move_generations: self.legal_move_generations.load(Ordering::Relaxed),
@@ -2938,6 +2952,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // S7.0 depth attribution: classify this node once, gated so the
     // production (profiling-off) path pays nothing beyond the boolean check.
     if ctx.profiling_enabled {
+        ctx.main_seldepth.fetch_max(ply as u64, Ordering::Relaxed);
         if beta.saturating_sub(alpha) > 1 {
             ctx.add_profile_counter(&ctx.pv_nodes, 1);
         }
@@ -4626,6 +4641,9 @@ fn quiescence_entered_impl_with_profile(
     // alone carries the single global-ply definition shared with the main
     // search - adding qply would double-count the qsearch descent).
     ctx.record_seldepth(ply);
+    if ctx.profiling_enabled {
+        ctx.qsearch_seldepth.fetch_max(ply as u64, Ordering::Relaxed);
+    }
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
 
