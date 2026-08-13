@@ -22,7 +22,7 @@ from run_external_validation import Case, EngineFailure, EngineSession, SearchRe
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE = ROOT / "target" / "release" / "chess-engine-demo.exe"
+DEFAULT_ENGINE = ROOT / "target" / "release" / "eureka.exe"
 DEFAULT_HASH_MB = 16
 DEFAULT_MOVETIME_MS = 3000
 DEFAULT_REPEATS = 5

@@ -5,9 +5,9 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use chess_engine_demo::chess::parse_fen;
-use chess_engine_demo::engine::search;
-use chess_engine_demo::engine::search::{SearchContext, SearchLimits};
+use eureka::chess::parse_fen;
+use eureka::engine::search;
+use eureka::engine::search::{SearchContext, SearchLimits};
 
 const ALPHA: i32 = i32::MIN + 1000;
 const BETA: i32 = i32::MAX - 1000;
@@ -55,7 +55,7 @@ fn search_finds_mate_in_one() {
     };
     let outcome = search::search_best_move(&mut pos, &limits, &ctx).expect("there is a legal move");
     assert_eq!(
-        chess_engine_demo::chess::move_to_uci(outcome.best_move),
+        eureka::chess::move_to_uci(outcome.best_move),
         "a1a8",
         "the only mate-in-one is Ra8"
     );

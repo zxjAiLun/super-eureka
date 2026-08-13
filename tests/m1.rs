@@ -11,9 +11,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use chess_engine_demo::chess::types::START_FEN;
-use chess_engine_demo::chess::{generate_legal_moves, parse_fen, to_fen};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::types::START_FEN;
+use eureka::chess::{generate_legal_moves, parse_fen, to_fen};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 #[test]
 fn m1_stop_preset_returns_fallback_and_keeps_position() {

@@ -14,8 +14,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use chess_engine_demo::chess::{generate_legal_moves, move_to_uci, parse_fen, to_fen, Position};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits, MATE};
+use eureka::chess::{generate_legal_moves, move_to_uci, parse_fen, to_fen, Position};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits, MATE};
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const ALPHA: i32 = i32::MIN + 1000;
@@ -328,5 +328,5 @@ fn negamax_call(
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
-    chess_engine_demo::engine::search::negamax(pos, depth, ply, alpha, beta, ctx, limits)
+    eureka::engine::search::negamax(pos, depth, ply, alpha, beta, ctx, limits)
 }

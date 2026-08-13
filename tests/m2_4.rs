@@ -13,9 +13,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use chess_engine_demo::chess::{move_to_uci, parse_fen, to_fen, START_FEN};
-use chess_engine_demo::engine::evaluate;
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::{move_to_uci, parse_fen, to_fen, START_FEN};
+use eureka::engine::evaluate;
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 fn fresh_ctx() -> Arc<SearchContext> {
     Arc::new(SearchContext::new(Arc::new(AtomicBool::new(false))))

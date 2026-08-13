@@ -12,9 +12,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
-use chess_engine_demo::chess::types::START_FEN;
-use chess_engine_demo::chess::{generate_legal_moves, parse_fen, to_fen};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::types::START_FEN;
+use eureka::chess::{generate_legal_moves, parse_fen, to_fen};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 /// The search must honour a stop flag flipped from another thread, not just
 /// a flag that was preset before it started.

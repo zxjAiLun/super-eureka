@@ -25,7 +25,7 @@ import chess
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "chess-engine-demo.exe"
+DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "eureka.exe"
 DEFAULT_MANAGER = REPO_ROOT / "tools" / ".cache" / "cutechess-1.5.1-win64" / "cutechess-cli.exe"
 DEFAULT_SELECTION = REPO_ROOT / "tests" / "data" / "openings" / "s3-promotion-openings-v1.json"
 DEFAULT_OUTPUT = REPO_ROOT / "results" / "s3-promotion" / "run-001"

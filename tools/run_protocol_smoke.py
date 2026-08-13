@@ -9,8 +9,8 @@ to Fastchess/OpenBench/Fishtest.
 Example:
 
     python tools/run_protocol_smoke.py \
-        --engine-a target/release/chess-engine-demo.exe \
-        --engine-b target/release/chess-engine-demo.exe \
+        --engine-a target/release/eureka.exe \
+        --engine-b target/release/eureka.exe \
         --profile-b current-aspiration \
         --games 16 --output-dir tournament-results/protocol-smoke
 """

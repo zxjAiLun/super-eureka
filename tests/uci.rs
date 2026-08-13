@@ -2,9 +2,9 @@
 //! over-long, and non-ASCII move strings instead of panicking or silently
 //! downgrading them.
 
-use chess_engine_demo::chess::fen::parse_fen;
-use chess_engine_demo::chess::types::START_FEN;
-use chess_engine_demo::uci::find_move;
+use eureka::chess::fen::parse_fen;
+use eureka::chess::types::START_FEN;
+use eureka::uci::find_move;
 
 #[test]
 fn find_move_rejects_malformed_move_strings() {

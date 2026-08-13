@@ -1,8 +1,8 @@
 [package]
-name = "chess-engine-demo"
-version = "0.2.1"
+name = "eureka"
+version = "0.1.0"
 edition = "2021"
-description = "A small but correct traditional Alpha-Beta chess engine (Rust learning project). Phase-by-phase per the dev roadmap."
+description = "Eureka chess engine: traditional alpha-beta + NNUE-in-progress."
 
 [dependencies]
 

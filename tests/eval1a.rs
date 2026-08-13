@@ -1,7 +1,7 @@
 //! EVAL 1A — tapered material/PST and King middlegame/endgame PST tests.
 
-use chess_engine_demo::chess::{generate_legal_moves, move_to_uci, parse_fen, to_fen};
-use chess_engine_demo::engine::evaluate;
+use eureka::chess::{generate_legal_moves, move_to_uci, parse_fen, to_fen};
+use eureka::engine::evaluate;
 
 #[test]
 fn king_pst_centralises_the_endgame_king() {

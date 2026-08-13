@@ -1,7 +1,7 @@
 //! FEN parser hardening (P1): reject malformed input with clear errors
 //! instead of panicking, and never accept an impossible board.
 
-use chess_engine_demo::chess::parse_fen;
+use eureka::chess::parse_fen;
 
 /// Every entry here must be rejected (return `Err`), never panic.
 #[test]
@@ -37,7 +37,7 @@ fn parse_fen_accepts_legal_ep() {
     let pos = parse_fen(fen).expect("legal ep target for White to move");
     assert_eq!(
         pos.ep_target(),
-        Some(chess_engine_demo::chess::types::parse_square("e6").unwrap())
+        Some(eureka::chess::types::parse_square("e6").unwrap())
     );
 }
 
@@ -100,7 +100,7 @@ fn parse_fen_digit_overflow_does_not_panic() {
         // a clean `Err` (the position is genuinely illegal, not silently
         // accepted as a valid board).
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            chess_engine_demo::chess::parse_fen(fen)
+            eureka::chess::parse_fen(fen)
         }));
         assert!(
             result.is_ok(),

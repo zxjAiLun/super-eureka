@@ -3,8 +3,8 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use chess_engine_demo::chess::{parse_fen, to_fen, START_FEN};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::{parse_fen, to_fen, START_FEN};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 #[test]
 fn search_stats_cover_the_search_without_changing_the_root() {

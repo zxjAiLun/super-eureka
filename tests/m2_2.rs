@@ -11,9 +11,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use chess_engine_demo::chess::move_to_uci;
-use chess_engine_demo::chess::parse_fen;
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::move_to_uci;
+use eureka::chess::parse_fen;
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 /// White queen e4 wins the black queen on a4 (the h4 pawn is a lesser
 /// capture). A correct search must pick the queen capture at any depth >= 1,

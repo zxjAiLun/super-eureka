@@ -30,7 +30,7 @@ from prepare_d114_openings import DEFAULT_METADATA, DEFAULT_OUTPUT, verify as ve
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "chess-engine-demo.exe"
+DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "eureka.exe"
 DEFAULT_CUTECHESS = REPO_ROOT / "tools" / ".cache" / "cutechess-1.5.1-win64" / "cutechess-cli.exe"
 APPROVED_ENGINE_CODE_BASELINE = "dcb009813239549f4805e9a2467aadae4ccebc11"
 MANAGER_VERSION = "1.5.1"

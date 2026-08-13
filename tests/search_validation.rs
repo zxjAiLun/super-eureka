@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use chess_engine_demo::chess::{generate_legal_moves, move_to_uci, parse_fen};
+use eureka::chess::{generate_legal_moves, move_to_uci, parse_fen};
 
 const MANIFEST: &str = include_str!("data/search_validation.epd");
 const PROFILES: [&str; 2] = ["current", "current-qsearch-pruning"];

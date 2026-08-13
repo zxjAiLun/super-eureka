@@ -52,3 +52,5 @@ data/s6/s6-eval-v1-core-shard01/labels.jsonl
 
 !/results/s6/
 !/results/s6/**
+
+data/s6/s6-eval-v1-core-300k/

@@ -13,10 +13,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chess_engine_demo::chess::types::START_FEN;
-use chess_engine_demo::chess::{generate_legal_moves, parse_fen, to_fen};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
-use chess_engine_demo::engine::TimeBudget;
+use eureka::chess::types::START_FEN;
+use eureka::chess::{generate_legal_moves, parse_fen, to_fen};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::engine::TimeBudget;
 
 fn ctx_with(stop: Arc<AtomicBool>, soft: Option<Instant>, hard: Option<Instant>) -> SearchContext {
     SearchContext::with_budget(

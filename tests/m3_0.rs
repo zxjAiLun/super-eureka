@@ -15,12 +15,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use chess_engine_demo::chess::{
+use eureka::chess::{
     generate_legal_moves, make_square, move_to_uci, parse_fen, recompute_zobrist, to_fen,
     GameState, Position, START_FEN,
 };
-use chess_engine_demo::chess::{Color, Move, MoveFlag, Piece, PieceType};
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits};
+use eureka::chess::{Color, Move, MoveFlag, Piece, PieceType};
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits};
 
 /// Locked reference value from the spec (§16.1). Determined by the fixed
 /// SplitMix64 seed, so it is identical in debug and release.

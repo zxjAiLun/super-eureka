@@ -589,6 +589,8 @@ pub struct SearchContext {
     pub soft_deadline: Option<Instant>,
     pub hard_deadline: Option<Instant>,
     pub nodes: AtomicU64,
+    /// Deepest ply reached this search (including qsearch) - UCI seldepth.
+    pub seldepth: AtomicU64,
     pub qsearch_nodes: AtomicU64,
     pub eval_calls: AtomicU64,
     pub legal_move_generations: AtomicU64,
@@ -777,6 +779,7 @@ impl SearchContext {
             soft_deadline: None,
             hard_deadline: None,
             nodes: AtomicU64::new(0),
+            seldepth: AtomicU64::new(0),
             qsearch_nodes: AtomicU64::new(0),
             eval_calls: AtomicU64::new(0),
             legal_move_generations: AtomicU64::new(0),
@@ -882,6 +885,7 @@ impl SearchContext {
             soft_deadline: budget.soft_deadline,
             hard_deadline: budget.hard_deadline,
             nodes: AtomicU64::new(0),
+            seldepth: AtomicU64::new(0),
             qsearch_nodes: AtomicU64::new(0),
             eval_calls: AtomicU64::new(0),
             legal_move_generations: AtomicU64::new(0),
@@ -2701,6 +2705,8 @@ fn negamax_entered_impl_with_null_and_extensions(
     allow_null: bool,
     extension_budget: u8,
 ) -> Option<i32> {
+    // UCI seldepth: deepest ply reached (main search).
+    ctx.seldepth.fetch_max((ply as u64) + 1, Ordering::Relaxed);
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
 
@@ -4317,6 +4323,9 @@ fn quiescence_entered_impl_with_profile(
     qsearch_fast_pruning: bool,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
+    // UCI seldepth: qsearch contributes the deepest plies.
+    ctx.seldepth
+        .fetch_max((ply as u64) + (qply as u64) + 1, Ordering::Relaxed);
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
 
@@ -5603,6 +5612,7 @@ fn search_best_move_impl(
                 // iterations emit info; an aborted depth 1 emits nothing.
                 // The PV is the full principal variation of this iteration.
                 let nodes = ctx.nodes.load(Ordering::Relaxed);
+                let seldepth = ctx.seldepth.load(Ordering::Relaxed);
                 let elapsed_ms = ctx.start.elapsed().as_millis();
                 let nps = if elapsed_ms > 0 {
                     let nps128 = nodes as u128 * 1000 / elapsed_ms;
@@ -5622,8 +5632,9 @@ fn search_best_move_impl(
                     .collect::<Vec<_>>()
                     .join(" ");
                 println!(
-                    "info depth {} score {} nodes {} time {} nps {} pv {}",
+                    "info depth {} seldepth {} score {} nodes {} time {} nps {} pv {}",
                     depth,
+                    seldepth,
                     score_to_uci(score),
                     nodes,
                     elapsed_ms,

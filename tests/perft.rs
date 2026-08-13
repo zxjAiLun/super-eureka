@@ -1,8 +1,8 @@
 //! Perft tests — the Phase-2 gate. If any of these fail, movegen has a
 //! rules bug and we must NOT proceed to search.
 
-use chess_engine_demo::chess::fen::parse_fen;
-use chess_engine_demo::chess::types::START_FEN;
+use eureka::chess::fen::parse_fen;
+use eureka::chess::types::START_FEN;
 
 fn perft(fen: &str, depth: u32) -> u64 {
     let mut pos = parse_fen(fen).expect("valid FEN in test");

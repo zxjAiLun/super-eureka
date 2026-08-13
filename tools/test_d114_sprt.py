@@ -31,7 +31,7 @@ class D114LauncherTests(unittest.TestCase):
             root = Path(temp)
             command = build_command(
                 root / "cutechess-cli.exe",
-                root / "chess-engine-demo.exe",
+                root / "eureka.exe",
                 root / "openings.epd",
                 root,
                 "Smoke",
@@ -59,7 +59,7 @@ class D114LauncherTests(unittest.TestCase):
             root = Path(temp)
             command = build_command(
                 root / "cutechess-cli.exe",
-                root / "chess-engine-demo.exe",
+                root / "eureka.exe",
                 root / "openings.epd",
                 root,
                 "Sprt",

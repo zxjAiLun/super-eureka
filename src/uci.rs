@@ -176,8 +176,8 @@ fn write_uci_handshake_with_profile<W: Write>(
     startup_tt_failed: bool,
     profile: search::SearchProfile,
 ) -> io::Result<()> {
-    writeln!(out, "id name ChessEngineDemo")?;
-    writeln!(out, "id author Rust-learner")?;
+    writeln!(out, "id name Eureka v{}", crate::version::version_string())?;
+    writeln!(out, "id author zxjAiLun")?;
     writeln!(
         out,
         "option name Hash type spin default {} min {} max {}",
@@ -191,9 +191,20 @@ fn write_uci_handshake_with_profile<W: Write>(
     }
     writeln!(
         out,
-        "info string search profile {}",
-        startup_profile_name(profile)
+        "info string version eureka-v{}",
+        crate::version::version_string()
     )?;
+    writeln!(out, "info string build {}", crate::version::build_string())?;
+    writeln!(out, "info string source {}", crate::version::source_sha())?;
+    writeln!(
+        out,
+        "info string release_date {}",
+        crate::version::release_date()
+    )?;
+    writeln!(out, "info string profile {}", startup_profile_name(profile))?;
+    writeln!(out, "info string eval handcrafted-v1")?;
+    writeln!(out, "info string network none")?;
+    writeln!(out, "info string dirty {}", crate::version::is_dirty())?;
     writeln!(out, "uciok")?;
     Ok(())
 }
@@ -473,8 +484,8 @@ enum StartupCommand {
 }
 
 fn print_startup_help() {
-    println!("ChessEngineDemo UCI engine");
-    println!("Usage: chess-engine-demo [--profile <cumulative-profile>]");
+    println!("Eureka UCI engine (v{})", crate::version::version_string());
+    println!("Usage: eureka [--profile <cumulative-profile>]");
     println!("Profiles:");
     println!("  current");
     println!("  current-lmr");
@@ -1139,8 +1150,11 @@ mod tests {
         let text = String::from_utf8(buf).unwrap();
         let lines: Vec<&str> = text.lines().collect();
 
-        assert!(lines.contains(&"id name ChessEngineDemo"));
-        assert!(lines.contains(&"id author Rust-learner"));
+        assert!(
+            lines.iter().any(|l| l.starts_with("id name Eureka v")),
+            "{lines:?}"
+        );
+        assert!(lines.contains(&"id author zxjAiLun"));
 
         let opt_idx = lines
             .iter()

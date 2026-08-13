@@ -31,7 +31,7 @@ from typing import Optional, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "chess-engine-demo.exe"
+DEFAULT_ENGINE = REPO_ROOT / "target" / "release" / "eureka.exe"
 DEFAULT_CONCURRENCY_POINTS = (1, 2, 4, 8, 12, 13)
 MIN_RELATIVE_WORKER_SPEED = 0.50
 MAX_P95_DURATION_RATIO = 1.35

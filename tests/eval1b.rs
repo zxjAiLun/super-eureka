@@ -3,9 +3,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use chess_engine_demo::chess::{move_to_uci, parse_fen, to_fen};
-use chess_engine_demo::engine::evaluate;
-use chess_engine_demo::engine::search::{search_best_move, SearchContext, SearchLimits, MATE};
+use eureka::chess::{move_to_uci, parse_fen, to_fen};
+use eureka::engine::evaluate;
+use eureka::engine::search::{search_best_move, SearchContext, SearchLimits, MATE};
 
 #[test]
 fn kqk_rewards_edge_and_king_proximity() {

@@ -1,9 +1,7 @@
 //! FEN round-trip and basic rules sanity checks.
 
-use chess_engine_demo::chess::fen::{parse_fen, print_ascii, to_fen};
-use chess_engine_demo::chess::types::{
-    move_to_uci, Color, Move, MoveFlag, Piece, PieceType, START_FEN,
-};
+use eureka::chess::fen::{parse_fen, print_ascii, to_fen};
+use eureka::chess::types::{move_to_uci, Color, Move, MoveFlag, Piece, PieceType, START_FEN};
 
 #[test]
 fn fen_round_trip_startpos() {

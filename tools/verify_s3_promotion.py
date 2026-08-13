@@ -323,7 +323,7 @@ def verify_artifact(run_dir: Path, repo: Path, engine: Path, manager: Path) -> d
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, default=Path("results/s3-promotion/run-001"))
-    parser.add_argument("--engine", type=Path, default=Path("target/release/chess-engine-demo.exe"))
+    parser.add_argument("--engine", type=Path, default=Path("target/release/eureka.exe"))
     parser.add_argument(
         "--manager", type=Path, default=Path("tools/.cache/cutechess-1.5.1-win64/cutechess-cli.exe")
     )

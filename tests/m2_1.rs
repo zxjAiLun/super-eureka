@@ -18,12 +18,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chess_engine_demo::chess::{generate_legal_moves, parse_fen, to_fen};
-use chess_engine_demo::engine::evaluate;
-use chess_engine_demo::engine::search::{
-    negamax, quiescence, SearchContext, SearchLimits, MATE, MAX_QPLY,
-};
-use chess_engine_demo::engine::TimeBudget;
+use eureka::chess::{generate_legal_moves, parse_fen, to_fen};
+use eureka::engine::evaluate;
+use eureka::engine::search::{negamax, quiescence, SearchContext, SearchLimits, MATE, MAX_QPLY};
+use eureka::engine::TimeBudget;
 
 const ALPHA: i32 = i32::MIN + 1000;
 const BETA: i32 = i32::MAX - 1000;
@@ -589,10 +587,9 @@ fn regression_search_still_finds_mate_in_one() {
         depth: Some(4),
         ..Default::default()
     };
-    let outcome =
-        chess_engine_demo::engine::search::search_best_move(&mut pos, &limits, &ctx).expect("move");
+    let outcome = eureka::engine::search::search_best_move(&mut pos, &limits, &ctx).expect("move");
     assert_eq!(
-        chess_engine_demo::chess::move_to_uci(outcome.best_move),
+        eureka::chess::move_to_uci(outcome.best_move),
         "a1a8",
         "the only mate-in-one is Ra8"
     );

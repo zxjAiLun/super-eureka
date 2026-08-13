@@ -1,5 +1,5 @@
-use chess_engine_demo::chess::fen;
-use chess_engine_demo::chess::types::START_FEN;
+use eureka::chess::fen;
+use eureka::chess::types::START_FEN;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -8,7 +8,7 @@ fn main() {
     // search measurement harness. Example: `cargo run --release -- bench smoke`.
     if args.len() >= 2 && args[1] == "bench" {
         let sub: Vec<String> = args[2..].to_vec();
-        if let Err(e) = chess_engine_demo::engine::bench::run(&sub) {
+        if let Err(e) = eureka::engine::bench::run(&sub) {
             eprintln!("bench_error {}", e);
             std::process::exit(1);
         }
@@ -49,7 +49,7 @@ fn main() {
     // deliberately separate from the UCI command stream so tournament tools
     // can launch a historical baseline or candidate without changing the
     // promoted CurrentFinal default path.
-    if let Err(e) = chess_engine_demo::uci::run_with_args(&args[1..]) {
+    if let Err(e) = eureka::uci::run_with_args(&args[1..]) {
         eprintln!("startup_error {}", e);
         std::process::exit(2);
     }

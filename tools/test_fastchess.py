@@ -96,7 +96,7 @@ class FastchessWrapperTests(unittest.TestCase):
     def test_uci_identity_probe_records_reported_profile(self):
         # Cross-platform release binary name (.exe only on Windows).
         engine = Path("target/release") / (
-            "chess-engine-demo.exe" if os.name == "nt" else "chess-engine-demo"
+            "eureka.exe" if os.name == "nt" else "eureka"
         )
         self.assertTrue(
             engine.is_file(), f"release engine missing: {engine}"
