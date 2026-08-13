@@ -122,5 +122,9 @@
     "smoke-p412-rated": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "08110310": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
     "s44c-single-buffer-200pairs": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea"
-  }
+  },
+  "source_families": {
+    "arena": 5919
+  },
+  "largest_family_share": 1.0
 }
