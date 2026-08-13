@@ -11,8 +11,7 @@ use std::time::Duration;
 /// test runtime (not compile time), so read it at runtime.
 pub fn engine_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
-        std::env::var("CARGO_BIN_EXE_eureka")
-            .expect("CARGO_BIN_EXE_eureka must be set by cargo"),
+        std::env::var("CARGO_BIN_EXE_eureka").expect("CARGO_BIN_EXE_eureka must be set by cargo"),
     )
 }
 
