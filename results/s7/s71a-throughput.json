@@ -1,0 +1,26 @@
+{
+  "contract": {
+    "profile_a": "current-final",
+    "profile_b": "current-final-qsearch-lazy",
+    "depth": 6,
+    "reps": 5,
+    "corpus": "30 S4 + 80 S7",
+    "pairs": 550
+  },
+  "aggregate_wall_delta_pct": 3.4938254382643468,
+  "median_paired_wall_delta_pct": 2.7826171118854046,
+  "mean_paired_wall_delta_pct": 2.199460360102354,
+  "p25_paired_delta_pct": -1.1268781302170283,
+  "p75_paired_delta_pct": 5.778894472361809,
+  "favorable_pairs": 164,
+  "unfavorable_pairs": 372,
+  "total_cf_ms": 301074,
+  "total_lazy_ms": 311593,
+  "per_rep_aggregate_delta_pct": [
+    3.0650499864901377,
+    4.22564935064935,
+    3.0590255836938383,
+    2.129398114101747,
+    5.074283322870894
+  ]
+}

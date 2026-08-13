@@ -1,0 +1,22 @@
+{
+  "per_wall": {
+    "1000": {
+      "positions": 80,
+      "cf_median_depth": 6.0,
+      "lazy_median_depth": 6.0,
+      "cf_median_nodes": 230437.0,
+      "lazy_median_nodes": 223737.5,
+      "cf_sum_nodes": 19029171,
+      "lazy_sum_nodes": 18932832
+    },
+    "3000": {
+      "positions": 80,
+      "cf_median_depth": 7.0,
+      "lazy_median_depth": 7.0,
+      "cf_median_nodes": 681829.0,
+      "lazy_median_nodes": 658483.5,
+      "cf_sum_nodes": 56436309,
+      "lazy_sum_nodes": 56033056
+    }
+  }
+}

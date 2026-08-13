@@ -62,5 +62,7 @@ data/s6/s6-eval-v1-core-shard01/labels.jsonl
 /results/s7/s70-raw-per-position.jsonl
 /results/s7/run.log
 /results/s7/run.err
+/results/s7/*.log
+/results/s7/*.err
 
 data/s6/s6-eval-v1-core-300k/
