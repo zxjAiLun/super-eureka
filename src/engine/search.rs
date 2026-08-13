@@ -181,6 +181,11 @@ pub(crate) enum SearchProfile {
     /// Retained as a historical/compatibility alias (search behavior
     /// identical to CurrentFinal).
     CurrentFinalSingleGeneration,
+    /// S7.1A candidate: exactly CurrentFinal except that non-check qsearch
+    /// defers tactical move generation/ordering past the stand-pat beta
+    /// cutoff and stalemate check. Same searched tree (nodes/score/bestmove/
+    /// PV) by construction; only the wasted work is avoided.
+    CurrentFinalQsearchLazy,
 }
 
 impl SearchProfile {
@@ -212,6 +217,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -230,6 +236,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -244,6 +251,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -260,6 +268,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -285,6 +294,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -303,12 +313,22 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
     #[inline]
     pub(crate) const fn uses_qsearch_fast_pruning(self) -> bool {
         matches!(self, Self::CurrentQsearchFastPruning)
+    }
+
+    /// S7.1A: non-check qsearch defers tactical move generation/ordering past
+    /// the stand-pat beta cutoff and the stalemate probe. Same searched tree
+    /// by construction (stand-pat is a pure static eval; has-any-legal is the
+    /// exact emptiness predicate).
+    #[inline]
+    pub(crate) const fn uses_qsearch_lazy(self) -> bool {
+        matches!(self, Self::CurrentFinalQsearchLazy)
     }
 
     #[inline]
@@ -355,6 +375,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -374,6 +395,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -393,6 +415,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLegalityFast
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
         )
     }
 
@@ -754,6 +777,11 @@ pub struct SearchContext {
     pub qsearch_standpat_alpha_raises: AtomicU64,
     pub qsearch_moves_searched: AtomicU64,
     pub qsearch_in_check_entries: AtomicU64,
+    /// S7.1A: lazy qsearch materialization mechanism counters (profiling-only).
+    pub qsearch_lazy_has_any_probes: AtomicU64,
+    pub qsearch_lazy_standpat_cutoffs_before_movegen: AtomicU64,
+    pub qsearch_lazy_qply_returns_before_movegen: AtomicU64,
+    pub qsearch_lazy_tactical_generations: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -855,6 +883,10 @@ pub struct SearchStats {
     pub qsearch_standpat_alpha_raises: u64,
     pub qsearch_moves_searched: u64,
     pub qsearch_in_check_entries: u64,
+    pub qsearch_lazy_has_any_probes: u64,
+    pub qsearch_lazy_standpat_cutoffs_before_movegen: u64,
+    pub qsearch_lazy_qply_returns_before_movegen: u64,
+    pub qsearch_lazy_tactical_generations: u64,
 }
 
 impl SearchContext {
@@ -994,6 +1026,10 @@ impl SearchContext {
             qsearch_standpat_alpha_raises: AtomicU64::new(0),
             qsearch_moves_searched: AtomicU64::new(0),
             qsearch_in_check_entries: AtomicU64::new(0),
+            qsearch_lazy_has_any_probes: AtomicU64::new(0),
+            qsearch_lazy_standpat_cutoffs_before_movegen: AtomicU64::new(0),
+            qsearch_lazy_qply_returns_before_movegen: AtomicU64::new(0),
+            qsearch_lazy_tactical_generations: AtomicU64::new(0),
         }
     }
 
@@ -1150,6 +1186,10 @@ impl SearchContext {
             qsearch_standpat_alpha_raises: AtomicU64::new(0),
             qsearch_moves_searched: AtomicU64::new(0),
             qsearch_in_check_entries: AtomicU64::new(0),
+            qsearch_lazy_has_any_probes: AtomicU64::new(0),
+            qsearch_lazy_standpat_cutoffs_before_movegen: AtomicU64::new(0),
+            qsearch_lazy_qply_returns_before_movegen: AtomicU64::new(0),
+            qsearch_lazy_tactical_generations: AtomicU64::new(0),
         }
     }
 
@@ -1256,6 +1296,16 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             qsearch_moves_searched: self.qsearch_moves_searched.load(Ordering::Relaxed),
             qsearch_in_check_entries: self.qsearch_in_check_entries.load(Ordering::Relaxed),
+            qsearch_lazy_has_any_probes: self.qsearch_lazy_has_any_probes.load(Ordering::Relaxed),
+            qsearch_lazy_standpat_cutoffs_before_movegen: self
+                .qsearch_lazy_standpat_cutoffs_before_movegen
+                .load(Ordering::Relaxed),
+            qsearch_lazy_qply_returns_before_movegen: self
+                .qsearch_lazy_qply_returns_before_movegen
+                .load(Ordering::Relaxed),
+            qsearch_lazy_tactical_generations: self
+                .qsearch_lazy_tactical_generations
+                .load(Ordering::Relaxed),
         }
     }
 
@@ -4642,7 +4692,8 @@ fn quiescence_entered_impl_with_profile(
     // search - adding qply would double-count the qsearch descent).
     ctx.record_seldepth(ply);
     if ctx.profiling_enabled {
-        ctx.qsearch_seldepth.fetch_max(ply as u64, Ordering::Relaxed);
+        ctx.qsearch_seldepth
+            .fetch_max(ply as u64, Ordering::Relaxed);
     }
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
@@ -4656,7 +4707,12 @@ fn quiescence_entered_impl_with_profile(
     // generates only tactical legal moves at non-check nodes and all legal
     // evasions under check; a tactical-empty node performs one early-stop
     // legal-move probe so stalemate is never mistaken for stand-pat.
-    let mut legal = if qsearch_movegen {
+    // S7.1A: the lazy candidate DEFERS the non-check tactical generation past
+    // the stand-pat beta cutoff / stalemate probe (same searched tree).
+    let lazy = !in_check && profile.uses_qsearch_lazy();
+    let mut legal = if lazy {
+        Vec::new()
+    } else if qsearch_movegen {
         if in_check {
             generate_legal_evasions_profiled(pos, ctx)
         } else if profile.uses_threat_aware_qsearch() && qply < MAX_FORCING_QPLY {
@@ -4682,7 +4738,12 @@ fn quiescence_entered_impl_with_profile(
     } else {
         generate_legal_moves_profiled(pos, ctx)
     };
-    if legal.is_empty() {
+    if lazy {
+        ctx.add_profile_counter(&ctx.qsearch_lazy_has_any_probes, 1);
+        if !has_any_legal_move_profiled(pos, ctx) {
+            return Some(0);
+        }
+    } else if legal.is_empty() {
         if in_check {
             return Some(-(MATE - ply as i32));
         }
@@ -4710,19 +4771,26 @@ fn quiescence_entered_impl_with_profile(
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
-    let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
-    if profile.uses_threat_ordering() {
-        order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
-    } else {
-        order_moves(pos, &mut legal);
-    }
-    if let Some(start) = ordering_start {
-        ctx.sample_end(&ctx.timing_ordering, start);
+    // S7.1A: the lazy candidate orders AFTER the deferred movegen (below), so
+    // this eager ordering is skipped for lazy non-check nodes.
+    if !lazy {
+        let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
+        if profile.uses_threat_ordering() {
+            order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
+        } else {
+            order_moves(pos, &mut legal);
+        }
+        if let Some(start) = ordering_start {
+            ctx.sample_end(&ctx.timing_ordering, start);
+        }
     }
 
     // Termination cap.
     if qply >= MAX_QPLY {
         if !in_check {
+            if lazy {
+                ctx.add_profile_counter(&ctx.qsearch_lazy_qply_returns_before_movegen, 1);
+            }
             let stand_pat = evaluate_profiled(pos, ctx, profile);
             if stand_pat >= beta {
                 return Some(beta);
@@ -4744,13 +4812,26 @@ fn quiescence_entered_impl_with_profile(
         let stand_pat = evaluate_profiled(pos, ctx, profile);
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
+            if lazy {
+                ctx.add_profile_counter(&ctx.qsearch_lazy_standpat_cutoffs_before_movegen, 1);
+            }
             return Some(beta);
         }
         if stand_pat > alpha {
             ctx.add_profile_counter(&ctx.qsearch_standpat_alpha_raises, 1);
             alpha = stand_pat;
         }
-        let mut tactical: Vec<Move> = if qsearch_movegen {
+        let mut tactical: Vec<Move> = if lazy {
+            // S7.1A: only now materialize + order the tactical list.
+            ctx.add_profile_counter(&ctx.qsearch_lazy_tactical_generations, 1);
+            let mut gen = generate_legal_tactical_moves_profiled(pos, ctx);
+            let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
+            order_moves(pos, &mut gen);
+            if let Some(start) = ordering_start {
+                ctx.sample_end(&ctx.timing_ordering, start);
+            }
+            gen
+        } else if qsearch_movegen {
             legal
         } else {
             legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
