@@ -89,6 +89,16 @@ def median(xs: list[float]) -> float:
     return float(statistics.median(xs)) if xs else 0.0
 
 
+def percentile(xs: list[float], q: float) -> float:
+    if not xs:
+        return 0.0
+    s = sorted(xs)
+    k = (len(s) - 1) * q
+    f = int(k)
+    c = min(f + 1, len(s) - 1)
+    return s[f] + (s[c] - s[f]) * (k - f)
+
+
 def load_done(raw_path: Path) -> dict[str, dict]:
     done: dict[str, dict] = {}
     if raw_path.exists():
@@ -207,6 +217,10 @@ def aggregate(positions: list[dict], corpus_sha: str) -> dict:
             vals[k] = []
         cutoff_sum = {"cutoff_tt_move": 0, "cutoff_tactical": 0,
                       "cutoff_killer": 0, "cutoff_quiet": 0}
+        qs_sum = {"qsearch_nodes": 0, "qsearch_in_check_entries": 0,
+                  "qsearch_standpat_cutoffs": 0, "qsearch_standpat_alpha_raises": 0,
+                  "qsearch_see_tests": 0, "qsearch_see_pruned": 0,
+                  "qsearch_moves_searched": 0}
         changed = 0
         big_swing = 0
         for pos in positions:
@@ -219,16 +233,18 @@ def aggregate(positions: list[dict], corpus_sha: str) -> dict:
                     vals[k].append(float(v))
             for k in cutoff_sum:
                 cutoff_sum[k] += int_of(rec, k)
+            for k in qs_sum:
+                qs_sum[k] += int_of(rec, k)
             if rec.get("bestmove_changed"):
                 changed += 1
             if abs(rec.get("score_delta_cp") or 0) >= 200:
                 big_swing += 1
         total_cut = sum(cutoff_sum.values())
+        noncheck_qsearch = qs_sum["qsearch_nodes"] - qs_sum["qsearch_in_check_entries"]
         agg[str(d)] = {
             "completed": len(vals["nodes"]),
             "median_nodes": median(vals["nodes"]),
             "median_iteration_nodes": median(vals["iteration_nodes"]),
-            "median_growth": 0.0,
             "median_wall_ms": median(vals["elapsed_ms"]),
             "median_seldepth": median(vals["seldepth"]),
             "median_seldepth_minus_depth": median(vals["seldepth_minus_depth"]),
@@ -246,13 +262,55 @@ def aggregate(positions: list[dict], corpus_sha: str) -> dict:
             },
             "bestmove_changes": changed,
             "big_score_swings_200cp": big_swing,
+            "qsearch_headroom": {
+                "noncheck_qsearch_nodes": noncheck_qsearch,
+                "standpat_cutoff_pct": (
+                    qs_sum["qsearch_standpat_cutoffs"] / noncheck_qsearch * 100.0
+                    if noncheck_qsearch else 0.0
+                ),
+                "standpat_alpha_raise_pct": (
+                    qs_sum["qsearch_standpat_alpha_raises"] / noncheck_qsearch * 100.0
+                    if noncheck_qsearch else 0.0
+                ),
+                "see_prune_pct": (
+                    qs_sum["qsearch_see_pruned"] / qs_sum["qsearch_see_tests"] * 100.0
+                    if qs_sum["qsearch_see_tests"] else 0.0
+                ),
+                "moves_searched_per_qsearch_node": (
+                    qs_sum["qsearch_moves_searched"] / qs_sum["qsearch_nodes"]
+                    if qs_sum["qsearch_nodes"] else 0.0
+                ),
+                "in_check_qsearch_pct": (
+                    qs_sum["qsearch_in_check_entries"] / qs_sum["qsearch_nodes"] * 100.0
+                    if qs_sum["qsearch_nodes"] else 0.0
+                ),
+            },
         }
     prev_it = 0.0
     for d in DEPTHS:
         it = agg[str(d)]["median_iteration_nodes"]
         if prev_it > 0:
-            agg[str(d)]["median_growth"] = it / prev_it
+            agg[str(d)]["ratio_of_median_iteration_nodes"] = it / prev_it
+        else:
+            agg[str(d)]["ratio_of_median_iteration_nodes"] = 0.0
         prev_it = it
+        # per-position growth: iteration_nodes[d] / iteration_nodes[d-1] per
+        # position, then aggregate median/p25/p75.
+        per_pos_growth: list[float] = []
+        for pos in positions:
+            cur = pos["per_depth"].get(str(d), {})
+            prv = pos["per_depth"].get(str(d - 1), {})
+            if any(k in cur for k in ("error", "timeout", "skipped")):
+                continue
+            if any(k in prv for k in ("error", "timeout", "skipped")):
+                continue
+            c = cur.get("iteration_nodes")
+            p = prv.get("iteration_nodes")
+            if c is not None and p and p > 0:
+                per_pos_growth.append(float(c) / float(p))
+        agg[str(d)]["median_per_position_growth"] = median(per_pos_growth)
+        agg[str(d)]["p25_per_position_growth"] = percentile(per_pos_growth, 0.25)
+        agg[str(d)]["p75_per_position_growth"] = percentile(per_pos_growth, 0.75)
     return {
         "contract": {
             "observation_source": "d71c3e7",
@@ -293,18 +351,31 @@ def write_report(data: dict, out: Path) -> None:
     L.append("")
     L.append("## Aggregate per depth")
     L.append("")
-    L.append("| depth | completed | median iter nodes | growth | median wall ms | seldepth-depth | qsearch % | 1st-move cutoff % | searched moves/main-node | TT hit % | LMR research % | bestmove changes | big swings (>=200cp) |")
-    L.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    L.append("| depth | completed | median iter nodes | ratio-of-medians growth | median per-pos growth (p25/p75) | median wall ms | seldepth-depth | qsearch % | 1st-move cutoff % | searched moves/main-node | TT hit % | bestmove changes |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for d in data["contract"]["depths"]:
         a = data["aggregate"][str(d)]
         L.append(
             f"| {d} | {a['completed']} | {a['median_iteration_nodes']:,.0f} | "
-            f"{a['median_growth']:.2f} | {a['median_wall_ms']:,.0f} | "
-            f"{a['median_seldepth_minus_depth']:.0f} | {a['median_qsearch_pct']:.1f} | "
-            f"{a['median_first_move_cutoff_pct']:.1f} | "
-            f"{a['median_searched_moves_per_main_node']:.2f} | "
-            f"{a['median_tt_hit_pct']:.1f} | {a['median_lmr_research_pct']:.1f} | "
-            f"{a['bestmove_changes']} | {a['big_score_swings_200cp']} |"
+            f"{a['ratio_of_median_iteration_nodes']:.2f} | "
+            f"{a['median_per_position_growth']:.2f} "
+            f"({a['p25_per_position_growth']:.2f}/{a['p75_per_position_growth']:.2f}) | "
+            f"{a['median_wall_ms']:,.0f} | {a['median_seldepth_minus_depth']:.0f} | "
+            f"{a['median_qsearch_pct']:.1f} | {a['median_first_move_cutoff_pct']:.1f} | "
+            f"{a['median_searched_moves_per_main_node']:.2f} | {a['median_tt_hit_pct']:.1f} | "
+            f"{a['bestmove_changes']} |"
+        )
+    L.append("")
+    L.append("## Qsearch headroom (attribution)")
+    L.append("")
+    L.append("| depth | stand-pat cutoff % | stand-pat alpha-raise % | SEE prune % | moves searched/qnode | in-check qsearch % |")
+    L.append("|---|---|---|---|---|---|")
+    for d in data["contract"]["depths"]:
+        h = data["aggregate"][str(d)]["qsearch_headroom"]
+        L.append(
+            f"| {d} | {h['standpat_cutoff_pct']:.1f} | {h['standpat_alpha_raise_pct']:.1f} | "
+            f"{h['see_prune_pct']:.1f} | {h['moves_searched_per_qsearch_node']:.2f} | "
+            f"{h['in_check_qsearch_pct']:.1f} |"
         )
     L.append("")
     L.append("## Beta-cutoff mover split")
@@ -333,29 +404,40 @@ def write_diagnosis(L: list[str], data: dict) -> None:
         f"({d4['median_qsearch_pct']:.1f}% at depth 4), while the seldepth-depth gap grows from "
         f"{d4['median_seldepth_minus_depth']:.0f} to {d8['median_seldepth_minus_depth']:.0f} plies. "
         "The main tree is only ~15-20% of the search; the engine spends most of its node budget "
-        "resolving capture chains and check extensions in quiescence. This is the direct answer to "
-        "\"why depth 7 and not 10-12\": each nominal ply drags a deep qsearch tail behind it."
+        "resolving capture/promotion chains plus mandatory in-check evasions in quiescence "
+        "(CurrentFinal has no forcing-search / quiet-check extension). This is the direct answer "
+        "to \"why depth 7 and not 10-12\": each nominal ply drags a deep qsearch tail behind it."
     )
     L.append("")
     L.append("### 2. ORDERING_LIMITED (secondary)")
     L.append("")
     L.append(
-        f"First-move beta-cutoff is only **{d8['median_first_move_cutoff_pct']:.1f}%** (a strong engine "
-        "reaches ~90%+), and the cutoff mover split shows captures/pruning dominate "
+        f"First-move beta-cutoff is **{d8['median_first_move_cutoff_pct']:.1f}%** (reference: strong "
+        "engines reach ~90%+, but no in-project benchmark exists yet), and the cutoff mover split "
+        "shows captures/pruning dominate "
         f"({d8['cutoff_mover_pct']['tactical']:.1f}% tactical) with quiet moves rarely cutting off "
         f"({d8['cutoff_mover_pct']['quiet']:.1f}%). Killer cutoffs are healthy "
-        f"({d8['cutoff_mover_pct']['killer']:.1f}%) but history/quiet ordering is weak, so late quiet "
-        "moves still get searched. Median searched branching is "
+        f"({d8['cutoff_mover_pct']['killer']:.1f}%). This indicates ordering headroom but is NOT "
+        "yet proof that ordering is the second bottleneck; a quiet-move rank/cutoff-opportunity "
+        "study (S7.2) is still needed. Median searched branching is "
         f"~{d8['median_searched_moves_per_main_node']:.1f} moves/main-node with a heavy 17+ tail."
     )
     L.append("")
     L.append("### 3. HIGH_EFFECTIVE_BRANCHING (consequence)")
     L.append("")
     L.append(
-        "Iteration growth factors are "
-        + " / ".join(f"{agg[str(d)]['median_growth']:.2f}" for d in data["contract"]["depths"][1:])
-        + " (depth 5..8). A well-tuned engine is ~2.0. This is the combined symptom of qsearch "
-        "dominance and sub-90% move ordering, not an independent cause."
+        "Ratio-of-medians iteration growth is "
+        + " / ".join(
+            f"{agg[str(d)]['ratio_of_median_iteration_nodes']:.2f}"
+            for d in data["contract"]["depths"][1:]
+        )
+        + " (depth 5..8); median per-position growth is "
+        + " / ".join(
+            f"{agg[str(d)]['median_per_position_growth']:.2f}"
+            for d in data["contract"]["depths"][1:]
+        )
+        + ". (A well-tuned engine is ~2.0x/ply; heuristic context only.) This is the combined "
+        "symptom of qsearch dominance and sub-90% move ordering, not an independent cause."
     )
     L.append("")
     L.append("### NOT the bottleneck (yet)")

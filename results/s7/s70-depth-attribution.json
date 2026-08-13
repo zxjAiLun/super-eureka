@@ -23,7 +23,6 @@
       "completed": 80,
       "median_nodes": 5770.5,
       "median_iteration_nodes": 5770.5,
-      "median_growth": 0.0,
       "median_wall_ms": 24.5,
       "median_seldepth": 12.0,
       "median_seldepth_minus_depth": 8.0,
@@ -40,13 +39,24 @@
         "quiet": 2.511795725784069
       },
       "bestmove_changes": 0,
-      "big_score_swings_200cp": 0
+      "big_score_swings_200cp": 0,
+      "qsearch_headroom": {
+        "noncheck_qsearch_nodes": 473150,
+        "standpat_cutoff_pct": 49.33932156821304,
+        "standpat_alpha_raise_pct": 0.4138222550988059,
+        "see_prune_pct": 48.11271402097871,
+        "moves_searched_per_qsearch_node": 0.594877817004617,
+        "in_check_qsearch_pct": 11.664933508329428
+      },
+      "ratio_of_median_iteration_nodes": 0.0,
+      "median_per_position_growth": 0.0,
+      "p25_per_position_growth": 0.0,
+      "p75_per_position_growth": 0.0
     },
     "5": {
       "completed": 80,
       "median_nodes": 23588.0,
       "median_iteration_nodes": 15043.5,
-      "median_growth": 2.606966467377177,
       "median_wall_ms": 89.0,
       "median_seldepth": 13.5,
       "median_seldepth_minus_depth": 8.5,
@@ -63,13 +73,24 @@
         "quiet": 2.266271630192497
       },
       "bestmove_changes": 16,
-      "big_score_swings_200cp": 2
+      "big_score_swings_200cp": 2,
+      "qsearch_headroom": {
+        "noncheck_qsearch_nodes": 1780968,
+        "standpat_cutoff_pct": 69.90619707934113,
+        "standpat_alpha_raise_pct": 0.1348704749327332,
+        "see_prune_pct": 46.11248997018032,
+        "moves_searched_per_qsearch_node": 0.38875490485375036,
+        "in_check_qsearch_pct": 9.077412708153162
+      },
+      "ratio_of_median_iteration_nodes": 2.606966467377177,
+      "median_per_position_growth": 2.486148037625526,
+      "p25_per_position_growth": 1.2936617412909892,
+      "p75_per_position_growth": 3.788195040249824
     },
     "6": {
       "completed": 80,
       "median_nodes": 107751.5,
       "median_iteration_nodes": 83276.0,
-      "median_growth": 5.5356798617343035,
       "median_wall_ms": 423.5,
       "median_seldepth": 16.0,
       "median_seldepth_minus_depth": 10.0,
@@ -86,13 +107,24 @@
         "quiet": 1.5412359229550512
       },
       "bestmove_changes": 19,
-      "big_score_swings_200cp": 2
+      "big_score_swings_200cp": 2,
+      "qsearch_headroom": {
+        "noncheck_qsearch_nodes": 7383680,
+        "standpat_cutoff_pct": 48.60092799254572,
+        "standpat_alpha_raise_pct": 0.04026447516685447,
+        "see_prune_pct": 49.50769052021195,
+        "moves_searched_per_qsearch_node": 0.5518431276982182,
+        "in_check_qsearch_pct": 10.922320873298279
+      },
+      "ratio_of_median_iteration_nodes": 5.5356798617343035,
+      "median_per_position_growth": 4.330124562206299,
+      "p25_per_position_growth": 3.3434433429180634,
+      "p75_per_position_growth": 6.814772731324437
     },
     "7": {
       "completed": 80,
       "median_nodes": 355308.5,
       "median_iteration_nodes": 269555.0,
-      "median_growth": 3.2368869782410297,
       "median_wall_ms": 1543.0,
       "median_seldepth": 18.0,
       "median_seldepth_minus_depth": 11.0,
@@ -109,13 +141,24 @@
         "quiet": 1.4145912902479023
       },
       "bestmove_changes": 19,
-      "big_score_swings_200cp": 1
+      "big_score_swings_200cp": 1,
+      "qsearch_headroom": {
+        "noncheck_qsearch_nodes": 33949522,
+        "standpat_cutoff_pct": 70.01023166099364,
+        "standpat_alpha_raise_pct": 0.011387494645727265,
+        "see_prune_pct": 47.97516616711835,
+        "moves_searched_per_qsearch_node": 0.3680497346695195,
+        "in_check_qsearch_pct": 8.94132351076668
+      },
+      "ratio_of_median_iteration_nodes": 3.2368869782410297,
+      "median_per_position_growth": 3.9810445169476005,
+      "p25_per_position_growth": 2.4051215127240417,
+      "p75_per_position_growth": 5.207781462298109
     },
     "8": {
       "completed": 80,
       "median_nodes": 1637120.5,
       "median_iteration_nodes": 1270812.0,
-      "median_growth": 4.714481274693476,
       "median_wall_ms": 6931.0,
       "median_seldepth": 21.0,
       "median_seldepth_minus_depth": 13.0,
@@ -132,7 +175,19 @@
         "quiet": 1.1498935151666854
       },
       "bestmove_changes": 15,
-      "big_score_swings_200cp": 0
+      "big_score_swings_200cp": 0,
+      "qsearch_headroom": {
+        "noncheck_qsearch_nodes": 141074793,
+        "standpat_cutoff_pct": 48.37693010118399,
+        "standpat_alpha_raise_pct": 0.0035194097360823342,
+        "see_prune_pct": 50.95813456726754,
+        "moves_searched_per_qsearch_node": 0.5432113801918839,
+        "in_check_qsearch_pct": 10.51827434858889
+      },
+      "ratio_of_median_iteration_nodes": 4.714481274693476,
+      "median_per_position_growth": 4.612643400651259,
+      "p25_per_position_growth": 2.9959211931371694,
+      "p75_per_position_growth": 6.5603392123231075
     }
   },
   "per_position": [
