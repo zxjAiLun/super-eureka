@@ -84,8 +84,8 @@ type LineReceiver = Receiver<io::Result<String>>;
 
 fn engine_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
-        std::env::var("CARGO_BIN_EXE_chess-engine-demo")
-            .expect("CARGO_BIN_EXE_chess-engine-demo must be set by cargo"),
+        std::env::var("CARGO_BIN_EXE_eureka")
+            .expect("CARGO_BIN_EXE_eureka must be set by cargo"),
     )
 }
 
@@ -415,7 +415,7 @@ fn run_case(case: &Case, profile: &str) -> Result<Outcome, String> {
     let handshake = engine.read_until("uciok", UCI_TIMEOUT)?;
     if !handshake
         .iter()
-        .any(|line| line == &format!("info string search profile {profile}"))
+        .any(|line| line == &format!("info string profile {profile}"))
     {
         return Err(engine.failure(
             "checking profile identity",

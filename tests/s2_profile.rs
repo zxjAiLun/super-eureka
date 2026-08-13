@@ -3,8 +3,8 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 fn engine_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
-        std::env::var("CARGO_BIN_EXE_chess-engine-demo")
-            .expect("CARGO_BIN_EXE_chess-engine-demo must be set by cargo"),
+        std::env::var("CARGO_BIN_EXE_eureka")
+            .expect("CARGO_BIN_EXE_eureka must be set by cargo"),
     )
 }
 
@@ -49,7 +49,7 @@ fn assert_handshake_profile(
     assert!(
         lines
             .iter()
-            .any(|line| line == &format!("info string search profile {}", expected)),
+            .any(|line| line == &format!("info string profile {}", expected)),
         "handshake must report {}: {:?}",
         expected,
         lines
@@ -81,7 +81,7 @@ fn run_profile_process(args: &[&str], expected: &str, verify_hot_switch: bool) {
         assert!(
             second_handshake
                 .iter()
-                .any(|line| line == &format!("info string search profile {}", expected)),
+                .any(|line| line == &format!("info string profile {}", expected)),
             "UCI commands must not hot-switch the startup profile: {:?}",
             second_handshake
         );

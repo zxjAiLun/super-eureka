@@ -12,8 +12,8 @@ struct SearchSnapshot {
 
 fn engine_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
-        std::env::var("CARGO_BIN_EXE_chess-engine-demo")
-            .expect("CARGO_BIN_EXE_chess-engine-demo must be set by cargo"),
+        std::env::var("CARGO_BIN_EXE_eureka")
+            .expect("CARGO_BIN_EXE_eureka must be set by cargo"),
     )
 }
 
@@ -66,7 +66,7 @@ fn search_snapshot(args: &[&str], fen: &str) -> SearchSnapshot {
     assert!(
         handshake
             .iter()
-            .any(|line| line == "info string search profile current-final"),
+            .any(|line| line == "info string profile current-final"),
         "promoted default identity must be current-final: {handshake:?}"
     );
 
