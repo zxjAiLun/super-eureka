@@ -709,6 +709,47 @@ pub struct SearchContext {
     pub(crate) evasion_probe_unmake: AtomicU64,
     pub(crate) has_any_probe_make: AtomicU64,
     pub(crate) has_any_probe_unmake: AtomicU64,
+    /// S7.0 depth-attribution (observation-only, profiling-gated): where the
+    /// tree's effort actually goes, so depth bottlenecks can be ranked.
+    pub beta_cutoffs: AtomicU64,
+    pub beta_cutoff_idx_0: AtomicU64,
+    pub beta_cutoff_idx_1: AtomicU64,
+    pub beta_cutoff_idx_2_3: AtomicU64,
+    pub beta_cutoff_idx_4_7: AtomicU64,
+    pub beta_cutoff_idx_8_15: AtomicU64,
+    pub beta_cutoff_idx_16p: AtomicU64,
+    pub cutoff_tt_move: AtomicU64,
+    pub cutoff_tactical: AtomicU64,
+    pub cutoff_killer: AtomicU64,
+    pub cutoff_quiet: AtomicU64,
+    pub moves_searched: AtomicU64,
+    pub pv_nodes: AtomicU64,
+    pub in_check_nodes: AtomicU64,
+    pub depth_bucket_0: AtomicU64,
+    pub depth_bucket_1: AtomicU64,
+    pub depth_bucket_2: AtomicU64,
+    pub depth_bucket_3: AtomicU64,
+    pub depth_bucket_4_5: AtomicU64,
+    pub depth_bucket_6_7: AtomicU64,
+    pub depth_bucket_8p: AtomicU64,
+    pub searched_hist_1: AtomicU64,
+    pub searched_hist_2: AtomicU64,
+    pub searched_hist_3_4: AtomicU64,
+    pub searched_hist_5_8: AtomicU64,
+    pub searched_hist_9_16: AtomicU64,
+    pub searched_hist_17p: AtomicU64,
+    pub tt_hit_exact: AtomicU64,
+    pub tt_hit_lower: AtomicU64,
+    pub tt_hit_upper: AtomicU64,
+    pub lmr_reduction_r1: AtomicU64,
+    pub lmr_reduction_r2: AtomicU64,
+    pub lmr_reduced_improves_alpha: AtomicU64,
+    pub null_fail_lows: AtomicU64,
+    pub futility_considered: AtomicU64,
+    pub qsearch_standpat_cutoffs: AtomicU64,
+    pub qsearch_standpat_alpha_raises: AtomicU64,
+    pub qsearch_moves_searched: AtomicU64,
+    pub qsearch_in_check_entries: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -767,6 +808,46 @@ pub struct SearchStats {
     pub legality_fallback_castle: u64,
     /// S4.4B: single-buffer compaction writes (zero for two-buffer profiles).
     pub single_buffer_writes: u64,
+    /// S7.0 depth-attribution counters (observation-only, profiling-gated).
+    pub beta_cutoffs: u64,
+    pub beta_cutoff_idx_0: u64,
+    pub beta_cutoff_idx_1: u64,
+    pub beta_cutoff_idx_2_3: u64,
+    pub beta_cutoff_idx_4_7: u64,
+    pub beta_cutoff_idx_8_15: u64,
+    pub beta_cutoff_idx_16p: u64,
+    pub cutoff_tt_move: u64,
+    pub cutoff_tactical: u64,
+    pub cutoff_killer: u64,
+    pub cutoff_quiet: u64,
+    pub moves_searched: u64,
+    pub pv_nodes: u64,
+    pub in_check_nodes: u64,
+    pub depth_bucket_0: u64,
+    pub depth_bucket_1: u64,
+    pub depth_bucket_2: u64,
+    pub depth_bucket_3: u64,
+    pub depth_bucket_4_5: u64,
+    pub depth_bucket_6_7: u64,
+    pub depth_bucket_8p: u64,
+    pub searched_hist_1: u64,
+    pub searched_hist_2: u64,
+    pub searched_hist_3_4: u64,
+    pub searched_hist_5_8: u64,
+    pub searched_hist_9_16: u64,
+    pub searched_hist_17p: u64,
+    pub tt_hit_exact: u64,
+    pub tt_hit_lower: u64,
+    pub tt_hit_upper: u64,
+    pub lmr_reduction_r1: u64,
+    pub lmr_reduction_r2: u64,
+    pub lmr_reduced_improves_alpha: u64,
+    pub null_fail_lows: u64,
+    pub futility_considered: u64,
+    pub qsearch_standpat_cutoffs: u64,
+    pub qsearch_standpat_alpha_raises: u64,
+    pub qsearch_moves_searched: u64,
+    pub qsearch_in_check_entries: u64,
 }
 
 impl SearchContext {
@@ -865,6 +946,45 @@ impl SearchContext {
             evasion_probe_unmake: AtomicU64::new(0),
             has_any_probe_make: AtomicU64::new(0),
             has_any_probe_unmake: AtomicU64::new(0),
+            beta_cutoffs: AtomicU64::new(0),
+            beta_cutoff_idx_0: AtomicU64::new(0),
+            beta_cutoff_idx_1: AtomicU64::new(0),
+            beta_cutoff_idx_2_3: AtomicU64::new(0),
+            beta_cutoff_idx_4_7: AtomicU64::new(0),
+            beta_cutoff_idx_8_15: AtomicU64::new(0),
+            beta_cutoff_idx_16p: AtomicU64::new(0),
+            cutoff_tt_move: AtomicU64::new(0),
+            cutoff_tactical: AtomicU64::new(0),
+            cutoff_killer: AtomicU64::new(0),
+            cutoff_quiet: AtomicU64::new(0),
+            moves_searched: AtomicU64::new(0),
+            pv_nodes: AtomicU64::new(0),
+            in_check_nodes: AtomicU64::new(0),
+            depth_bucket_0: AtomicU64::new(0),
+            depth_bucket_1: AtomicU64::new(0),
+            depth_bucket_2: AtomicU64::new(0),
+            depth_bucket_3: AtomicU64::new(0),
+            depth_bucket_4_5: AtomicU64::new(0),
+            depth_bucket_6_7: AtomicU64::new(0),
+            depth_bucket_8p: AtomicU64::new(0),
+            searched_hist_1: AtomicU64::new(0),
+            searched_hist_2: AtomicU64::new(0),
+            searched_hist_3_4: AtomicU64::new(0),
+            searched_hist_5_8: AtomicU64::new(0),
+            searched_hist_9_16: AtomicU64::new(0),
+            searched_hist_17p: AtomicU64::new(0),
+            tt_hit_exact: AtomicU64::new(0),
+            tt_hit_lower: AtomicU64::new(0),
+            tt_hit_upper: AtomicU64::new(0),
+            lmr_reduction_r1: AtomicU64::new(0),
+            lmr_reduction_r2: AtomicU64::new(0),
+            lmr_reduced_improves_alpha: AtomicU64::new(0),
+            null_fail_lows: AtomicU64::new(0),
+            futility_considered: AtomicU64::new(0),
+            qsearch_standpat_cutoffs: AtomicU64::new(0),
+            qsearch_standpat_alpha_raises: AtomicU64::new(0),
+            qsearch_moves_searched: AtomicU64::new(0),
+            qsearch_in_check_entries: AtomicU64::new(0),
         }
     }
 
@@ -980,6 +1100,45 @@ impl SearchContext {
             evasion_probe_unmake: AtomicU64::new(0),
             has_any_probe_make: AtomicU64::new(0),
             has_any_probe_unmake: AtomicU64::new(0),
+            beta_cutoffs: AtomicU64::new(0),
+            beta_cutoff_idx_0: AtomicU64::new(0),
+            beta_cutoff_idx_1: AtomicU64::new(0),
+            beta_cutoff_idx_2_3: AtomicU64::new(0),
+            beta_cutoff_idx_4_7: AtomicU64::new(0),
+            beta_cutoff_idx_8_15: AtomicU64::new(0),
+            beta_cutoff_idx_16p: AtomicU64::new(0),
+            cutoff_tt_move: AtomicU64::new(0),
+            cutoff_tactical: AtomicU64::new(0),
+            cutoff_killer: AtomicU64::new(0),
+            cutoff_quiet: AtomicU64::new(0),
+            moves_searched: AtomicU64::new(0),
+            pv_nodes: AtomicU64::new(0),
+            in_check_nodes: AtomicU64::new(0),
+            depth_bucket_0: AtomicU64::new(0),
+            depth_bucket_1: AtomicU64::new(0),
+            depth_bucket_2: AtomicU64::new(0),
+            depth_bucket_3: AtomicU64::new(0),
+            depth_bucket_4_5: AtomicU64::new(0),
+            depth_bucket_6_7: AtomicU64::new(0),
+            depth_bucket_8p: AtomicU64::new(0),
+            searched_hist_1: AtomicU64::new(0),
+            searched_hist_2: AtomicU64::new(0),
+            searched_hist_3_4: AtomicU64::new(0),
+            searched_hist_5_8: AtomicU64::new(0),
+            searched_hist_9_16: AtomicU64::new(0),
+            searched_hist_17p: AtomicU64::new(0),
+            tt_hit_exact: AtomicU64::new(0),
+            tt_hit_lower: AtomicU64::new(0),
+            tt_hit_upper: AtomicU64::new(0),
+            lmr_reduction_r1: AtomicU64::new(0),
+            lmr_reduction_r2: AtomicU64::new(0),
+            lmr_reduced_improves_alpha: AtomicU64::new(0),
+            null_fail_lows: AtomicU64::new(0),
+            futility_considered: AtomicU64::new(0),
+            qsearch_standpat_cutoffs: AtomicU64::new(0),
+            qsearch_standpat_alpha_raises: AtomicU64::new(0),
+            qsearch_moves_searched: AtomicU64::new(0),
+            qsearch_in_check_entries: AtomicU64::new(0),
         }
     }
 
@@ -1042,6 +1201,47 @@ impl SearchContext {
             legality_fallback_en_passant: self.legality_fallback_en_passant.load(Ordering::Relaxed),
             legality_fallback_castle: self.legality_fallback_castle.load(Ordering::Relaxed),
             single_buffer_writes: self.single_buffer_writes.load(Ordering::Relaxed),
+            beta_cutoffs: self.beta_cutoffs.load(Ordering::Relaxed),
+            beta_cutoff_idx_0: self.beta_cutoff_idx_0.load(Ordering::Relaxed),
+            beta_cutoff_idx_1: self.beta_cutoff_idx_1.load(Ordering::Relaxed),
+            beta_cutoff_idx_2_3: self.beta_cutoff_idx_2_3.load(Ordering::Relaxed),
+            beta_cutoff_idx_4_7: self.beta_cutoff_idx_4_7.load(Ordering::Relaxed),
+            beta_cutoff_idx_8_15: self.beta_cutoff_idx_8_15.load(Ordering::Relaxed),
+            beta_cutoff_idx_16p: self.beta_cutoff_idx_16p.load(Ordering::Relaxed),
+            cutoff_tt_move: self.cutoff_tt_move.load(Ordering::Relaxed),
+            cutoff_tactical: self.cutoff_tactical.load(Ordering::Relaxed),
+            cutoff_killer: self.cutoff_killer.load(Ordering::Relaxed),
+            cutoff_quiet: self.cutoff_quiet.load(Ordering::Relaxed),
+            moves_searched: self.moves_searched.load(Ordering::Relaxed),
+            pv_nodes: self.pv_nodes.load(Ordering::Relaxed),
+            in_check_nodes: self.in_check_nodes.load(Ordering::Relaxed),
+            depth_bucket_0: self.depth_bucket_0.load(Ordering::Relaxed),
+            depth_bucket_1: self.depth_bucket_1.load(Ordering::Relaxed),
+            depth_bucket_2: self.depth_bucket_2.load(Ordering::Relaxed),
+            depth_bucket_3: self.depth_bucket_3.load(Ordering::Relaxed),
+            depth_bucket_4_5: self.depth_bucket_4_5.load(Ordering::Relaxed),
+            depth_bucket_6_7: self.depth_bucket_6_7.load(Ordering::Relaxed),
+            depth_bucket_8p: self.depth_bucket_8p.load(Ordering::Relaxed),
+            searched_hist_1: self.searched_hist_1.load(Ordering::Relaxed),
+            searched_hist_2: self.searched_hist_2.load(Ordering::Relaxed),
+            searched_hist_3_4: self.searched_hist_3_4.load(Ordering::Relaxed),
+            searched_hist_5_8: self.searched_hist_5_8.load(Ordering::Relaxed),
+            searched_hist_9_16: self.searched_hist_9_16.load(Ordering::Relaxed),
+            searched_hist_17p: self.searched_hist_17p.load(Ordering::Relaxed),
+            tt_hit_exact: self.tt_hit_exact.load(Ordering::Relaxed),
+            tt_hit_lower: self.tt_hit_lower.load(Ordering::Relaxed),
+            tt_hit_upper: self.tt_hit_upper.load(Ordering::Relaxed),
+            lmr_reduction_r1: self.lmr_reduction_r1.load(Ordering::Relaxed),
+            lmr_reduction_r2: self.lmr_reduction_r2.load(Ordering::Relaxed),
+            lmr_reduced_improves_alpha: self.lmr_reduced_improves_alpha.load(Ordering::Relaxed),
+            null_fail_lows: self.null_fail_lows.load(Ordering::Relaxed),
+            futility_considered: self.futility_considered.load(Ordering::Relaxed),
+            qsearch_standpat_cutoffs: self.qsearch_standpat_cutoffs.load(Ordering::Relaxed),
+            qsearch_standpat_alpha_raises: self
+                .qsearch_standpat_alpha_raises
+                .load(Ordering::Relaxed),
+            qsearch_moves_searched: self.qsearch_moves_searched.load(Ordering::Relaxed),
+            qsearch_in_check_entries: self.qsearch_in_check_entries.load(Ordering::Relaxed),
         }
     }
 
@@ -1867,6 +2067,9 @@ struct SearchTtProbe {
     /// Why a matching entry did not produce a cutoff. This is observational
     /// telemetry only; the probe's search semantics remain unchanged.
     reject: Option<TtRejectReason>,
+    /// The entry's bound type on a hit (S7.0 attribution: exact/lower/upper
+    /// hit split). `None` on a miss or decode failure. Observational only.
+    hit_bound: Option<Bound>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1949,6 +2152,7 @@ fn probe_tt_for_search_with_policy(
             cutoff: None,
             hash_move: None,
             reject: None,
+            hit_bound: None,
         };
     };
 
@@ -1961,6 +2165,7 @@ fn probe_tt_for_search_with_policy(
             cutoff: None,
             hash_move: None,
             reject: Some(TtRejectReason::Decode),
+            hit_bound: None,
         };
     };
 
@@ -1973,6 +2178,7 @@ fn probe_tt_for_search_with_policy(
             cutoff: None,
             hash_move: entry.best_move,
             reject: Some(TtRejectReason::Depth),
+            hit_bound: Some(entry.bound),
         };
     }
 
@@ -2003,6 +2209,7 @@ fn probe_tt_for_search_with_policy(
         } else {
             None
         },
+        hit_bound: Some(entry.bound),
     }
 }
 
@@ -2120,6 +2327,13 @@ impl SearchHeuristics {
             k[1] = k[0];
             k[0] = Some(m);
         }
+    }
+
+    /// Whether `m` is currently a killer at `ply` (S7.0 attribution only).
+    fn is_killer(&self, ply: usize, m: Move) -> bool {
+        self.killers
+            .get(ply)
+            .is_some_and(|k| k[0] == Some(m) || k[1] == Some(m))
     }
 
     /// Record `m` into the history table after a real *quiet* beta-cutoff
@@ -2721,6 +2935,25 @@ fn negamax_entered_impl_with_null_and_extensions(
 
     // Terminal-node check MUST run before the depth==0 evaluation.
     let node_in_check = pos.is_in_check(pos.side);
+    // S7.0 depth attribution: classify this node once, gated so the
+    // production (profiling-off) path pays nothing beyond the boolean check.
+    if ctx.profiling_enabled {
+        if beta.saturating_sub(alpha) > 1 {
+            ctx.add_profile_counter(&ctx.pv_nodes, 1);
+        }
+        if node_in_check {
+            ctx.add_profile_counter(&ctx.in_check_nodes, 1);
+        }
+        match depth {
+            0 => ctx.add_profile_counter(&ctx.depth_bucket_0, 1),
+            1 => ctx.add_profile_counter(&ctx.depth_bucket_1, 1),
+            2 => ctx.add_profile_counter(&ctx.depth_bucket_2, 1),
+            3 => ctx.add_profile_counter(&ctx.depth_bucket_3, 1),
+            4..=5 => ctx.add_profile_counter(&ctx.depth_bucket_4_5, 1),
+            6..=7 => ctx.add_profile_counter(&ctx.depth_bucket_6_7, 1),
+            _ => ctx.add_profile_counter(&ctx.depth_bucket_8p, 1),
+        }
+    }
     // S5.0A: every negamax entered body generation duplicates the Continue
     // child probe's discarded list for the same position.
     ctx.add_profile_counter(&ctx.negamax_body_generations, 1);
@@ -2778,6 +3011,13 @@ fn negamax_entered_impl_with_null_and_extensions(
     }
     if tt_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
+    }
+    if let Some(bound) = tt_probe.hit_bound {
+        match bound {
+            Bound::Exact => ctx.add_profile_counter(&ctx.tt_hit_exact, 1),
+            Bound::Lower => ctx.add_profile_counter(&ctx.tt_hit_lower, 1),
+            Bound::Upper => ctx.add_profile_counter(&ctx.tt_hit_upper, 1),
+        }
     }
     match tt_probe.reject {
         Some(TtRejectReason::Depth) => ctx.add_profile_counter(&ctx.tt_rejected_depth, 1),
@@ -2856,6 +3096,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                 extension_budget,
             );
         }
+        ctx.add_profile_counter(&ctx.null_fail_lows, 1);
     }
 
     if depth == 0 {
@@ -2901,6 +3142,7 @@ fn negamax_entered_impl_with_null_and_extensions(
         && alpha > -(MATE - 1000)
         && non_pawn_material_count(pos) >= 4
     {
+        ctx.add_profile_counter(&ctx.futility_considered, 1);
         Some(evaluate_profiled(pos, ctx, _profile))
     } else {
         None
@@ -2952,6 +3194,9 @@ fn negamax_entered_impl_with_null_and_extensions(
     // upper bound. It is folded into the RETURNED/STORED score only (never
     // into best / alpha / PV / cutoff / heuristics below).
     let mut fail_low_upper: Option<i32> = None;
+    // S7.0 attribution: moves actually searched at this node (for the
+    // searched-branching histogram).
+    let mut searched_in_node: u64 = 0;
     for (move_idx, m) in moves.into_iter().enumerate() {
         if let Some(static_eval) = futility_base {
             let margin = 100 + depth as i32 * 100;
@@ -2965,6 +3210,8 @@ fn negamax_entered_impl_with_null_and_extensions(
                 continue;
             }
         }
+        ctx.add_profile_counter(&ctx.moves_searched, 1);
+        searched_in_node += 1;
         let reduction =
             late_move_reduction(pos, m, ctx.features().lmr, depth, move_idx, node_in_check);
         // Capture the window BEFORE this move, so a possible re-search and
@@ -3054,6 +3301,11 @@ fn negamax_entered_impl_with_null_and_extensions(
                     ChildWindow::Scout { scout_beta } => {
                         if reduction > 0 {
                             ctx.add_profile_counter(&ctx.lmr_reductions, 1);
+                            if reduction >= 2 {
+                                ctx.add_profile_counter(&ctx.lmr_reduction_r2, 1);
+                            } else {
+                                ctx.add_profile_counter(&ctx.lmr_reduction_r1, 1);
+                            }
                         }
                         // Null-window scout. Child window is
                         // `[-scout_beta, -alpha_before_move]`; the manual
@@ -3095,7 +3347,12 @@ fn negamax_entered_impl_with_null_and_extensions(
                             // A reduced search is only a scout. Any score that
                             // improves alpha must be verified at full depth,
                             // including fail-high scores.
-                            scout_score > alpha_before_move
+                            if scout_score > alpha_before_move {
+                                ctx.add_profile_counter(&ctx.lmr_reduced_improves_alpha, 1);
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             pvs_needs_research(scout_score, alpha_before_move, beta)
                         };
@@ -3256,6 +3513,27 @@ fn negamax_entered_impl_with_null_and_extensions(
             alpha = best;
         }
         if alpha >= beta {
+            // S7.0 attribution: beta-cutoff quality (index + mover category).
+            if ctx.profiling_enabled {
+                ctx.add_profile_counter(&ctx.beta_cutoffs, 1);
+                match move_idx {
+                    0 => ctx.add_profile_counter(&ctx.beta_cutoff_idx_0, 1),
+                    1 => ctx.add_profile_counter(&ctx.beta_cutoff_idx_1, 1),
+                    2..=3 => ctx.add_profile_counter(&ctx.beta_cutoff_idx_2_3, 1),
+                    4..=7 => ctx.add_profile_counter(&ctx.beta_cutoff_idx_4_7, 1),
+                    8..=15 => ctx.add_profile_counter(&ctx.beta_cutoff_idx_8_15, 1),
+                    _ => ctx.add_profile_counter(&ctx.beta_cutoff_idx_16p, 1),
+                }
+                if tt_probe.hash_move == Some(m) {
+                    ctx.add_profile_counter(&ctx.cutoff_tt_move, 1);
+                } else if is_tactical(pos, m) {
+                    ctx.add_profile_counter(&ctx.cutoff_tactical, 1);
+                } else if heur.as_ref().is_some_and(|h| h.is_killer(ply as usize, m)) {
+                    ctx.add_profile_counter(&ctx.cutoff_killer, 1);
+                } else {
+                    ctx.add_profile_counter(&ctx.cutoff_quiet, 1);
+                }
+            }
             // M4.1: a *quiet* beta-cutoff at this non-root node records
             // `m` as a killer (Commit 3) AND into the history table
             // (Commit 4) for `ply` / the remaining depth `depth`. Tactical
@@ -3281,6 +3559,17 @@ fn negamax_entered_impl_with_null_and_extensions(
                 }
             }
             break; // beta cutoff
+        }
+    }
+    if ctx.profiling_enabled {
+        match searched_in_node {
+            0 => {}
+            1 => ctx.add_profile_counter(&ctx.searched_hist_1, 1),
+            2 => ctx.add_profile_counter(&ctx.searched_hist_2, 1),
+            3..=4 => ctx.add_profile_counter(&ctx.searched_hist_3_4, 1),
+            5..=8 => ctx.add_profile_counter(&ctx.searched_hist_5_8, 1),
+            9..=16 => ctx.add_profile_counter(&ctx.searched_hist_9_16, 1),
+            _ => ctx.add_profile_counter(&ctx.searched_hist_17p, 1),
         }
     }
 
@@ -4341,6 +4630,9 @@ fn quiescence_entered_impl_with_profile(
     pv.clear_at(ply);
 
     let in_check = pos.is_in_check(pos.side);
+    if in_check {
+        ctx.add_profile_counter(&ctx.qsearch_in_check_entries, 1);
+    }
 
     // The reference path generates every legal move. The isolated candidate
     // generates only tactical legal moves at non-check nodes and all legal
@@ -4433,9 +4725,11 @@ fn quiescence_entered_impl_with_profile(
         // the side to move is never forced to make a capture.
         let stand_pat = evaluate_profiled(pos, ctx, profile);
         if stand_pat >= beta {
+            ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
             return Some(beta);
         }
         if stand_pat > alpha {
+            ctx.add_profile_counter(&ctx.qsearch_standpat_alpha_raises, 1);
             alpha = stand_pat;
         }
         let mut tactical: Vec<Move> = if qsearch_movegen {
@@ -4471,6 +4765,7 @@ fn quiescence_entered_impl_with_profile(
     };
 
     for m in tactical {
+        ctx.add_profile_counter(&ctx.qsearch_moves_searched, 1);
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 

@@ -930,10 +930,57 @@ fn format_result_line(r: &BenchResult) -> String {
             r.stats.legality_fallback_en_passant,
             r.stats.legality_fallback_castle,
             r.stats.single_buffer_writes,
-        )
+        ) + format_s7_attribution(&r.stats).as_str()
     } else {
         line
     }
+}
+
+/// S7.0 depth-attribution counters, appended to the `bench_result` line for
+/// the profile/ablation suites (profiling enabled). Observation-only.
+fn format_s7_attribution(stats: &SearchStats) -> String {
+    format!(
+        " beta_cutoffs={} beta_cutoff_idx_0={} beta_cutoff_idx_1={} beta_cutoff_idx_2_3={} beta_cutoff_idx_4_7={} beta_cutoff_idx_8_15={} beta_cutoff_idx_16p={} cutoff_tt_move={} cutoff_tactical={} cutoff_killer={} cutoff_quiet={} moves_searched={} pv_nodes={} in_check_nodes={} depth_bucket_0={} depth_bucket_1={} depth_bucket_2={} depth_bucket_3={} depth_bucket_4_5={} depth_bucket_6_7={} depth_bucket_8p={} searched_hist_1={} searched_hist_2={} searched_hist_3_4={} searched_hist_5_8={} searched_hist_9_16={} searched_hist_17p={} tt_hit_exact={} tt_hit_lower={} tt_hit_upper={} lmr_reduction_r1={} lmr_reduction_r2={} lmr_reduced_improves_alpha={} null_fail_lows={} futility_considered={} qsearch_standpat_cutoffs={} qsearch_standpat_alpha_raises={} qsearch_moves_searched={} qsearch_in_check_entries={}",
+        stats.beta_cutoffs,
+        stats.beta_cutoff_idx_0,
+        stats.beta_cutoff_idx_1,
+        stats.beta_cutoff_idx_2_3,
+        stats.beta_cutoff_idx_4_7,
+        stats.beta_cutoff_idx_8_15,
+        stats.beta_cutoff_idx_16p,
+        stats.cutoff_tt_move,
+        stats.cutoff_tactical,
+        stats.cutoff_killer,
+        stats.cutoff_quiet,
+        stats.moves_searched,
+        stats.pv_nodes,
+        stats.in_check_nodes,
+        stats.depth_bucket_0,
+        stats.depth_bucket_1,
+        stats.depth_bucket_2,
+        stats.depth_bucket_3,
+        stats.depth_bucket_4_5,
+        stats.depth_bucket_6_7,
+        stats.depth_bucket_8p,
+        stats.searched_hist_1,
+        stats.searched_hist_2,
+        stats.searched_hist_3_4,
+        stats.searched_hist_5_8,
+        stats.searched_hist_9_16,
+        stats.searched_hist_17p,
+        stats.tt_hit_exact,
+        stats.tt_hit_lower,
+        stats.tt_hit_upper,
+        stats.lmr_reduction_r1,
+        stats.lmr_reduction_r2,
+        stats.lmr_reduced_improves_alpha,
+        stats.null_fail_lows,
+        stats.futility_considered,
+        stats.qsearch_standpat_cutoffs,
+        stats.qsearch_standpat_alpha_raises,
+        stats.qsearch_moves_searched,
+        stats.qsearch_in_check_entries,
+    )
 }
 
 #[inline]
