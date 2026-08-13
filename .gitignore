@@ -24,6 +24,9 @@
 !/results/s4-attribution/**
 !/results/artifacts/
 !/results/artifacts/**
+# Release binaries and tarballs are build outputs, never committed.
+/results/artifacts/**/engine
+/results/artifacts/**/*.tar.gz
 
 # D1.14 local tournament-manager cache (the executable is never committed)
 /tools/.cache/
