@@ -19,6 +19,12 @@ fn git(args: &[&str]) -> Option<String> {
 fn main() {
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/");
+    // The dirty flag is computed fresh from `git status`; the index changes
+    // on every stage/commit, so rebuild the identity when it moves. Unstaged
+    // working-tree edits cannot be watched cheaply, so RELEASE artifacts must
+    // be built from a clean worktree (git archive of the tag), which is the
+    // packaging flow anyway. A dirty tagged checkout reports dev+dirty.
+    println!("cargo:rerun-if-changed=.git/index");
 
     let full = git(&["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
     let short = full.get(..8).unwrap_or("unknown").to_string();

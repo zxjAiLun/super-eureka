@@ -2705,8 +2705,9 @@ fn negamax_entered_impl_with_null_and_extensions(
     allow_null: bool,
     extension_budget: u8,
 ) -> Option<i32> {
-    // UCI seldepth: deepest ply reached (main search).
-    ctx.seldepth.fetch_max((ply as u64) + 1, Ordering::Relaxed);
+    // UCI seldepth: deepest global ply reached (root = ply 0, its first
+    // child = ply 1). This node's own `ply` IS the global ply.
+    ctx.seldepth.fetch_max(ply as u64, Ordering::Relaxed);
     // Clear our row now (after entry, before any early return).
     pv.clear_at(ply);
 
@@ -4323,9 +4324,11 @@ fn quiescence_entered_impl_with_profile(
     qsearch_fast_pruning: bool,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
-    // UCI seldepth: qsearch contributes the deepest plies.
-    ctx.seldepth
-        .fetch_max((ply as u64) + (qply as u64) + 1, Ordering::Relaxed);
+    // UCI seldepth: `ply` IS the global ply (entry is qply=0 at the
+    // main-search ply; the recursion passes BOTH ply+1 and qply+1, so `ply`
+    // alone carries the single global-ply definition shared with the main
+    // search - adding qply would double-count the qsearch descent).
+    ctx.seldepth.fetch_max(ply as u64, Ordering::Relaxed);
     // Node already entered by the caller: clear the row before any return.
     pv.clear_at(ply);
 
@@ -6521,6 +6524,44 @@ mod tests {
         assert!(!SearchProfile::CurrentThreatAware.uses_legality_fast());
         assert!(!SearchProfile::CurrentAspiration.uses_legality_fast());
         assert!(!SearchProfile::CurrentQsearchPruning.uses_legality_fast());
+    }
+
+    #[test]
+    fn seldepth_uses_single_global_ply_definition() {
+        // R0 Repair 1: seldepth is the deepest GLOBAL ply (root=0, child=1),
+        // shared by main search and qsearch. The old qsearch accounting
+        // (ply+qply+1, with ply+1/qply+1 recursion) double-counted the qsearch
+        // descent: for this cold single depth-6 startpos search the true
+        // horizon is 14 (global ply 6 + qsearch descent 8), but the pre-fix
+        // code reported 23 (ply+qply+1). Snapshot the exact value so any
+        // +1/x2 inflation regresses loudly.
+        let pos = parse_fen(START_FEN).unwrap();
+        let hist = vec![pos.zobrist_key()];
+        let limits = SearchLimits {
+            depth: Some(6),
+            ..Default::default()
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt = TranspositionTable::disabled();
+        search_best_move_with_history_tt_and_profile(
+            &mut pos.clone(),
+            &hist,
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::CurrentFinal,
+        )
+        .expect("outcome");
+        let seldepth = ctx.seldepth.load(Ordering::Relaxed);
+        assert!(
+            seldepth >= 6,
+            "seldepth {seldepth} must reach at least the requested depth 6"
+        );
+        assert_eq!(
+            seldepth, 14,
+            "seldepth must equal the deepest global ply (6 + qsearch descent); \
+             the pre-fix accounting inflated it to 23"
+        );
     }
 
     #[test]

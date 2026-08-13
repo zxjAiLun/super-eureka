@@ -34,13 +34,19 @@ pub fn is_dirty() -> bool {
     option_env!("GIT_DIRTY").unwrap_or("false") == "true"
 }
 
-/// `0.1.0` for a tagged release, `0.1.0-dev+<sha>[.dirty]` otherwise.
+/// `0.1.0` for a CLEAN tagged release, `0.1.0-dev+<sha>[.dirty]`
+/// otherwise. A tagged checkout with a dirty worktree is NOT a release.
 pub fn version_string() -> String {
-    if !exact_tag().is_empty() {
-        return PKG_VERSION.to_string();
+    derive_version(exact_tag(), is_dirty(), git_short(), PKG_VERSION)
+}
+
+/// Pure version-derivation rule (testable for all four cases).
+fn derive_version(tag: &str, dirty: bool, short_sha: &str, pkg: &str) -> String {
+    if !tag.is_empty() && !dirty {
+        return pkg.to_string();
     }
-    let mut v = format!("{PKG_VERSION}-dev+{}", git_short());
-    if is_dirty() {
+    let mut v = format!("{pkg}-dev+{short_sha}");
+    if dirty {
         v.push_str(".dirty");
     }
     v
@@ -90,5 +96,29 @@ mod tests {
             "build id starts with eureka-: {b}"
         );
         assert!(b.ends_with(&platform_string()));
+    }
+
+    #[test]
+    fn version_rule_all_cases() {
+        // clean tagged release -> bare semver
+        assert_eq!(
+            derive_version("eureka-v0.1.0", false, "10a3ad8e", "0.1.0"),
+            "0.1.0"
+        );
+        // tagged but DIRTY -> dev (must not masquerade as a release)
+        assert_eq!(
+            derive_version("eureka-v0.1.0", true, "10a3ad8e", "0.1.0"),
+            "0.1.0-dev+10a3ad8e.dirty"
+        );
+        // untagged clean -> dev
+        assert_eq!(
+            derive_version("", false, "10a3ad8e", "0.1.0"),
+            "0.1.0-dev+10a3ad8e"
+        );
+        // untagged dirty -> dev.dirty
+        assert_eq!(
+            derive_version("", true, "10a3ad8e", "0.1.0"),
+            "0.1.0-dev+10a3ad8e.dirty"
+        );
     }
 }
