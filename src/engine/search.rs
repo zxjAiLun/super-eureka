@@ -689,6 +689,40 @@ pub struct SearchContext {
     pub qsearch_delta_qply_0_1: AtomicU64,
     pub qsearch_delta_qply_2_3: AtomicU64,
     pub qsearch_delta_qply_4p: AtomicU64,
+    /// S7.2 move-ordering attribution (OBSERVATION ONLY, profiling-gated).
+    /// Bucket index maps:
+    /// - `s72_*_searched` / `s72_quiet_cutoff_gidx`: [1, 2, 3-4, 5-8, 9-16, 17+]
+    /// - quiet-rank histograms: [0, 1, 2-3, 4-7, 8-15, 16+]
+    /// - history-score histograms: [<=0, 1-15, 16-63, 64-255, 256+]
+    /// - depth split: [1, 2, 3, 4-5, 6-7, 8+]
+    /// - cutoff category: [tt_hash, promotion, capture, killer0, killer1,
+    ///   history_quiet, other_quiet] (mutually exclusive, TT first)
+    /// - killer: [k0_present, k0_searched, k0_cutoffs, k1_present,
+    ///   k1_searched, k1_cutoffs, some_but_absent_or_illegal]
+    /// - tt hash: [present, searched, cutoffs, first_move_cutoff,
+    ///   improves_alpha_without_cutoff]
+    /// - lmr: [quiet_reduced_fail_low, quiet_reduced_research,
+    ///   quiet_reduced_cutoff]
+    pub s72_cutoff_category: [AtomicU64; 7],
+    pub s72_nodes_with_quiet_moves: AtomicU64,
+    pub s72_quiet_available: AtomicU64,
+    pub s72_quiet_searched: AtomicU64,
+    pub s72_quiet_searched_rank: [AtomicU64; 6],
+    pub s72_quiet_searched_hist: [AtomicU64; 5],
+    pub s72_quiet_cutoff_gidx: [AtomicU64; 6],
+    pub s72_quiet_cutoff_rank: [AtomicU64; 6],
+    pub s72_quiet_cutoff_hist: [AtomicU64; 5],
+    pub s72_killer: [AtomicU64; 7],
+    pub s72_tt_hash: [AtomicU64; 5],
+    pub s72_cutoff_searched: [AtomicU64; 6],
+    pub s72_fail_low_nodes: AtomicU64,
+    pub s72_fail_low_searched_sum: AtomicU64,
+    pub s72_lmr: [AtomicU64; 3],
+    pub s72_d_cutoffs: [AtomicU64; 6],
+    pub s72_d_cutoff_late5: [AtomicU64; 6],
+    pub s72_d_fail_low: [AtomicU64; 6],
+    pub s72_d_quiet_searched: [AtomicU64; 6],
+    pub s72_d_quiet_cutoffs: [AtomicU64; 6],
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -871,6 +905,28 @@ pub struct SearchStats {
     pub qsearch_delta_qply_0_1: u64,
     pub qsearch_delta_qply_2_3: u64,
     pub qsearch_delta_qply_4p: u64,
+    /// S7.2 move-ordering attribution snapshot (bucket maps as documented
+    /// on the `SearchContext` fields).
+    pub s72_cutoff_category: [u64; 7],
+    pub s72_nodes_with_quiet_moves: u64,
+    pub s72_quiet_available: u64,
+    pub s72_quiet_searched: u64,
+    pub s72_quiet_searched_rank: [u64; 6],
+    pub s72_quiet_searched_hist: [u64; 5],
+    pub s72_quiet_cutoff_gidx: [u64; 6],
+    pub s72_quiet_cutoff_rank: [u64; 6],
+    pub s72_quiet_cutoff_hist: [u64; 5],
+    pub s72_killer: [u64; 7],
+    pub s72_tt_hash: [u64; 5],
+    pub s72_cutoff_searched: [u64; 6],
+    pub s72_fail_low_nodes: u64,
+    pub s72_fail_low_searched_sum: u64,
+    pub s72_lmr: [u64; 3],
+    pub s72_d_cutoffs: [u64; 6],
+    pub s72_d_cutoff_late5: [u64; 6],
+    pub s72_d_fail_low: [u64; 6],
+    pub s72_d_quiet_searched: [u64; 6],
+    pub s72_d_quiet_cutoffs: [u64; 6],
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -992,6 +1048,26 @@ impl SearchContext {
             qsearch_delta_qply_0_1: AtomicU64::new(0),
             qsearch_delta_qply_2_3: AtomicU64::new(0),
             qsearch_delta_qply_4p: AtomicU64::new(0),
+            s72_cutoff_category: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_nodes_with_quiet_moves: AtomicU64::new(0),
+            s72_quiet_available: AtomicU64::new(0),
+            s72_quiet_searched: AtomicU64::new(0),
+            s72_quiet_searched_rank: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_searched_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_gidx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_rank: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_killer: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_tt_hash: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_cutoff_searched: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_fail_low_nodes: AtomicU64::new(0),
+            s72_fail_low_searched_sum: AtomicU64::new(0),
+            s72_lmr: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_cutoff_late5: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_fail_low: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_quiet_searched: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_quiet_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1161,6 +1237,26 @@ impl SearchContext {
             qsearch_delta_qply_0_1: AtomicU64::new(0),
             qsearch_delta_qply_2_3: AtomicU64::new(0),
             qsearch_delta_qply_4p: AtomicU64::new(0),
+            s72_cutoff_category: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_nodes_with_quiet_moves: AtomicU64::new(0),
+            s72_quiet_available: AtomicU64::new(0),
+            s72_quiet_searched: AtomicU64::new(0),
+            s72_quiet_searched_rank: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_searched_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_gidx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_rank: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_quiet_cutoff_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_killer: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_tt_hash: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_cutoff_searched: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_fail_low_nodes: AtomicU64::new(0),
+            s72_fail_low_searched_sum: AtomicU64::new(0),
+            s72_lmr: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_cutoff_late5: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_fail_low: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_quiet_searched: std::array::from_fn(|_| AtomicU64::new(0)),
+            s72_d_quiet_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1311,6 +1407,46 @@ impl SearchContext {
             qsearch_delta_qply_0_1: self.qsearch_delta_qply_0_1.load(Ordering::Relaxed),
             qsearch_delta_qply_2_3: self.qsearch_delta_qply_2_3.load(Ordering::Relaxed),
             qsearch_delta_qply_4p: self.qsearch_delta_qply_4p.load(Ordering::Relaxed),
+            s72_cutoff_category: std::array::from_fn(|i| {
+                self.s72_cutoff_category[i].load(Ordering::Relaxed)
+            }),
+            s72_nodes_with_quiet_moves: self.s72_nodes_with_quiet_moves.load(Ordering::Relaxed),
+            s72_quiet_available: self.s72_quiet_available.load(Ordering::Relaxed),
+            s72_quiet_searched: self.s72_quiet_searched.load(Ordering::Relaxed),
+            s72_quiet_searched_rank: std::array::from_fn(|i| {
+                self.s72_quiet_searched_rank[i].load(Ordering::Relaxed)
+            }),
+            s72_quiet_searched_hist: std::array::from_fn(|i| {
+                self.s72_quiet_searched_hist[i].load(Ordering::Relaxed)
+            }),
+            s72_quiet_cutoff_gidx: std::array::from_fn(|i| {
+                self.s72_quiet_cutoff_gidx[i].load(Ordering::Relaxed)
+            }),
+            s72_quiet_cutoff_rank: std::array::from_fn(|i| {
+                self.s72_quiet_cutoff_rank[i].load(Ordering::Relaxed)
+            }),
+            s72_quiet_cutoff_hist: std::array::from_fn(|i| {
+                self.s72_quiet_cutoff_hist[i].load(Ordering::Relaxed)
+            }),
+            s72_killer: std::array::from_fn(|i| self.s72_killer[i].load(Ordering::Relaxed)),
+            s72_tt_hash: std::array::from_fn(|i| self.s72_tt_hash[i].load(Ordering::Relaxed)),
+            s72_cutoff_searched: std::array::from_fn(|i| {
+                self.s72_cutoff_searched[i].load(Ordering::Relaxed)
+            }),
+            s72_fail_low_nodes: self.s72_fail_low_nodes.load(Ordering::Relaxed),
+            s72_fail_low_searched_sum: self.s72_fail_low_searched_sum.load(Ordering::Relaxed),
+            s72_lmr: std::array::from_fn(|i| self.s72_lmr[i].load(Ordering::Relaxed)),
+            s72_d_cutoffs: std::array::from_fn(|i| self.s72_d_cutoffs[i].load(Ordering::Relaxed)),
+            s72_d_cutoff_late5: std::array::from_fn(|i| {
+                self.s72_d_cutoff_late5[i].load(Ordering::Relaxed)
+            }),
+            s72_d_fail_low: std::array::from_fn(|i| self.s72_d_fail_low[i].load(Ordering::Relaxed)),
+            s72_d_quiet_searched: std::array::from_fn(|i| {
+                self.s72_d_quiet_searched[i].load(Ordering::Relaxed)
+            }),
+            s72_d_quiet_cutoffs: std::array::from_fn(|i| {
+                self.s72_d_quiet_cutoffs[i].load(Ordering::Relaxed)
+            }),
             check_extensions: self.check_extensions.load(Ordering::Relaxed),
             single_evasion_extensions: self.single_evasion_extensions.load(Ordering::Relaxed),
             qsearch_check_moves: self.qsearch_check_moves.load(Ordering::Relaxed),
@@ -3059,6 +3195,156 @@ fn negamax_entered_impl_with_null(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// S7.2 move-ordering attribution (OBSERVATION ONLY, profiling-gated).
+/// Per-move classification captured once per node right after ordering.
+struct S72MoveInfo {
+    /// Non-tactical move (no capture / en-passant / promotion), regardless
+    /// of whether it gives check.
+    quiet: bool,
+    is_hash: bool,
+    killer0: bool,
+    killer1: bool,
+    /// Mutually-exclusive cutoff category, TT-hash precedence:
+    /// 0 tt_hash, 1 promotion, 2 capture, 3 killer0, 4 killer1,
+    /// 5 history_quiet (hist > 0), 6 other_quiet (hist <= 0).
+    cat: usize,
+    /// Quiet-rank histogram bucket [0, 1, 2-3, 4-7, 8-15, 16+].
+    rank_bucket: usize,
+    /// History-score histogram bucket [<=0, 1-15, 16-63, 64-255, 256+].
+    hist_bucket: usize,
+}
+
+#[inline]
+fn s72_rank_bucket(rank: u32) -> usize {
+    match rank {
+        0 => 0,
+        1 => 1,
+        2..=3 => 2,
+        4..=7 => 3,
+        8..=15 => 4,
+        _ => 5,
+    }
+}
+
+#[inline]
+fn s72_count_bucket(n: u64) -> usize {
+    match n {
+        1 => 0,
+        2 => 1,
+        3..=4 => 2,
+        5..=8 => 3,
+        9..=16 => 4,
+        _ => 5,
+    }
+}
+
+#[inline]
+fn s72_hist_bucket(hist: i32) -> usize {
+    match hist {
+        ..=0 => 0,
+        1..=15 => 1,
+        16..=63 => 2,
+        64..=255 => 3,
+        _ => 4,
+    }
+}
+
+#[inline]
+fn s72_depth_bucket(depth: u32) -> usize {
+    match depth {
+        1 => 0,
+        2 => 1,
+        3 => 2,
+        4..=5 => 3,
+        6..=7 => 4,
+        _ => 5,
+    }
+}
+
+/// Classify every ordered legal move once and record node-level opportunity
+/// denominators: quiet availability, killer presence (slot set AND legal),
+/// TT-hash presence (Some AND legal). Never mutates ordering or heuristics.
+fn s72_prepare(
+    pos: &Position,
+    moves: &[Move],
+    hash_move: Option<Move>,
+    h: Option<&SearchHeuristics>,
+    ply: usize,
+    ctx: &SearchContext,
+) -> Vec<S72MoveInfo> {
+    let killers = match h {
+        Some(hh) if hh.killers.len() > ply => hh.killers[ply],
+        _ => [None, None],
+    };
+    let color = pos.side_to_move() as usize;
+    let mut quiet_rank = 0u32;
+    let mut quiet_available = 0u64;
+    let mut infos = Vec::with_capacity(moves.len());
+    for &m in moves {
+        let quiet = !is_tactical(pos, m);
+        let is_hash = Some(m) == hash_move;
+        let killer0 = Some(m) == killers[0];
+        let killer1 = Some(m) == killers[1];
+        let hist = if let (true, Some(hh)) = (quiet, h) {
+            hh.history[color][m.from as usize][m.to as usize]
+        } else {
+            0
+        };
+        let cat = if is_hash {
+            0
+        } else if matches!(m.flag, MoveFlag::Promotion(_)) {
+            1
+        } else if !quiet {
+            2
+        } else if killer0 {
+            3
+        } else if killer1 {
+            4
+        } else if hist > 0 {
+            5
+        } else {
+            6
+        };
+        let rank_bucket = if quiet {
+            let b = s72_rank_bucket(quiet_rank);
+            quiet_rank += 1;
+            quiet_available += 1;
+            b
+        } else {
+            0
+        };
+        infos.push(S72MoveInfo {
+            quiet,
+            is_hash,
+            killer0,
+            killer1,
+            cat,
+            rank_bucket,
+            hist_bucket: s72_hist_bucket(hist),
+        });
+    }
+    ctx.add_profile_counter(&ctx.s72_quiet_available, quiet_available);
+    if quiet_available > 0 {
+        ctx.add_profile_counter(&ctx.s72_nodes_with_quiet_moves, 1);
+    }
+    if let Some(hm) = hash_move {
+        if moves.contains(&hm) {
+            ctx.add_profile_counter(&ctx.s72_tt_hash[0], 1);
+        }
+    }
+    for (slot, present_idx) in [(killers[0], 0usize), (killers[1], 3usize)] {
+        if let Some(k) = slot {
+            if moves.contains(&k) {
+                ctx.add_profile_counter(&ctx.s72_killer[present_idx], 1);
+            } else {
+                ctx.add_profile_counter(&ctx.s72_killer[6], 1);
+            }
+        }
+    }
+    infos
+}
+
+#[allow(clippy::too_many_arguments)]
 fn negamax_entered_impl_with_null_and_extensions(
     pos: &mut Position,
     depth: u32,
@@ -3338,6 +3624,22 @@ fn negamax_entered_impl_with_null_and_extensions(
         ctx.sample_end(&ctx.timing_ordering, start);
     }
 
+    // S7.2 move-ordering attribution (observation only): classify every
+    // ordered legal move once, and record the node-level opportunity
+    // denominators. Never touches ordering or search semantics.
+    let s72_infos = if ctx.profiling_enabled {
+        Some(s72_prepare(
+            pos,
+            &moves,
+            tt_probe.hash_move,
+            heur.as_ref(),
+            ply as usize,
+            ctx,
+        ))
+    } else {
+        None
+    };
+
     let mut node_best_move: Option<Move> = None;
     // P1.1: the running maximum of all fail-low scout scores. A fail-low
     // scout's PV is not committable, but the numeric value it returns is a
@@ -3348,6 +3650,9 @@ fn negamax_entered_impl_with_null_and_extensions(
     // S7.0 attribution: moves actually searched at this node (for the
     // searched-branching histogram).
     let mut searched_in_node: u64 = 0;
+    // S7.2: whether this node terminated via beta cutoff, separating
+    // late-cutoff ordering waste from genuine all-moves fail-low nodes.
+    let mut s72_cutoff_happened = false;
     for (move_idx, m) in moves.into_iter().enumerate() {
         if let Some(static_eval) = futility_base {
             let margin = 100 + depth as i32 * 100;
@@ -3363,6 +3668,26 @@ fn negamax_entered_impl_with_null_and_extensions(
         }
         ctx.add_profile_counter(&ctx.moves_searched, 1);
         searched_in_node += 1;
+        // S7.2 attribution: per-searched-move opportunity accounting
+        // (quiet rank / history buckets, killer and TT searched rates).
+        if let Some(infos) = s72_infos.as_ref() {
+            let info = &infos[move_idx];
+            if info.quiet {
+                ctx.add_profile_counter(&ctx.s72_quiet_searched, 1);
+                ctx.add_profile_counter(&ctx.s72_quiet_searched_rank[info.rank_bucket], 1);
+                ctx.add_profile_counter(&ctx.s72_quiet_searched_hist[info.hist_bucket], 1);
+                ctx.add_profile_counter(&ctx.s72_d_quiet_searched[s72_depth_bucket(depth)], 1);
+            }
+            if info.is_hash {
+                ctx.add_profile_counter(&ctx.s72_tt_hash[1], 1);
+            }
+            if info.killer0 {
+                ctx.add_profile_counter(&ctx.s72_killer[1], 1);
+            }
+            if info.killer1 {
+                ctx.add_profile_counter(&ctx.s72_killer[4], 1);
+            }
+        }
         let reduction =
             late_move_reduction(pos, m, ctx.features().lmr, depth, move_idx, node_in_check);
         // Capture the window BEFORE this move, so a possible re-search and
@@ -3509,6 +3834,13 @@ fn negamax_entered_impl_with_null_and_extensions(
                         };
                         if reduction > 0 && needs_research {
                             ctx.add_profile_counter(&ctx.lmr_researches, 1);
+                            // S7.2 LMR interaction: reduced quiet needed a
+                            // full-depth re-search.
+                            if let Some(infos) = s72_infos.as_ref() {
+                                if infos[move_idx].quiet {
+                                    ctx.add_profile_counter(&ctx.s72_lmr[1], 1);
+                                }
+                            }
                         }
                         if needs_research {
                             // Improve alpha but not a cutoff: re-search with the
@@ -3630,6 +3962,12 @@ fn negamax_entered_impl_with_null_and_extensions(
         let score = match outcome {
             MoveOutcome::ScoutFailLow(s) => {
                 fail_low_upper = Some(fail_low_upper.map_or(s, |u| u.max(s)));
+                // S7.2 LMR interaction: reduced quiet failed low (no re-search).
+                if let Some(infos) = s72_infos.as_ref() {
+                    if infos[move_idx].quiet && reduction > 0 {
+                        ctx.add_profile_counter(&ctx.s72_lmr[0], 1);
+                    }
+                }
                 continue;
             }
             MoveOutcome::Candidate(s) | MoveOutcome::ScoutFailHigh(s) => s,
@@ -3684,6 +4022,48 @@ fn negamax_entered_impl_with_null_and_extensions(
                 } else {
                     ctx.add_profile_counter(&ctx.cutoff_quiet, 1);
                 }
+                // S7.2 attribution: cutoff category (mutually exclusive, TT
+                // first), moves searched before cutoff, quiet rank/history
+                // histograms, killer/TT success rates, depth split, LMR
+                // eventual-cutoff interaction.
+                if let Some(infos) = s72_infos.as_ref() {
+                    let info = &infos[move_idx];
+                    let db = s72_depth_bucket(depth);
+                    s72_cutoff_happened = true;
+                    ctx.add_profile_counter(&ctx.s72_cutoff_category[info.cat], 1);
+                    ctx.add_profile_counter(
+                        &ctx.s72_cutoff_searched[s72_count_bucket(searched_in_node)],
+                        1,
+                    );
+                    ctx.add_profile_counter(&ctx.s72_d_cutoffs[db], 1);
+                    if searched_in_node >= 5 {
+                        ctx.add_profile_counter(&ctx.s72_d_cutoff_late5[db], 1);
+                    }
+                    if info.quiet {
+                        ctx.add_profile_counter(
+                            &ctx.s72_quiet_cutoff_gidx[s72_rank_bucket(move_idx as u32)],
+                            1,
+                        );
+                        ctx.add_profile_counter(&ctx.s72_quiet_cutoff_rank[info.rank_bucket], 1);
+                        ctx.add_profile_counter(&ctx.s72_quiet_cutoff_hist[info.hist_bucket], 1);
+                        ctx.add_profile_counter(&ctx.s72_d_quiet_cutoffs[db], 1);
+                        if reduction > 0 {
+                            ctx.add_profile_counter(&ctx.s72_lmr[2], 1);
+                        }
+                    }
+                    if info.is_hash {
+                        ctx.add_profile_counter(&ctx.s72_tt_hash[2], 1);
+                        if searched_in_node == 1 {
+                            ctx.add_profile_counter(&ctx.s72_tt_hash[3], 1);
+                        }
+                    }
+                    if info.killer0 {
+                        ctx.add_profile_counter(&ctx.s72_killer[2], 1);
+                    }
+                    if info.killer1 {
+                        ctx.add_profile_counter(&ctx.s72_killer[5], 1);
+                    }
+                }
             }
             // M4.1: a *quiet* beta-cutoff at this non-root node records
             // `m` as a killer (Commit 3) AND into the history table
@@ -3721,6 +4101,17 @@ fn negamax_entered_impl_with_null_and_extensions(
             5..=8 => ctx.add_profile_counter(&ctx.searched_hist_5_8, 1),
             9..=16 => ctx.add_profile_counter(&ctx.searched_hist_9_16, 1),
             _ => ctx.add_profile_counter(&ctx.searched_hist_17p, 1),
+        }
+        // S7.2: fail-low nodes are NOT ordering failures — keep them out of
+        // the late-cutoff waste analysis. Also record the TT hash move
+        // improving alpha without a cutoff.
+        if !s72_cutoff_happened && searched_in_node > 0 {
+            ctx.add_profile_counter(&ctx.s72_fail_low_nodes, 1);
+            ctx.add_profile_counter(&ctx.s72_fail_low_searched_sum, searched_in_node);
+            ctx.add_profile_counter(&ctx.s72_d_fail_low[s72_depth_bucket(depth)], 1);
+            if node_best_move.is_some() && node_best_move == tt_probe.hash_move {
+                ctx.add_profile_counter(&ctx.s72_tt_hash[4], 1);
+            }
         }
     }
 
