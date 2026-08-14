@@ -190,6 +190,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
         SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
         SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
+        SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
     }
 }
 
@@ -441,9 +442,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     "current-final-qsearch-lazy" => SearchProfile::CurrentFinalQsearchLazy,
                     "current-final-qsearch-delta" => SearchProfile::CurrentFinalQsearchDelta,
+                    "current-final-lmr-null-window" => SearchProfile::CurrentFinalLmrNullWindow,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window)",
                             other
                         ));
                     }
@@ -1101,7 +1103,7 @@ fn format_s72_attribution(stats: &SearchStats) -> String {
         stats.s72_d_quiet_cutoffs[3],
         stats.s72_d_quiet_cutoffs[4],
         stats.s72_d_quiet_cutoffs[5],
-    ) + format_s73_attribution(stats).as_str()
+    ) + format_s73_attribution(stats).as_str() + format_s74_attribution(stats).as_str()
 }
 
 /// S7.3 selectivity-attribution counters, appended after the S7.2 block for
@@ -1178,6 +1180,51 @@ fn format_s73_attribution(stats: &SearchStats) -> String {
 
 fn hist_bucket_label(i: usize) -> &'static str {
     ["le0", "h1_15", "h16_63", "h64_255", "h256p", "unused"][i]
+}
+
+/// S7.4A LMR-on-null-window mechanism counters, appended after the S7.3
+/// block. `proposed` is the theoretical `late_move_reduction()` value BEFORE
+/// window routing; `applied_existing_pvs` counts real reductions in the Scout
+/// branch; `suppressed_by_null_window` counts the S7.3 diagnosis population;
+/// the `nw_*` family counts the candidate's null-window reduced search /
+/// fail-low / re-search / verified-cutoff funnel.
+fn format_s74_attribution(stats: &SearchStats) -> String {
+    let nw_depth: Vec<String> = (0..4)
+        .map(|i| {
+            format!(
+                "d{}={}",
+                ["4", "5", "6", "7p"][i],
+                stats.s74_lmr_nw_depth[i]
+            )
+        })
+        .collect();
+    let nw_idx: Vec<String> = (0..4)
+        .map(|i| {
+            format!(
+                "i{}={}",
+                ["3_4", "5_7", "8_15", "16p"][i],
+                stats.s74_lmr_nw_idx[i]
+            )
+        })
+        .collect();
+    format!(
+        " s74_lmr_proposed={} s74_lmr_proposed_r1={} s74_lmr_proposed_r2={} \
+         s74_lmr_applied_existing_pvs={} s74_lmr_suppressed_by_null_window={} \
+         s74_lmr_applied_null_window={} s74_lmr_nw_depth:{} s74_lmr_nw_idx:{} \
+         s74_lmr_nw_fail_low={} s74_lmr_nw_research={} \
+         s74_lmr_nw_verified_cutoff={}",
+        stats.s74_lmr_proposed,
+        stats.s74_lmr_proposed_r1,
+        stats.s74_lmr_proposed_r2,
+        stats.s74_lmr_applied_existing_pvs,
+        stats.s74_lmr_suppressed_by_null_window,
+        stats.s74_lmr_applied_null_window,
+        nw_depth.join(","),
+        nw_idx.join(","),
+        stats.s74_lmr_nw_fail_low,
+        stats.s74_lmr_nw_research,
+        stats.s74_lmr_nw_verified_cutoff,
+    )
 }
 
 fn idx_bucket_label(i: usize) -> &'static str {

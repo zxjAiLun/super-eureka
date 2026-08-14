@@ -193,6 +193,13 @@ pub(crate) enum SearchProfile {
     /// top of the existing SEE<0 production prune. TREE-CHANGING candidate;
     /// CurrentFinal itself is untouched.
     CurrentFinalQsearchDelta,
+    /// S7.4A candidate: exactly CurrentFinal except that the EXISTING LMR
+    /// policy is actually applied on later moves at caller-null-window
+    /// nodes, where `pvs_child_window` currently returns `ChildWindow::Full`
+    /// and the proposed reduction is discarded (S7.3: ~232k theoretical R1
+    /// vs ~27k applied). TREE-CHANGING candidate; CurrentFinal itself is
+    /// untouched.
+    CurrentFinalLmrNullWindow,
 }
 
 impl SearchProfile {
@@ -226,6 +233,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -246,6 +254,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -262,6 +271,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -280,6 +290,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -307,6 +318,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -327,6 +339,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -335,6 +348,14 @@ impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_qsearch_delta(self) -> bool {
         matches!(self, Self::CurrentFinalQsearchDelta)
+    }
+
+    /// S7.4A: apply the EXISTING LMR policy on caller-null-window nodes where
+    /// `pvs_child_window()` would otherwise fall back to `ChildWindow::Full`
+    /// and silently discard the proposed reduction. Candidate-only.
+    #[inline]
+    pub(crate) const fn uses_lmr_null_window(self) -> bool {
+        matches!(self, Self::CurrentFinalLmrNullWindow)
     }
 
     #[inline]
@@ -397,6 +418,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -418,6 +440,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -439,6 +462,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
                 | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
         )
     }
 
@@ -531,6 +555,9 @@ pub(crate) struct SearchFeaturePolicy {
     pub(crate) qsearch_see: bool,
     /// S7.1B: conservative SEE-delta qsearch pruning (candidate only).
     pub(crate) qsearch_delta: bool,
+    /// S7.4A: apply the existing LMR reduction on caller-null-window nodes
+    /// (candidate only; CurrentFinal keeps the full-depth fallback).
+    pub(crate) lmr_null_window: bool,
 }
 
 const FEATURE_LMR: u32 = 1 << 0;
@@ -538,6 +565,7 @@ const FEATURE_FUTILITY: u32 = 1 << 1;
 const FEATURE_NULL: u32 = 1 << 2;
 const FEATURE_QSEE: u32 = 1 << 3;
 const FEATURE_QDELTA: u32 = 1 << 4;
+const FEATURE_LMNW: u32 = 1 << 5;
 
 impl SearchFeaturePolicy {
     /// Resolve the effective policy for `profile`, applying diagnostic
@@ -552,6 +580,7 @@ impl SearchFeaturePolicy {
             null_move: profile.uses_null_move() && !d.disable_null_move,
             qsearch_see: profile.uses_qsearch_pruning() && !d.disable_qsearch_see,
             qsearch_delta: profile.uses_qsearch_delta(),
+            lmr_null_window: profile.uses_lmr_null_window(),
         }
     }
 
@@ -572,6 +601,9 @@ impl SearchFeaturePolicy {
         if self.qsearch_delta {
             bits |= FEATURE_QDELTA;
         }
+        if self.lmr_null_window {
+            bits |= FEATURE_LMNW;
+        }
         bits
     }
 
@@ -582,6 +614,7 @@ impl SearchFeaturePolicy {
             null_move: bits & FEATURE_NULL != 0,
             qsearch_see: bits & FEATURE_QSEE != 0,
             qsearch_delta: bits & FEATURE_QDELTA != 0,
+            lmr_null_window: bits & FEATURE_LMNW != 0,
         }
     }
 }
@@ -743,6 +776,20 @@ pub struct SearchContext {
     pub s73_q4p_quiet_cutoff_idx: [AtomicU64; 5],
     pub s73_q4p_scout_faillow_red: [AtomicU64; 3],
     pub s73_q4p_quiet_researched: AtomicU64,
+    /// S7.4A LMR-on-null-window attribution (profiling-gated): proposed vs
+    /// actually applied reductions, and the candidate's null-window reduced
+    /// search / fail-low / re-search / verified-cutoff funnel.
+    pub s74_lmr_proposed: AtomicU64,
+    pub s74_lmr_proposed_r1: AtomicU64,
+    pub s74_lmr_proposed_r2: AtomicU64,
+    pub s74_lmr_applied_existing_pvs: AtomicU64,
+    pub s74_lmr_suppressed_by_null_window: AtomicU64,
+    pub s74_lmr_applied_null_window: AtomicU64,
+    pub s74_lmr_nw_fail_low: AtomicU64,
+    pub s74_lmr_nw_research: AtomicU64,
+    pub s74_lmr_nw_verified_cutoff: AtomicU64,
+    pub s74_lmr_nw_depth: [AtomicU64; 4],
+    pub s74_lmr_nw_idx: [AtomicU64; 4],
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -965,6 +1012,18 @@ pub struct SearchStats {
     pub s73_q4p_quiet_cutoff_idx: [u64; 5],
     pub s73_q4p_scout_faillow_red: [u64; 3],
     pub s73_q4p_quiet_researched: u64,
+    /// S7.4A LMR-on-null-window attribution (see SearchContext block).
+    pub s74_lmr_proposed: u64,
+    pub s74_lmr_proposed_r1: u64,
+    pub s74_lmr_proposed_r2: u64,
+    pub s74_lmr_applied_existing_pvs: u64,
+    pub s74_lmr_suppressed_by_null_window: u64,
+    pub s74_lmr_applied_null_window: u64,
+    pub s74_lmr_nw_fail_low: u64,
+    pub s74_lmr_nw_research: u64,
+    pub s74_lmr_nw_verified_cutoff: u64,
+    pub s74_lmr_nw_depth: [u64; 4],
+    pub s74_lmr_nw_idx: [u64; 4],
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -1123,6 +1182,17 @@ impl SearchContext {
             s73_q4p_quiet_cutoff_idx: std::array::from_fn(|_| AtomicU64::new(0)),
             s73_q4p_scout_faillow_red: std::array::from_fn(|_| AtomicU64::new(0)),
             s73_q4p_quiet_researched: AtomicU64::new(0),
+            s74_lmr_proposed: AtomicU64::new(0),
+            s74_lmr_proposed_r1: AtomicU64::new(0),
+            s74_lmr_proposed_r2: AtomicU64::new(0),
+            s74_lmr_applied_existing_pvs: AtomicU64::new(0),
+            s74_lmr_suppressed_by_null_window: AtomicU64::new(0),
+            s74_lmr_applied_null_window: AtomicU64::new(0),
+            s74_lmr_nw_fail_low: AtomicU64::new(0),
+            s74_lmr_nw_research: AtomicU64::new(0),
+            s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
+            s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
+            s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1330,6 +1400,17 @@ impl SearchContext {
             s73_q4p_quiet_cutoff_idx: std::array::from_fn(|_| AtomicU64::new(0)),
             s73_q4p_scout_faillow_red: std::array::from_fn(|_| AtomicU64::new(0)),
             s73_q4p_quiet_researched: AtomicU64::new(0),
+            s74_lmr_proposed: AtomicU64::new(0),
+            s74_lmr_proposed_r1: AtomicU64::new(0),
+            s74_lmr_proposed_r2: AtomicU64::new(0),
+            s74_lmr_applied_existing_pvs: AtomicU64::new(0),
+            s74_lmr_suppressed_by_null_window: AtomicU64::new(0),
+            s74_lmr_applied_null_window: AtomicU64::new(0),
+            s74_lmr_nw_fail_low: AtomicU64::new(0),
+            s74_lmr_nw_research: AtomicU64::new(0),
+            s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
+            s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
+            s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1549,6 +1630,21 @@ impl SearchContext {
                 self.s73_q4p_scout_faillow_red[i].load(Ordering::Relaxed)
             }),
             s73_q4p_quiet_researched: self.s73_q4p_quiet_researched.load(Ordering::Relaxed),
+            s74_lmr_proposed: self.s74_lmr_proposed.load(Ordering::Relaxed),
+            s74_lmr_proposed_r1: self.s74_lmr_proposed_r1.load(Ordering::Relaxed),
+            s74_lmr_proposed_r2: self.s74_lmr_proposed_r2.load(Ordering::Relaxed),
+            s74_lmr_applied_existing_pvs: self.s74_lmr_applied_existing_pvs.load(Ordering::Relaxed),
+            s74_lmr_suppressed_by_null_window: self
+                .s74_lmr_suppressed_by_null_window
+                .load(Ordering::Relaxed),
+            s74_lmr_applied_null_window: self.s74_lmr_applied_null_window.load(Ordering::Relaxed),
+            s74_lmr_nw_fail_low: self.s74_lmr_nw_fail_low.load(Ordering::Relaxed),
+            s74_lmr_nw_research: self.s74_lmr_nw_research.load(Ordering::Relaxed),
+            s74_lmr_nw_verified_cutoff: self.s74_lmr_nw_verified_cutoff.load(Ordering::Relaxed),
+            s74_lmr_nw_depth: std::array::from_fn(|i| {
+                self.s74_lmr_nw_depth[i].load(Ordering::Relaxed)
+            }),
+            s74_lmr_nw_idx: std::array::from_fn(|i| self.s74_lmr_nw_idx[i].load(Ordering::Relaxed)),
             s72_d_quiet_cutoffs: std::array::from_fn(|i| {
                 self.s72_d_quiet_cutoffs[i].load(Ordering::Relaxed)
             }),
@@ -3380,6 +3476,27 @@ fn s73_idx_bucket(idx: usize) -> usize {
     }
 }
 
+/// S7.4A: remaining-depth bucket for LMR-on-null-window application splits.
+/// Buckets: 4 | 5 | 6 | 7+. Reduction eligibility already implies depth >= 4,
+/// so no shallower bucket exists.
+#[inline]
+fn s74_depth_bucket(depth: u32) -> usize {
+    (depth.saturating_sub(4) as usize).min(3)
+}
+
+/// S7.4A: move-index bucket for LMR-on-null-window application splits.
+/// Buckets: 3-4 | 5-7 | 8-15 | 16+. Reduction eligibility already implies
+/// move_idx >= 3, so no earlier bucket exists.
+#[inline]
+fn s74_idx_bucket(idx: usize) -> usize {
+    match idx {
+        3..=4 => 0,
+        5..=7 => 1,
+        8..=15 => 2,
+        _ => 3,
+    }
+}
+
 /// Classify every ordered legal move once and record node-level opportunity
 /// denominators: quiet availability, killer presence (slot set AND legal),
 /// TT-hash presence (Some AND legal). Never mutates ordering or heuristics.
@@ -3847,6 +3964,17 @@ fn negamax_entered_impl_with_null_and_extensions(
                 );
             }
         }
+        // S7.4: theoretical-vs-actual LMR attribution. `reduction` here is
+        // only what late_move_reduction() PROPOSES; the search may still
+        // discard it below when a null-window caller routes to Full.
+        if reduction > 0 {
+            ctx.add_profile_counter(&ctx.s74_lmr_proposed, 1);
+            if reduction >= 2 {
+                ctx.add_profile_counter(&ctx.s74_lmr_proposed_r2, 1);
+            } else {
+                ctx.add_profile_counter(&ctx.s74_lmr_proposed_r1, 1);
+            }
+        }
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
         let alpha_before_move = alpha;
@@ -3888,6 +4016,10 @@ fn negamax_entered_impl_with_null_and_extensions(
         // scout row — whenever this move becomes the node's best.
         #[cfg(test)]
         let mut researched_row: Option<Vec<Move>> = None;
+        // S7.4A: set when this move was verified by a candidate full-depth
+        // null-window re-search after a reduced improve, so only a VERIFIED
+        // result can be counted as an LMR-null-window cutoff.
+        let mut s74_nw_verified = false;
 
         // Resolve the child window into an EXPLICIT `MoveOutcome` (P1.1).
         // Terminal / IntendedClaim children are exact results and are never
@@ -3902,38 +4034,125 @@ fn negamax_entered_impl_with_null_and_extensions(
                 match pvs_child_window(_profile, move_idx == 0, depth, alpha_before_move, beta) {
                     ChildWindow::Full => {
                         // Full-window search: the first move, a non-Current
-                        // profile (M4Reference / M41Reference), depth-0, or the
-                        // caller-null-window / overflow fallbacks. The manual
-                        // probe already spent the single node for this child.
-                        // Handle a deeper abort EXPLICITLY: pop + unmake THIS
-                        // edge before propagating None (no `?` before cleanup).
-                        match negamax_entered_impl_with_null_and_extensions(
-                            pos,
-                            child_depth,
-                            ply + 1,
-                            -beta,
-                            -alpha_before_move,
-                            ctx,
-                            limits,
-                            _profile,
-                            pv,
-                            path,
-                            tt,
-                            heur,
-                            true,
-                            child_extension_budget,
-                        ) {
-                            Some(s) => MoveOutcome::Candidate(-s),
-                            None => {
-                                path.pop();
-                                unmake_move_profiled(pos, undo, ctx);
-                                return None;
+                        // profile, depth-0, or the caller-null-window /
+                        // overflow fallbacks. The manual probe already spent
+                        // the single node for this child.
+                        //
+                        // S7.4A: on a caller-null-window node (beta ==
+                        // alpha_before_move + 1) CurrentFinal discards
+                        // `reduction` here (the S7.3 suppression). The
+                        // candidate instead applies the EXISTING LMR policy:
+                        // one reduced null-window search with the CALLER'S
+                        // window; fail-low accepted; any improvement verified
+                        // by exactly one full-depth re-search before it may
+                        // cut off or earn heuristics.
+                        let s74_nw_caller =
+                            reduction > 0 && beta == alpha_before_move.saturating_add(1);
+                        if s74_nw_caller && ctx.features().lmr_null_window {
+                            ctx.add_profile_counter(&ctx.s74_lmr_applied_null_window, 1);
+                            ctx.add_profile_counter(
+                                &ctx.s74_lmr_nw_depth[s74_depth_bucket(depth)],
+                                1,
+                            );
+                            ctx.add_profile_counter(
+                                &ctx.s74_lmr_nw_idx[s74_idx_bucket(move_idx)],
+                                1,
+                            );
+                            let nw_scout_depth = depth.saturating_sub(1 + reduction);
+                            let nw_reduced = match negamax_entered_impl_with_null_and_extensions(
+                                pos,
+                                nw_scout_depth,
+                                ply + 1,
+                                -beta,
+                                -alpha_before_move,
+                                ctx,
+                                limits,
+                                _profile,
+                                pv,
+                                path,
+                                tt,
+                                heur,
+                                true,
+                                child_extension_budget,
+                            ) {
+                                Some(s) => -s,
+                                None => {
+                                    path.pop();
+                                    unmake_move_profiled(pos, undo, ctx);
+                                    return None;
+                                }
+                            };
+                            if nw_reduced <= alpha_before_move {
+                                // Fail-low accepted, no re-search; numeric-only
+                                // retention mirrors the production scout path.
+                                ctx.add_profile_counter(&ctx.s74_lmr_nw_fail_low, 1);
+                                MoveOutcome::ScoutFailLow(nw_reduced)
+                            } else {
+                                // Exactly ONE full-depth verification with the
+                                // SAME caller null window.
+                                ctx.add_profile_counter(&ctx.s74_lmr_nw_research, 1);
+                                match negamax_entered_impl_with_null_and_extensions(
+                                    pos,
+                                    child_depth,
+                                    ply + 1,
+                                    -beta,
+                                    -alpha_before_move,
+                                    ctx,
+                                    limits,
+                                    _profile,
+                                    pv,
+                                    path,
+                                    tt,
+                                    heur,
+                                    true,
+                                    child_extension_budget,
+                                ) {
+                                    Some(s) => {
+                                        s74_nw_verified = true;
+                                        MoveOutcome::Candidate(-s)
+                                    }
+                                    None => {
+                                        path.pop();
+                                        unmake_move_profiled(pos, undo, ctx);
+                                        return None;
+                                    }
+                                }
+                            }
+                        } else {
+                            if s74_nw_caller {
+                                ctx.add_profile_counter(&ctx.s74_lmr_suppressed_by_null_window, 1);
+                            }
+                            // Handle a deeper abort EXPLICITLY: pop + unmake
+                            // THIS edge before propagating None.
+                            match negamax_entered_impl_with_null_and_extensions(
+                                pos,
+                                child_depth,
+                                ply + 1,
+                                -beta,
+                                -alpha_before_move,
+                                ctx,
+                                limits,
+                                _profile,
+                                pv,
+                                path,
+                                tt,
+                                heur,
+                                true,
+                                child_extension_budget,
+                            ) {
+                                Some(s) => MoveOutcome::Candidate(-s),
+                                None => {
+                                    path.pop();
+                                    unmake_move_profiled(pos, undo, ctx);
+                                    return None;
+                                }
                             }
                         }
                     }
                     ChildWindow::Scout { scout_beta } => {
                         if reduction > 0 {
                             ctx.add_profile_counter(&ctx.lmr_reductions, 1);
+                            ctx.add_profile_counter(&ctx.s74_lmr_applied_existing_pvs, 1);
                             if reduction >= 2 {
                                 ctx.add_profile_counter(&ctx.lmr_reduction_r2, 1);
                             } else {
@@ -4173,6 +4392,12 @@ fn negamax_entered_impl_with_null_and_extensions(
             alpha = best;
         }
         if alpha >= beta {
+            // S7.4A: a beta cutoff earned by a candidate null-window move
+            // AFTER its full-depth verification (fail-low results can never
+            // reach this block).
+            if s74_nw_verified {
+                ctx.add_profile_counter(&ctx.s74_lmr_nw_verified_cutoff, 1);
+            }
             // S7.0 attribution: beta-cutoff quality (index + mover category).
             if ctx.profiling_enabled {
                 ctx.add_profile_counter(&ctx.beta_cutoffs, 1);
@@ -8195,6 +8420,169 @@ mod tests {
         }
         assert_eq!(run_qsearch(checkmate, true, true), -(MATE));
         assert_eq!(run_qsearch(stalemate, true, true), 0);
+    }
+
+    #[test]
+    fn lmr_null_window_profile_inherits_current_final_exactly_except_nw_lmr() {
+        use SearchProfile::{CurrentFinal, CurrentFinalLmrNullWindow as Nw};
+
+        // S7.4A: structural regression proof. Every production policy
+        // dimension must agree between CurrentFinal and the S7.4A candidate;
+        // the ONLY permitted difference is uses_lmr_null_window.
+        assert_eq!(CurrentFinal.uses_pvs(), Nw.uses_pvs());
+        assert_eq!(CurrentFinal.uses_see(), Nw.uses_see());
+        assert_eq!(CurrentFinal.uses_aspiration(), Nw.uses_aspiration());
+        assert_eq!(CurrentFinal.uses_lmr(), Nw.uses_lmr());
+        assert_eq!(CurrentFinal.uses_null_move(), Nw.uses_null_move());
+        assert_eq!(CurrentFinal.uses_futility(), Nw.uses_futility());
+        assert_eq!(
+            CurrentFinal.uses_qsearch_movegen(),
+            Nw.uses_qsearch_movegen()
+        );
+        assert_eq!(
+            CurrentFinal.uses_qsearch_pruning(),
+            Nw.uses_qsearch_pruning()
+        );
+        assert_eq!(
+            CurrentFinal.uses_qsearch_fast_pruning(),
+            Nw.uses_qsearch_fast_pruning()
+        );
+        assert_eq!(CurrentFinal.uses_qsearch_lazy(), Nw.uses_qsearch_lazy());
+        assert_eq!(
+            CurrentFinal.uses_root_quiet_history(),
+            Nw.uses_root_quiet_history()
+        );
+        assert_eq!(
+            CurrentFinal.uses_root_prev_score(),
+            Nw.uses_root_prev_score()
+        );
+        assert_eq!(CurrentFinal.uses_legality_fast(), Nw.uses_legality_fast());
+        assert_eq!(
+            CurrentFinal.uses_single_buffer_legal(),
+            Nw.uses_single_buffer_legal()
+        );
+        assert_eq!(
+            CurrentFinal.uses_single_generation_probe(),
+            Nw.uses_single_generation_probe()
+        );
+        assert_eq!(CurrentFinal.uses_eval2(), Nw.uses_eval2());
+        assert_eq!(CurrentFinal.uses_forcing_search(), Nw.uses_forcing_search());
+        assert_eq!(
+            CurrentFinal.uses_threat_ordering(),
+            Nw.uses_threat_ordering()
+        );
+        assert_eq!(
+            CurrentFinal.uses_threat_aware_qsearch(),
+            Nw.uses_threat_aware_qsearch()
+        );
+        assert_eq!(
+            CurrentFinal.uses_threat_aware_eval(),
+            Nw.uses_threat_aware_eval()
+        );
+        // The qsearch-delta lane stays evidence-only for this candidate too.
+        assert!(!Nw.uses_qsearch_delta());
+
+        // The single intended difference.
+        assert!(!CurrentFinal.uses_lmr_null_window());
+        assert!(Nw.uses_lmr_null_window());
+
+        // Explicit guards for the two arms forgotten in the original
+        // (misconfigured) S7.1B candidate.
+        assert!(Nw.uses_null_move(), "S7.4A must inherit verified null move");
+        assert!(
+            Nw.uses_single_buffer_legal(),
+            "S7.4A must inherit SingleBuffer materialization"
+        );
+
+        // The resolved hot-path policy must agree on every shared feature
+        // bit and differ only on the LMR-null-window bit.
+        let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
+        let nw = SearchFeaturePolicy::for_profile(Nw, None);
+        assert_eq!(cf.lmr, nw.lmr);
+        assert_eq!(cf.futility, nw.futility);
+        assert_eq!(cf.null_move, nw.null_move);
+        assert_eq!(cf.qsearch_see, nw.qsearch_see);
+        assert_eq!(cf.qsearch_delta, nw.qsearch_delta);
+        assert!(!cf.lmr_null_window);
+        assert!(nw.lmr_null_window);
+    }
+
+    #[test]
+    fn lmr_null_window_candidate_applies_reduces_and_verifies_correctly() {
+        fn run(profile: SearchProfile) -> (Option<i32>, SearchStats) {
+            // White is a knight down: eval (~-320) stays above the depth-4
+            // futility margin from alpha=0, so quiets are NOT shallow-pruned;
+            // but the true score stays <= 0, so every root move fails low at
+            // the null window and the loop inevitably reaches late quiet
+            // indices. The depth-4 root is then the LMR-eligible node.
+            let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1";
+            let mut pos = parse_fen(fen).unwrap();
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let limits = SearchLimits {
+                depth: Some(4),
+                ..Default::default()
+            };
+            let mut pv = PvTable::default();
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let mut tt = TranspositionTable::new_mb(16).unwrap();
+            let mut heur = Some(SearchHeuristics::new());
+            // Mirror the production entry point (`search_best_move_impl`):
+            // calling the negamax body directly bypasses flag setup, and the
+            // move loop reads `ctx.features()` (LMR eligibility) and the
+            // legality-probe flags from the context, not the profile.
+            ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
+            ctx.features_mask.store(
+                SearchFeaturePolicy::for_profile(profile, None).to_bits(),
+                Ordering::Relaxed,
+            );
+            ctx.legality_fast
+                .store(profile.uses_legality_fast(), Ordering::Relaxed);
+            ctx.single_buffer_legal
+                .store(profile.uses_single_buffer_legal(), Ordering::Relaxed);
+            ctx.single_generation_probe
+                .store(profile.uses_single_generation_probe(), Ordering::Relaxed);
+            // A null window AT THE ROOT makes the root move loop itself the
+            // S7.4A caller population (depth 4, late quiet moves), keeping
+            // the test tree tiny while exercising every counter path.
+            let score = negamax_entered_impl_with_null(
+                &mut pos, 4, 0, 0, 1, &ctx, &limits, profile, &mut pv, &mut path, &mut tt,
+                &mut heur, true,
+            );
+            (score, ctx.stats())
+        }
+
+        let (_, base) = run(SearchProfile::CurrentFinal);
+        let (cand_score, cand) = run(SearchProfile::CurrentFinalLmrNullWindow);
+
+        // Baseline: LMR proposals on null-window callers are suppressed (the
+        // exact S7.3 finding) and the candidate path is never taken.
+        assert!(base.s74_lmr_proposed > 0);
+        assert!(base.s74_lmr_suppressed_by_null_window > 0);
+        assert_eq!(base.s74_lmr_applied_null_window, 0);
+
+        // Candidate: the previously suppressed population is now applied;
+        // every applied reduction terminates in exactly one of: fail-low
+        // accept, or exactly one full-depth re-search.
+        assert_eq!(cand.s74_lmr_suppressed_by_null_window, 0);
+        assert!(cand.s74_lmr_applied_null_window > 0);
+        assert_eq!(
+            cand.s74_lmr_applied_null_window,
+            cand.s74_lmr_nw_fail_low + cand.s74_lmr_nw_research
+        );
+        // Verified cutoffs can only originate from re-searched moves.
+        assert!(cand.s74_lmr_nw_verified_cutoff <= cand.s74_lmr_nw_research);
+        // The depth and index splits each account for every application.
+        assert_eq!(
+            cand.s74_lmr_nw_depth.iter().sum::<u64>(),
+            cand.s74_lmr_applied_null_window
+        );
+        assert_eq!(
+            cand.s74_lmr_nw_idx.iter().sum::<u64>(),
+            cand.s74_lmr_applied_null_window
+        );
+        // The candidate search completes with a bounded, sane score.
+        let s = cand_score.expect("candidate search must complete");
+        assert!(s > -(MATE - 1000) && s < MATE - 1000);
     }
 
     #[test]

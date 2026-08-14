@@ -162,6 +162,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
         search::SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
         search::SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
+        search::SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -459,6 +460,9 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     "current-final-qsearch-delta" => {
                         search::SearchProfile::CurrentFinalQsearchDelta
+                    }
+                    "current-final-lmr-null-window" => {
+                        search::SearchProfile::CurrentFinalLmrNullWindow
                     }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
