@@ -160,6 +160,8 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
         search::SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
         search::SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
+        search::SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
+        search::SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -454,6 +456,9 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     "current-final-single-generation" => {
                         search::SearchProfile::CurrentFinalSingleGeneration
+                    }
+                    "current-final-qsearch-delta" => {
+                        search::SearchProfile::CurrentFinalQsearchDelta
                     }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {

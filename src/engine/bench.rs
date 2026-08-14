@@ -189,6 +189,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
         SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
         SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
+        SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
     }
 }
 
@@ -439,9 +440,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                         SearchProfile::CurrentFinalSingleGeneration
                     }
                     "current-final-qsearch-lazy" => SearchProfile::CurrentFinalQsearchLazy,
+                    "current-final-qsearch-delta" => SearchProfile::CurrentFinalQsearchDelta,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta)",
                             other
                         ));
                     }
@@ -942,7 +944,7 @@ fn format_result_line(r: &BenchResult) -> String {
 /// the profile/ablation suites (profiling enabled). Observation-only.
 fn format_s7_attribution(stats: &SearchStats) -> String {
     format!(
-        " seldepth={} main_seldepth={} qsearch_seldepth={} beta_cutoffs={} beta_cutoff_idx_0={} beta_cutoff_idx_1={} beta_cutoff_idx_2_3={} beta_cutoff_idx_4_7={} beta_cutoff_idx_8_15={} beta_cutoff_idx_16p={} cutoff_tt_move={} cutoff_tactical={} cutoff_killer={} cutoff_quiet={} moves_searched={} pv_nodes={} in_check_nodes={} depth_bucket_0={} depth_bucket_1={} depth_bucket_2={} depth_bucket_3={} depth_bucket_4_5={} depth_bucket_6_7={} depth_bucket_8p={} searched_hist_1={} searched_hist_2={} searched_hist_3_4={} searched_hist_5_8={} searched_hist_9_16={} searched_hist_17p={} tt_hit_exact={} tt_hit_lower={} tt_hit_upper={} lmr_reduction_r1={} lmr_reduction_r2={} lmr_reduced_improves_alpha={} null_fail_lows={} futility_considered={} qsearch_standpat_cutoffs={} qsearch_standpat_alpha_raises={} qsearch_moves_searched={} qsearch_in_check_entries={} qsearch_lazy_has_any_probes={} qsearch_lazy_standpat_cutoffs_before_movegen={} qsearch_lazy_qply_returns_before_movegen={} qsearch_lazy_tactical_generations={}",
+        " seldepth={} main_seldepth={} qsearch_seldepth={} beta_cutoffs={} beta_cutoff_idx_0={} beta_cutoff_idx_1={} beta_cutoff_idx_2_3={} beta_cutoff_idx_4_7={} beta_cutoff_idx_8_15={} beta_cutoff_idx_16p={} cutoff_tt_move={} cutoff_tactical={} cutoff_killer={} cutoff_quiet={} moves_searched={} pv_nodes={} in_check_nodes={} depth_bucket_0={} depth_bucket_1={} depth_bucket_2={} depth_bucket_3={} depth_bucket_4_5={} depth_bucket_6_7={} depth_bucket_8p={} searched_hist_1={} searched_hist_2={} searched_hist_3_4={} searched_hist_5_8={} searched_hist_9_16={} searched_hist_17p={} tt_hit_exact={} tt_hit_lower={} tt_hit_upper={} lmr_reduction_r1={} lmr_reduction_r2={} lmr_reduced_improves_alpha={} null_fail_lows={} futility_considered={} qsearch_standpat_cutoffs={} qsearch_standpat_alpha_raises={} qsearch_moves_searched={} qsearch_in_check_entries={} qsearch_lazy_has_any_probes={} qsearch_lazy_standpat_cutoffs_before_movegen={} qsearch_lazy_qply_returns_before_movegen={} qsearch_lazy_tactical_generations={} delta_tests={} delta_pruned={} delta_pruned_pawn={} delta_pruned_minor={} delta_pruned_rook={} delta_pruned_queen={} delta_qply_0_1={} delta_qply_2_3={} delta_qply_4p={}",
         stats.seldepth,
         stats.main_seldepth,
         stats.qsearch_seldepth,
@@ -989,6 +991,15 @@ fn format_s7_attribution(stats: &SearchStats) -> String {
         stats.qsearch_lazy_standpat_cutoffs_before_movegen,
         stats.qsearch_lazy_qply_returns_before_movegen,
         stats.qsearch_lazy_tactical_generations,
+        stats.qsearch_delta_tests,
+        stats.qsearch_delta_pruned,
+        stats.qsearch_delta_pruned_pawn,
+        stats.qsearch_delta_pruned_minor,
+        stats.qsearch_delta_pruned_rook,
+        stats.qsearch_delta_pruned_queen,
+        stats.qsearch_delta_qply_0_1,
+        stats.qsearch_delta_qply_2_3,
+        stats.qsearch_delta_qply_4p,
     )
 }
 

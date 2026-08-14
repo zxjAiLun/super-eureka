@@ -186,6 +186,13 @@ pub(crate) enum SearchProfile {
     /// cutoff and stalemate check. Same searched tree (nodes/score/bestmove/
     /// PV) by construction; only the wasted work is avoided.
     CurrentFinalQsearchLazy,
+    /// S7.1B candidate: exactly CurrentFinal plus conservative SEE-delta
+    /// qsearch pruning. At a non-check qsearch node, after stand-pat, a
+    /// plain non-checking capture whose SUPPORTED SEE value satisfies
+    /// `stand_pat + SEE + QSEARCH_DELTA_MARGIN_CP <= alpha` is pruned, on
+    /// top of the existing SEE<0 production prune. TREE-CHANGING candidate;
+    /// CurrentFinal itself is untouched.
+    CurrentFinalQsearchDelta,
 }
 
 impl SearchProfile {
@@ -218,6 +225,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -237,6 +245,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -269,6 +278,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -295,6 +305,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -314,7 +325,15 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
+    }
+
+    /// S7.1B: conservative SEE-delta qsearch pruning. Only this candidate
+    /// enables it; CurrentFinal keeps its exact existing SEE<0 policy.
+    #[inline]
+    pub(crate) const fn uses_qsearch_delta(self) -> bool {
+        matches!(self, Self::CurrentFinalQsearchDelta)
     }
 
     #[inline]
@@ -376,6 +395,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -416,6 +436,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -450,6 +471,14 @@ impl SearchProfile {
 }
 
 pub const MATE: i32 = 1_000_000;
+
+/// S7.1B: the single, predeclared, deliberately conservative delta-pruning
+/// margin (in centipawns). A plain non-checking capture with supported
+/// `SEE >= 0` is pruned only when
+/// `stand_pat + SEE + QSEARCH_DELTA_MARGIN_CP <= alpha`. 500cp is chosen so
+/// the first cut removes only obviously futile capture trees; do NOT tune
+/// this against a challenge corpus.
+pub(crate) const QSEARCH_DELTA_MARGIN_CP: i32 = 500;
 
 /// Maximum quiescence ply. A "check → evasion → check → ..." sequence has no
 /// natural depth bound, so this cap guarantees termination. It is a *safety*
@@ -498,12 +527,15 @@ pub(crate) struct SearchFeaturePolicy {
     pub(crate) futility: bool,
     pub(crate) null_move: bool,
     pub(crate) qsearch_see: bool,
+    /// S7.1B: conservative SEE-delta qsearch pruning (candidate only).
+    pub(crate) qsearch_delta: bool,
 }
 
 const FEATURE_LMR: u32 = 1 << 0;
 const FEATURE_FUTILITY: u32 = 1 << 1;
 const FEATURE_NULL: u32 = 1 << 2;
 const FEATURE_QSEE: u32 = 1 << 3;
+const FEATURE_QDELTA: u32 = 1 << 4;
 
 impl SearchFeaturePolicy {
     /// Resolve the effective policy for `profile`, applying diagnostic
@@ -517,6 +549,7 @@ impl SearchFeaturePolicy {
             futility: profile.uses_futility() && !d.disable_futility,
             null_move: profile.uses_null_move() && !d.disable_null_move,
             qsearch_see: profile.uses_qsearch_pruning() && !d.disable_qsearch_see,
+            qsearch_delta: profile.uses_qsearch_delta(),
         }
     }
 
@@ -534,6 +567,9 @@ impl SearchFeaturePolicy {
         if self.qsearch_see {
             bits |= FEATURE_QSEE;
         }
+        if self.qsearch_delta {
+            bits |= FEATURE_QDELTA;
+        }
         bits
     }
 
@@ -543,6 +579,7 @@ impl SearchFeaturePolicy {
             futility: bits & FEATURE_FUTILITY != 0,
             null_move: bits & FEATURE_NULL != 0,
             qsearch_see: bits & FEATURE_QSEE != 0,
+            qsearch_delta: bits & FEATURE_QDELTA != 0,
         }
     }
 }
@@ -640,6 +677,16 @@ pub struct SearchContext {
     pub qsearch_checking_captures_kept: AtomicU64,
     pub qsearch_promotions_kept: AtomicU64,
     pub qsearch_en_passant_kept: AtomicU64,
+    /// S7.1B SEE-delta qsearch pruning counters (profiling-gated).
+    pub qsearch_delta_tests: AtomicU64,
+    pub qsearch_delta_pruned: AtomicU64,
+    pub qsearch_delta_pruned_pawn: AtomicU64,
+    pub qsearch_delta_pruned_minor: AtomicU64,
+    pub qsearch_delta_pruned_rook: AtomicU64,
+    pub qsearch_delta_pruned_queen: AtomicU64,
+    pub qsearch_delta_qply_0_1: AtomicU64,
+    pub qsearch_delta_qply_2_3: AtomicU64,
+    pub qsearch_delta_qply_4p: AtomicU64,
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -812,6 +859,16 @@ pub struct SearchStats {
     pub qsearch_checking_captures_kept: u64,
     pub qsearch_promotions_kept: u64,
     pub qsearch_en_passant_kept: u64,
+    /// S7.1B SEE-delta qsearch pruning counters (profiling-gated).
+    pub qsearch_delta_tests: u64,
+    pub qsearch_delta_pruned: u64,
+    pub qsearch_delta_pruned_pawn: u64,
+    pub qsearch_delta_pruned_minor: u64,
+    pub qsearch_delta_pruned_rook: u64,
+    pub qsearch_delta_pruned_queen: u64,
+    pub qsearch_delta_qply_0_1: u64,
+    pub qsearch_delta_qply_2_3: u64,
+    pub qsearch_delta_qply_4p: u64,
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -924,6 +981,15 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            qsearch_delta_tests: AtomicU64::new(0),
+            qsearch_delta_pruned: AtomicU64::new(0),
+            qsearch_delta_pruned_pawn: AtomicU64::new(0),
+            qsearch_delta_pruned_minor: AtomicU64::new(0),
+            qsearch_delta_pruned_rook: AtomicU64::new(0),
+            qsearch_delta_pruned_queen: AtomicU64::new(0),
+            qsearch_delta_qply_0_1: AtomicU64::new(0),
+            qsearch_delta_qply_2_3: AtomicU64::new(0),
+            qsearch_delta_qply_4p: AtomicU64::new(0),
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1084,6 +1150,15 @@ impl SearchContext {
             qsearch_checking_captures_kept: AtomicU64::new(0),
             qsearch_promotions_kept: AtomicU64::new(0),
             qsearch_en_passant_kept: AtomicU64::new(0),
+            qsearch_delta_tests: AtomicU64::new(0),
+            qsearch_delta_pruned: AtomicU64::new(0),
+            qsearch_delta_pruned_pawn: AtomicU64::new(0),
+            qsearch_delta_pruned_minor: AtomicU64::new(0),
+            qsearch_delta_pruned_rook: AtomicU64::new(0),
+            qsearch_delta_pruned_queen: AtomicU64::new(0),
+            qsearch_delta_qply_0_1: AtomicU64::new(0),
+            qsearch_delta_qply_2_3: AtomicU64::new(0),
+            qsearch_delta_qply_4p: AtomicU64::new(0),
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1225,6 +1300,15 @@ impl SearchContext {
                 .load(Ordering::Relaxed),
             qsearch_promotions_kept: self.qsearch_promotions_kept.load(Ordering::Relaxed),
             qsearch_en_passant_kept: self.qsearch_en_passant_kept.load(Ordering::Relaxed),
+            qsearch_delta_tests: self.qsearch_delta_tests.load(Ordering::Relaxed),
+            qsearch_delta_pruned: self.qsearch_delta_pruned.load(Ordering::Relaxed),
+            qsearch_delta_pruned_pawn: self.qsearch_delta_pruned_pawn.load(Ordering::Relaxed),
+            qsearch_delta_pruned_minor: self.qsearch_delta_pruned_minor.load(Ordering::Relaxed),
+            qsearch_delta_pruned_rook: self.qsearch_delta_pruned_rook.load(Ordering::Relaxed),
+            qsearch_delta_pruned_queen: self.qsearch_delta_pruned_queen.load(Ordering::Relaxed),
+            qsearch_delta_qply_0_1: self.qsearch_delta_qply_0_1.load(Ordering::Relaxed),
+            qsearch_delta_qply_2_3: self.qsearch_delta_qply_2_3.load(Ordering::Relaxed),
+            qsearch_delta_qply_4p: self.qsearch_delta_qply_4p.load(Ordering::Relaxed),
             check_extensions: self.check_extensions.load(Ordering::Relaxed),
             single_evasion_extensions: self.single_evasion_extensions.load(Ordering::Relaxed),
             qsearch_check_moves: self.qsearch_check_moves.load(Ordering::Relaxed),
@@ -3699,7 +3783,23 @@ fn prune_qsearch_captures_by_see(
     alpha: i32,
     beta: i32,
 ) -> Vec<Move> {
-    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false)
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false, false, 0, 0)
+}
+
+/// S7.1B: production SEE<0 pruning PLUS the conservative delta rule. Each
+/// eligible plain capture receives AT MOST ONE pruning SEE calculation whose
+/// value is reused for both decisions (SEE<0 -> existing prune;
+/// `stand_pat + SEE + QSEARCH_DELTA_MARGIN_CP <= alpha` -> delta prune).
+fn prune_qsearch_captures_by_see_delta(
+    pos: &mut Position,
+    moves: Vec<Move>,
+    ctx: &SearchContext,
+    alpha: i32,
+    beta: i32,
+    stand_pat: i32,
+    qply: u32,
+) -> Vec<Move> {
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false, true, stand_pat, qply)
 }
 
 fn prune_qsearch_captures_by_fast_see(
@@ -3709,9 +3809,10 @@ fn prune_qsearch_captures_by_fast_see(
     alpha: i32,
     beta: i32,
 ) -> Vec<Move> {
-    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, true)
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, true, false, 0, 0)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prune_qsearch_captures_by_see_impl(
     pos: &mut Position,
     moves: Vec<Move>,
@@ -3719,10 +3820,19 @@ fn prune_qsearch_captures_by_see_impl(
     alpha: i32,
     beta: i32,
     fast_see: bool,
+    delta_enabled: bool,
+    stand_pat: i32,
+    qply: u32,
 ) -> Vec<Move> {
     if alpha <= -(MATE - 1000) || beta >= MATE - 1000 {
         return moves;
     }
+    // S7.1B node-level eligibility. The call site only reaches this helper at
+    // a NON-CHECK qsearch node AFTER the stand-pat beta cutoff, so
+    // `stand_pat < beta` holds structurally; the check is kept explicit as a
+    // defensive invariant. The non-pawn material guard mirrors the existing
+    // futility/null guard style so sparse endgames stay fail-open.
+    let delta_active = delta_enabled && stand_pat < beta && non_pawn_material_count(pos) >= 4;
     let mut kept = Vec::with_capacity(moves.len());
     for m in moves {
         if matches!(m.flag, MoveFlag::Promotion(_)) {
@@ -3750,22 +3860,67 @@ fn prune_qsearch_captures_by_see_impl(
         // The source/target guards above make this a well-defined ordinary
         // capture. If a future move flag or generator violates that contract,
         // it reaches the fail-open path above instead of being pruned.
+        //
+        // S7.1B critical rule: exactly ONE pruning SEE computation per
+        // eligible capture; the SAME exchange result drives both the
+        // production SEE<0 prune and the delta prune.
         ctx.add_profile_counter(&ctx.qsearch_see_tests, 1);
+        if delta_active {
+            ctx.add_profile_counter(&ctx.qsearch_delta_tests, 1);
+        }
         let see_start = ctx.sample_begin(&ctx.timing_see);
-        let see_ge = if fast_see {
-            see_ge_for_pruning(pos, m, 0)
+        // Normalized to a value whose sign carries the SEE<0 decision: the
+        // fast path only proves the sign, so 0/-1 preserve its exact
+        // semantics; the full path keeps the actual exchange value for the
+        // delta rule.
+        let see_value: Option<i32> = if fast_see {
+            see_ge_for_pruning(pos, m, 0).map(|ge| if ge { 0 } else { -1 })
         } else {
-            static_exchange_eval_for_pruning(pos, m).map(|value| value >= 0)
+            static_exchange_eval_for_pruning(pos, m)
         };
         if let Some(start) = see_start {
             ctx.sample_end(&ctx.timing_see, start);
         }
-        match see_ge {
-            Some(false) => {
+        match see_value {
+            Some(v) if v < 0 => {
                 ctx.add_profile_counter(&ctx.qsearch_see_pruned, 1);
             }
-            Some(true) => {
-                kept.push(m);
+            Some(v) => {
+                if delta_active
+                    && stand_pat
+                        .saturating_add(v)
+                        .saturating_add(QSEARCH_DELTA_MARGIN_CP)
+                        <= alpha
+                {
+                    ctx.add_profile_counter(&ctx.qsearch_delta_pruned, 1);
+                    match pos.board[m.to as usize]
+                        .map(|piece| piece.piece_type)
+                        .unwrap_or(PieceType::Pawn)
+                    {
+                        PieceType::Pawn => {
+                            ctx.add_profile_counter(&ctx.qsearch_delta_pruned_pawn, 1);
+                        }
+                        PieceType::Knight | PieceType::Bishop => {
+                            ctx.add_profile_counter(&ctx.qsearch_delta_pruned_minor, 1);
+                        }
+                        PieceType::Rook => {
+                            ctx.add_profile_counter(&ctx.qsearch_delta_pruned_rook, 1);
+                        }
+                        PieceType::Queen => {
+                            ctx.add_profile_counter(&ctx.qsearch_delta_pruned_queen, 1);
+                        }
+                        PieceType::King => {}
+                    }
+                    if qply <= 1 {
+                        ctx.add_profile_counter(&ctx.qsearch_delta_qply_0_1, 1);
+                    } else if qply <= 3 {
+                        ctx.add_profile_counter(&ctx.qsearch_delta_qply_2_3, 1);
+                    } else {
+                        ctx.add_profile_counter(&ctx.qsearch_delta_qply_4p, 1);
+                    }
+                } else {
+                    kept.push(m);
+                }
             }
             None => {
                 // An unsupported exchange, including a later promotion,
@@ -4839,6 +4994,13 @@ fn quiescence_entered_impl_with_profile(
         if qsearch_pruning {
             tactical = if qsearch_fast_pruning {
                 prune_qsearch_captures_by_fast_see(pos, tactical, ctx, alpha, beta)
+            } else if ctx.features().qsearch_delta {
+                // S7.1B candidate: the existing SEE<0 prune plus the
+                // conservative delta rule, sharing ONE SEE computation.
+                // `stand_pat < beta` holds (the beta cutoff returned above).
+                prune_qsearch_captures_by_see_delta(
+                    pos, tactical, ctx, alpha, beta, stand_pat, qply,
+                )
             } else {
                 prune_qsearch_captures_by_see(pos, tactical, ctx, alpha, beta)
             };
@@ -7437,6 +7599,135 @@ mod tests {
         }
         assert_eq!(run_qsearch(checkmate, true, true), -(MATE));
         assert_eq!(run_qsearch(stalemate, true, true), 0);
+    }
+
+    #[test]
+    fn qsearch_delta_pruning_follows_predeclared_rule_and_exemptions() {
+        fn prune_delta(
+            fen: &str,
+            uci: &str,
+            alpha: i32,
+            beta: i32,
+            stand_pat: i32,
+            qply: u32,
+        ) -> (Vec<Move>, SearchStats) {
+            let mut pos = parse_fen(fen).unwrap();
+            let m = find_move(&pos, uci);
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let kept = prune_qsearch_captures_by_see_delta(
+                &mut pos,
+                vec![m],
+                &ctx,
+                alpha,
+                beta,
+                stand_pat,
+                qply,
+            );
+            (kept, ctx.stats())
+        }
+        fn prune_baseline(fen: &str, uci: &str, alpha: i32, beta: i32) -> Vec<Move> {
+            let mut pos = parse_fen(fen).unwrap();
+            let m = find_move(&pos, uci);
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            prune_qsearch_captures_by_see(&mut pos, vec![m], &ctx, alpha, beta)
+        }
+        const WIDE: i32 = 10_000;
+
+        // (1) SEE<0 ordinary capture: baseline and candidate both prune.
+        let losing = "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1";
+        let (kept, stats) = prune_delta(losing, "f3e5", -100, WIDE, -800, 0);
+        assert!(kept.is_empty());
+        assert_eq!(stats.qsearch_see_pruned, 1);
+        assert_eq!(stats.qsearch_delta_pruned, 0);
+        assert!(prune_baseline(losing, "f3e5", -100, WIDE).is_empty());
+
+        // (2) SEE>=0 capture with stand_pat + SEE + 500 <= alpha:
+        // baseline keeps, candidate delta-prunes. Nxd5 is an unguarded pawn
+        // capture (SEE = +100); four non-pawn pieces satisfy the guard.
+        let gains_pawn = "5k1b/8/8/3p4/8/4N2R/8/1B2K3 w - - 0 1";
+        let gains_pos = parse_fen(gains_pawn).unwrap();
+        let gains_move = find_move(&gains_pos, "e3d5");
+        assert_eq!(
+            static_exchange_eval_for_pruning(&gains_pos, gains_move),
+            Some(100)
+        );
+        let (kept, stats) = prune_delta(gains_pawn, "e3d5", -100, WIDE, -800, 0);
+        assert!(kept.is_empty(), "delta rule must prune the futile capture");
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_delta_tests, 1);
+        assert_eq!(stats.qsearch_delta_pruned, 1);
+        assert_eq!(stats.qsearch_delta_pruned_pawn, 1);
+        assert_eq!(stats.qsearch_delta_qply_0_1, 1);
+        assert_eq!(stats.qsearch_see_pruned, 0);
+        assert_eq!(
+            prune_baseline(gains_pawn, "e3d5", -100, WIDE).len(),
+            1,
+            "baseline must keep this SEE>=0 capture"
+        );
+
+        // (3) Same capture just above the threshold (stand_pat + SEE + 500 =
+        // -200 > alpha = -201): candidate keeps.
+        let (kept, stats) = prune_delta(gains_pawn, "e3d5", -201, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_delta_tests, 1);
+        assert_eq!(stats.qsearch_delta_pruned, 0);
+
+        // (3b) The qply buckets attribute to qply 2-3 when reached deeper.
+        let (_, stats) = prune_delta(gains_pawn, "e3d5", -100, WIDE, -800, 2);
+        assert_eq!(stats.qsearch_delta_qply_2_3, 1);
+        assert_eq!(stats.qsearch_delta_qply_0_1, 0);
+
+        // (4) A checking capture is never delta-pruned (kept before SEE).
+        let checking = "4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1";
+        let (kept, stats) = prune_delta(checking, "e4e5", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_checking_captures_kept, 1);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+
+        // (5) A capture-promotion is kept.
+        let promo_cap = "1n5k/P7/8/8/8/8/8/K7 w - - 0 1";
+        let (kept, stats) = prune_delta(promo_cap, "a7b8q", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_promotions_kept, 1);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+
+        // (6) A quiet promotion is kept.
+        let promo_quiet = "7k/P7/8/8/8/8/8/K7 w - - 0 1";
+        let (kept, stats) = prune_delta(promo_quiet, "a7a8q", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_promotions_kept, 1);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+
+        // (7) En passant is kept.
+        let ep = "7k/8/8/5Pp1/8/8/8/4K3 w - g6 0 1";
+        let (kept, stats) = prune_delta(ep, "f5g6", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_en_passant_kept, 1);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+
+        // (8) Unsupported SEE fails open: kept even though the delta margin
+        // would otherwise be satisfied.
+        let promo_exchange = "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1";
+        let (kept, stats) = prune_delta(promo_exchange, "e2e8", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_fail_open_promotions, 1);
+        assert_eq!(stats.qsearch_delta_pruned, 0);
+
+        // (9) Mate-range alpha/beta: nothing is tested or pruned at all.
+        let (kept, stats) = prune_delta(gains_pawn, "e3d5", MATE - 500, MATE - 100, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_tests, 0);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+        assert_eq!(stats.qsearch_delta_pruned, 0);
+
+        // (10) Low non-pawn material (3 pieces) stays fail-open even when
+        // the numeric delta threshold is satisfied.
+        let sparse = "7k/8/8/3p4/8/4N3/8/6K1 w - - 0 1";
+        let (kept, stats) = prune_delta(sparse, "e3d5", -100, WIDE, -800, 0);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(stats.qsearch_see_tests, 1);
+        assert_eq!(stats.qsearch_delta_tests, 0);
+        assert_eq!(stats.qsearch_delta_pruned, 0);
     }
 
     #[test]
