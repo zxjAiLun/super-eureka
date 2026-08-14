@@ -261,6 +261,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -416,6 +417,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleBuffer
                 | Self::CurrentFinalSingleGeneration
                 | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
         )
     }
 
@@ -7599,6 +7601,97 @@ mod tests {
         }
         assert_eq!(run_qsearch(checkmate, true, true), -(MATE));
         assert_eq!(run_qsearch(stalemate, true, true), 0);
+    }
+
+    #[test]
+    fn qsearch_delta_profile_inherits_current_final_exactly_except_delta() {
+        use SearchProfile::{CurrentFinal, CurrentFinalQsearchDelta as Delta};
+
+        // S7.1B Repair 1: structural regression proof. Every production
+        // policy dimension must agree between CurrentFinal and the S7.1B
+        // candidate; the ONLY permitted difference is uses_qsearch_delta.
+        assert_eq!(CurrentFinal.uses_pvs(), Delta.uses_pvs());
+        assert_eq!(CurrentFinal.uses_see(), Delta.uses_see());
+        assert_eq!(CurrentFinal.uses_aspiration(), Delta.uses_aspiration());
+        assert_eq!(CurrentFinal.uses_lmr(), Delta.uses_lmr());
+        assert_eq!(CurrentFinal.uses_null_move(), Delta.uses_null_move());
+        assert_eq!(CurrentFinal.uses_futility(), Delta.uses_futility());
+        assert_eq!(
+            CurrentFinal.uses_qsearch_movegen(),
+            Delta.uses_qsearch_movegen()
+        );
+        assert_eq!(
+            CurrentFinal.uses_qsearch_pruning(),
+            Delta.uses_qsearch_pruning()
+        );
+        assert_eq!(
+            CurrentFinal.uses_qsearch_fast_pruning(),
+            Delta.uses_qsearch_fast_pruning()
+        );
+        assert_eq!(CurrentFinal.uses_qsearch_lazy(), Delta.uses_qsearch_lazy());
+        assert_eq!(
+            CurrentFinal.uses_root_quiet_history(),
+            Delta.uses_root_quiet_history()
+        );
+        assert_eq!(
+            CurrentFinal.uses_root_prev_score(),
+            Delta.uses_root_prev_score()
+        );
+        assert_eq!(
+            CurrentFinal.uses_legality_fast(),
+            Delta.uses_legality_fast()
+        );
+        assert_eq!(
+            CurrentFinal.uses_single_buffer_legal(),
+            Delta.uses_single_buffer_legal()
+        );
+        assert_eq!(
+            CurrentFinal.uses_single_generation_probe(),
+            Delta.uses_single_generation_probe()
+        );
+        assert_eq!(CurrentFinal.uses_eval2(), Delta.uses_eval2());
+        assert_eq!(
+            CurrentFinal.uses_forcing_search(),
+            Delta.uses_forcing_search()
+        );
+        assert_eq!(
+            CurrentFinal.uses_threat_ordering(),
+            Delta.uses_threat_ordering()
+        );
+        assert_eq!(
+            CurrentFinal.uses_threat_aware_qsearch(),
+            Delta.uses_threat_aware_qsearch()
+        );
+        assert_eq!(
+            CurrentFinal.uses_threat_aware_eval(),
+            Delta.uses_threat_aware_eval()
+        );
+
+        // The single intended difference.
+        assert!(!CurrentFinal.uses_qsearch_delta());
+        assert!(Delta.uses_qsearch_delta());
+
+        // Explicit guards for the two arms forgotten in the original
+        // (misconfigured) S7.1B candidate.
+        assert!(
+            Delta.uses_null_move(),
+            "S7.1B must inherit verified null move"
+        );
+        assert!(
+            Delta.uses_single_buffer_legal(),
+            "S7.1B must inherit SingleBuffer materialization"
+        );
+
+        // The resolved hot-path policy must agree on every shared feature
+        // bit and differ only on the delta bit.
+        let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
+        let dl = SearchFeaturePolicy::for_profile(Delta, None);
+        assert_eq!(cf.lmr, dl.lmr);
+        assert_eq!(cf.futility, dl.futility);
+        assert_eq!(cf.null_move, dl.null_move);
+        assert_eq!(cf.qsearch_see, dl.qsearch_see);
+        assert!(!cf.qsearch_delta);
+        assert!(dl.qsearch_delta);
     }
 
     #[test]
