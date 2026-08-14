@@ -36,7 +36,15 @@ the "added" has-any work.
 
 Stand-pat-before-movegen does not pay for itself while the stalemate probe
 is a full-legal movegen. S7.1B (conservative delta/SEE futility pruning)
-is a tree-changing node-reduction lane and is not blocked by this result;
-it attacks the ~48-70% of non-check qsearch nodes that currently
-stand-pat-cutoff by *pruning their capture tails* rather than deferring
-their materialization.
+is a tree-changing node-reduction lane and is not blocked by this result.
+
+NOTE (evidence-wording repair, S7.1B round 0): an earlier revision of this
+section claimed S7.1B "attacks the ~48-70% of non-check qsearch nodes that
+currently stand-pat-cutoff by pruning their capture tails". That was a
+conceptual error: those nodes already return via the stand-pat beta cutoff
+BEFORE any capture is searched, so there is no capture tail to prune there.
+Corrected statement:
+
+"S7.1B targets non-check qsearch nodes where stand-pat does NOT cut off and
+the search proceeds into the tactical move loop, plus the descendant capture
+tree created by those moves."

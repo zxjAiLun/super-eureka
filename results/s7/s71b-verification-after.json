@@ -1,0 +1,277 @@
+{
+  "profile": "current-final",
+  "depth": 6,
+  "tag": "after",
+  "positions": [
+    {
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "result": {
+        "nodes": "56175",
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "result": {
+        "nodes": "131468",
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "result": {
+        "nodes": "139929",
+        "score": "cp:30",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4",
+      "result": {
+        "nodes": "142557",
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+      "result": {
+        "nodes": "208529",
+        "score": "cp:20",
+        "bestmove": "d2d4",
+        "pv": "\"d2d4"
+      }
+    },
+    {
+      "fen": "r1bq1rk1/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 6 6",
+      "result": {
+        "nodes": "202475",
+        "score": "cp:350",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
+      "result": {
+        "nodes": "175806",
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bq1rk1/ppppbppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 2 6",
+      "result": {
+        "nodes": "158107",
+        "score": "cp:20",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bq1rk1/ppp2ppp/2np1n2/4p3/2BPP3/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 7",
+      "result": {
+        "nodes": "118986",
+        "score": "cp:380",
+        "bestmove": "d4d5",
+        "pv": "\"d4d5"
+      }
+    },
+    {
+      "fen": "r3k2r/ppp2ppp/2n1b3/3qp3/3PP3/2N1B3/PPP2PPP/R3K2R w KQkq - 0 1",
+      "result": {
+        "nodes": "24184",
+        "score": "cp:90",
+        "bestmove": "e4d5",
+        "pv": "\"e4d5"
+      }
+    },
+    {
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 6 5",
+      "result": {
+        "nodes": "215264",
+        "score": "cp:5",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "result": {
+        "nodes": "73281",
+        "score": "cp:205",
+        "bestmove": "e3d4",
+        "pv": "\"e3d4"
+      }
+    },
+    {
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "result": {
+        "nodes": "16524",
+        "score": "cp:390",
+        "bestmove": "f1b5",
+        "pv": "\"f1b5"
+      }
+    },
+    {
+      "fen": "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      "result": {
+        "nodes": "50241",
+        "score": "cp:522",
+        "bestmove": "d7c8r",
+        "pv": "\"d7c8r"
+      }
+    },
+    {
+      "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      "result": {
+        "nodes": "285778",
+        "score": "cp:35",
+        "bestmove": "e2a6",
+        "pv": "\"e2a6"
+      }
+    },
+    {
+      "fen": "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+      "result": {
+        "nodes": "27530",
+        "score": "cp:-486",
+        "bestmove": "c4c5",
+        "pv": "\"c4c5"
+      }
+    },
+    {
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "result": {
+        "nodes": "190005",
+        "score": "cp:-217",
+        "bestmove": "f7f6",
+        "pv": "\"f7f6"
+      }
+    },
+    {
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "result": {
+        "nodes": "145001",
+        "score": "mate:-8",
+        "bestmove": "c8e6",
+        "pv": "\"c8e6"
+      }
+    },
+    {
+      "fen": "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+      "result": {
+        "nodes": "117081",
+        "score": "cp:0",
+        "bestmove": "b1c3",
+        "pv": "\"b1c3"
+      }
+    },
+    {
+      "fen": "rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6",
+      "result": {
+        "nodes": "260602",
+        "score": "cp:-25",
+        "bestmove": "e2e3",
+        "pv": "\"e2e3"
+      }
+    },
+    {
+      "fen": "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6",
+      "result": {
+        "nodes": "225369",
+        "score": "cp:20",
+        "bestmove": "e2e3",
+        "pv": "\"e2e3"
+      }
+    },
+    {
+      "fen": "r1bq1rk1/ppp1bppp/2np1n2/4p3/2P1P3/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 7",
+      "result": {
+        "nodes": "137242",
+        "score": "cp:5",
+        "bestmove": "c3d5",
+        "pv": "\"c3d5"
+      }
+    },
+    {
+      "fen": "r3k2r/ppp2ppp/2n1b3/3p4/3P4/2N1B3/PPP2PPP/R3K2R w KQkq - 0 7",
+      "result": {
+        "nodes": "160271",
+        "score": "cp:0",
+        "bestmove": "e1e2",
+        "pv": "\"e1e2"
+      }
+    },
+    {
+      "fen": "2r3k1/1p3ppp/p1n1p3/8/4P3/1NN1B3/PPP2PPP/R2R2K1 w - - 0 12",
+      "result": {
+        "nodes": "199822",
+        "score": "cp:1305",
+        "bestmove": "d1d7",
+        "pv": "\"d1d7"
+      }
+    },
+    {
+      "fen": "r4rk1/pp3ppp/2p2n2/3p4/3P4/1PN1PN2/P1P2PPP/2R1R1K1 w - - 0 12",
+      "result": {
+        "nodes": "53982",
+        "score": "cp:450",
+        "bestmove": "e3e4",
+        "pv": "\"e3e4"
+      }
+    },
+    {
+      "fen": "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
+      "result": {
+        "nodes": "71891",
+        "score": "cp:1194",
+        "bestmove": "d2g5",
+        "pv": "\"d2g5"
+      }
+    },
+    {
+      "fen": "7k/8/8/8/8/8/3RK3/8 w - - 0 1",
+      "result": {
+        "nodes": "23258",
+        "score": "cp:744",
+        "bestmove": "d2d7",
+        "pv": "\"d2d7"
+      }
+    },
+    {
+      "fen": "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+      "result": {
+        "nodes": "18943",
+        "score": "cp:578",
+        "bestmove": "g1e1",
+        "pv": "\"g1e1"
+      }
+    },
+    {
+      "fen": "8/8/8/8/3k4/8/PPP5/4K3 w - - 0 1",
+      "result": {
+        "nodes": "4926",
+        "score": "cp:315",
+        "bestmove": "e1d2",
+        "pv": "\"e1d2"
+      }
+    },
+    {
+      "fen": "4k3/8/8/8/8/4p3/4P3/4K3 w - - 0 1",
+      "result": {
+        "nodes": "1815",
+        "score": "cp:70",
+        "bestmove": "e1d1",
+        "pv": "\"e1d1"
+      }
+    }
+  ]
+}
