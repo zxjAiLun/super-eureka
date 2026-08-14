@@ -1,6 +1,9 @@
 # S7.3 — Selectivity Attribution（选择性归因，OBSERVATION ONLY）
 
-STATUS: **COMPLETE** — 数据完整，结论支持 S7.4 进入 adaptive LMR / LMP 方向
+STATUS: **APPROVED_WITH_REPAIR** — 数据有效；报告口径已按 review 修复
+（proposed vs applied LMR、history 百分比、null funnel 措辞、R2 推论删除）。
+主诊断修正为：**SELECTIVITY_TOO_CONSERVATIVE**，更精确机制为
+**LMR_APPLICATION_SUPPRESSED_ON_NULL_WINDOW_NODES**（见 §3）。
 
 - BASE: `d1db1af`（chess 语义 = CurrentFinal，本轮零搜索语义改动）
 - Profile: `current-final`，16MB cold TT，threads 1
@@ -35,15 +38,15 @@ S7.2 证明大 move-loop 的主体不是"cutoff move 排太后"（late cutoff �
 
 ### 2.2 无 cutoff 节点里被搜 quiet 的 history 分布（搜索前读取）
 
-| bucket | searched | 占比 |
+| bucket | searched | 占比（分母 = 五桶合计 23,156,641）|
 |---|---|---|
-| ≤0 | 17,133,747 | **65.70%** |
-| 1–15 | 2,039,270 | 7.82% |
-| 16–63 | 1,440,587 | 5.53% |
-| 64–255 | 1,206,828 | 4.63% |
-| 256+ | 1,336,209 | 5.13% |
+| ≤0 | 17,133,747 | **74.0%** |
+| 1–15 | 2,039,270 | 8.81% |
+| 16–63 | 1,440,587 | 6.22% |
+| 64–255 | 1,206,828 | 5.21% |
+| 256+ | 1,336,209 | 5.77% |
 
-绝大多数在无 cutoff 节点里被搜的 quiet 是 **history ≤0** 的低价值着法
+约 **74%** 在无 cutoff 节点里被搜的 quiet 是 **history ≤0** 的低价值着法
 ——history 信号已经"知道"它们大概率没用，但当前 selectivity 仍在搜它们。
 
 ### 2.3 当前 selectivity 的实际覆盖
@@ -52,42 +55,66 @@ S7.2 证明大 move-loop 的主体不是"cutoff move 排太后"（late cutoff �
 |---|---|---|
 | futility prune | **26,459,593** | 真正的主力 |
 | futility-eligible 节点仍被搜的 quiet | 19,591,820 | 巨大剩余头寸（margin/LMP 空间）|
-| null eligible 节点 / attempts / fail-high | 9,680 / 9,680 / 4,035（41.7% FH）| **覆盖面极窄**（仅 0.13% loop 节点）|
-| LMR reductions / researches | 26,982 / 938 | **research 率 0.308%——极端保守** |
+| null eligible 节点 / attempts / fail-high | 9,680 / 9,680 / 4,035（41.7% FH）| 见 §3.4：coverage 需单独 funnel 归因 |
+| LMR proposed（`late_move_reduction()` 理论值，d≥4 quiet）| 232,058 R1 / 0 R2 | 见 §2.4 修复口径 |
+| **LMR actually applied**（`ctx.lmr_reductions`）| **26,982** | 仅为理论 R1 的 **~11.6%** |
+| LMR re-search | 938 | **938 / 26,982 ≈ 3.48%（applied 口径）** |
 
 ### 2.4 depth≥4 quiet 的深度分布（LMR 交互，304,650 手）
 
 | 维度 | 分布 |
 |---|---|
 | ordered idx | i0 9.8% / i1 1.8% / i2–3 5.1% / i4–7 12.0% / **i8+ 71.3%** |
-| reduction | R0 23.8% / **R1 76.2%** / R2 **0%**（d≥7&&i8+ 从未触发）|
+| **proposed** reduction（`late_move_reduction()` 返回值，记录于 ChildWindow 选择**之前**，理论值）| R0 23.8% / **R1 76.2%** / R2 0% |
 | i8+ 且 R0（full depth）| 21,702（i8+ 的 9.99%；多为 in-check/豁免路径）|
 | **i8+ quiet 的 beta-cutoff** | **255 / 217,234 = 0.117%** |
-| R1 scout fail-low | 26,044（R1 里被证伪需要 research 的仅 938 总）|
+| R1 scout fail-low | 26,044（applied 口径；理论 R1 中仅 ~11.6% 真正进入 scout）|
+
+> 口径修复：`s73_q4p_quiet_red*` 系列是 **proposed/theoretical** reduction
+> （在 `pvs_child_window()` 之前记录），不是实际应用分布。实际 LMR 只发生在
+> `ChildWindow::Scout` 分支：26,982 次。R2=0 是 measurement contract 的机械
+> 结果（R2 需 non-root remaining depth≥7，而本轮只跑 root d6/d7，非 root
+> 最大 remaining depth ≈ 6），**不能**作为"R2 policy 过窄"的证据；研究 R2
+> 需 root d8+。
 
 ## 3. 诊断
 
-1. **SHALLOW_QUIET_EXPLOSION + SELECTIVITY_TOO_CONSERVATIVE（主因）**
-   — 无 cutoff 大树 = non-PV fail-low 节点，其中 65.7% 被搜 quiet 是
-   history ≤0；depth≥4 的 i8+ quiet 占 quiet 搜索的 71.3% 却只产生
+1. **SELECTIVITY_TOO_CONSERVATIVE（主因，成立）**
+   — 无 cutoff 大树 = non-PV fail-low 节点（99.62%），其中 **74.0%** 被搜
+   quiet 是 history ≤0；depth≥4 的 i8+ quiet 占 quiet 搜索的 71.3% 却只产生
    0.117% 的 cutoff。这些 move 正是 LMR/LMP 的教科书目标。
-2. **LMR 过浅且过窄** — R1（减 1 层）对 fail-low 几乎无代价（research
-   0.308%），R2 在本轮 corpus 上一次都没触发；当前公式远在安全侧。
-3. **NULL-MOVE 覆盖面异常窄** — eligible 仅 9,680 节点（0.13%），
-   fail-high 率 41.7% 却很高：说明 guard（深度/材料/非PV）卡掉了
-   绝大多数本可 fail-high 的节点，值得在 S7.4 一并复核 eligibility
-   而非只调 R。
-4. **PV / in-check 不是问题**（0.38% / 6.5%）。
+2. **更精确机制：LMR_APPLICATION_SUPPRESSED_ON_NULL_WINDOW_NODES**
+   — `late_move_reduction()` 对 232,058 个 d≥4 late quiet 提出了 R1，但实际
+   只应用了 26,982 次（**~11.6%**）。原因：LMR 只存在于
+   `ChildWindow::Scout` 分支；当 caller 自身已是 null-window 时
+   `pvs_child_window()` 返回 `Full`，reduction 被丢弃，late quiet 以
+   **full depth** 搜索。结合 99.62% 的无 cutoff loop 是 non-PV（null-window）
+   节点，这是结构级 PVS/LMR plumbing 缺陷，不是 R1/R2 阈值问题。
+   applied-LMR re-search 率 = 938/26,982 ≈ **3.48%**（仍有余量，但不是
+   0.308%）。
+3. **PV / in-check 不是问题**（0.38% / 6.5%）。
+4. **NULL-MOVE：NEEDS_SEPARATE_FUNNEL_ATTRIBUTION**
+   — 有效数据：eligible 9,680 中 4,035 fail-high（**41.7%**）。
+   "仅 0.13% loop 节点 eligible"不构成"guard 异常窄"的证据：eligibility
+   本身要求 depth≥5 + null-window + 材料 + 非 mate-window，all-loop 分母
+   不是 opportunity-normalized。且 fail-high 后走 full-depth verification，
+   扩大 eligibility 未必免费。S7.4A 不碰 null-move；后续单独做 funnel
+   （all loops → d≥5 → non-check → null-window → material → eligible）。
+5. **R2 policy 本轮不可判**（见 §2.4 口径注）：需 root d8+ 才能触发。
 
-## 4. 结论与 S7.4 建议
+## 4. 结论与 S7.4A 建议
 
-- **数据方向明确**：垃圾 quiet 线（i8+、history≤0、non-PV fail-low
-  语境）占大头且几乎从不产生 cutoff → **先做 adaptive LMR / LMP
-  （加深 reduction、加 late-quiet pruning），再做 forcing extensions
-  把省出的深度投回关键线**。
+- **第一刀（S7.4A，单候选）**：让**现有** LMR policy 真正作用于
+  null-window caller 节点——在 caller-null-window 的 late quiet 上执行
+  reduced null-window search（复用 caller 自己的窗口，不另造更窄窗口），
+  fail-low 即接受，fail-high/improve 才用同窗口 full-depth 验证，且只有
+  验证结果才能产生 cutoff / killer-history / PV。不改阈值、不加 LMP、
+  不碰 null-move、不加 forcing extension。
+- 若 S7.4A 有效，**之后**才做 S7.4B（adaptive LMR / LMP，R2 需 root d8+
+  gate）与 S7.5（single-evasion / bounded check / singular extension）把
+  省出的深度投回关键线——"垃圾线更浅，关键线更深"。
 - 杀王 horizon 保护是硬约束：所有新 pruning 必须保留 in-check /
   tactical / mate-window 豁免，并跑 S6 teacher-challenge + mate
   regression gate。
-- 候选设计从本轮数据出发（如 log/公式化 reduction、LMP 阈值与
-  history/futility margin 联动），单候选、预申报判据、tree-changing
-  gate 全套（fixed-depth node + fixed-wall depth + tactical safety）。
+- 单候选、预申报判据、tree-changing gate 全套（fixed-depth node +
+  fixed-wall depth + tactical safety）。
