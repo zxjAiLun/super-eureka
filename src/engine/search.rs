@@ -787,6 +787,8 @@ pub struct SearchContext {
     pub s74_lmr_applied_null_window: AtomicU64,
     pub s74_lmr_nw_fail_low: AtomicU64,
     pub s74_lmr_nw_research: AtomicU64,
+    /// S7.4A Repair 1: verifications that actually entered (acquired a node).
+    pub s74_lmr_nw_research_entered: AtomicU64,
     pub s74_lmr_nw_verified_cutoff: AtomicU64,
     pub s74_lmr_nw_depth: [AtomicU64; 4],
     pub s74_lmr_nw_idx: [AtomicU64; 4],
@@ -1021,6 +1023,7 @@ pub struct SearchStats {
     pub s74_lmr_applied_null_window: u64,
     pub s74_lmr_nw_fail_low: u64,
     pub s74_lmr_nw_research: u64,
+    pub s74_lmr_nw_research_entered: u64,
     pub s74_lmr_nw_verified_cutoff: u64,
     pub s74_lmr_nw_depth: [u64; 4],
     pub s74_lmr_nw_idx: [u64; 4],
@@ -1190,6 +1193,7 @@ impl SearchContext {
             s74_lmr_applied_null_window: AtomicU64::new(0),
             s74_lmr_nw_fail_low: AtomicU64::new(0),
             s74_lmr_nw_research: AtomicU64::new(0),
+            s74_lmr_nw_research_entered: AtomicU64::new(0),
             s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
             s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
             s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -1408,6 +1412,7 @@ impl SearchContext {
             s74_lmr_applied_null_window: AtomicU64::new(0),
             s74_lmr_nw_fail_low: AtomicU64::new(0),
             s74_lmr_nw_research: AtomicU64::new(0),
+            s74_lmr_nw_research_entered: AtomicU64::new(0),
             s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
             s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
             s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -1640,6 +1645,7 @@ impl SearchContext {
             s74_lmr_applied_null_window: self.s74_lmr_applied_null_window.load(Ordering::Relaxed),
             s74_lmr_nw_fail_low: self.s74_lmr_nw_fail_low.load(Ordering::Relaxed),
             s74_lmr_nw_research: self.s74_lmr_nw_research.load(Ordering::Relaxed),
+            s74_lmr_nw_research_entered: self.s74_lmr_nw_research_entered.load(Ordering::Relaxed),
             s74_lmr_nw_verified_cutoff: self.s74_lmr_nw_verified_cutoff.load(Ordering::Relaxed),
             s74_lmr_nw_depth: std::array::from_fn(|i| {
                 self.s74_lmr_nw_depth[i].load(Ordering::Relaxed)
@@ -2351,6 +2357,14 @@ mod pvs_counters {
         /// Abort observed while the full re-search subtree was running
         /// (phase C: the re-search ran out of budget after entering).
         pub static ABORT_IN_RESEARCH: Cell<usize> = const { Cell::new(0) };
+        /// S7.4A: reduced null-window search improved and a full-depth
+        /// verification was requested.
+        pub static S74_NW_RESEARCH_ATTEMPT: Cell<usize> = const { Cell::new(0) };
+        /// S7.4A: the requested verification acquired its node and ran.
+        pub static S74_NW_RESEARCH_ENTERED: Cell<usize> = const { Cell::new(0) };
+        /// S7.4A: `try_enter_node` failed when acquiring the verification
+        /// node, so the unverified reduced result was discarded.
+        pub static S74_NW_ABORT_RESEARCH_ACQUIRE: Cell<usize> = const { Cell::new(0) };
         /// Exact call count of `SearchHeuristics::record_killer` (P2:
         /// exact-once proof — a scout+re-search double reward would call it
         /// twice for one cutoff, which two-run table equality cannot see).
@@ -2425,6 +2439,9 @@ mod pvs_counters {
         ABORT_IN_SCOUT.set(0);
         ABORT_RESEARCH_ACQUIRE.set(0);
         ABORT_IN_RESEARCH.set(0);
+        S74_NW_RESEARCH_ATTEMPT.set(0);
+        S74_NW_RESEARCH_ENTERED.set(0);
+        S74_NW_ABORT_RESEARCH_ACQUIRE.set(0);
         RECORD_KILLER_CALLS.set(0);
         RECORD_HISTORY_CALLS.set(0);
         HISTORY_TOTAL_DELTA.set(0);
@@ -2474,6 +2491,15 @@ mod pvs_counters {
     }
     pub fn mark_abort_in_research() {
         ABORT_IN_RESEARCH.set(ABORT_IN_RESEARCH.get() + 1);
+    }
+    pub fn mark_s74_nw_research_attempt() {
+        S74_NW_RESEARCH_ATTEMPT.set(S74_NW_RESEARCH_ATTEMPT.get() + 1);
+    }
+    pub fn mark_s74_nw_research_entered() {
+        S74_NW_RESEARCH_ENTERED.set(S74_NW_RESEARCH_ENTERED.get() + 1);
+    }
+    pub fn mark_s74_nw_abort_research_acquire() {
+        S74_NW_ABORT_RESEARCH_ACQUIRE.set(S74_NW_ABORT_RESEARCH_ACQUIRE.get() + 1);
     }
     pub fn mark_record_killer_call() {
         RECORD_KILLER_CALLS.set(RECORD_KILLER_CALLS.get() + 1);
@@ -4089,8 +4115,23 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 MoveOutcome::ScoutFailLow(nw_reduced)
                             } else {
                                 // Exactly ONE full-depth verification with the
-                                // SAME caller null window.
+                                // SAME caller null window. This is a NEW real
+                                // search entry: acquire exactly one node,
+                                // matching the production PVS re-search
+                                // contract (S7.4A Repair 1).
                                 ctx.add_profile_counter(&ctx.s74_lmr_nw_research, 1);
+                                #[cfg(test)]
+                                pvs_counters::mark_s74_nw_research_attempt();
+                                if !try_enter_node(ctx, limits) {
+                                    #[cfg(test)]
+                                    pvs_counters::mark_s74_nw_abort_research_acquire();
+                                    path.pop();
+                                    unmake_move_profiled(pos, undo, ctx);
+                                    return None;
+                                }
+                                ctx.add_profile_counter(&ctx.s74_lmr_nw_research_entered, 1);
+                                #[cfg(test)]
+                                pvs_counters::mark_s74_nw_research_entered();
                                 match negamax_entered_impl_with_null_and_extensions(
                                     pos,
                                     child_depth,
@@ -8569,8 +8610,21 @@ mod tests {
             cand.s74_lmr_applied_null_window,
             cand.s74_lmr_nw_fail_low + cand.s74_lmr_nw_research
         );
+        // Contract A: this fixture is all fail-low, so no verification is
+        // requested and no verification node is acquired.
+        assert_eq!(cand.s74_lmr_nw_research, 0);
+        assert_eq!(cand.s74_lmr_nw_research_entered, 0);
         // Verified cutoffs can only originate from re-searched moves.
         assert!(cand.s74_lmr_nw_verified_cutoff <= cand.s74_lmr_nw_research);
+        // S7.4A Repair 1: every re-search is a NEW real search entry acquired
+        // through the exact-once `try_enter_node` contract. Entries can never
+        // exceed requests, and in an unlimited fixed-depth run (no stop flag,
+        // no deadline, no node budget) every requested verification enters.
+        assert!(cand.s74_lmr_nw_research_entered <= cand.s74_lmr_nw_research);
+        assert_eq!(
+            cand.s74_lmr_nw_research_entered, cand.s74_lmr_nw_research,
+            "unlimited run: every requested verification must enter"
+        );
         // The depth and index splits each account for every application.
         assert_eq!(
             cand.s74_lmr_nw_depth.iter().sum::<u64>(),
@@ -8583,6 +8637,207 @@ mod tests {
         // The candidate search completes with a bounded, sane score.
         let s = cand_score.expect("candidate search must complete");
         assert!(s > -(MATE - 1000) && s < MATE - 1000);
+    }
+
+    #[test]
+    fn lmr_null_window_verification_acquisition_respects_node_budget() {
+        // S7.4A Repair 1, contracts C/D. Contract C isolates the EXACT
+        // acquisition-failure event: we find the smallest budget at which a
+        // reduced null-window search improves alpha and requests a full-depth
+        // verification, then prove the `try_enter_node` failure at that
+        // budget:
+        //   * unwinds cleanly (None, board/FEN/path restored),
+        //   * consumes exactly the budget (nodes never exceed it),
+        //   * enters zero verifications, so no unverified beta cutoff can
+        //     exist (`verified_cutoff == 0`),
+        //   * records zero extra killer/history rewards and leaves the root
+        //     PV row unchanged relative to the immediately preceding budget.
+        // The remaining sweep covers aborts at other points (contract D).
+        //
+        // Root WIDE window, depth 6, Italian position: verified (release
+        // probe) to trigger interior null-window applications AND full-depth
+        // verification re-searches, which the earlier no-knight fixture never
+        // did (all its reductions fail low, so no verification acquisition is
+        // ever attempted there).
+        const FEN: &str = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+
+        fn run(
+            profile: SearchProfile,
+            budget: Option<u64>,
+        ) -> (Option<i32>, SearchStats, Position, SearchPath, PvTable) {
+            let mut pos = parse_fen(FEN).unwrap();
+            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            let limits = SearchLimits {
+                depth: Some(6),
+                nodes: budget,
+            };
+            let mut pv = PvTable::default();
+            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
+            let mut tt = TranspositionTable::new_mb(16).unwrap();
+            let mut heur = Some(SearchHeuristics::new());
+            ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
+            ctx.features_mask.store(
+                SearchFeaturePolicy::for_profile(profile, None).to_bits(),
+                Ordering::Relaxed,
+            );
+            ctx.legality_fast
+                .store(profile.uses_legality_fast(), Ordering::Relaxed);
+            ctx.single_buffer_legal
+                .store(profile.uses_single_buffer_legal(), Ordering::Relaxed);
+            ctx.single_generation_probe
+                .store(profile.uses_single_generation_probe(), Ordering::Relaxed);
+            let score = negamax_entered_impl_with_null(
+                &mut pos,
+                6,
+                0,
+                i32::MIN + 1000,
+                i32::MAX - 1000,
+                &ctx,
+                &limits,
+                profile,
+                &mut pv,
+                &mut path,
+                &mut tt,
+                &mut heur,
+                true,
+            );
+            (score, ctx.stats(), pos, path, pv)
+        }
+
+        let profile = SearchProfile::CurrentFinalLmrNullWindow;
+        pvs_counters::reset();
+        let (full, full_stats, _, _, _) = run(profile, None);
+        assert!(full.is_some(), "unlimited run must complete");
+        let full_nodes = full_stats.nodes;
+        assert!(full_stats.s74_lmr_nw_research > 0);
+        assert_eq!(
+            full_stats.s74_lmr_nw_research_entered, full_stats.s74_lmr_nw_research,
+            "unlimited run: every requested verification must enter"
+        );
+        assert_eq!(
+            pvs_counters::S74_NW_RESEARCH_ATTEMPT.get(),
+            full_stats.s74_lmr_nw_research as usize,
+            "one verification attempt is emitted per request"
+        );
+        assert_eq!(
+            pvs_counters::S74_NW_RESEARCH_ENTERED.get(),
+            full_stats.s74_lmr_nw_research_entered as usize,
+            "one verification entry is emitted per successful acquisition"
+        );
+
+        // `s74_lmr_nw_research` is nondecreasing in the node budget, so the
+        // smallest budget with a requested verification is the first moment
+        // the reduced search completed with an improvement. At that exact
+        // budget the following `try_enter_node` fails by construction (the
+        // reduced search consumed the last available node).
+        let mut lo = 1u64;
+        let mut hi = full_nodes;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (_, stats, _, _, _) = run(profile, Some(mid));
+            if stats.s74_lmr_nw_research > 0 {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        let acquire_fail_budget = lo;
+        assert!(acquire_fail_budget > 1, "fixture must have a real prefix");
+
+        let before_fen = to_fen(&parse_fen(FEN).unwrap());
+        pvs_counters::reset();
+        let (prev_score, prev_stats, _, _, prev_pv) = run(profile, Some(acquire_fail_budget - 1));
+        assert!(prev_score.is_none(), "prefix budget must abort");
+        assert_eq!(
+            prev_stats.s74_lmr_nw_research, 0,
+            "prefix budget must not yet request verification"
+        );
+        let prev_killer_calls = pvs_counters::RECORD_KILLER_CALLS.get();
+        let prev_history_calls = pvs_counters::RECORD_HISTORY_CALLS.get();
+        let prev_quiet_rewards = pvs_counters::PARENT_QUIET_REWARD.get();
+        let prev_root_pv = prev_pv.lines[0].clone();
+
+        pvs_counters::reset();
+        let (score, stats, pos, path, pv) = run(profile, Some(acquire_fail_budget));
+        assert!(
+            score.is_none(),
+            "verification acquisition failure must abort"
+        );
+        assert_eq!(
+            stats.nodes, acquire_fail_budget,
+            "abort is exact budget exhaustion"
+        );
+        assert_eq!(stats.s74_lmr_nw_research, 1, "exactly one request");
+        assert_eq!(
+            stats.s74_lmr_nw_research_entered, 0,
+            "request did not enter"
+        );
+        assert_eq!(
+            stats.s74_lmr_nw_verified_cutoff, 0,
+            "no unverified beta cutoff"
+        );
+        assert_eq!(path.len(), 1, "path restored to root");
+        assert_eq!(to_fen(&pos), before_fen, "position restored to root");
+        assert_eq!(
+            pvs_counters::S74_NW_RESEARCH_ATTEMPT.get(),
+            1,
+            "test-only event: exactly one verification attempt"
+        );
+        assert_eq!(
+            pvs_counters::S74_NW_RESEARCH_ENTERED.get(),
+            0,
+            "test-only event: attempt never entered"
+        );
+        assert_eq!(
+            pvs_counters::S74_NW_ABORT_RESEARCH_ACQUIRE.get(),
+            1,
+            "test-only event: abort happened at verification acquisition"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_KILLER_CALLS.get(),
+            prev_killer_calls,
+            "failed verification acquisition records no killer"
+        );
+        assert_eq!(
+            pvs_counters::RECORD_HISTORY_CALLS.get(),
+            prev_history_calls,
+            "failed verification acquisition records no history"
+        );
+        assert_eq!(
+            pvs_counters::PARENT_QUIET_REWARD.get(),
+            prev_quiet_rewards,
+            "failed verification acquisition takes no quiet cutoff reward"
+        );
+        assert_eq!(
+            pv.lines[0], prev_root_pv,
+            "failed verification acquisition commits no fake root PV"
+        );
+
+        // Contract D: sample budgets covering early, mid, and late aborts.
+        // Every aborted run must consume exactly its budget, never exceed it,
+        // restore path/position, and keep entered <= requested and verified
+        // cutoffs <= entered.
+        let mut budget = 5u64;
+        let mut saw_abort = false;
+        while budget < full_nodes {
+            let before_fen = to_fen(&parse_fen(FEN).unwrap());
+            let (score, stats, pos, path, _) = run(profile, Some(budget));
+            assert!(
+                stats.nodes <= budget,
+                "nodes {} must never exceed budget {budget}",
+                stats.nodes
+            );
+            if score.is_none() {
+                saw_abort = true;
+                assert_eq!(stats.nodes, budget, "abort must be budget exhaustion");
+                assert_eq!(path.len(), 1, "path restored to root");
+                assert_eq!(to_fen(&pos), before_fen, "position restored to root");
+            }
+            assert!(stats.s74_lmr_nw_research_entered <= stats.s74_lmr_nw_research);
+            assert!(stats.s74_lmr_nw_verified_cutoff <= stats.s74_lmr_nw_research_entered);
+            budget += (full_nodes / 12).max(3);
+        }
+        assert!(saw_abort, "budget sweep must observe at least one abort");
     }
 
     #[test]

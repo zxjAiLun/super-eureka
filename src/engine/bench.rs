@@ -1212,6 +1212,7 @@ fn format_s74_attribution(stats: &SearchStats) -> String {
          s74_lmr_applied_existing_pvs={} s74_lmr_suppressed_by_null_window={} \
          s74_lmr_applied_null_window={} s74_lmr_nw_depth:{} s74_lmr_nw_idx:{} \
          s74_lmr_nw_fail_low={} s74_lmr_nw_research={} \
+         s74_lmr_nw_research_entered={} \
          s74_lmr_nw_verified_cutoff={}",
         stats.s74_lmr_proposed,
         stats.s74_lmr_proposed_r1,
@@ -1223,6 +1224,7 @@ fn format_s74_attribution(stats: &SearchStats) -> String {
         nw_idx.join(","),
         stats.s74_lmr_nw_fail_low,
         stats.s74_lmr_nw_research,
+        stats.s74_lmr_nw_research_entered,
         stats.s74_lmr_nw_verified_cutoff,
     )
 }
