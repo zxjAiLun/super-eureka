@@ -723,6 +723,26 @@ pub struct SearchContext {
     pub s72_d_fail_low: [AtomicU64; 6],
     pub s72_d_quiet_searched: [AtomicU64; 6],
     pub s72_d_quiet_cutoffs: [AtomicU64; 6],
+    /// S7.3 selectivity attribution (OBSERVATION ONLY, profiling-gated):
+    /// composition of move-loop nodes, no-beta-cutoff trees, futility/null
+    /// selectivity, and depth>=4 quiet LMR eligibility vs actual reduction.
+    pub s73_loop_nodes: AtomicU64,
+    pub s73_nocut_pv: AtomicU64,
+    pub s73_nocut_nonpv: AtomicU64,
+    pub s73_nocut_incheck: AtomicU64,
+    pub s73_nocut_null_attempted: AtomicU64,
+    pub s73_nocut_searched_hist: [AtomicU64; 6],
+    pub s73_nocut_searched_sum: AtomicU64,
+    pub s73_null_eligible: AtomicU64,
+    pub s73_fut_quiet_kept: AtomicU64,
+    pub s73_q4p_quiet_searched: AtomicU64,
+    pub s73_q4p_quiet_idx: [AtomicU64; 5],
+    pub s73_q4p_quiet_red: [AtomicU64; 3],
+    pub s73_q4p_quiet_red_idx: [AtomicU64; 15],
+    pub s73_q4p_quiet_cutoff_red: [AtomicU64; 3],
+    pub s73_q4p_quiet_cutoff_idx: [AtomicU64; 5],
+    pub s73_q4p_scout_faillow_red: [AtomicU64; 3],
+    pub s73_q4p_quiet_researched: AtomicU64,
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -927,6 +947,24 @@ pub struct SearchStats {
     pub s72_d_fail_low: [u64; 6],
     pub s72_d_quiet_searched: [u64; 6],
     pub s72_d_quiet_cutoffs: [u64; 6],
+    /// S7.3 selectivity attribution (see SearchContext block).
+    pub s73_loop_nodes: u64,
+    pub s73_nocut_pv: u64,
+    pub s73_nocut_nonpv: u64,
+    pub s73_nocut_incheck: u64,
+    pub s73_nocut_null_attempted: u64,
+    pub s73_nocut_searched_hist: [u64; 6],
+    pub s73_nocut_searched_sum: u64,
+    pub s73_null_eligible: u64,
+    pub s73_fut_quiet_kept: u64,
+    pub s73_q4p_quiet_searched: u64,
+    pub s73_q4p_quiet_idx: [u64; 5],
+    pub s73_q4p_quiet_red: [u64; 3],
+    pub s73_q4p_quiet_red_idx: [u64; 15],
+    pub s73_q4p_quiet_cutoff_red: [u64; 3],
+    pub s73_q4p_quiet_cutoff_idx: [u64; 5],
+    pub s73_q4p_scout_faillow_red: [u64; 3],
+    pub s73_q4p_quiet_researched: u64,
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -1068,6 +1106,24 @@ impl SearchContext {
             s72_d_fail_low: std::array::from_fn(|_| AtomicU64::new(0)),
             s72_d_quiet_searched: std::array::from_fn(|_| AtomicU64::new(0)),
             s72_d_quiet_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_loop_nodes: AtomicU64::new(0),
+            s73_nocut_pv: AtomicU64::new(0),
+            s73_nocut_nonpv: AtomicU64::new(0),
+            s73_nocut_incheck: AtomicU64::new(0),
+            s73_nocut_null_attempted: AtomicU64::new(0),
+            s73_nocut_searched_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_nocut_searched_sum: AtomicU64::new(0),
+            s73_null_eligible: AtomicU64::new(0),
+            s73_fut_quiet_kept: AtomicU64::new(0),
+            s73_q4p_quiet_searched: AtomicU64::new(0),
+            s73_q4p_quiet_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_red_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_cutoff_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_cutoff_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_scout_faillow_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_researched: AtomicU64::new(0),
+
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1257,6 +1313,24 @@ impl SearchContext {
             s72_d_fail_low: std::array::from_fn(|_| AtomicU64::new(0)),
             s72_d_quiet_searched: std::array::from_fn(|_| AtomicU64::new(0)),
             s72_d_quiet_cutoffs: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_loop_nodes: AtomicU64::new(0),
+            s73_nocut_pv: AtomicU64::new(0),
+            s73_nocut_nonpv: AtomicU64::new(0),
+            s73_nocut_incheck: AtomicU64::new(0),
+            s73_nocut_null_attempted: AtomicU64::new(0),
+            s73_nocut_searched_hist: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_nocut_searched_sum: AtomicU64::new(0),
+            s73_null_eligible: AtomicU64::new(0),
+            s73_fut_quiet_kept: AtomicU64::new(0),
+            s73_q4p_quiet_searched: AtomicU64::new(0),
+            s73_q4p_quiet_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_red_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_cutoff_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_cutoff_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_scout_faillow_red: std::array::from_fn(|_| AtomicU64::new(0)),
+            s73_q4p_quiet_researched: AtomicU64::new(0),
+
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
             qsearch_check_moves: AtomicU64::new(0),
@@ -1444,6 +1518,37 @@ impl SearchContext {
             s72_d_quiet_searched: std::array::from_fn(|i| {
                 self.s72_d_quiet_searched[i].load(Ordering::Relaxed)
             }),
+            s73_loop_nodes: self.s73_loop_nodes.load(Ordering::Relaxed),
+            s73_nocut_pv: self.s73_nocut_pv.load(Ordering::Relaxed),
+            s73_nocut_nonpv: self.s73_nocut_nonpv.load(Ordering::Relaxed),
+            s73_nocut_incheck: self.s73_nocut_incheck.load(Ordering::Relaxed),
+            s73_nocut_null_attempted: self.s73_nocut_null_attempted.load(Ordering::Relaxed),
+            s73_nocut_searched_hist: std::array::from_fn(|i| {
+                self.s73_nocut_searched_hist[i].load(Ordering::Relaxed)
+            }),
+            s73_nocut_searched_sum: self.s73_nocut_searched_sum.load(Ordering::Relaxed),
+            s73_null_eligible: self.s73_null_eligible.load(Ordering::Relaxed),
+            s73_fut_quiet_kept: self.s73_fut_quiet_kept.load(Ordering::Relaxed),
+            s73_q4p_quiet_searched: self.s73_q4p_quiet_searched.load(Ordering::Relaxed),
+            s73_q4p_quiet_idx: std::array::from_fn(|i| {
+                self.s73_q4p_quiet_idx[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_quiet_red: std::array::from_fn(|i| {
+                self.s73_q4p_quiet_red[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_quiet_red_idx: std::array::from_fn(|i| {
+                self.s73_q4p_quiet_red_idx[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_quiet_cutoff_red: std::array::from_fn(|i| {
+                self.s73_q4p_quiet_cutoff_red[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_quiet_cutoff_idx: std::array::from_fn(|i| {
+                self.s73_q4p_quiet_cutoff_idx[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_scout_faillow_red: std::array::from_fn(|i| {
+                self.s73_q4p_scout_faillow_red[i].load(Ordering::Relaxed)
+            }),
+            s73_q4p_quiet_researched: self.s73_q4p_quiet_researched.load(Ordering::Relaxed),
             s72_d_quiet_cutoffs: std::array::from_fn(|i| {
                 self.s72_d_quiet_cutoffs[i].load(Ordering::Relaxed)
             }),
@@ -3261,6 +3366,20 @@ fn s72_depth_bucket(depth: u32) -> usize {
     }
 }
 
+/// S7.3: ordered move-index bucket for the depth>=4 quiet-selectivity tables.
+/// Buckets: 0 | 1 | 2-3 | 4-7 | 8+ (mirrors the S7.2 quiet-rank buckets so
+/// the two reports can be read side by side).
+#[inline]
+fn s73_idx_bucket(idx: usize) -> usize {
+    match idx {
+        0 => 0,
+        1 => 1,
+        2..=3 => 2,
+        4..=7 => 3,
+        _ => 4,
+    }
+}
+
 /// Classify every ordered legal move once and record node-level opportunity
 /// denominators: quiet availability, killer presence (slot set AND legal),
 /// TT-hash presence (Some AND legal). Never mutates ordering or heuristics.
@@ -3469,7 +3588,10 @@ fn negamax_entered_impl_with_null_and_extensions(
         return Some(cutoff);
     }
 
-    if allow_null
+    // S7.3 selectivity attribution: null-move eligibility is observed without
+    // short-circuit changes; `s73_null_attempted` classifies the node later.
+    let mut s73_null_attempted = false;
+    let s73_null_ok = allow_null
         && null_move_eligible(
             pos,
             ctx.features().null_move,
@@ -3477,9 +3599,13 @@ fn negamax_entered_impl_with_null_and_extensions(
             alpha,
             beta,
             node_in_check,
-        )
-    {
+        );
+    if ctx.profiling_enabled && s73_null_ok {
+        ctx.add_profile_counter(&ctx.s73_null_eligible, 1);
+    }
+    if s73_null_ok {
         ctx.add_profile_counter(&ctx.null_move_attempts, 1);
+        s73_null_attempted = true;
         let mut null_pos = make_null_position(pos);
         path.push_child(&null_pos);
         if !try_enter_node(ctx, limits) {
@@ -3641,6 +3767,14 @@ fn negamax_entered_impl_with_null_and_extensions(
     };
 
     let mut node_best_move: Option<Move> = None;
+    // S7.3 selectivity attribution locals: window width (PV vs null-window),
+    // per-node history-bucket accumulator for searched quiets (flushed only
+    // if the node completes without a beta cutoff).
+    let s73_pv_node = beta > alpha.saturating_add(1);
+    let mut s73_nocut_hist_acc: [u64; 6] = [0; 6];
+    if ctx.profiling_enabled && !moves.is_empty() {
+        ctx.add_profile_counter(&ctx.s73_loop_nodes, 1);
+    }
     // P1.1: the running maximum of all fail-low scout scores. A fail-low
     // scout's PV is not committable, but the numeric value it returns is a
     // valid upper bound on its child and therefore part of this node's own
@@ -3664,6 +3798,10 @@ fn negamax_entered_impl_with_null_and_extensions(
             {
                 ctx.add_profile_counter(&ctx.futility_pruned, 1);
                 continue;
+            } else if ctx.profiling_enabled && move_idx > 0 && !is_tactical(pos, m) {
+                // S7.3: quiet move kept at a futility-eligible node (the
+                // shallow prune did not fire for it). Observation only.
+                ctx.add_profile_counter(&ctx.s73_fut_quiet_kept, 1);
             }
         }
         ctx.add_profile_counter(&ctx.moves_searched, 1);
@@ -3677,6 +3815,13 @@ fn negamax_entered_impl_with_null_and_extensions(
                 ctx.add_profile_counter(&ctx.s72_quiet_searched_rank[info.rank_bucket], 1);
                 ctx.add_profile_counter(&ctx.s72_quiet_searched_hist[info.hist_bucket], 1);
                 ctx.add_profile_counter(&ctx.s72_d_quiet_searched[s72_depth_bucket(depth)], 1);
+                // S7.3: per-searched-quiet accounting for the no-cutoff tree
+                // composition and the depth>=4 quiet population.
+                s73_nocut_hist_acc[info.hist_bucket] += 1;
+                if depth >= 4 {
+                    ctx.add_profile_counter(&ctx.s73_q4p_quiet_searched, 1);
+                    ctx.add_profile_counter(&ctx.s73_q4p_quiet_idx[s73_idx_bucket(move_idx)], 1);
+                }
             }
             if info.is_hash {
                 ctx.add_profile_counter(&ctx.s72_tt_hash[1], 1);
@@ -3690,6 +3835,18 @@ fn negamax_entered_impl_with_null_and_extensions(
         }
         let reduction =
             late_move_reduction(pos, m, ctx.features().lmr, depth, move_idx, node_in_check);
+        // S7.3: reduction applied to depth>=4 searched quiets, split by move
+        // index bucket (R0 / R1 / R2+ x idx).
+        if let Some(infos) = s72_infos.as_ref() {
+            if infos[move_idx].quiet && depth >= 4 {
+                let rb = reduction.min(2) as usize;
+                ctx.add_profile_counter(&ctx.s73_q4p_quiet_red[rb], 1);
+                ctx.add_profile_counter(
+                    &ctx.s73_q4p_quiet_red_idx[rb * 5 + s73_idx_bucket(move_idx)],
+                    1,
+                );
+            }
+        }
         // Capture the window BEFORE this move, so a possible re-search and
         // the beta-cutoff decision both see the same `alpha_before_move`.
         let alpha_before_move = alpha;
@@ -3827,6 +3984,17 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 ctx.add_profile_counter(&ctx.lmr_reduced_improves_alpha, 1);
                                 true
                             } else {
+                                // S7.3: reduced depth>=4 quiet scout failed low
+                                // and needed no re-search — the reduction stuck.
+                                if let Some(infos) = s72_infos.as_ref() {
+                                    if infos[move_idx].quiet && depth >= 4 {
+                                        ctx.add_profile_counter(
+                                            &ctx.s73_q4p_scout_faillow_red
+                                                [reduction.min(2) as usize],
+                                            1,
+                                        );
+                                    }
+                                }
                                 false
                             }
                         } else {
@@ -3839,6 +4007,9 @@ fn negamax_entered_impl_with_null_and_extensions(
                             if let Some(infos) = s72_infos.as_ref() {
                                 if infos[move_idx].quiet {
                                     ctx.add_profile_counter(&ctx.s72_lmr[1], 1);
+                                    if depth >= 4 {
+                                        ctx.add_profile_counter(&ctx.s73_q4p_quiet_researched, 1);
+                                    }
                                 }
                             }
                         }
@@ -4050,6 +4221,18 @@ fn negamax_entered_impl_with_null_and_extensions(
                         if reduction > 0 {
                             ctx.add_profile_counter(&ctx.s72_lmr[2], 1);
                         }
+                        // S7.3: depth>=4 quiet cutoffs by reduction and by
+                        // move-index bucket.
+                        if depth >= 4 {
+                            ctx.add_profile_counter(
+                                &ctx.s73_q4p_quiet_cutoff_red[reduction.min(2) as usize],
+                                1,
+                            );
+                            ctx.add_profile_counter(
+                                &ctx.s73_q4p_quiet_cutoff_idx[s73_idx_bucket(move_idx)],
+                                1,
+                            );
+                        }
                     }
                     if info.is_hash {
                         ctx.add_profile_counter(&ctx.s72_tt_hash[2], 1);
@@ -4111,6 +4294,26 @@ fn negamax_entered_impl_with_null_and_extensions(
             ctx.add_profile_counter(&ctx.s72_d_fail_low[s72_depth_bucket(depth)], 1);
             if node_best_move.is_some() && node_best_move == tt_probe.hash_move {
                 ctx.add_profile_counter(&ctx.s72_tt_hash[4], 1);
+            }
+            // S7.3 selectivity attribution: classify what the no-beta-cutoff
+            // move-loop trees actually are (window width, in-check, null-move
+            // attempt, searched-quiet history composition).
+            if s73_pv_node {
+                ctx.add_profile_counter(&ctx.s73_nocut_pv, 1);
+            } else {
+                ctx.add_profile_counter(&ctx.s73_nocut_nonpv, 1);
+            }
+            if node_in_check {
+                ctx.add_profile_counter(&ctx.s73_nocut_incheck, 1);
+            }
+            if s73_null_attempted {
+                ctx.add_profile_counter(&ctx.s73_nocut_null_attempted, 1);
+            }
+            ctx.add_profile_counter(&ctx.s73_nocut_searched_sum, searched_in_node);
+            for (b, acc) in s73_nocut_hist_acc.iter().enumerate() {
+                if *acc > 0 {
+                    ctx.add_profile_counter(&ctx.s73_nocut_searched_hist[b], *acc);
+                }
             }
         }
     }

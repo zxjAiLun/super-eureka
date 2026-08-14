@@ -1101,7 +1101,87 @@ fn format_s72_attribution(stats: &SearchStats) -> String {
         stats.s72_d_quiet_cutoffs[3],
         stats.s72_d_quiet_cutoffs[4],
         stats.s72_d_quiet_cutoffs[5],
+    ) + format_s73_attribution(stats).as_str()
+}
+
+/// S7.3 selectivity-attribution counters, appended after the S7.2 block for
+/// the profile/ablation suites (profiling enabled). Observation-only.
+fn format_s73_attribution(stats: &SearchStats) -> String {
+    let nocut_hist: Vec<String> = (0..6)
+        .map(|i| {
+            format!(
+                "{}={}",
+                hist_bucket_label(i),
+                stats.s73_nocut_searched_hist[i]
+            )
+        })
+        .collect();
+    let q4p_idx: Vec<String> = (0..5)
+        .map(|i| format!("{}={}", idx_bucket_label(i), stats.s73_q4p_quiet_idx[i]))
+        .collect();
+    let q4p_red: Vec<String> = (0..3)
+        .map(|i| format!("r{}={}", i, stats.s73_q4p_quiet_red[i]))
+        .collect();
+    let q4p_red_idx: Vec<String> = (0..15)
+        .map(|i| {
+            format!(
+                "r{}_{}={}",
+                i / 5,
+                idx_bucket_label(i % 5),
+                stats.s73_q4p_quiet_red_idx[i]
+            )
+        })
+        .collect();
+    let q4p_cut_red: Vec<String> = (0..3)
+        .map(|i| format!("r{}={}", i, stats.s73_q4p_quiet_cutoff_red[i]))
+        .collect();
+    let q4p_cut_idx: Vec<String> = (0..5)
+        .map(|i| {
+            format!(
+                "{}={}",
+                idx_bucket_label(i),
+                stats.s73_q4p_quiet_cutoff_idx[i]
+            )
+        })
+        .collect();
+    let q4p_faillow_red: Vec<String> = (0..3)
+        .map(|i| format!("r{}={}", i, stats.s73_q4p_scout_faillow_red[i]))
+        .collect();
+    format!(
+        " s73_loop_nodes={} s73_nocut_pv={} s73_nocut_nonpv={} \
+         s73_nocut_incheck={} s73_nocut_null_attempted={} \
+         s73_nocut_searched_sum={} s73_nocut_searched_hist:{} \
+         s73_null_eligible={} s73_fut_quiet_kept={} \
+         s73_q4p_quiet_searched={} s73_q4p_quiet_idx:{} \
+         s73_q4p_quiet_red:{} s73_q4p_quiet_red_idx:{} \
+         s73_q4p_quiet_cutoff_red:{} s73_q4p_quiet_cutoff_idx:{} \
+         s73_q4p_scout_faillow_red:{} s73_q4p_quiet_researched={}",
+        stats.s73_loop_nodes,
+        stats.s73_nocut_pv,
+        stats.s73_nocut_nonpv,
+        stats.s73_nocut_incheck,
+        stats.s73_nocut_null_attempted,
+        stats.s73_nocut_searched_sum,
+        nocut_hist.join(","),
+        stats.s73_null_eligible,
+        stats.s73_fut_quiet_kept,
+        stats.s73_q4p_quiet_searched,
+        q4p_idx.join(","),
+        q4p_red.join(","),
+        q4p_red_idx.join(","),
+        q4p_cut_red.join(","),
+        q4p_cut_idx.join(","),
+        q4p_faillow_red.join(","),
+        stats.s73_q4p_quiet_researched,
     )
+}
+
+fn hist_bucket_label(i: usize) -> &'static str {
+    ["le0", "h1_15", "h16_63", "h64_255", "h256p", "unused"][i]
+}
+
+fn idx_bucket_label(i: usize) -> &'static str {
+    ["i0", "i1", "i2_3", "i4_7", "i8p"][i]
 }
 
 #[inline]
