@@ -1,0 +1,3393 @@
+{
+  "rows": [
+    {
+      "i": 0,
+      "depth": 6,
+      "fen": "r2q1rk1/1p2bppp/p3b3/2pN3R/4P3/1B3QP1/PPP2P1P/5RK1 w - - 3 14",
+      "teacher_bestmove": "f1d1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1d1",
+        "score": "cp:130"
+      },
+      "b": {
+        "bestmove": "f1d1",
+        "score": "cp:130"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 1,
+      "depth": 6,
+      "fen": "1r4k1/2p1qppp/p2p4/1p1B1Prb/4P3/1Q5P/PPP2RP1/4R1K1 b - - 1 16",
+      "teacher_bestmove": "g8h8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7f6",
+        "score": "cp:-55"
+      },
+      "b": {
+        "bestmove": "e7f6",
+        "score": "cp:-55"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 2,
+      "depth": 6,
+      "fen": "8/8/8/8/P2k1K2/5B1P/2q5/8 b - - 2 51",
+      "teacher_bestmove": "c2d2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c2a4",
+        "score": "cp:492"
+      },
+      "b": {
+        "bestmove": "c2a4",
+        "score": "cp:492"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 3,
+      "depth": 6,
+      "fen": "4r3/Nppb2kp/n6q/P2P4/3P2p1/6pP/1P4P1/R2R3K b - - 0 24",
+      "teacher_bestmove": "g4h3",
+      "teacher_mate": 5,
+      "a": {
+        "bestmove": "e8a8",
+        "score": "cp:880"
+      },
+      "b": {
+        "bestmove": "e8a8",
+        "score": "cp:880"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 4,
+      "depth": 6,
+      "fen": "r2r4/ppq2pk1/5p2/3PpQ2/2p1P3/8/PPP2P1P/R2R2K1 b - - 27 34",
+      "teacher_bestmove": "c7d7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c7b6",
+        "score": "cp:-140"
+      },
+      "b": {
+        "bestmove": "c7b6",
+        "score": "cp:-140"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 5,
+      "depth": 6,
+      "fen": "3r1rk1/2p3pp/p1qbp3/5pPP/1p1P1P2/4Pb2/PP1QB3/R1BR2K1 w - - 3 22",
+      "teacher_bestmove": "g1f2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h5h6",
+        "score": "cp:-12"
+      },
+      "b": {
+        "bestmove": "d2d3",
+        "score": "cp:-10"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 2,
+      "mate_transition": false
+    },
+    {
+      "i": 6,
+      "depth": 6,
+      "fen": "r1b2rk1/ppp1b1pp/1nn1p3/1N1q1pP1/3P3P/3BPN2/PP3P2/RQB2RK1 w - - 9 12",
+      "teacher_bestmove": "d3e2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3e4",
+        "score": "cp:30"
+      },
+      "b": {
+        "bestmove": "e3e4",
+        "score": "cp:30"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 7,
+      "depth": 6,
+      "fen": "3rr1k1/1ppnbppp/p1n3q1/P1P1p3/1P1pP3/3P1N1P/1B1QBPP1/1KR2R2 w - - 5 17",
+      "teacher_bestmove": "c1c4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g2g4",
+        "score": "cp:-50"
+      },
+      "b": {
+        "bestmove": "g2g4",
+        "score": "cp:-50"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 8,
+      "depth": 6,
+      "fen": "1k1r1b1r/pppq1ppp/2n1p3/3pPb2/3PnB2/2NBQN2/PPP2PPP/R4RK1 b - - 1 6",
+      "teacher_bestmove": "f8e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f8b4",
+        "score": "cp:-30"
+      },
+      "b": {
+        "bestmove": "f8b4",
+        "score": "cp:-30"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 9,
+      "depth": 6,
+      "fen": "8/5p2/1p1k4/5p1p/2PB1K2/P7/6P1/8 b - - 7 51",
+      "teacher_bestmove": "d6c7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d6e6",
+        "score": "cp:-354"
+      },
+      "b": {
+        "bestmove": "d6e6",
+        "score": "cp:-354"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 10,
+      "depth": 6,
+      "fen": "8/kp3p2/pr1p2r1/3Pp2n/2B1P2p/P7/1P1R1PPK/4R3 w - - 4 34",
+      "teacher_bestmove": "b2b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c4e2",
+        "score": "cp:35"
+      },
+      "b": {
+        "bestmove": "c4e2",
+        "score": "cp:35"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 11,
+      "depth": 6,
+      "fen": "8/8/8/3qbR2/3kp1P1/7P/5P2/5K2 b - - 34 64",
+      "teacher_bestmove": "d4d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d5c6",
+        "score": "cp:577"
+      },
+      "b": {
+        "bestmove": "d5c6",
+        "score": "cp:577"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 12,
+      "depth": 6,
+      "fen": "3k4/p6r/P6p/1p1r1p2/4p3/1PR1KbP1/3N3P/4R3 b - - 1 34",
+      "teacher_bestmove": "h7c7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f3g4",
+        "score": "cp:124"
+      },
+      "b": {
+        "bestmove": "f3g4",
+        "score": "cp:124"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 13,
+      "depth": 6,
+      "fen": "8/p7/7p/5R2/5K2/1rk3P1/7P/8 w - - 0 52",
+      "teacher_bestmove": "f5a5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5f6",
+        "score": "cp:10"
+      },
+      "b": {
+        "bestmove": "f5f6",
+        "score": "cp:10"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 14,
+      "depth": 6,
+      "fen": "8/7R/1r5p/pk4p1/b7/8/4KP2/8 w - - 6 59",
+      "teacher_bestmove": "f2f4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h7a7",
+        "score": "cp:-502"
+      },
+      "b": {
+        "bestmove": "h7a7",
+        "score": "cp:-502"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 15,
+      "depth": 6,
+      "fen": "r2r2k1/2p2p2/pp2qn1p/3p2p1/2nPp3/P1N5/QPP2PPP/3RRNK1 w - - 6 19",
+      "teacher_bestmove": "f2f3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1e3",
+        "score": "cp:-115"
+      },
+      "b": {
+        "bestmove": "f1e3",
+        "score": "cp:-115"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 16,
+      "depth": 6,
+      "fen": "1r1r4/2p2pk1/5n1p/1p1p4/2qPp1p1/8/1PPQNPPP/3RR1K1 b - - 1 36",
+      "teacher_bestmove": "f6h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c4a2",
+        "score": "cp:110"
+      },
+      "b": {
+        "bestmove": "c4a2",
+        "score": "cp:110"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 17,
+      "depth": 6,
+      "fen": "4rk2/1QpPr3/p7/8/4NP2/4P3/PP5P/2KR3R w - - 1 29",
+      "teacher_bestmove": "d7e8r",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d7e8n",
+        "score": "cp:2159"
+      },
+      "b": {
+        "bestmove": "d7e8n",
+        "score": "cp:2159"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 18,
+      "depth": 6,
+      "fen": "3r1rk1/pp2qppp/2pb1n2/3pnb2/1P1N4/P1N1P3/1BP1BPPP/R2QR1K1 b - - 7 6",
+      "teacher_bestmove": "f5c8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5e4",
+        "score": "cp:15"
+      },
+      "b": {
+        "bestmove": "f5d7",
+        "score": "cp:20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "mate_transition": false
+    },
+    {
+      "i": 19,
+      "depth": 6,
+      "fen": "r3r1k1/p1qnbpp1/1pb4p/3pPB2/2pP4/4BN2/PPQ2PPP/R3R1K1 w - - 10 14",
+      "teacher_bestmove": "e5e6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5h7",
+        "score": "cp:40"
+      },
+      "b": {
+        "bestmove": "f5h7",
+        "score": "cp:40"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 20,
+      "depth": 6,
+      "fen": "1r3rk1/2p2ppp/2Q1n3/2Bp4/1P6/P7/2q2PPP/3R1RK1 b - - 3 19",
+      "teacher_bestmove": "f8e8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e6f4",
+        "score": "cp:-70"
+      },
+      "b": {
+        "bestmove": "e6f4",
+        "score": "cp:-70"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 21,
+      "depth": 6,
+      "fen": "r5k1/1pp2pp1/2b4p/1pprPP2/3n4/P1KBB3/1P4PP/4R1R1 w - - 2 22",
+      "teacher_bestmove": "e3d4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3f4",
+        "score": "cp:-80"
+      },
+      "b": {
+        "bestmove": "e3f4",
+        "score": "cp:-80"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 22,
+      "depth": 6,
+      "fen": "4R3/1p6/5k1p/1ppn2p1/2p5/P4b2/1P1K3P/4R3 b - - 5 39",
+      "teacher_bestmove": "d5f4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g5g4",
+        "score": "cp:-45"
+      },
+      "b": {
+        "bestmove": "g5g4",
+        "score": "cp:-45"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 23,
+      "depth": 6,
+      "fen": "r1bqkb1r/pp2p2p/2pn1pp1/8/3P4/2N2N2/PPP1QPPP/R4RK1 b kq - 1 11",
+      "teacher_bestmove": "f8g7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c8f5",
+        "score": "cp:236"
+      },
+      "b": {
+        "bestmove": "f8g7",
+        "score": "cp:240"
+      },
+      "a_match": false,
+      "b_match": true,
+      "cp_delta": 4,
+      "mate_transition": false
+    },
+    {
+      "i": 24,
+      "depth": 6,
+      "fen": "r1b2kr1/pp3N1p/5bp1/1n1B4/1p1P1p2/5N2/1P3PPP/1R2R1K1 w - - 2 24",
+      "teacher_bestmove": "f7g5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f7e5",
+        "score": "cp:-57"
+      },
+      "b": {
+        "bestmove": "f7e5",
+        "score": "cp:-57"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 25,
+      "depth": 6,
+      "fen": "r2r2k1/ppp1bpp1/2n4p/3B1q2/2P1n3/4B3/PP2QPPP/RN1R2K1 b - - 0 9",
+      "teacher_bestmove": "c6b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7b4",
+        "score": "cp:5"
+      },
+      "b": {
+        "bestmove": "e7b4",
+        "score": "cp:5"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 26,
+      "depth": 6,
+      "fen": "8/5p2/7p/6p1/3pk3/4B1R1/1K3PP1/r7 b - - 1 44",
+      "teacher_bestmove": "a1g1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a1d1",
+        "score": "cp:-99"
+      },
+      "b": {
+        "bestmove": "a1d1",
+        "score": "cp:-99"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 27,
+      "depth": 6,
+      "fen": "r1b1kq1r/pp4pp/2nbpn2/2p3N1/2P1NP2/3B4/PP4PP/R1BQK2R w KQkq - 6 7",
+      "teacher_bestmove": "e4d6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g5h7",
+        "score": "cp:81"
+      },
+      "b": {
+        "bestmove": "g5h7",
+        "score": "cp:81"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 28,
+      "depth": 6,
+      "fen": "3r1r2/2k2p2/p4R2/1b1P1N2/3KP1P1/8/5P2/4R3 w - - 1 44",
+      "teacher_bestmove": "f2f3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5h6",
+        "score": "cp:327"
+      },
+      "b": {
+        "bestmove": "e1c1",
+        "score": "cp:280"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 47,
+      "mate_transition": false
+    },
+    {
+      "i": 29,
+      "depth": 6,
+      "fen": "8/7p/5k2/1pN2p2/8/P1K5/1P2r3/8 w - - 0 44",
+      "teacher_bestmove": "a3a4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c5d3",
+        "score": "cp:-276"
+      },
+      "b": {
+        "bestmove": "c5d3",
+        "score": "cp:-276"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 30,
+      "depth": 6,
+      "fen": "r2r2k1/1p1b1pp1/pb2p2p/q2pP3/8/P1NB2QP/1PP2PP1/3RR1K1 w - - 1 19",
+      "teacher_bestmove": "b2b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g3f4",
+        "score": "cp:5"
+      },
+      "b": {
+        "bestmove": "g3f4",
+        "score": "cp:5"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 31,
+      "depth": 6,
+      "fen": "4nk2/pp3p2/8/1Pr1B3/6p1/3R4/P1PK1PPP/8 w - - 4 29",
+      "teacher_bestmove": "e5b8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d3e3",
+        "score": "cp:182"
+      },
+      "b": {
+        "bestmove": "d3e3",
+        "score": "cp:182"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 32,
+      "depth": 6,
+      "fen": "1r3rk1/2p1qppp/p2pp3/3bP3/8/P2Q1N2/1P1RRPPP/6K1 b - - 4 14",
+      "teacher_bestmove": "d5f3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f8d8",
+        "score": "cp:105"
+      },
+      "b": {
+        "bestmove": "f8d8",
+        "score": "cp:105"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 33,
+      "depth": 6,
+      "fen": "r6r/p2k2pp/3b2q1/8/3Q4/1P6/PKP3PP/3RR3 w - - 10 32",
+      "teacher_bestmove": "d4a4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c2c4",
+        "score": "cp:-100"
+      },
+      "b": {
+        "bestmove": "b3b4",
+        "score": "cp:-113"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 13,
+      "mate_transition": false
+    },
+    {
+      "i": 34,
+      "depth": 6,
+      "fen": "8/p4Qp1/3k4/3rb3/1P6/P6P/2P3P1/2K5 b - - 4 49",
+      "teacher_bestmove": "e5c3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e5d4",
+        "score": "cp:-375"
+      },
+      "b": {
+        "bestmove": "e5d4",
+        "score": "cp:-375"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 35,
+      "depth": 6,
+      "fen": "8/1R3ppk/1p5p/5r2/1P2r3/2B3KP/1PP3P1/8 w - - 0 42",
+      "teacher_bestmove": "b7b6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b7d7",
+        "score": "cp:-55"
+      },
+      "b": {
+        "bestmove": "b7d7",
+        "score": "cp:-55"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 36,
+      "depth": 6,
+      "fen": "8/8/7p/3k1K2/8/3r4/1P6/4B3 w - - 26 77",
+      "teacher_bestmove": "f5g6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5f4",
+        "score": "cp:-182"
+      },
+      "b": {
+        "bestmove": "f5f4",
+        "score": "cp:-182"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 37,
+      "depth": 6,
+      "fen": "4r1k1/p4pp1/3Q3p/8/2p3P1/P1Pb1K1P/5P2/r7 b - - 2 39",
+      "teacher_bestmove": "a1g1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a1h1",
+        "score": "cp:467"
+      },
+      "b": {
+        "bestmove": "a1h1",
+        "score": "cp:467"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 38,
+      "depth": 6,
+      "fen": "r4r2/1pk1b2p/p2p4/3Ppb2/2P1N3/2N4P/P1P1KPP1/3RR3 b - - 5 21",
+      "teacher_bestmove": "f8f7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5g6",
+        "score": "cp:-230"
+      },
+      "b": {
+        "bestmove": "a8d8",
+        "score": "cp:-230"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 39,
+      "depth": 6,
+      "fen": "8/1pk4r/p2p3p/3P4/3K4/8/P6R/8 w - - 24 74",
+      "teacher_bestmove": "h2h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h2h1",
+        "score": "cp:-153"
+      },
+      "b": {
+        "bestmove": "h2h1",
+        "score": "cp:-153"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 40,
+      "depth": 6,
+      "fen": "8/1p6/1k1p3p/3P4/7r/p2K4/P1R5/8 b - - 3 91",
+      "teacher_bestmove": "h6h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b6b5",
+        "score": "cp:178"
+      },
+      "b": {
+        "bestmove": "b6b5",
+        "score": "cp:178"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 41,
+      "depth": 6,
+      "fen": "1rr5/p4ppp/4kn2/1pp1p3/4P3/P1KP3P/1P3BP1/3RR3 w - - 1 17",
+      "teacher_bestmove": "b2b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f2e3",
+        "score": "cp:-99"
+      },
+      "b": {
+        "bestmove": "f2e3",
+        "score": "cp:-99"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 42,
+      "depth": 6,
+      "fen": "1r1q1k2/pppnbpp1/5np1/4p3/2PP3r/2NBPQ2/PP4PP/R1B2RK1 w - - 0 7",
+      "teacher_bestmove": "c3d5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h2h3",
+        "score": "cp:20"
+      },
+      "b": {
+        "bestmove": "h2h3",
+        "score": "cp:20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 43,
+      "depth": 6,
+      "fen": "6k1/1Qp2pb1/7p/3rp1p1/2rP2R1/P1P2q1P/1B1K1P1R/8 w - - 0 22",
+      "teacher_bestmove": "b7c8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b7a8",
+        "score": "cp:-17"
+      },
+      "b": {
+        "bestmove": "b7a8",
+        "score": "cp:-17"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 44,
+      "depth": 6,
+      "fen": "8/5p2/7p/2r3p1/8/P4k1P/1K1p4/6R1 b - - 1 39",
+      "teacher_bestmove": "f3f2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c5e5",
+        "score": "cp:592"
+      },
+      "b": {
+        "bestmove": "c5e5",
+        "score": "cp:592"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 45,
+      "depth": 6,
+      "fen": "4r1k1/2rn1pp1/pqp1p2p/8/3P1P2/P3B2P/1PQ2P2/2RR2K1 b - - 9 21",
+      "teacher_bestmove": "b6b5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e8c8",
+        "score": "cp:-35"
+      },
+      "b": {
+        "bestmove": "e8c8",
+        "score": "cp:-35"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 46,
+      "depth": 6,
+      "fen": "2r3k1/5pp1/p6p/1q6/2p1Q3/P4K1P/1PR2P2/8 b - - 47 56",
+      "teacher_bestmove": "c8c6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b5h5",
+        "score": "cp:105"
+      },
+      "b": {
+        "bestmove": "b5h5",
+        "score": "cp:105"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 47,
+      "depth": 6,
+      "fen": "2qrr1k1/ppp4p/2n1pb2/2N2pp1/2BPPn2/1P2Q2P/PBP2PP1/3R1RK1 b - - 2 16",
+      "teacher_bestmove": "g8h8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f4d5",
+        "score": "cp:-145"
+      },
+      "b": {
+        "bestmove": "f4d5",
+        "score": "cp:-145"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 48,
+      "depth": 6,
+      "fen": "8/1p6/p7/4k1K1/5p1P/8/6P1/8 b - - 0 46",
+      "teacher_bestmove": "b7b5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a6a5",
+        "score": "cp:120"
+      },
+      "b": {
+        "bestmove": "a6a5",
+        "score": "cp:120"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 49,
+      "depth": 6,
+      "fen": "8/p2r1p1R/8/3k4/5P2/2K5/1PP4P/8 w - - 1 39",
+      "teacher_bestmove": "c3d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f4f5",
+        "score": "cp:200"
+      },
+      "b": {
+        "bestmove": "f4f5",
+        "score": "cp:200"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 50,
+      "depth": 6,
+      "fen": "4r3/6pp/5k2/3p4/1pr1nBb1/4K3/PRP2PPP/6R1 b - - 4 21",
+      "teacher_bestmove": "e4c3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e4c5",
+        "score": "cp:706"
+      },
+      "b": {
+        "bestmove": "e4c5",
+        "score": "cp:706"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 51,
+      "depth": 6,
+      "fen": "8/3k1ppp/2n5/4P1P1/2K4P/6B1/1P6/8 b - - 0 41",
+      "teacher_bestmove": "c6e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d7e6",
+        "score": "cp:-7"
+      },
+      "b": {
+        "bestmove": "d7e6",
+        "score": "cp:-7"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 52,
+      "depth": 6,
+      "fen": "r3r1k1/ppp2ppp/1bq5/4pb2/3nN3/2NPB3/PPPQ1PPP/3RR1K1 b - - 9 6",
+      "teacher_bestmove": "a8d8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5g6",
+        "score": "cp:40"
+      },
+      "b": {
+        "bestmove": "c6g6",
+        "score": "cp:38"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 2,
+      "mate_transition": false
+    },
+    {
+      "i": 53,
+      "depth": 6,
+      "fen": "4r3/ppp2kp1/4n3/8/8/2N1PP2/PP5P/6K1 w - - 1 24",
+      "teacher_bestmove": "g1g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3e4",
+        "score": "cp:-440"
+      },
+      "b": {
+        "bestmove": "e3e4",
+        "score": "cp:-440"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 54,
+      "depth": 6,
+      "fen": "3r3r/1p2kP1p/1qp1B1p1/3p4/8/2B4P/PPQ1R1P1/1K3R2 w - - 0 24",
+      "teacher_bestmove": "e6d5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c3h8",
+        "score": "cp:1242"
+      },
+      "b": {
+        "bestmove": "c3h8",
+        "score": "cp:1242"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 55,
+      "depth": 6,
+      "fen": "r1b3k1/1p2rppp/p7/3B4/3KPq2/1Q3P2/P1P5/3RR3 w - - 2 19",
+      "teacher_bestmove": "c2c4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b3e3",
+        "score": "cp:-120"
+      },
+      "b": {
+        "bestmove": "b3b4",
+        "score": "cp:-117"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 3,
+      "mate_transition": false
+    },
+    {
+      "i": 56,
+      "depth": 6,
+      "fen": "4r3/1p4pp/p1q2k2/3R1P2/4PK2/P3R3/8/8 b - - 14 36",
+      "teacher_bestmove": "f6f7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c6c7",
+        "score": "cp:490"
+      },
+      "b": {
+        "bestmove": "c6c7",
+        "score": "cp:490"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 57,
+      "depth": 6,
+      "fen": "2rr2k1/1p3pp1/p2p1b2/3Np1q1/4P3/5Q1P/PPP1RP1K/3R4 b - - 6 24",
+      "teacher_bestmove": "g5h6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g8h7",
+        "score": "cp:-33"
+      },
+      "b": {
+        "bestmove": "g8h7",
+        "score": "cp:-33"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 58,
+      "depth": 6,
+      "fen": "rnq1rbk1/1p3pp1/3P2p1/pP2p1P1/8/2NQB2P/P1P2P2/3R1RK1 w - - 3 17",
+      "teacher_bestmove": "g1g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3d2",
+        "score": "cp:145"
+      },
+      "b": {
+        "bestmove": "e3d2",
+        "score": "cp:145"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 59,
+      "depth": 6,
+      "fen": "4r1k1/1p3rp1/5bp1/1P4B1/p1Q5/P6P/2P3K1/5R2 b - - 6 34",
+      "teacher_bestmove": "e8e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e8d8",
+        "score": "cp:-529"
+      },
+      "b": {
+        "bestmove": "e8d8",
+        "score": "cp:-529"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 60,
+      "depth": 6,
+      "fen": "3r2k1/5ppp/8/8/2P1Q3/2R5/rP1q1PK1/1R6 b - - 0 29",
+      "teacher_bestmove": "a2a6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a2b2",
+        "score": "cp:105"
+      },
+      "b": {
+        "bestmove": "a2b2",
+        "score": "cp:105"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 61,
+      "depth": 6,
+      "fen": "3rr1k1/pp3pPp/6p1/q7/2b5/3B1N2/1PP3PP/1K4QR b - - 3 21",
+      "teacher_bestmove": "a5a2",
+      "teacher_mate": 5,
+      "a": {
+        "bestmove": "c4d3",
+        "score": "cp:352"
+      },
+      "b": {
+        "bestmove": "c4d3",
+        "score": "cp:352"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 62,
+      "depth": 6,
+      "fen": "3r4/3P2k1/4B3/4KP2/8/7P/6P1/8 w - - 1 82",
+      "teacher_bestmove": "e5d6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5f6",
+        "score": "cp:390"
+      },
+      "b": {
+        "bestmove": "f5f6",
+        "score": "cp:390"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 63,
+      "depth": 6,
+      "fen": "r3r3/ppp2kpp/1n1b4/3P1b2/3B1p2/1BN4P/PPP2PK1/R3R3 w - - 4 14",
+      "teacher_bestmove": "c3b5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1e8",
+        "score": "cp:23"
+      },
+      "b": {
+        "bestmove": "a2a4",
+        "score": "cp:27"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 4,
+      "mate_transition": false
+    },
+    {
+      "i": 64,
+      "depth": 6,
+      "fen": "2nr4/ppp3pp/4B1k1/b2P4/2bB4/2N4P/1P3PK1/6R1 b - - 3 31",
+      "teacher_bestmove": "g6h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a5c3",
+        "score": "cp:10"
+      },
+      "b": {
+        "bestmove": "a5c3",
+        "score": "cp:10"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 65,
+      "depth": 6,
+      "fen": "8/8/5k2/6p1/1P1KRr2/3B4/8/8 b - - 5 66",
+      "teacher_bestmove": "f4f2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f4e4",
+        "score": "cp:-353"
+      },
+      "b": {
+        "bestmove": "f4e4",
+        "score": "cp:-353"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 66,
+      "depth": 6,
+      "fen": "r1b1k2r/1p4pp/1q2p3/2b1P3/p2pB1Pn/P7/1PQ1NP1P/R1B1K2R b KQkq - 4 11",
+      "teacher_bestmove": "d4d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e8f7",
+        "score": "cp:-50"
+      },
+      "b": {
+        "bestmove": "e8f7",
+        "score": "cp:-50"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 67,
+      "depth": 6,
+      "fen": "1r6/p3b1pp/4k1b1/4P3/1r2N3/2R1K3/PP1N3P/1R6 b - - 2 29",
+      "teacher_bestmove": "b4e4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g6e4",
+        "score": "cp:112"
+      },
+      "b": {
+        "bestmove": "g6e4",
+        "score": "cp:112"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 68,
+      "depth": 6,
+      "fen": "8/p6R/1bk2P2/4B3/P3K2p/8/6PP/8 b - - 0 44",
+      "teacher_bestmove": "a7a6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b6c5",
+        "score": "cp:-881"
+      },
+      "b": {
+        "bestmove": "b6c5",
+        "score": "cp:-881"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 69,
+      "depth": 6,
+      "fen": "rn1q2k1/p4ppp/1pp2b2/4p3/Q1P1B3/4P3/PP3PPP/1RB3K1 b - - 1 9",
+      "teacher_bestmove": "a7a5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d8d6",
+        "score": "cp:-55"
+      },
+      "b": {
+        "bestmove": "h7h6",
+        "score": "cp:-50"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "mate_transition": false
+    },
+    {
+      "i": 70,
+      "depth": 6,
+      "fen": "8/5pp1/4k2p/1Pb5/4p3/4P2P/2q1BPP1/3R1K2 w - - 57 62",
+      "teacher_bestmove": "d1d8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2g4",
+        "score": "cp:-355"
+      },
+      "b": {
+        "bestmove": "e2g4",
+        "score": "cp:-355"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 71,
+      "depth": 6,
+      "fen": "8/8/2Rp1p1p/3PpP2/1k2P3/1r5P/2pKN1P1/8 b - - 3 84",
+      "teacher_bestmove": "h6h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b3b2",
+        "score": "cp:-493"
+      },
+      "b": {
+        "bestmove": "b3b2",
+        "score": "cp:-493"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 72,
+      "depth": 6,
+      "fen": "3r2k1/5ppp/p2N4/2RnPPP1/8/1b1K4/1B5P/8 b - - 2 31",
+      "teacher_bestmove": "g7g6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d5f4",
+        "score": "cp:-60"
+      },
+      "b": {
+        "bestmove": "d5f4",
+        "score": "cp:-60"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 73,
+      "depth": 6,
+      "fen": "r3k1r1/q1b2p2/6pp/p1P1p3/1p2P1bB/4QN2/PNP2PP1/R4RK1 w q - 0 17",
+      "teacher_bestmove": "h4g3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b2d3",
+        "score": "cp:394"
+      },
+      "b": {
+        "bestmove": "b2d3",
+        "score": "cp:394"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 74,
+      "depth": 6,
+      "fen": "8/1ppR2p1/p5kp/4q3/1P6/8/6PP/1R4K1 w - - 18 54",
+      "teacher_bestmove": "g1h1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b1f1",
+        "score": "cp:-123"
+      },
+      "b": {
+        "bestmove": "b1f1",
+        "score": "cp:-123"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 75,
+      "depth": 6,
+      "fen": "8/2p2pk1/6p1/4Pb2/5P1R/5PKP/3r4/5B2 b - - 15 46",
+      "teacher_bestmove": "c7c5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2c2",
+        "score": "cp:-57"
+      },
+      "b": {
+        "bestmove": "g7f8",
+        "score": "cp:-82"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 25,
+      "mate_transition": false
+    },
+    {
+      "i": 76,
+      "depth": 6,
+      "fen": "3rr1k1/1ppqb1pp/p1npb3/2P1Pp2/5P2/1PN1QB2/PB4PP/3R1RK1 b - - 0 14",
+      "teacher_bestmove": "c6b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e6f7",
+        "score": "cp:-30"
+      },
+      "b": {
+        "bestmove": "e6f7",
+        "score": "cp:-30"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 77,
+      "depth": 6,
+      "fen": "3r2k1/3Pbbpp/R7/2p1Bp2/5P1q/1PNQ2P1/P6P/6K1 b - - 0 29",
+      "teacher_bestmove": "c5c4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h4g4",
+        "score": "cp:-335"
+      },
+      "b": {
+        "bestmove": "h4g4",
+        "score": "cp:-335"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 78,
+      "depth": 6,
+      "fen": "3rk2r/5pp1/ppn3p1/3pp3/3P4/1NP1P2P/PP3PP1/3R1RK1 w k - 0 9",
+      "teacher_bestmove": "d4e5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1e1",
+        "score": "cp:98"
+      },
+      "b": {
+        "bestmove": "f1e1",
+        "score": "cp:98"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 79,
+      "depth": 6,
+      "fen": "3r2k1/pr4pp/4p3/3n4/8/3B4/2PQ1PPP/6K1 w - - 0 19",
+      "teacher_bestmove": "g2g3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g1f1",
+        "score": "cp:-92"
+      },
+      "b": {
+        "bestmove": "d2d1",
+        "score": "cp:-85"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 7,
+      "mate_transition": false
+    },
+    {
+      "i": 80,
+      "depth": 6,
+      "fen": "7k/p1PB2pp/8/8/5n2/1K5P/5rP1/8 b - - 4 36",
+      "teacher_bestmove": "f4g6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h8g8",
+        "score": "cp:-285"
+      },
+      "b": {
+        "bestmove": "h8g8",
+        "score": "cp:-285"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 81,
+      "depth": 6,
+      "fen": "r7/p4kp1/3b3p/8/2PN3P/3Br3/PPK3P1/7R b - - 3 21",
+      "teacher_bestmove": "d6c5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3g3",
+        "score": "cp:-47"
+      },
+      "b": {
+        "bestmove": "e3g3",
+        "score": "cp:-47"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 82,
+      "depth": 6,
+      "fen": "8/8/4k3/1N6/1P2K1P1/P4B2/r7/8 b - - 0 56",
+      "teacher_bestmove": "e6f6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e6f6",
+        "score": "cp:-478"
+      },
+      "b": {
+        "bestmove": "e6f6",
+        "score": "cp:-478"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 83,
+      "depth": 6,
+      "fen": "r4rk1/pp2qpp1/3p1n1p/2p4P/2PpP3/3P1N2/PPQ2PP1/1K1R3R b - - 1 11",
+      "teacher_bestmove": "b7b5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7c7",
+        "score": "cp:5"
+      },
+      "b": {
+        "bestmove": "e7c7",
+        "score": "cp:5"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 84,
+      "depth": 6,
+      "fen": "r5k1/1p3pp1/3p3p/2p3rP/p1PpPq2/P2P4/1P2QPP1/1K4RR b - - 27 46",
+      "teacher_bestmove": "f4g4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a8d8",
+        "score": "cp:10"
+      },
+      "b": {
+        "bestmove": "a8d8",
+        "score": "cp:10"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 85,
+      "depth": 6,
+      "fen": "3r4/rpp1k3/3p1p1p/pR1Pp3/P1P1P1P1/3K3P/1P6/3R4 b - - 11 46",
+      "teacher_bestmove": "b7b6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7d7",
+        "score": "cp:-43"
+      },
+      "b": {
+        "bestmove": "e7d7",
+        "score": "cp:-43"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 86,
+      "depth": 6,
+      "fen": "3b4/R1pk2N1/3p1p1p/3P3P/4K3/7r/8/8 w - - 6 39",
+      "teacher_bestmove": "e4f5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a7b7",
+        "score": "cp:-180"
+      },
+      "b": {
+        "bestmove": "a7b7",
+        "score": "cp:-180"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 87,
+      "depth": 6,
+      "fen": "8/p7/8/8/4K2P/1k6/5P2/8 b - - 0 54",
+      "teacher_bestmove": "a7a5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b3c4",
+        "score": "cp:-165"
+      },
+      "b": {
+        "bestmove": "b3c4",
+        "score": "cp:-165"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 88,
+      "depth": 6,
+      "fen": "r4rk1/pppbbpp1/2nqp1p1/8/3P4/2P1BN2/PP1N1PPP/R2Q1RK1 w - - 2 9",
+      "teacher_bestmove": "f1e1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c3c4",
+        "score": "cp:30"
+      },
+      "b": {
+        "bestmove": "c3c4",
+        "score": "cp:35"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "mate_transition": false
+    },
+    {
+      "i": 89,
+      "depth": 6,
+      "fen": "8/5pB1/8/3k2P1/b1p2KP1/5P2/1P6/8 w - - 56 79",
+      "teacher_bestmove": "f4f5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f4e3",
+        "score": "cp:177"
+      },
+      "b": {
+        "bestmove": "f4e3",
+        "score": "cp:177"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 90,
+      "depth": 6,
+      "fen": "8/5p1p/R1pb4/5k2/P4P2/5K2/7P/8 w - - 1 39",
+      "teacher_bestmove": "a6c6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a6a7",
+        "score": "cp:166"
+      },
+      "b": {
+        "bestmove": "a6a7",
+        "score": "cp:166"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 91,
+      "depth": 6,
+      "fen": "8/R7/2k2p2/5P2/4K3/8/8/8 b - - 0 56",
+      "teacher_bestmove": "c6d6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c6c5",
+        "score": "cp:-628"
+      },
+      "b": {
+        "bestmove": "c6c5",
+        "score": "cp:-628"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 92,
+      "depth": 6,
+      "fen": "1k1r1b1r/ppp1n1pp/2nq2b1/3p1p2/3P1N2/P2BPN1P/1PQB1PP1/1R2R1K1 w - - 12 12",
+      "teacher_bestmove": "b2b4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f4g6",
+        "score": "cp:50"
+      },
+      "b": {
+        "bestmove": "f4g6",
+        "score": "cp:50"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 93,
+      "depth": 6,
+      "fen": "4r3/1p6/p2kP3/2p1nBp1/3pP3/P5P1/1P1R2K1/8 w - - 0 47",
+      "teacher_bestmove": "d2d1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g3g4",
+        "score": "cp:-17"
+      },
+      "b": {
+        "bestmove": "g3g4",
+        "score": "cp:-17"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 94,
+      "depth": 6,
+      "fen": "8/1p4r1/p3k3/3R2p1/3KP1P1/8/8/8 b - - 3 64",
+      "teacher_bestmove": "g7d7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e6e7",
+        "score": "cp:65"
+      },
+      "b": {
+        "bestmove": "e6e7",
+        "score": "cp:65"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 95,
+      "depth": 6,
+      "fen": "1k1r1b1r/1ppqn1pp/p1n2p2/3p4/1P1P4/P1NBPQ1P/1B3PP1/R4RK1 w - - 2 7",
+      "teacher_bestmove": "a1b1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c3e2",
+        "score": "cp:30"
+      },
+      "b": {
+        "bestmove": "c3e2",
+        "score": "cp:30"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 96,
+      "depth": 6,
+      "fen": "3r4/1p1Nr1k1/3QBb1q/2Pp1p2/3P1P1p/5PnP/7K/3R2R1 w - - 3 34",
+      "teacher_bestmove": "g1g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d1b1",
+        "score": "cp:202"
+      },
+      "b": {
+        "bestmove": "d1b1",
+        "score": "cp:202"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 97,
+      "depth": 6,
+      "fen": "2r1k2r/pp1b2bp/8/2pPP3/2P2p2/1N1B3P/P2K1P2/3R3R w k - 0 19",
+      "teacher_bestmove": "h1g1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e5e6",
+        "score": "cp:180"
+      },
+      "b": {
+        "bestmove": "e5e6",
+        "score": "cp:180"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 98,
+      "depth": 6,
+      "fen": "3r1rk1/pppbqppp/8/1PnPp1PQ/2P1P3/2N1P2P/P5B1/3R2KR b - - 6 16",
+      "teacher_bestmove": "f7f5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f8e8",
+        "score": "cp:-90"
+      },
+      "b": {
+        "bestmove": "f8e8",
+        "score": "cp:-90"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 99,
+      "depth": 6,
+      "fen": "r3k2r/2q2p1p/p1n1bp2/2p1p3/1pPpP3/1B1P3P/PPNQ1PP1/R4RK1 b kq - 2 11",
+      "teacher_bestmove": "h8g8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e8c8",
+        "score": "cp:15"
+      },
+      "b": {
+        "bestmove": "f6f5",
+        "score": "cp:15"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 100,
+      "depth": 6,
+      "fen": "1k6/2p1R1pp/p5r1/1p6/2pn2B1/8/PP3PPP/6K1 w - - 3 17",
+      "teacher_bestmove": "h2h3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h2h3",
+        "score": "cp:-102"
+      },
+      "b": {
+        "bestmove": "h2h3",
+        "score": "cp:-102"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 101,
+      "depth": 6,
+      "fen": "1k3r2/1ppRb1pp/p5n1/4P3/8/2P1B3/PP4PP/3R2K1 w - - 2 17",
+      "teacher_bestmove": "d1f1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c3c4",
+        "score": "cp:300"
+      },
+      "b": {
+        "bestmove": "c3c4",
+        "score": "cp:300"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 102,
+      "depth": 6,
+      "fen": "8/8/4R3/1pkr2b1/2p1R3/8/P3K1P1/8 w - - 18 52",
+      "teacher_bestmove": "e4e5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2f3",
+        "score": "cp:154"
+      },
+      "b": {
+        "bestmove": "e2f3",
+        "score": "cp:154"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 103,
+      "depth": 6,
+      "fen": "8/8/8/4b3/1p6/3k4/P5P1/4K3 b - - 11 69",
+      "teacher_bestmove": "d3c2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d3e3",
+        "score": "cp:276"
+      },
+      "b": {
+        "bestmove": "d3e3",
+        "score": "cp:276"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 104,
+      "depth": 6,
+      "fen": "8/2R5/8/8/1K6/2Pr4/3k4/8 b - - 2 99",
+      "teacher_bestmove": "d2c2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d3d5",
+        "score": "cp:-91"
+      },
+      "b": {
+        "bestmove": "d3d5",
+        "score": "cp:-91"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 105,
+      "depth": 6,
+      "fen": "r2qkb1r/pp2n1pp/8/1Np2b2/1nP1p3/1P1pN1P1/PB1QPPBP/R3K2R w KQkq - 4 9",
+      "teacher_bestmove": "e1g1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a2a3",
+        "score": "cp:95"
+      },
+      "b": {
+        "bestmove": "a2a3",
+        "score": "cp:95"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 106,
+      "depth": 6,
+      "fen": "r4k2/pp6/2n4p/6p1/6P1/1P6/P1P2P1P/3KR3 b - - 0 26",
+      "teacher_bestmove": "a8d8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c6d4",
+        "score": "cp:138"
+      },
+      "b": {
+        "bestmove": "c6d4",
+        "score": "cp:138"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 107,
+      "depth": 6,
+      "fen": "3r2k1/2p2pp1/7p/3p1n2/3P1q2/PQB5/1PP3r1/1K1RR3 w - - 0 39",
+      "teacher_bestmove": "c3a5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1e5",
+        "score": "cp:-108"
+      },
+      "b": {
+        "bestmove": "b3a4",
+        "score": "cp:-110"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 2,
+      "mate_transition": false
+    },
+    {
+      "i": 108,
+      "depth": 6,
+      "fen": "8/8/8/8/P1k5/r7/4K3/8 b - - 2 91",
+      "teacher_bestmove": "a3h3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c4d4",
+        "score": "cp:700"
+      },
+      "b": {
+        "bestmove": "c4d4",
+        "score": "cp:700"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 109,
+      "depth": 6,
+      "fen": "7r/1Kp5/4p2P/2B1Pp2/2kP1P2/P7/8/8 b - - 3 61",
+      "teacher_bestmove": "h8h6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c4d5",
+        "score": "cp:43"
+      },
+      "b": {
+        "bestmove": "c4d5",
+        "score": "cp:43"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 110,
+      "depth": 6,
+      "fen": "3rr1k1/1pq2p2/p1b1p2p/1pQpP1p1/1P1P2P1/5N1P/1PP3P1/3RR1K1 w - - 9 24",
+      "teacher_bestmove": "c5c3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d1b1",
+        "score": "cp:20"
+      },
+      "b": {
+        "bestmove": "d1b1",
+        "score": "cp:20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 111,
+      "depth": 6,
+      "fen": "3rrk2/1p3p2/p3p2p/1q2P1b1/2pP1N2/2P1P2P/1P4Q1/3RR1K1 w - - 3 24",
+      "teacher_bestmove": "f4h5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1f1",
+        "score": "cp:15"
+      },
+      "b": {
+        "bestmove": "e1f1",
+        "score": "cp:15"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 112,
+      "depth": 6,
+      "fen": "8/1p4RP/1k2K3/p2PP3/7r/1P6/8/8 b - - 0 76",
+      "teacher_bestmove": "h4h6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b6c5",
+        "score": "cp:-331"
+      },
+      "b": {
+        "bestmove": "b6c5",
+        "score": "cp:-331"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 113,
+      "depth": 6,
+      "fen": "r4rk1/qpp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "e1e3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1e3",
+        "score": "cp:-302"
+      },
+      "b": {
+        "bestmove": "e1e3",
+        "score": "cp:-302"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 114,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "f2g3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f2g3",
+        "score": "cp:490"
+      },
+      "b": {
+        "bestmove": "f2g3",
+        "score": "cp:490"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 115,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1",
+      "teacher_bestmove": "g3g6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g3f4",
+        "score": "cp:410"
+      },
+      "b": {
+        "bestmove": "g3f4",
+        "score": "cp:410"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 116,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R2Q2K1 w - - 0 1",
+      "teacher_bestmove": "f2g3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h2g3",
+        "score": "cp:505"
+      },
+      "b": {
+        "bestmove": "h2g3",
+        "score": "cp:505"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 117,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R4RK1 w - - 0 1",
+      "teacher_bestmove": "f2g3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h2g3",
+        "score": "cp:90"
+      },
+      "b": {
+        "bestmove": "h2g3",
+        "score": "cp:90"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 118,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "e1e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2d4",
+        "score": "cp:525"
+      },
+      "b": {
+        "bestmove": "d2d4",
+        "score": "cp:525"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 119,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/4N3/3B4/3P4/8/PPP2PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "e6f8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e6f8",
+        "score": "cp:1460"
+      },
+      "b": {
+        "bestmove": "e6f8",
+        "score": "cp:1460"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 120,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/2p5/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "g1h1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1e5",
+        "score": "cp:595"
+      },
+      "b": {
+        "bestmove": "e1e7",
+        "score": "cp:600"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "mate_transition": false
+    },
+    {
+      "i": 121,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "e1e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2d4",
+        "score": "cp:625"
+      },
+      "b": {
+        "bestmove": "d2d4",
+        "score": "cp:625"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 122,
+      "depth": 6,
+      "fen": "r4rk1/ppp2ppp/8/8/8/5q2/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "teacher_bestmove": "g2f3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g2f3",
+        "score": "cp:479"
+      },
+      "b": {
+        "bestmove": "g2f3",
+        "score": "cp:479"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 123,
+      "depth": 6,
+      "fen": "rnbq1rk1/pp2bppp/4p3/2ppP3/3P1Pn1/P1N2N2/1PP3PP/R1BQKB1R w KQ - 0 5",
+      "teacher_bestmove": "f1d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1b5",
+        "score": "cp:20"
+      },
+      "b": {
+        "bestmove": "f1b5",
+        "score": "cp:20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 124,
+      "depth": 6,
+      "fen": "r1bq1rk1/pp2ppbp/n2p1np1/2pP4/4P3/3B1N1P/PPPN1PP1/R1BQK2R w KQ - 3 5",
+      "teacher_bestmove": "e1g1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2c4",
+        "score": "cp:58"
+      },
+      "b": {
+        "bestmove": "d2c4",
+        "score": "cp:58"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 125,
+      "depth": 6,
+      "fen": "r1bq1rk1/pp1p2pp/2n1pn2/2b2p2/5P2/P3PN2/2PPB1PP/RNBQK2R w KQ - 5 5",
+      "teacher_bestmove": "c2c4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2d4",
+        "score": "cp:-20"
+      },
+      "b": {
+        "bestmove": "d2d4",
+        "score": "cp:-20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 126,
+      "depth": 6,
+      "fen": "rnbqkb1r/2pn1ppp/4p3/p2pP3/1p1P1P2/5N2/PPP3PP/R1BQKBNR w KQkq - 0 5",
+      "teacher_bestmove": "g1h3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1d3",
+        "score": "cp:35"
+      },
+      "b": {
+        "bestmove": "f1b5",
+        "score": "cp:45"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 10,
+      "mate_transition": false
+    },
+    {
+      "i": 127,
+      "depth": 6,
+      "fen": "rnbq1rk1/p1p1b1pp/1p1ppn2/5p2/3P4/N3P2N/PPP1BPPP/1RBQ1RK1 w - - 1 5",
+      "teacher_bestmove": "c2c4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a3c4",
+        "score": "cp:30"
+      },
+      "b": {
+        "bestmove": "a3c4",
+        "score": "cp:30"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 128,
+      "depth": 6,
+      "fen": "r1bq1rk1/ppp1npbp/2np2p1/4p3/P7/1P1P2P1/1BPNPPBP/R2QK1NR w KQ - 3 5",
+      "teacher_bestmove": "e2e4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g1f3",
+        "score": "cp:-55"
+      },
+      "b": {
+        "bestmove": "g1f3",
+        "score": "cp:-55"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 129,
+      "depth": 6,
+      "fen": "rnbqk2r/1pp1b1pp/p3pn2/3p1p2/3P1P2/4P3/PPPNBNPP/R1BQK2R w KQkq - 3 5",
+      "teacher_bestmove": "f2d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2f3",
+        "score": "cp:0"
+      },
+      "b": {
+        "bestmove": "e2f3",
+        "score": "cp:0"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 130,
+      "depth": 6,
+      "fen": "rnbq1rk1/p4ppp/1p1bpn2/2pp4/2PP4/PP2PN2/3N1PPP/R1BQKB1R w KQ - 1 5",
+      "teacher_bestmove": "c1b2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f1d3",
+        "score": "cp:-20"
+      },
+      "b": {
+        "bestmove": "f1d3",
+        "score": "cp:-20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 131,
+      "depth": 6,
+      "fen": "8/Q7/8/1rnb4/k2Bp3/3nP3/8/K7 b - - 10 91",
+      "teacher_bestmove": "b5a5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a4b4",
+        "score": "cp:300"
+      },
+      "b": {
+        "bestmove": "a4b4",
+        "score": "cp:300"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 132,
+      "depth": 6,
+      "fen": "7k/5Q2/3P4/1p6/2p4K/2Pr2P1/1P6/4r3 w - - 3 43",
+      "teacher_bestmove": "d6d7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f7f8",
+        "score": "cp:180"
+      },
+      "b": {
+        "bestmove": "f7f8",
+        "score": "cp:180"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 133,
+      "depth": 6,
+      "fen": "5b2/p7/1p2R3/6r1/2R5/PK4k1/1B3r2/8 b - - 2 52",
+      "teacher_bestmove": "g5b5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g5b5",
+        "score": "cp:272"
+      },
+      "b": {
+        "bestmove": "g5b5",
+        "score": "cp:272"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 134,
+      "depth": 6,
+      "fen": "7k/6b1/1q2r3/6R1/3Q1P1P/5N2/8/6K1 w - - 3 49",
+      "teacher_bestmove": "d4b6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g5g7",
+        "score": "cp:460"
+      },
+      "b": {
+        "bestmove": "g5g7",
+        "score": "cp:460"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 135,
+      "depth": 6,
+      "fen": "8/8/6p1/3b4/1R1k1p1P/7r/3NK3/8 b - - 3 65",
+      "teacher_bestmove": "d4c3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d4c3",
+        "score": "cp:332"
+      },
+      "b": {
+        "bestmove": "d4c3",
+        "score": "cp:332"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 136,
+      "depth": 6,
+      "fen": "4q2k/8/5b1p/1p5K/1P6/P2Q4/6R1/8 w - - 7 67",
+      "teacher_bestmove": "h5h6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h5h6",
+        "score": "cp:257"
+      },
+      "b": {
+        "bestmove": "h5h6",
+        "score": "cp:257"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 137,
+      "depth": 6,
+      "fen": "8/1k1N4/1PpB1K2/p2p4/8/3Bq3/8/8 b - - 1 59",
+      "teacher_bestmove": "c6c5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c6c5",
+        "score": "cp:107"
+      },
+      "b": {
+        "bestmove": "c6c5",
+        "score": "cp:107"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 138,
+      "depth": 6,
+      "fen": "1B6/8/5R2/6pk/5P1p/4p2P/6PK/3r4 w - - 0 50",
+      "teacher_bestmove": "f6e6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f6e6",
+        "score": "cp:308"
+      },
+      "b": {
+        "bestmove": "f6e6",
+        "score": "cp:308"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 139,
+      "depth": 6,
+      "fen": "8/pp2nkR1/5n1p/3p4/5p2/P2BP3/1PPKN3/8 b - - 0 31",
+      "teacher_bestmove": "f7g7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f7g7",
+        "score": "cp:-16"
+      },
+      "b": {
+        "bestmove": "f7g7",
+        "score": "cp:-16"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 140,
+      "depth": 6,
+      "fen": "3n4/2k3p1/p4r2/1pp4P/5PB1/P6P/1KP5/5R2 w - - 0 32",
+      "teacher_bestmove": "f1d1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b2c3",
+        "score": "cp:110"
+      },
+      "b": {
+        "bestmove": "b2c3",
+        "score": "cp:110"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 141,
+      "depth": 6,
+      "fen": "4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38",
+      "teacher_bestmove": "c5e3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c5d6",
+        "score": "cp:-32"
+      },
+      "b": {
+        "bestmove": "c5d6",
+        "score": "cp:-32"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 142,
+      "depth": 6,
+      "fen": "1b6/4k1p1/3p3p/p6P/Bp6/2r1P1P1/4KP2/R7 w - - 0 70",
+      "teacher_bestmove": "e2d2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3e4",
+        "score": "cp:-107"
+      },
+      "b": {
+        "bestmove": "e3e4",
+        "score": "cp:-107"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 143,
+      "depth": 6,
+      "fen": "4k3/2Rb4/3r3p/4p1p1/5p2/7P/4R1P1/6K1 w - - 0 61",
+      "teacher_bestmove": "e2e5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2e5",
+        "score": "cp:59"
+      },
+      "b": {
+        "bestmove": "e2e5",
+        "score": "cp:59"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 144,
+      "depth": 6,
+      "fen": "5k2/2R1B2p/1p4p1/pr3n2/3P1P2/3N4/4K1PP/8 b - - 0 36",
+      "teacher_bestmove": "f5e7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "f5e7",
+        "score": "cp:-80"
+      },
+      "b": {
+        "bestmove": "f5e7",
+        "score": "cp:-80"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 145,
+      "depth": 6,
+      "fen": "6k1/p4pp1/1p5p/8/P7/4P2P/4QPP1/2q3K1 w - - 0 31",
+      "teacher_bestmove": "g1h2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g1h2",
+        "score": "cp:-5"
+      },
+      "b": {
+        "bestmove": "g1h2",
+        "score": "cp:-5"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 146,
+      "depth": 6,
+      "fen": "4rk2/4bp2/p7/2p1p3/6PP/P3R3/5NK1/8 w - - 0 36",
+      "teacher_bestmove": "g4g5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3e5",
+        "score": "cp:-35"
+      },
+      "b": {
+        "bestmove": "e3e5",
+        "score": "cp:-35"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 147,
+      "depth": 6,
+      "fen": "6k1/5p2/5qp1/7p/8/6P1/3QP2K/8 w - - 0 51",
+      "teacher_bestmove": "h2g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2e4",
+        "score": "cp:-100"
+      },
+      "b": {
+        "bestmove": "e2e4",
+        "score": "cp:-100"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 148,
+      "depth": 6,
+      "fen": "1BB5/4k2p/6p1/5p2/1n5P/8/6K1/b7 b - - 0 42",
+      "teacher_bestmove": "b4d3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "b4c6",
+        "score": "cp:221"
+      },
+      "b": {
+        "bestmove": "b4c6",
+        "score": "cp:221"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 149,
+      "depth": 6,
+      "fen": "4B3/8/2R2b2/5pk1/4p1b1/4P3/5P2/5K2 b - - 0 54",
+      "teacher_bestmove": "f6b2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g4d1",
+        "score": "cp:-154"
+      },
+      "b": {
+        "bestmove": "g4d1",
+        "score": "cp:-154"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 150,
+      "depth": 6,
+      "fen": "8/6kp/6p1/b2B1p2/4n2P/6BK/8/8 b - - 0 43",
+      "teacher_bestmove": "a5c3",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g7f6",
+        "score": "cp:225"
+      },
+      "b": {
+        "bestmove": "g7f6",
+        "score": "cp:225"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 151,
+      "depth": 6,
+      "fen": "8/2r5/5p1k/6bp/4R3/5N2/6K1/8 b - - 0 45",
+      "teacher_bestmove": "c7a7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "c7c2",
+        "score": "cp:187"
+      },
+      "b": {
+        "bestmove": "c7c2",
+        "score": "cp:187"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 152,
+      "depth": 6,
+      "fen": "2b5/8/7k/1B5p/5P2/4KNP1/7P/2b5 w - - 0 42",
+      "teacher_bestmove": "e3d4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e3d4",
+        "score": "cp:236"
+      },
+      "b": {
+        "bestmove": "e3d4",
+        "score": "cp:236"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 153,
+      "depth": 6,
+      "fen": "2b5/8/7k/6Np/5P2/4KBP1/1b5P/8 w - - 0 44",
+      "teacher_bestmove": "g5f7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g5f7",
+        "score": "cp:245"
+      },
+      "b": {
+        "bestmove": "g5f7",
+        "score": "cp:245"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 154,
+      "depth": 6,
+      "fen": "5k2/7p/6p1/5p2/3b1BnP/8/B5K1/8 b - - 0 44",
+      "teacher_bestmove": "f8g7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d4f6",
+        "score": "cp:198"
+      },
+      "b": {
+        "bestmove": "d4f6",
+        "score": "cp:198"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 155,
+      "depth": 6,
+      "fen": "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1",
+      "teacher_bestmove": "e4a4",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e4a4",
+        "score": "cp:990"
+      },
+      "b": {
+        "bestmove": "e4a4",
+        "score": "cp:990"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 156,
+      "depth": 6,
+      "fen": "4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1",
+      "teacher_bestmove": "e4e5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e4e5",
+        "score": "cp:1059"
+      },
+      "b": {
+        "bestmove": "e4e5",
+        "score": "cp:1059"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 157,
+      "depth": 6,
+      "fen": "6k1/5ppp/8/8/8/8/8/R6K w - - 0 1",
+      "teacher_bestmove": "a1a8",
+      "teacher_mate": 1,
+      "a": {
+        "bestmove": "a1a8",
+        "score": "mate:1"
+      },
+      "b": {
+        "bestmove": "a1a8",
+        "score": "mate:1"
+      },
+      "a_match": true,
+      "b_match": true,
+      "mate_transition": false
+    },
+    {
+      "i": 158,
+      "depth": 6,
+      "fen": "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3",
+      "teacher_bestmove": "(none)",
+      "teacher_mate": null,
+      "a": {
+        "error": true
+      },
+      "b": {
+        "error": true
+      },
+      "a_match": false,
+      "b_match": false,
+      "mate_transition": false
+    },
+    {
+      "i": 159,
+      "depth": 6,
+      "fen": "7k/4P3/8/8/8/8/8/K7 w - - 0 1",
+      "teacher_bestmove": "e7e8q",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7e8q",
+        "score": "cp:1061"
+      },
+      "b": {
+        "bestmove": "e7e8q",
+        "score": "cp:1061"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 160,
+      "depth": 6,
+      "fen": "8/P7/8/8/8/8/8/k6K w - - 0 1",
+      "teacher_bestmove": "h1g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h1g2",
+        "score": "cp:1049"
+      },
+      "b": {
+        "bestmove": "h1g2",
+        "score": "cp:1049"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 161,
+      "depth": 6,
+      "fen": "4k3/P7/8/8/8/8/7p/4K3 w - - 0 1",
+      "teacher_bestmove": "a7a8q",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a7a8q",
+        "score": "cp:970"
+      },
+      "b": {
+        "bestmove": "a7a8q",
+        "score": "cp:970"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 162,
+      "depth": 6,
+      "fen": "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+      "teacher_bestmove": "e1f2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1f2",
+        "score": "cp:15"
+      },
+      "b": {
+        "bestmove": "e1f2",
+        "score": "cp:15"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 163,
+      "depth": 6,
+      "fen": "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1",
+      "teacher_bestmove": "f3h2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "g1f2",
+        "score": "cp:96"
+      },
+      "b": {
+        "bestmove": "g1f2",
+        "score": "cp:96"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 164,
+      "depth": 6,
+      "fen": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+      "teacher_bestmove": "(none)",
+      "teacher_mate": null,
+      "a": {
+        "error": true
+      },
+      "b": {
+        "error": true
+      },
+      "a_match": false,
+      "b_match": false,
+      "mate_transition": false
+    },
+    {
+      "i": 165,
+      "depth": 6,
+      "fen": "7k/8/5K2/8/3Q4/8/8/8 w - - 0 1",
+      "teacher_bestmove": "f6f7",
+      "teacher_mate": 2,
+      "a": {
+        "bestmove": "d4g1",
+        "score": "mate:3"
+      },
+      "b": {
+        "bestmove": "d4g1",
+        "score": "mate:3"
+      },
+      "a_match": false,
+      "b_match": false,
+      "mate_transition": false
+    },
+    {
+      "i": 166,
+      "depth": 6,
+      "fen": "7k/8/5K2/8/3R4/8/8/8 w - - 0 1",
+      "teacher_bestmove": "f6g6",
+      "teacher_mate": 2,
+      "a": {
+        "bestmove": "f6g6",
+        "score": "mate:3"
+      },
+      "b": {
+        "bestmove": "f6g6",
+        "score": "mate:3"
+      },
+      "a_match": true,
+      "b_match": true,
+      "mate_transition": false
+    },
+    {
+      "i": 167,
+      "depth": 6,
+      "fen": "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1",
+      "teacher_bestmove": "d7e8q",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d7e8q",
+        "score": "cp:1001"
+      },
+      "b": {
+        "bestmove": "d7e8q",
+        "score": "cp:1001"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 168,
+      "depth": 6,
+      "fen": "6K1/4q3/8/8/8/1k6/3p4/R3B3 b - - 0 1",
+      "teacher_bestmove": "e7e1",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d2e1q",
+        "score": "cp:1061"
+      },
+      "b": {
+        "bestmove": "d2e1q",
+        "score": "cp:1061"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 169,
+      "depth": 6,
+      "fen": "8/3P4/2n2K2/8/8/8/8/6k1 w - - 0 1",
+      "teacher_bestmove": "f6e6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d7d8n",
+        "score": "cp:0"
+      },
+      "b": {
+        "bestmove": "d7d8n",
+        "score": "cp:0"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 170,
+      "depth": 6,
+      "fen": "3p3k/4P3/8/8/8/8/8/4K3 w - - 0 1",
+      "teacher_bestmove": "e7e8q",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e7d8q",
+        "score": "cp:1073"
+      },
+      "b": {
+        "bestmove": "e7d8q",
+        "score": "cp:1073"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 171,
+      "depth": 6,
+      "fen": "7k/r7/8/8/p7/8/8/R6K w - - 0 1",
+      "teacher_bestmove": "h1g2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "h1g2",
+        "score": "cp:-105"
+      },
+      "b": {
+        "bestmove": "h1g2",
+        "score": "cp:-105"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 172,
+      "depth": 6,
+      "fen": "4r1k1/8/8/8/8/8/r3R3/4K3 w - - 0 1",
+      "teacher_bestmove": "e2e8",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e2e8",
+        "score": "cp:-13"
+      },
+      "b": {
+        "bestmove": "e2e8",
+        "score": "cp:-13"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 173,
+      "depth": 6,
+      "fen": "6k1/8/8/3pK3/8/8/4P3/R7 w - - 0 1",
+      "teacher_bestmove": "e5d5",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "a1a7",
+        "score": "cp:676"
+      },
+      "b": {
+        "bestmove": "a1a7",
+        "score": "cp:676"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 174,
+      "depth": 6,
+      "fen": "4k3/8/4r3/8/4Q3/8/8/K7 w - - 0 1",
+      "teacher_bestmove": "e4e6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e4e6",
+        "score": "cp:1091"
+      },
+      "b": {
+        "bestmove": "e4e6",
+        "score": "cp:1091"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 175,
+      "depth": 6,
+      "fen": "4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1",
+      "teacher_bestmove": "e5d6",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e5d6",
+        "score": "cp:639"
+      },
+      "b": {
+        "bestmove": "e5d6",
+        "score": "cp:639"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 176,
+      "depth": 6,
+      "fen": "6k1/8/8/8/8/8/3q4/4K2R w - - 0 1",
+      "teacher_bestmove": "e1d2",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "e1d2",
+        "score": "cp:649"
+      },
+      "b": {
+        "bestmove": "e1d2",
+        "score": "cp:649"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    },
+    {
+      "i": 177,
+      "depth": 6,
+      "fen": "8/2bp4/4k1q1/8/3Q4/8/8/5b1K w - - 0 1",
+      "teacher_bestmove": "d4d7",
+      "teacher_mate": null,
+      "a": {
+        "bestmove": "d4d7",
+        "score": "cp:-353"
+      },
+      "b": {
+        "bestmove": "d4d7",
+        "score": "cp:-353"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "mate_transition": false
+    }
+  ],
+  "summary": {
+    "depth6": {
+      "positions": 176,
+      "a_matches": 33,
+      "b_matches": 34,
+      "a_only": [],
+      "b_only": [
+        23
+      ],
+      "cp_div_ge_100": 0,
+      "cp_div_ge_300": 0,
+      "cp_div_ge_500": 0,
+      "mate_transitions": [],
+      "mate_distance_changes": []
+    }
+  }
+}

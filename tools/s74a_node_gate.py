@@ -104,25 +104,41 @@ def main() -> int:
 
     ok = [r for r in results["rows"] if r.get("node_reduction_pct") is not None]
     if ok:
+        by_depth: dict[int, list] = {}
+        for r in ok:
+            by_depth.setdefault(r["depth"], []).append(r)
+        summaries = {}
+        for d, rows_d in sorted(by_depth.items()):
+            na = sum(int(r["baseline"]["nodes"]) for r in rows_d)
+            nb = sum(int(r["candidate"]["nodes"]) for r in rows_d)
+            red = (na - nb) * 100.0 / na
+            prop = sum(int(r["candidate"].get("s74_lmr_proposed") or 0)
+                       for r in rows_d)
+            appl = sum(int(r["candidate"].get("s74_lmr_applied_null_window") or 0)
+                       for r in rows_d)
+            verdict = ("STRONG_MECHANISM" if red >= 15.0 else
+                       "USEFUL_MECHANISM" if red >= 8.0 else
+                       "TOO_SMALL -> REJECT/CLOSE")
+            summaries[f"depth{d}"] = {
+                "completed_rows": len(rows_d), "total_nodes_baseline": na,
+                "total_nodes_candidate": nb,
+                "total_node_reduction_pct": round(red, 3),
+                "lmr_proposed": prop, "lmr_applied_null_window": appl,
+                "predeclared_verdict": verdict,
+            }
+        results["summary_by_depth"] = summaries
         na = sum(int(r["baseline"]["nodes"]) for r in ok)
         nb = sum(int(r["candidate"]["nodes"]) for r in ok)
         red = (na - nb) * 100.0 / na
-        prop = sum(int(r["candidate"].get("s74_lmr_proposed") or 0) for r in ok)
-        appl = sum(int(r["candidate"].get("s74_lmr_applied_null_window") or 0)
-                   for r in ok)
-        verdict = ("STRONG_MECHANISM" if red >= 15.0 else
-                   "USEFUL_MECHANISM" if red >= 8.0 else
-                   "TOO_SMALL -> REJECT/CLOSE")
         results["summary"] = {
             "completed_rows": len(ok), "total_nodes_baseline": na,
             "total_nodes_candidate": nb,
             "total_node_reduction_pct": round(red, 3),
-            "lmr_proposed": prop, "lmr_applied_null_window": appl,
-            "predeclared_verdict": verdict,
         }
         OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2)
                        + "\n", encoding="utf-8")
-        print(f"s74a_gate summary: {json.dumps(results['summary'])}", flush=True)
+        print(f"s74a_gate summary_by_depth: "
+              f"{json.dumps(summaries)}", flush=True)
     return 0
 
 

@@ -1,0 +1,2933 @@
+{
+  "rows": [
+    {
+      "id": "s7_s4_opening_01",
+      "movetime": 1000,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 375430,
+        "bestmove": "e2e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 13,
+        "nodes": 129035,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_opening_02",
+      "movetime": 1000,
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 131468,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 247391,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_03",
+      "movetime": 1000,
+      "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 139929,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 261010,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_04",
+      "movetime": 1000,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 142557,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 266641,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_05",
+      "movetime": 1000,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 208529,
+        "bestmove": "d2d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 320704,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_01",
+      "movetime": 1000,
+      "fen": "r1bq1rk1/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 6 6",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 202475,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 280707,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_02",
+      "movetime": 1000,
+      "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 175806,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 322493,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_03",
+      "movetime": 1000,
+      "fen": "r1bq1rk1/ppppbppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 2 6",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 20,
+        "nodes": 158107,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 251492,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_04",
+      "movetime": 1000,
+      "fen": "r1bq1rk1/ppp2ppp/2np1n2/4p3/2BPP3/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 7",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 118986,
+        "bestmove": "d4d5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 204763,
+        "bestmove": "d4d5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_05",
+      "movetime": 1000,
+      "fen": "r3k2r/ppp2ppp/2n1b3/3qp3/3PP3/2N1B3/PPP2PPP/R3K2R w KQkq - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 55915,
+        "bestmove": "e4d5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 20,
+        "nodes": 277271,
+        "bestmove": "c3d5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_mid_06",
+      "movetime": 1000,
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 6 5",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 25,
+        "nodes": 215264,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 104070,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_mid_07",
+      "movetime": 1000,
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 178362,
+        "bestmove": "e3d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 278052,
+        "bestmove": "e3d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_08",
+      "movetime": 1000,
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 24,
+        "nodes": 43651,
+        "bestmove": "f1b5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 200965,
+        "bestmove": "f1b5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_tac_01",
+      "movetime": 1000,
+      "fen": "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 174581,
+        "bestmove": "d7c8r"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 30,
+        "nodes": 321533,
+        "bestmove": "d7c8r"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_tac_02",
+      "movetime": 1000,
+      "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 26,
+        "nodes": 285778,
+        "bestmove": "e2a6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 26,
+        "nodes": 199902,
+        "bestmove": "e2a6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_tac_03",
+      "movetime": 1000,
+      "fen": "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 29,
+        "nodes": 190729,
+        "bestmove": "c4c5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 29,
+        "nodes": 129107,
+        "bestmove": "c4c5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_tac_04",
+      "movetime": 1000,
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 295199,
+        "bestmove": "f7f6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 239227,
+        "bestmove": "f7f6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_tac_05",
+      "movetime": 1000,
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 271432,
+        "bestmove": "c8e6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 23,
+        "nodes": 367270,
+        "bestmove": "c8e6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_closed_01",
+      "movetime": 1000,
+      "fen": "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 117081,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 222255,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_closed_02",
+      "movetime": 1000,
+      "fen": "rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 20,
+        "nodes": 260602,
+        "bestmove": "e2e3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 20,
+        "nodes": 128667,
+        "bestmove": "c1f4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_closed_03",
+      "movetime": 1000,
+      "fen": "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 225369,
+        "bestmove": "e2e3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 141927,
+        "bestmove": "d1d3"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_closed_04",
+      "movetime": 1000,
+      "fen": "r1bq1rk1/ppp1bppp/2np1n2/4p3/2P1P3/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 7",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 22,
+        "nodes": 137242,
+        "bestmove": "c3d5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 22,
+        "nodes": 112872,
+        "bestmove": "c3d5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_qless_01",
+      "movetime": 1000,
+      "fen": "r3k2r/ppp2ppp/2n1b3/3p4/3P4/2N1B3/PPP2PPP/R3K2R w KQkq - 0 7",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 160271,
+        "bestmove": "e1e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 379146,
+        "bestmove": "a1d1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_qless_02",
+      "movetime": 1000,
+      "fen": "2r3k1/1p3ppp/p1n1p3/8/4P3/1NN1B3/PPP2PPP/R2R2K1 w - - 0 12",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 199822,
+        "bestmove": "d1d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 414960,
+        "bestmove": "d1d7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_qless_03",
+      "movetime": 1000,
+      "fen": "r4rk1/pp3ppp/2p2n2/3p4/3P4/1PN1PN2/P1P2PPP/2R1R1K1 w - - 0 12",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 241030,
+        "bestmove": "e3e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 283301,
+        "bestmove": "e3e4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_piece_01",
+      "movetime": 1000,
+      "fen": "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 6,
+        "nodes": 71891,
+        "bestmove": "d2g5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 6,
+        "nodes": 71891,
+        "bestmove": "d2g5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_piece_02",
+      "movetime": 1000,
+      "fen": "7k/8/8/8/8/8/3RK3/8 w - - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 447840,
+        "bestmove": "d2d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 447840,
+        "bestmove": "d2d7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_piece_03",
+      "movetime": 1000,
+      "fen": "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 306668,
+        "bestmove": "g1e1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 306668,
+        "bestmove": "g1e1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_pawn_01",
+      "movetime": 1000,
+      "fen": "8/8/8/8/3k4/8/PPP5/4K3 w - - 0 1",
+      "current-final": {
+        "depth": 10,
+        "seldepth": 12,
+        "nodes": 517483,
+        "bestmove": "e1d2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 12,
+        "nodes": 517483,
+        "bestmove": "e1d2"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_pawn_02",
+      "movetime": 1000,
+      "fen": "4k3/8/8/8/8/4p3/4P3/4K3 w - - 0 1",
+      "current-final": {
+        "depth": 13,
+        "seldepth": 14,
+        "nodes": 352838,
+        "bestmove": "e1d1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 13,
+        "seldepth": 14,
+        "nodes": 352838,
+        "bestmove": "e1d1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_01",
+      "movetime": 1000,
+      "fen": "1k1r1b1r/1p1bnppp/pq1p1n2/2pPpPB1/2P1P3/2NB3P/PPQ1N1P1/3RR1K1 b - - 2 11",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 116553,
+        "bestmove": "b6c7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 96709,
+        "bestmove": "b6c7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_02",
+      "movetime": 1000,
+      "fen": "1k1r1b1r/2p2Npp/p7/1p3n2/2pn4/4B3/PP2BPPP/1R2R1K1 b - - 0 11",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 84218,
+        "bestmove": "f8b4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 17,
+        "nodes": 337331,
+        "bestmove": "f8b4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_03",
+      "movetime": 1000,
+      "fen": "r4rk1/pbp1qppp/2p5/8/4Q3/P2BP2P/1P4P1/R4RK1 b - - 0 11",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 22,
+        "nodes": 236054,
+        "bestmove": "e7e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 22,
+        "nodes": 320270,
+        "bestmove": "e7e4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_04",
+      "movetime": 1000,
+      "fen": "r3k2r/ppnn1ppp/1qp1p3/3pPb2/NP6/P3P3/2PBBPPP/R2Q1RK1 b kq - 2 12",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 98587,
+        "bestmove": "d7e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 188361,
+        "bestmove": "d7e5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_05",
+      "movetime": 1000,
+      "fen": "r2qr1k1/1p3p1p/p1bbpnpB/8/3pN3/1P1P1P2/P1P1N1PP/R2Q2KR b - - 2 13",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 319360,
+        "bestmove": "e6e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 201856,
+        "bestmove": "e6e5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_06",
+      "movetime": 1000,
+      "fen": "r2r2k1/p1p2pp1/2Nn1b1p/2p5/2P5/4B3/Pq2QPPP/R2R2K1 w - - 0 15",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 148733,
+        "bestmove": "e2b2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 224514,
+        "bestmove": "e2b2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_07",
+      "movetime": 1000,
+      "fen": "r3r1k1/2p1bp1p/pq2bn2/3p2p1/1N1Pp3/1PB1P1N1/P2Q1PPP/R4RK1 b - - 3 15",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 219014,
+        "bestmove": "e7d6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 325465,
+        "bestmove": "e7d6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_08",
+      "movetime": 1000,
+      "fen": "r1r3k1/ppp2ppp/4bb2/1N1pN3/8/8/PB3PPP/3RR1K1 b - - 2 16",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 240842,
+        "bestmove": "c7c5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 341600,
+        "bestmove": "c7c5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_09",
+      "movetime": 1000,
+      "fen": "r4rk1/pp3ppp/3bb1q1/1R4BB/2p5/P1n4P/1PP2PP1/1RQ3K1 w - - 0 17",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 102076,
+        "bestmove": "b2c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 179480,
+        "bestmove": "b2c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_10",
+      "movetime": 1000,
+      "fen": "2b2b1r/p2knp2/3p3p/2p1p3/4P1p1/3PQ1B1/1q2NPPP/3K3R b - - 5 18",
+      "current-final": {
+        "depth": 5,
+        "seldepth": 17,
+        "nodes": 61642,
+        "bestmove": "b2b1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 144029,
+        "bestmove": "h6h5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_11",
+      "movetime": 1000,
+      "fen": "3rr2k/ppp4p/2q1b1p1/3pPn2/3P4/P1BB1Q1P/1PP5/1K1RR3 w - - 1 19",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 188987,
+        "bestmove": "e1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 301766,
+        "bestmove": "e1g1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_12",
+      "movetime": 1000,
+      "fen": "r3rbk1/1p1n2p1/3PqPp1/pP2p3/4N3/P2Q3P/2PB1P2/3R1RK1 b - - 0 20",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 167487,
+        "bestmove": "g7f6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 252868,
+        "bestmove": "g7f6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_13",
+      "movetime": 1000,
+      "fen": "r5k1/p1p2bpp/1p6/3n4/3BB3/2P5/P1PK1PPP/7R b - - 0 20",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 235242,
+        "bestmove": "a8d8"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 280200,
+        "bestmove": "a8d8"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_14",
+      "movetime": 1000,
+      "fen": "3rr1k1/1p3p1p/p1b3p1/4p1q1/3bN3/1P1PBP2/P2Q1KPP/4R2R b - - 8 21",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 212136,
+        "bestmove": "g5e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 137257,
+        "bestmove": "g5e7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_15",
+      "movetime": 1000,
+      "fen": "r5kr/1p6/pq2p2p/1B1pN3/8/P7/1PQ2PPP/R1R3K1 b - - 0 22",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 216283,
+        "bestmove": "h8h7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 22,
+        "nodes": 251671,
+        "bestmove": "h8h7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_16",
+      "movetime": 1000,
+      "fen": "1r2r3/1p1bkp1p/p2p1p2/3Pn3/2PNP3/3BK2P/P4PP1/2R3R1 w - - 10 24",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 121970,
+        "bestmove": "g1e1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 238992,
+        "bestmove": "c1e1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_17",
+      "movetime": 1000,
+      "fen": "r3r3/6k1/3Q3p/2B2p2/p7/4P3/PPP5/1K6 w - - 2 24",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 62426,
+        "bestmove": "c5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 55484,
+        "bestmove": "c5d4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_18",
+      "movetime": 1000,
+      "fen": "1r1r2k1/1pp3p1/p1n1qbbp/P3p3/1PN1PpN1/2PP3P/2Q1B1P1/1K1R1R2 b - - 1 26",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 112890,
+        "bestmove": "f6e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 25,
+        "nodes": 300139,
+        "bestmove": "f6e7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_19",
+      "movetime": 1000,
+      "fen": "3r3r/5p1p/pp1k1p2/3P1bp1/4p3/1B5P/PPP2PP1/3RR1K1 w - - 2 27",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 283203,
+        "bestmove": "g1f1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 128688,
+        "bestmove": "g1f1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_20",
+      "movetime": 1000,
+      "fen": "3rr3/1pq2pk1/p1b1p2p/1p1pP1p1/1P1P2P1/1Q3N1P/1PP3P1/3RR1K1 b - - 16 27",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 110403,
+        "bestmove": "c6d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 192670,
+        "bestmove": "c6d7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_21",
+      "movetime": 1000,
+      "fen": "4r1k1/1p3p2/1Q5p/6p1/3Nq3/4P3/r4PPP/3R2KR w - - 0 30",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 329041,
+        "bestmove": "b6h6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 174393,
+        "bestmove": "b6h6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_22",
+      "movetime": 1000,
+      "fen": "4R3/6p1/5b2/8/5r1p/3P3k/P1PK4/8 w - - 0 30",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 11,
+        "nodes": 187202,
+        "bestmove": "e8e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 11,
+        "nodes": 187202,
+        "bestmove": "e8e4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_23",
+      "movetime": 1000,
+      "fen": "6r1/pb1kB1b1/3p4/4p1Qp/2p1p3/2qPK2P/5P2/2NR4 w - - 0 32",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 68539,
+        "bestmove": "c1e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 187160,
+        "bestmove": "e7f8"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_24",
+      "movetime": 1000,
+      "fen": "3r4/5p1p/p2k1p2/1p1P1b2/4p1rP/1B6/PPP2KP1/3R3R w - - 0 33",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 350853,
+        "bestmove": "d1f1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 182101,
+        "bestmove": "d1f1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_25",
+      "movetime": 1000,
+      "fen": "8/5ppk/7p/3r1p2/8/3q3P/1p3PPK/4R3 w - - 2 34",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 377025,
+        "bestmove": "e1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 376303,
+        "bestmove": "e1g1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_26",
+      "movetime": 1000,
+      "fen": "8/8/8/8/3k4/5r2/2PK1PR1/8 w - - 12 36",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 12,
+        "nodes": 163503,
+        "bestmove": "d2e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 12,
+        "nodes": 163503,
+        "bestmove": "d2e2"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_27",
+      "movetime": 1000,
+      "fen": "3rr1k1/1pq2p2/p1b1p2p/1pNpP1p1/1P1P2P1/1Q5P/1PP3P1/3RR1K1 b - - 36 37",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 134988,
+        "bestmove": "c7b6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 321525,
+        "bestmove": "c7e7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_28",
+      "movetime": 1000,
+      "fen": "5k2/pp3ppp/1b2b3/8/4R2P/6B1/3r1PP1/5K2 b - - 4 38",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 13,
+        "nodes": 179306,
+        "bestmove": "f8e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 314662,
+        "bestmove": "f8e7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_29",
+      "movetime": 1000,
+      "fen": "R7/1p1r2pp/4k3/4p3/pQ3n2/8/2P2PPP/5K2 w - - 18 41",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 201400,
+        "bestmove": "b4b1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 157650,
+        "bestmove": "b4b1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_30",
+      "movetime": 1000,
+      "fen": "r7/5pk1/5n1p/2NpBb2/3P1P2/4RP2/2r4P/3R3K w - - 1 41",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 297562,
+        "bestmove": "d1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 18,
+        "nodes": 251646,
+        "bestmove": "d1g1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_01",
+      "movetime": 1000,
+      "fen": "3rr1k1/pp3pPp/6p1/q7/2b5/3B1N2/1PP3PP/1K4QR b - - 3 21",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 331954,
+        "bestmove": "a5a2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 210430,
+        "bestmove": "a5a2"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_02",
+      "movetime": 1000,
+      "fen": "4k3/2Rb4/3r3p/4p1p1/5p2/7P/4R1P1/6K1 w - - 0 61",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 376483,
+        "bestmove": "e2e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 180871,
+        "bestmove": "e2e5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_03",
+      "movetime": 1000,
+      "fen": "r1b2rk1/ppp1b1pp/1nn1p3/1N1q1pP1/3P3P/3BPN2/PP3P2/RQB2RK1 w - - 9 12",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 213524,
+        "bestmove": "e3e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 261684,
+        "bestmove": "e3e4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_04",
+      "movetime": 1000,
+      "fen": "8/3P4/2n2K2/8/8/8/8/6k1 w - - 0 1",
+      "current-final": {
+        "depth": 11,
+        "seldepth": 13,
+        "nodes": 359657,
+        "bestmove": "d7d8n"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 11,
+        "seldepth": 13,
+        "nodes": 359657,
+        "bestmove": "d7d8n"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_05",
+      "movetime": 1000,
+      "fen": "4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 439642,
+        "bestmove": "c5e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 296740,
+        "bestmove": "c5e7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_06",
+      "movetime": 1000,
+      "fen": "3r2k1/5ppp/p2N4/2RnPPP1/8/1b1K4/1B5P/8 b - - 2 31",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 65368,
+        "bestmove": "d5f4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 146039,
+        "bestmove": "d5f4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_07",
+      "movetime": 1000,
+      "fen": "3r2k1/5ppp/8/8/2P1Q3/2R5/rP1q1PK1/1R6 b - - 0 29",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 152635,
+        "bestmove": "a2b2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 266315,
+        "bestmove": "a2b2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_08",
+      "movetime": 1000,
+      "fen": "rn1q2k1/p4ppp/1pp2b2/4p3/Q1P1B3/4P3/PP3PPP/1RB3K1 b - - 1 9",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 285449,
+        "bestmove": "d8d6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 19,
+        "nodes": 359194,
+        "bestmove": "h7h6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_09",
+      "movetime": 1000,
+      "fen": "r3r1k1/ppp2ppp/1bq5/4pb2/3nN3/2NPB3/PPPQ1PPP/3RR1K1 b - - 9 6",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 25,
+        "nodes": 308696,
+        "bestmove": "f5g6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 130266,
+        "bestmove": "c6g6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_10",
+      "movetime": 1000,
+      "fen": "1k1r1b1r/1ppqn1pp/p1n2p2/3p4/1P1P4/P1NBPQ1P/1B3PP1/R4RK1 w - - 2 7",
+      "current-final": {
+        "depth": 5,
+        "seldepth": 13,
+        "nodes": 62371,
+        "bestmove": "c3e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 135332,
+        "bestmove": "c3e2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_11",
+      "movetime": 1000,
+      "fen": "2nr4/ppp3pp/4B1k1/b2P4/2bB4/2N4P/1P3PK1/6R1 b - - 3 31",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 156676,
+        "bestmove": "a5c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 221759,
+        "bestmove": "g6h6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_12",
+      "movetime": 1000,
+      "fen": "2r3k1/5pp1/p6p/1q6/2p1Q3/P4K1P/1PR2P2/8 b - - 47 56",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 173830,
+        "bestmove": "b5h5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 91380,
+        "bestmove": "b5h5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_13",
+      "movetime": 1000,
+      "fen": "4nk2/pp3p2/8/1Pr1B3/6p1/3R4/P1PK1PPP/8 w - - 4 29",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 324014,
+        "bestmove": "e5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 280325,
+        "bestmove": "e5d4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_14",
+      "movetime": 1000,
+      "fen": "1k1r1b1r/ppp1n1pp/2nq2b1/3p1p2/3P1N2/P2BPN1P/1PQB1PP1/1R2R1K1 w - - 12 12",
+      "current-final": {
+        "depth": 5,
+        "seldepth": 16,
+        "nodes": 83810,
+        "bestmove": "f4g6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 135281,
+        "bestmove": "f4g6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_15",
+      "movetime": 1000,
+      "fen": "8/p4Qp1/3k4/3rb3/1P6/P6P/2P3P1/2K5 b - - 4 49",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 13,
+        "nodes": 183222,
+        "bestmove": "e5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 13,
+        "nodes": 183222,
+        "bestmove": "e5d4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_16",
+      "movetime": 1000,
+      "fen": "4r3/1p4pp/p1q2k2/3R1P2/4PK2/P3R3/8/8 b - - 14 36",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 387724,
+        "bestmove": "f6f7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 318266,
+        "bestmove": "f6f7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_17",
+      "movetime": 1000,
+      "fen": "r4rk1/ppp2ppp/8/8/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 142021,
+        "bestmove": "d2d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 290308,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_18",
+      "movetime": 1000,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 306028,
+        "bestmove": "g3f4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 115141,
+        "bestmove": "g3f4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_19",
+      "movetime": 1000,
+      "fen": "8/5p2/7p/2r3p1/8/P4k1P/1K1p4/6R1 b - - 1 39",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 12,
+        "nodes": 359764,
+        "bestmove": "c5e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 12,
+        "nodes": 359764,
+        "bestmove": "c5e5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_20",
+      "movetime": 1000,
+      "fen": "4rk2/1QpPr3/p7/8/4NP2/4P3/PP5P/2KR3R w - - 1 29",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 242194,
+        "bestmove": "d7e8n"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 132262,
+        "bestmove": "d7e8n"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_opening_01",
+      "movetime": 3000,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 375430,
+        "bestmove": "e2e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 17,
+        "nodes": 498244,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_02",
+      "movetime": 3000,
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 537630,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 24,
+        "nodes": 738016,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_03",
+      "movetime": 3000,
+      "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 726510,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 1003867,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_opening_04",
+      "movetime": 3000,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 24,
+        "nodes": 599366,
+        "bestmove": "d2d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 28,
+        "nodes": 946900,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_opening_05",
+      "movetime": 3000,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 581257,
+        "bestmove": "d2d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 23,
+        "nodes": 778763,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_01",
+      "movetime": 3000,
+      "fen": "r1bq1rk1/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 6 6",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 768862,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 841497,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_02",
+      "movetime": 3000,
+      "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 658910,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 21,
+        "nodes": 796585,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_03",
+      "movetime": 3000,
+      "fen": "r1bq1rk1/ppppbppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 2 6",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 530938,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 25,
+        "nodes": 1065959,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_mid_04",
+      "movetime": 3000,
+      "fen": "r1bq1rk1/ppp2ppp/2np1n2/4p3/2BPP3/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 7",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 391498,
+        "bestmove": "d4d5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 917465,
+        "bestmove": "d4d5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_mid_05",
+      "movetime": 3000,
+      "fen": "r3k2r/ppp2ppp/2n1b3/3qp3/3PP3/2N1B3/PPP2PPP/R3K2R w KQkq - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 618567,
+        "bestmove": "c3d5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 24,
+        "nodes": 763154,
+        "bestmove": "c3d5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_mid_06",
+      "movetime": 3000,
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 6 5",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 25,
+        "nodes": 710541,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 931939,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_mid_07",
+      "movetime": 3000,
+      "fen": "r1bq1rk1/pp1n2bp/4p1p1/3Pp3/3n4/1Q2BN1P/P2NBPP1/R4RK1 w - - 0 9",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 178362,
+        "bestmove": "e3d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 27,
+        "nodes": 614010,
+        "bestmove": "e3d4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_mid_08",
+      "movetime": 3000,
+      "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 772490,
+        "bestmove": "f1b5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 24,
+        "nodes": 594009,
+        "bestmove": "f1b5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_tac_01",
+      "movetime": 3000,
+      "fen": "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 174581,
+        "bestmove": "d7c8r"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 30,
+        "nodes": 640235,
+        "bestmove": "d7c8r"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_tac_02",
+      "movetime": 3000,
+      "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 31,
+        "nodes": 638760,
+        "bestmove": "e2a6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 26,
+        "nodes": 455357,
+        "bestmove": "e2a6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_tac_03",
+      "movetime": 3000,
+      "fen": "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 29,
+        "nodes": 190729,
+        "bestmove": "c4c5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 29,
+        "nodes": 988787,
+        "bestmove": "c4c5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_s4_tac_04",
+      "movetime": 3000,
+      "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 921693,
+        "bestmove": "f7f6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 25,
+        "nodes": 917572,
+        "bestmove": "f7f6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_tac_05",
+      "movetime": 3000,
+      "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 24,
+        "nodes": 657596,
+        "bestmove": "c8e6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 855993,
+        "bestmove": "c8e6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_closed_01",
+      "movetime": 3000,
+      "fen": "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 560947,
+        "bestmove": "b1c3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 783644,
+        "bestmove": "b1c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_closed_02",
+      "movetime": 3000,
+      "fen": "rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 830259,
+        "bestmove": "e2e3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 512648,
+        "bestmove": "e2e3"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_closed_03",
+      "movetime": 3000,
+      "fen": "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 901499,
+        "bestmove": "e2e3"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 468041,
+        "bestmove": "e2e3"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_closed_04",
+      "movetime": 3000,
+      "fen": "r1bq1rk1/ppp1bppp/2np1n2/4p3/2P1P3/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 7",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 24,
+        "nodes": 934397,
+        "bestmove": "d3d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 893384,
+        "bestmove": "d3d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_qless_01",
+      "movetime": 3000,
+      "fen": "r3k2r/ppp2ppp/2n1b3/3p4/3P4/2N1B3/PPP2PPP/R3K2R w KQkq - 0 7",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 160271,
+        "bestmove": "e1e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 379146,
+        "bestmove": "a1d1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_qless_02",
+      "movetime": 3000,
+      "fen": "2r3k1/1p3ppp/p1n1p3/8/4P3/1NN1B3/PPP2PPP/R2R2K1 w - - 0 12",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 199822,
+        "bestmove": "d1d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 414960,
+        "bestmove": "d1d7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_qless_03",
+      "movetime": 3000,
+      "fen": "r4rk1/pp3ppp/2p2n2/3p4/3P4/1PN1PN2/P1P2PPP/2R1R1K1 w - - 0 12",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 833090,
+        "bestmove": "e3e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 20,
+        "nodes": 466182,
+        "bestmove": "e3e4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_s4_piece_01",
+      "movetime": 3000,
+      "fen": "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 8,
+        "nodes": 810844,
+        "bestmove": "d2g5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 8,
+        "nodes": 810844,
+        "bestmove": "d2g5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_piece_02",
+      "movetime": 3000,
+      "fen": "7k/8/8/8/8/8/3RK3/8 w - - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 447840,
+        "bestmove": "d2d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 447840,
+        "bestmove": "d2d7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_piece_03",
+      "movetime": 3000,
+      "fen": "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 306668,
+        "bestmove": "g1e1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 8,
+        "nodes": 306668,
+        "bestmove": "g1e1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_pawn_01",
+      "movetime": 3000,
+      "fen": "8/8/8/8/3k4/8/PPP5/4K3 w - - 0 1",
+      "current-final": {
+        "depth": 10,
+        "seldepth": 12,
+        "nodes": 517483,
+        "bestmove": "e1d2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 12,
+        "nodes": 517483,
+        "bestmove": "e1d2"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_s4_pawn_02",
+      "movetime": 3000,
+      "fen": "4k3/8/8/8/8/4p3/4P3/4K3 w - - 0 1",
+      "current-final": {
+        "depth": 14,
+        "seldepth": 15,
+        "nodes": 1009683,
+        "bestmove": "e1d1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 14,
+        "seldepth": 15,
+        "nodes": 1009683,
+        "bestmove": "e1d1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_01",
+      "movetime": 3000,
+      "fen": "1k1r1b1r/1p1bnppp/pq1p1n2/2pPpPB1/2P1P3/2NB3P/PPQ1N1P1/3RR1K1 b - - 2 11",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 116553,
+        "bestmove": "b6c7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 384351,
+        "bestmove": "b6c7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_02",
+      "movetime": 3000,
+      "fen": "1k1r1b1r/2p2Npp/p7/1p3n2/2pn4/4B3/PP2BPPP/1R2R1K1 b - - 0 11",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 682208,
+        "bestmove": "f8b4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 17,
+        "nodes": 1017760,
+        "bestmove": "f8b4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_03",
+      "movetime": 3000,
+      "fen": "r4rk1/pbp1qppp/2p5/8/4Q3/P2BP2P/1P4P1/R4RK1 b - - 0 11",
+      "current-final": {
+        "depth": 10,
+        "seldepth": 22,
+        "nodes": 858835,
+        "bestmove": "e7e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 11,
+        "seldepth": 25,
+        "nodes": 649936,
+        "bestmove": "e7e4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_04",
+      "movetime": 3000,
+      "fen": "r3k2r/ppnn1ppp/1qp1p3/3pPb2/NP6/P3P3/2PBBPPP/R2Q1RK1 b kq - 2 12",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 768409,
+        "bestmove": "d7e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 18,
+        "nodes": 515968,
+        "bestmove": "d7e5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_05",
+      "movetime": 3000,
+      "fen": "r2qr1k1/1p3p1p/p1bbpnpB/8/3pN3/1P1P1P2/P1P1N1PP/R2Q2KR b - - 2 13",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 319360,
+        "bestmove": "e6e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 24,
+        "nodes": 499269,
+        "bestmove": "e6e5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_06",
+      "movetime": 3000,
+      "fen": "r2r2k1/p1p2pp1/2Nn1b1p/2p5/2P5/4B3/Pq2QPPP/R2R2K1 w - - 0 15",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 19,
+        "nodes": 835720,
+        "bestmove": "e2b2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 416054,
+        "bestmove": "e2b2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_07",
+      "movetime": 3000,
+      "fen": "r3r1k1/2p1bp1p/pq2bn2/3p2p1/1N1Pp3/1PB1P1N1/P2Q1PPP/R4RK1 b - - 3 15",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 219014,
+        "bestmove": "e7d6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 325465,
+        "bestmove": "e7d6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_08",
+      "movetime": 3000,
+      "fen": "r1r3k1/ppp2ppp/4bb2/1N1pN3/8/8/PB3PPP/3RR1K1 b - - 2 16",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 21,
+        "nodes": 852830,
+        "bestmove": "c7c5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 791458,
+        "bestmove": "c7c5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_09",
+      "movetime": 3000,
+      "fen": "r4rk1/pp3ppp/3bb1q1/1R4BB/2p5/P1n4P/1PP2PP1/1RQ3K1 w - - 0 17",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 772624,
+        "bestmove": "h5g6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 23,
+        "nodes": 436691,
+        "bestmove": "b2c3"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_10",
+      "movetime": 3000,
+      "fen": "2b2b1r/p2knp2/3p3p/2p1p3/4P1p1/3PQ1B1/1q2NPPP/3K3R b - - 5 18",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 392431,
+        "bestmove": "h6h5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 683692,
+        "bestmove": "h6h5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_11",
+      "movetime": 3000,
+      "fen": "3rr2k/ppp4p/2q1b1p1/3pPn2/3P4/P1BB1Q1P/1PP5/1K1RR3 w - - 1 19",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 18,
+        "nodes": 188987,
+        "bestmove": "e1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 301766,
+        "bestmove": "e1g1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_12",
+      "movetime": 3000,
+      "fen": "r3rbk1/1p1n2p1/3PqPp1/pP2p3/4N3/P2Q3P/2PB1P2/3R1RK1 b - - 0 20",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 19,
+        "nodes": 649690,
+        "bestmove": "g7f6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 20,
+        "nodes": 699427,
+        "bestmove": "g7f6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_13",
+      "movetime": 3000,
+      "fen": "r5k1/p1p2bpp/1p6/3n4/3BB3/2P5/P1PK1PPP/7R b - - 0 20",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 654421,
+        "bestmove": "a8d8"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 20,
+        "nodes": 552506,
+        "bestmove": "a8d8"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_14",
+      "movetime": 3000,
+      "fen": "3rr1k1/1p3p1p/p1b3p1/4p1q1/3bN3/1P1PBP2/P2Q1KPP/4R2R b - - 8 21",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 212136,
+        "bestmove": "g5e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 25,
+        "nodes": 790637,
+        "bestmove": "g5h4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_15",
+      "movetime": 3000,
+      "fen": "r5kr/1p6/pq2p2p/1B1pN3/8/P7/1PQ2PPP/R1R3K1 b - - 0 22",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 22,
+        "nodes": 458311,
+        "bestmove": "h8h7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 24,
+        "nodes": 482855,
+        "bestmove": "h8h7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_16",
+      "movetime": 3000,
+      "fen": "1r2r3/1p1bkp1p/p2p1p2/3Pn3/2PNP3/3BK2P/P4PP1/2R3R1 w - - 10 24",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 613646,
+        "bestmove": "d3e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 805423,
+        "bestmove": "d3e2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_17",
+      "movetime": 3000,
+      "fen": "r3r3/6k1/3Q3p/2B2p2/p7/4P3/PPP5/1K6 w - - 2 24",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 1056105,
+        "bestmove": "c5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 469688,
+        "bestmove": "c5d4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_18",
+      "movetime": 3000,
+      "fen": "1r1r2k1/1pp3p1/p1n1qbbp/P3p3/1PN1PpN1/2PP3P/2Q1B1P1/1K1R1R2 b - - 1 26",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 25,
+        "nodes": 660970,
+        "bestmove": "f6h4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 25,
+        "nodes": 922884,
+        "bestmove": "f6h4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_19",
+      "movetime": 3000,
+      "fen": "3r3r/5p1p/pp1k1p2/3P1bp1/4p3/1B5P/PPP2PP1/3RR1K1 w - - 2 27",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 283203,
+        "bestmove": "g1f1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 645271,
+        "bestmove": "g1h2"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_20",
+      "movetime": 3000,
+      "fen": "3rr3/1pq2pk1/p1b1p2p/1p1pP1p1/1P1P2P1/1Q3N1P/1PP3P1/3RR1K1 b - - 16 27",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 473800,
+        "bestmove": "c6d7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 908158,
+        "bestmove": "c6d7"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_21",
+      "movetime": 3000,
+      "fen": "4r1k1/1p3p2/1Q5p/6p1/3Nq3/4P3/r4PPP/3R2KR w - - 0 30",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 329041,
+        "bestmove": "b6h6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 18,
+        "nodes": 779166,
+        "bestmove": "b6h6"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_22",
+      "movetime": 3000,
+      "fen": "4R3/6p1/5b2/8/5r1p/3P3k/P1PK4/8 w - - 0 30",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 618622,
+        "bestmove": "e8e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 618622,
+        "bestmove": "e8e4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_23",
+      "movetime": 3000,
+      "fen": "6r1/pb1kB1b1/3p4/4p1Qp/2p1p3/2qPK2P/5P2/2NR4 w - - 0 32",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 21,
+        "nodes": 771333,
+        "bestmove": "e7f8"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 21,
+        "nodes": 659765,
+        "bestmove": "e7f8"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_24",
+      "movetime": 3000,
+      "fen": "3r4/5p1p/p2k1p2/1p1P1b2/4p1rP/1B6/PPP2KP1/3R3R w - - 0 33",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 350853,
+        "bestmove": "d1f1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 22,
+        "nodes": 819674,
+        "bestmove": "d1a1"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_25",
+      "movetime": 3000,
+      "fen": "8/5ppk/7p/3r1p2/8/3q3P/1p3PPK/4R3 w - - 2 34",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 377025,
+        "bestmove": "e1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 376303,
+        "bestmove": "e1g1"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_26",
+      "movetime": 3000,
+      "fen": "8/8/8/8/3k4/5r2/2PK1PR1/8 w - - 12 36",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 14,
+        "nodes": 719138,
+        "bestmove": "d2e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 14,
+        "nodes": 719138,
+        "bestmove": "d2e2"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_mid_27",
+      "movetime": 3000,
+      "fen": "3rr1k1/1pq2p2/p1b1p2p/1pNpP1p1/1P1P2P1/1Q5P/1PP3P1/3RR1K1 b - - 36 37",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 512566,
+        "bestmove": "c7e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 760745,
+        "bestmove": "c7e7"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_mid_28",
+      "movetime": 3000,
+      "fen": "5k2/pp3ppp/1b2b3/8/4R2P/6B1/3r1PP1/5K2 b - - 4 38",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 790426,
+        "bestmove": "f8e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 980350,
+        "bestmove": "f8e7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_29",
+      "movetime": 3000,
+      "fen": "R7/1p1r2pp/4k3/4p3/pQ3n2/8/2P2PPP/5K2 w - - 18 41",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 912939,
+        "bestmove": "b4c4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 19,
+        "nodes": 1082008,
+        "bestmove": "b4e1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_mid_30",
+      "movetime": 3000,
+      "fen": "r7/5pk1/5n1p/2NpBb2/3P1P2/4RP2/2r4P/3R3K w - - 1 41",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 897215,
+        "bestmove": "d1g1"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 10,
+        "seldepth": 20,
+        "nodes": 686156,
+        "bestmove": "d1g1"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_01",
+      "movetime": 3000,
+      "fen": "3rr1k1/pp3pPp/6p1/q7/2b5/3B1N2/1PP3PP/1K4QR b - - 3 21",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 331954,
+        "bestmove": "a5a2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 786581,
+        "bestmove": "d8d3"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_tac_02",
+      "movetime": 3000,
+      "fen": "4k3/2Rb4/3r3p/4p1p1/5p2/7P/4R1P1/6K1 w - - 0 61",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 376483,
+        "bestmove": "e2e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 17,
+        "nodes": 1249398,
+        "bestmove": "e2e5"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_tac_03",
+      "movetime": 3000,
+      "fen": "r1b2rk1/ppp1b1pp/1nn1p3/1N1q1pP1/3P3P/3BPN2/PP3P2/RQB2RK1 w - - 9 12",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 213524,
+        "bestmove": "e3e4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 24,
+        "nodes": 485277,
+        "bestmove": "e3e4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_tac_04",
+      "movetime": 3000,
+      "fen": "8/3P4/2n2K2/8/8/8/8/6k1 w - - 0 1",
+      "current-final": {
+        "depth": 12,
+        "seldepth": 14,
+        "nodes": 1063187,
+        "bestmove": "d7d8n"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 12,
+        "seldepth": 14,
+        "nodes": 1063187,
+        "bestmove": "d7d8n"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_05",
+      "movetime": 3000,
+      "fen": "4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38",
+      "current-final": {
+        "depth": 9,
+        "seldepth": 16,
+        "nodes": 1233745,
+        "bestmove": "c5e7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 17,
+        "nodes": 865862,
+        "bestmove": "c5e7"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_06",
+      "movetime": 3000,
+      "fen": "3r2k1/5ppp/p2N4/2RnPPP1/8/1b1K4/1B5P/8 b - - 2 31",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 884553,
+        "bestmove": "f7f6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 21,
+        "nodes": 824657,
+        "bestmove": "f7f6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_07",
+      "movetime": 3000,
+      "fen": "3r2k1/5ppp/8/8/2P1Q3/2R5/rP1q1PK1/1R6 b - - 0 29",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 705889,
+        "bestmove": "a2b2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 811822,
+        "bestmove": "a2b2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_08",
+      "movetime": 3000,
+      "fen": "rn1q2k1/p4ppp/1pp2b2/4p3/Q1P1B3/4P3/PP3PPP/1RB3K1 b - - 1 9",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 1027756,
+        "bestmove": "d8d6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 19,
+        "nodes": 625133,
+        "bestmove": "h7h6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_09",
+      "movetime": 3000,
+      "fen": "r3r1k1/ppp2ppp/1bq5/4pb2/3nN3/2NPB3/PPPQ1PPP/3RR1K1 b - - 9 6",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 25,
+        "nodes": 940430,
+        "bestmove": "f5g6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 25,
+        "nodes": 417663,
+        "bestmove": "c6g6"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_10",
+      "movetime": 3000,
+      "fen": "1k1r1b1r/1ppqn1pp/p1n2p2/3p4/1P1P4/P1NBPQ1P/1B3PP1/R4RK1 w - - 2 7",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 309947,
+        "bestmove": "c3e2"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 454950,
+        "bestmove": "c3e2"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_11",
+      "movetime": 3000,
+      "fen": "2nr4/ppp3pp/4B1k1/b2P4/2bB4/2N4P/1P3PK1/6R1 b - - 3 31",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 670020,
+        "bestmove": "g6h5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 18,
+        "nodes": 634652,
+        "bestmove": "g6h5"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_12",
+      "movetime": 3000,
+      "fen": "2r3k1/5pp1/p6p/1q6/2p1Q3/P4K1P/1PR2P2/8 b - - 47 56",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 964508,
+        "bestmove": "b5h5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 385650,
+        "bestmove": "b5h5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_13",
+      "movetime": 3000,
+      "fen": "4nk2/pp3p2/8/1Pr1B3/6p1/3R4/P1PK1PPP/8 w - - 4 29",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 324014,
+        "bestmove": "e5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 17,
+        "nodes": 1417034,
+        "bestmove": "e5d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_14",
+      "movetime": 3000,
+      "fen": "1k1r1b1r/ppp1n1pp/2nq2b1/3p1p2/3P1N2/P2BPN1P/1PQB1PP1/1R2R1K1 w - - 12 12",
+      "current-final": {
+        "depth": 6,
+        "seldepth": 23,
+        "nodes": 662342,
+        "bestmove": "f4g6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 810175,
+        "bestmove": "f4g6"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_15",
+      "movetime": 3000,
+      "fen": "8/p4Qp1/3k4/3rb3/1P6/P6P/2P3P1/2K5 b - - 4 49",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 713729,
+        "bestmove": "e5d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 713729,
+        "bestmove": "e5d4"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_16",
+      "movetime": 3000,
+      "fen": "4r3/1p4pp/p1q2k2/3R1P2/4PK2/P3R3/8/8 b - - 14 36",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 387724,
+        "bestmove": "f6f7"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 829748,
+        "bestmove": "f6f7"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_17",
+      "movetime": 3000,
+      "fen": "r4rk1/ppp2ppp/8/8/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 998470,
+        "bestmove": "d2d4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 1200842,
+        "bestmove": "d2d4"
+      },
+      "depth_gain": 1
+    },
+    {
+      "id": "s7_tac_18",
+      "movetime": 3000,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 306028,
+        "bestmove": "g3f4"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 17,
+        "nodes": 652380,
+        "bestmove": "g3f4"
+      },
+      "depth_gain": 2
+    },
+    {
+      "id": "s7_tac_19",
+      "movetime": 3000,
+      "fen": "8/5p2/7p/2r3p1/8/P4k1P/1K1p4/6R1 b - - 1 39",
+      "current-final": {
+        "depth": 7,
+        "seldepth": 12,
+        "nodes": 359764,
+        "bestmove": "c5e5"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 7,
+        "seldepth": 12,
+        "nodes": 359764,
+        "bestmove": "c5e5"
+      },
+      "depth_gain": 0
+    },
+    {
+      "id": "s7_tac_20",
+      "movetime": 3000,
+      "fen": "4rk2/1QpPr3/p7/8/4NP2/4P3/PP5P/2KR3R w - - 1 29",
+      "current-final": {
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 1184557,
+        "bestmove": "b7a6"
+      },
+      "current-final-lmr-null-window": {
+        "depth": 9,
+        "seldepth": 17,
+        "nodes": 744269,
+        "bestmove": "b7a6"
+      },
+      "depth_gain": 1
+    }
+  ],
+  "summary": {
+    "movetime1000": {
+      "positions": 80,
+      "median_depth_a": 7.0,
+      "median_depth_b": 7.0,
+      "mean_depth_a": 6.775,
+      "mean_depth_b": 7.362,
+      "median_seldepth_a": 17.0,
+      "median_seldepth_b": 18.0,
+      "gained": 44,
+      "lost": 0,
+      "depth_distribution_a": {
+        "7": 32,
+        "6": 34,
+        "8": 7,
+        "9+": 4,
+        "5": 3
+      },
+      "depth_distribution_b": {
+        "7": 38,
+        "9+": 9,
+        "6": 15,
+        "8": 18
+      }
+    },
+    "movetime3000": {
+      "positions": 80,
+      "median_depth_a": 7.0,
+      "median_depth_b": 9.0,
+      "mean_depth_a": 7.513,
+      "mean_depth_b": 8.512,
+      "median_seldepth_a": 18.0,
+      "median_seldepth_b": 19.5,
+      "gained": 62,
+      "lost": 0,
+      "depth_distribution_a": {
+        "7": 40,
+        "8": 22,
+        "9+": 9,
+        "6": 9
+      },
+      "depth_distribution_b": {
+        "8": 23,
+        "9+": 41,
+        "7": 15,
+        "6": 1
+      }
+    }
+  }
+}
