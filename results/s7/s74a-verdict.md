@@ -1,6 +1,14 @@
 # S7.4A — LMR-on-Null-Window Candidate Verdict
 
+> **Repair 1 update (`df7f324`) — QUALIFIED_FOR_ARENA, STRONG.**
+> Review P1 was: the candidate's full-depth verification re-search was a new
+> real search entry but did not call `try_enter_node`. Repair 1 adds exact-once
+> acquisition + `s74_lmr_nw_research_entered` accounting and regression tests.
+> All gates below were re-run or regenerated with the repaired binary.
+> Production code remains accounting-only for unlimited fixed-depth search.
+
 BASE: `6cf45063ef4c8eb2db03069149327d843fe47fba` (implementation commit `d50729a`)
+REPAIR: `df7f324` on top of evidence base `ea1c60b`
 
 ## Status
 
@@ -68,7 +76,7 @@ Candidate is not less stable; bestmove flips actually decrease.
   nodes/score/bestmove/PV **30/30 exact match**.
 - fmt / clippy -D warnings / debug tests / release tests: clean.
 
-## Fixed-wall depth gate (80 S7 positions, interleaved A/B)
+## Fixed-wall depth gate (pre-repair, superseded — missing `try_enter_node` also skipped a deadline check)
 
 | movetime | median depth A→B | mean depth A→B | median seldepth A→B | gained | lost |
 |---|---|---|---|---|---|
@@ -79,14 +87,107 @@ Qualification minimum was 10/80 gained with gained > lost; the candidate
 gains completed depth on 55% (1s) to 78% (3s) of positions and loses
 depth on none. Median completed depth at 3s rises a full two plies.
 
+## Repair 1 re-run evidence (`df7f324`)
+
+### Implementation contract
+
+- Initial reduced null-window search: NO new acquisition (`probe_child_draw`
+  already owns that child's initial acquisition).
+- Full-depth verification when `nw_reduced > alpha_before_move`: exactly one
+  `try_enter_node` before `negamax_entered_impl_with_null_and_extensions`,
+  with the production PVS re-search cleanup shape (pop + unmake + return
+  `None` on acquisition failure).
+- Counters: `s74_lmr_nw_research` (requested) and
+  `s74_lmr_nw_research_entered` (entered).
+
+### Mechanism accounting tests (`src/engine/search.rs`)
+
+- A. All-fail-low fixture: `research == 0`, `research_entered == 0` — reduced
+  fail-low performs no verification acquisition.
+- B. Improving fixture: every request emits exactly one test event, every
+  successful acquisition emits exactly one entry event, and unlimited
+  fixed-depth `research_entered == research_requested`.
+- C. Exact acquisition-failure budget: search returns `None`; path/FEN/root
+  state restored; `entered == 0` and `verified_cutoff == 0`; killer/history/
+  quiet-reward call counts equal the immediately preceding budget; root PV
+  row unchanged (no fake PV commit).
+- D. Budget sweep: `nodes <= budget` always, and an abort consumes exactly
+  its budget; `entered <= requested` and `verified_cutoff <= entered`.
+
+### Accounting-only identity (`tools/s74a_repair_verify.py`)
+
+Across all 180 pre-repair fixed-depth rows (`ea1c60b` JSON vs repaired JSON):
+
+- score / bestmove / PV: **0 differences**
+- qsearch_nodes / seldepth: **0 differences**
+- per-row `repaired_nodes - old_candidate_nodes == research_requested`
+- totals: `39,885,460 - 39,882,965 = 2,495 == sum(research_requested)`
+- `research_entered == research_requested` on every unlimited row
+
+### Fixed-depth node gate from scratch (80 S7 d6/d7 + 20 subset d8, cold 16MB)
+
+| depth | baseline nodes | candidate nodes | reduction | main A→B | qsearch A→B | wall A→B (s) | NPS A→B | seldepth median A→B | requested / entered / verified cutoff |
+|---|---|---|---|---|---|---|---|---|---|
+| 6 | 9,941,996 | 5,786,086 | **-41.802%** | 1.65M→0.84M | 8.29M→4.95M | 41.19→22.75 | 241k→254k | 16→15.5 | 344 / 344 / 100 |
+| 7 | 43,104,125 | 21,812,127 | **-49.397%** | 5.82M→3.17M | 37.28M→18.64M | 168.39→81.06 | 256k→269k | 18→17.5 | 1,182 / 1,182 / 341 |
+| 8 (20) | 50,168,172 | 12,287,247 | **-75.508%** | 9.64M→1.89M | 40.53M→10.40M | 238.48→56.37 | 210k→218k | 25→23 | 969 / 969 / 129 |
+
+Verdict by original gate: all three depths **STRONG**.
+
+### Fixed-wall depth gate from scratch (80 S7, fresh process, rotated/interleaved A/B)
+
+| movetime | median depth A→B | mean depth A→B | median seldepth A→B | gained | lost |
+|---|---|---|---|---|---|
+| 1000 ms | 6 → **7** | 6.412 → 6.850 | 16.5 → 16.5 | **35 / 80** | 1 |
+| 3000 ms | 7 → **8** | 7.138 → 8.088 | 18 → 19 | **60 / 80** | 0 |
+
+Qualification unchanged: >=10 gained, gained > lost, no material regression.
+Both time controls pass clearly.
+
+### Teacher challenge (d6, regenerated with repaired binary)
+
+- evaluable rows: **176**; terminal/no-move rows 158 and 164 labelled
+  `TERMINAL/NOT_APPLICABLE`; genuine engine failures **0**
+- teacher bestmove matches: baseline 33 → candidate **34**
+- baseline-only / candidate-only: **0 / 1**
+- >=100 / 300 / 500 cp divergence: **0 / 0 / 0**
+- teacher_mate-labelled positions: **5**; mate transitions /
+  mate-distance changes: **0 / 0**
+
+### R2 tactical/horizon gate (d8, new frozen corpus)
+
+- corpus: `data/s7/s74a-r2-tactical-corpus.jsonl`, 120 positions
+- SHA256: `7eeecf0ef79501cc28c80385b787dae361e365e32210636be0f4c261c4ee3337`
+- composition: 37 S6 teacher-challenge rows + 83 S6 eval-shard rows;
+  mate-labelled **11** (all five teacher_mate-labelled challenge rows included)
+- completed: **120 / 120** (mate-labelled 11 / 11); timeouts/errors **0**
+- teacher bestmove agreement: A 58 / B 59
+- baseline-only / candidate-only: **2 / 3**
+- >=100 / 300 / 500 cp divergence: **0 / 0 / 0**
+- mate detection: A 8 / B 8; mate side mismatches **0**
+- cp<->mate transitions **0**; mate-distance changes **0**
+- hard-reject scan (baseline finds teacher-signed mate, candidate loses it):
+  **0**
+
+### Production invariance (base `ea1c60b` vs repaired `df7f324`)
+
+- CurrentFinal, 30 S4 positions, depth 6: nodes / score / bestmove / PV
+  **30/30 exact**.
+
+### Build hygiene
+
+- fmt: clean
+- clippy `--all-targets -- -D warnings`: clean
+- `cargo test`: **314/314** debug, **314/314** release
+
 ## Verdict
 
 **QUALIFIED_FOR_ARENA — STRONG.**
 
 1. Fixed-depth node reduction: **-41.8% (d6) / -49.4% (d7) / -75.5% (d8 subset)** — far beyond the 15% STRONG threshold.
-2. Fixed-wall depth evidence: decisively positive (44/80 and 62/80 gained, 0 lost; 3s median depth +2).
-3. Teacher challenge: not worse — matches 33 → 34, zero >=100cp divergences, mate-labelled positions identical.
-4. No mate/tactical regression: no cp<->mate transitions, mate scores unchanged; search-stability gate equal-or-better (bestmove flips 19 → 15).
+2. Fixed-wall depth evidence: clearly positive (1000ms 35/80 gained, 1 lost; 3000ms 60/80 gained, 0 lost; median depth 6→7 and 7→8).
+3. Teacher challenge: not worse — matches 33 → 34, zero >=100cp divergences, all 5 teacher_mate-labelled positions unchanged.
+4. No mate/tactical regression: R2 d8 120/120 complete, zero cp divergence, zero mate transitions/side mismatches/distance changes, zero hard-reject cases.
 5. Production CurrentFinal unchanged: 30/30 S4 depth-6 exact (nodes/score/bestmove/PV).
 6. fmt / clippy -D warnings / debug + release tests: clean.
 

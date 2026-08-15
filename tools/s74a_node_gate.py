@@ -33,7 +33,7 @@ FIELDS = ("nodes", "qsearch_nodes", "elapsed_us", "nps", "seldepth",
           "s74_lmr_proposed", "s74_lmr_applied_existing_pvs",
           "s74_lmr_suppressed_by_null_window", "s74_lmr_applied_null_window",
           "s74_lmr_nw_fail_low", "s74_lmr_nw_research",
-          "s74_lmr_nw_verified_cutoff")
+          "s74_lmr_nw_research_entered", "s74_lmr_nw_verified_cutoff")
 
 
 def run(engine: Path, profile: str, fen: str, depth: int) -> dict | None:
@@ -98,6 +98,8 @@ def main() -> int:
             print(f"s74a_gate {pos['id']} d{d} "
                   f"nodes {a.get('nodes') if a else '?'} -> "
                   f"{b.get('nodes') if b else '?'} "
+                  f"research_req={b.get('s74_lmr_nw_research', '?') if b else '?'} "
+                  f"research_ent={b.get('s74_lmr_nw_research_entered', '?') if b else '?'} "
                   f"({rec.get('node_reduction_pct', '?')}%)", flush=True)
             OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2)
                            + "\n", encoding="utf-8")
@@ -116,6 +118,14 @@ def main() -> int:
                        for r in rows_d)
             appl = sum(int(r["candidate"].get("s74_lmr_applied_null_window") or 0)
                        for r in rows_d)
+            fail_low = sum(int(r["candidate"].get("s74_lmr_nw_fail_low") or 0)
+                           for r in rows_d)
+            research = sum(int(r["candidate"].get("s74_lmr_nw_research") or 0)
+                           for r in rows_d)
+            entered = sum(int(r["candidate"].get("s74_lmr_nw_research_entered") or 0)
+                          for r in rows_d)
+            verified = sum(int(r["candidate"].get("s74_lmr_nw_verified_cutoff") or 0)
+                           for r in rows_d)
             verdict = ("STRONG_MECHANISM" if red >= 15.0 else
                        "USEFUL_MECHANISM" if red >= 8.0 else
                        "TOO_SMALL -> REJECT/CLOSE")
@@ -124,6 +134,10 @@ def main() -> int:
                 "total_nodes_candidate": nb,
                 "total_node_reduction_pct": round(red, 3),
                 "lmr_proposed": prop, "lmr_applied_null_window": appl,
+                "lmr_nw_fail_low": fail_low,
+                "lmr_nw_research_requested": research,
+                "lmr_nw_research_entered": entered,
+                "lmr_nw_verified_cutoff": verified,
                 "predeclared_verdict": verdict,
             }
         results["summary_by_depth"] = summaries
@@ -134,6 +148,14 @@ def main() -> int:
             "completed_rows": len(ok), "total_nodes_baseline": na,
             "total_nodes_candidate": nb,
             "total_node_reduction_pct": round(red, 3),
+            "lmr_nw_research_requested": sum(
+                int(r["candidate"].get("s74_lmr_nw_research") or 0) for r in ok),
+            "lmr_nw_research_entered": sum(
+                int(r["candidate"].get("s74_lmr_nw_research_entered") or 0)
+                for r in ok),
+            "lmr_nw_verified_cutoff": sum(
+                int(r["candidate"].get("s74_lmr_nw_verified_cutoff") or 0)
+                for r in ok),
         }
         OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2)
                        + "\n", encoding="utf-8")

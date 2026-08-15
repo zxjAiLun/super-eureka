@@ -5,18 +5,18 @@
       "movetime": 1000,
       "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       "current-final": {
-        "depth": 7,
-        "seldepth": 16,
-        "nodes": 375430,
-        "bestmove": "e2e4"
+        "depth": 6,
+        "seldepth": 13,
+        "nodes": 56175,
+        "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 13,
-        "nodes": 129035,
+        "nodes": 129064,
         "bestmove": "b1c3"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_opening_02",
@@ -29,12 +29,12 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 19,
-        "nodes": 247391,
+        "nodes": 77758,
         "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_opening_03",
@@ -49,7 +49,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 19,
-        "nodes": 261010,
+        "nodes": 261073,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -65,27 +65,27 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 23,
-        "nodes": 266641,
-        "bestmove": "d2d4"
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 63198,
+        "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_opening_05",
       "movetime": 1000,
       "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
       "current-final": {
-        "depth": 6,
+        "depth": 5,
         "seldepth": 21,
-        "nodes": 208529,
+        "nodes": 42786,
         "bestmove": "d2d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 22,
-        "nodes": 320704,
+        "nodes": 98089,
         "bestmove": "d2d4"
       },
       "depth_gain": 1
@@ -101,12 +101,12 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 19,
-        "nodes": 280707,
+        "nodes": 69357,
         "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_mid_02",
@@ -119,12 +119,12 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 20,
-        "nodes": 322493,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 97668,
         "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_mid_03",
@@ -137,12 +137,12 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 20,
-        "nodes": 251492,
+        "nodes": 60642,
         "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_mid_04",
@@ -157,7 +157,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 17,
-        "nodes": 204763,
+        "nodes": 204764,
         "bestmove": "d4d5"
       },
       "depth_gain": 1
@@ -173,12 +173,12 @@
         "bestmove": "e4d5"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 20,
-        "nodes": 277271,
+        "depth": 8,
+        "seldepth": 17,
+        "nodes": 123270,
         "bestmove": "c3d5"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_mid_06",
@@ -193,7 +193,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 17,
-        "nodes": 104070,
+        "nodes": 104075,
         "bestmove": "b1c3"
       },
       "depth_gain": 0
@@ -209,12 +209,12 @@
         "bestmove": "e3d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 278052,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 118258,
         "bestmove": "e3d4"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_mid_08",
@@ -229,7 +229,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 24,
-        "nodes": 200965,
+        "nodes": 200968,
         "bestmove": "f1b5"
       },
       "depth_gain": 2
@@ -245,28 +245,28 @@
         "bestmove": "d7c8r"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 30,
-        "nodes": 321533,
+        "nodes": 96463,
         "bestmove": "d7c8r"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_tac_02",
       "movetime": 1000,
       "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
       "current-final": {
-        "depth": 6,
-        "seldepth": 26,
-        "nodes": 285778,
-        "bestmove": "e2a6"
+        "depth": 5,
+        "seldepth": 23,
+        "nodes": 94546,
+        "bestmove": "d5e6"
       },
       "current-final-lmr-null-window": {
-        "depth": 6,
-        "seldepth": 26,
-        "nodes": 199902,
-        "bestmove": "e2a6"
+        "depth": 5,
+        "seldepth": 22,
+        "nodes": 84714,
+        "bestmove": "d5e6"
       },
       "depth_gain": 0
     },
@@ -293,15 +293,15 @@
       "movetime": 1000,
       "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 22,
-        "nodes": 295199,
+        "nodes": 190005,
         "bestmove": "f7f6"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 22,
-        "nodes": 239227,
+        "nodes": 148224,
         "bestmove": "f7f6"
       },
       "depth_gain": 0
@@ -311,15 +311,15 @@
       "movetime": 1000,
       "fen": "r1b2r2/1pp1k3/p6p/5p2/2BQ4/1PP5/P5Pq/1K2R3 b - - 1 19",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 23,
-        "nodes": 271432,
+        "nodes": 145001,
         "bestmove": "c8e6"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 23,
-        "nodes": 367270,
+        "nodes": 193106,
         "bestmove": "c8e6"
       },
       "depth_gain": 1
@@ -337,7 +337,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 18,
-        "nodes": 222255,
+        "nodes": 222292,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -347,36 +347,36 @@
       "movetime": 1000,
       "fen": "rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6",
       "current-final": {
-        "depth": 6,
+        "depth": 5,
         "seldepth": 20,
-        "nodes": 260602,
-        "bestmove": "e2e3"
+        "nodes": 60452,
+        "bestmove": "d1d3"
       },
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 20,
-        "nodes": 128667,
+        "nodes": 128671,
         "bestmove": "c1f4"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_closed_03",
       "movetime": 1000,
       "fen": "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6",
       "current-final": {
-        "depth": 6,
-        "seldepth": 19,
-        "nodes": 225369,
+        "depth": 5,
+        "seldepth": 18,
+        "nodes": 63981,
         "bestmove": "e2e3"
       },
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 19,
-        "nodes": 141927,
+        "nodes": 141936,
         "bestmove": "d1d3"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_closed_04",
@@ -391,7 +391,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 22,
-        "nodes": 112872,
+        "nodes": 112879,
         "bestmove": "c3d5"
       },
       "depth_gain": 0
@@ -407,12 +407,12 @@
         "bestmove": "e1e2"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 18,
-        "nodes": 379146,
-        "bestmove": "a1d1"
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 84627,
+        "bestmove": "e1e2"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_qless_02",
@@ -425,12 +425,12 @@
         "bestmove": "d1d7"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 15,
-        "nodes": 414960,
+        "depth": 6,
+        "seldepth": 13,
+        "nodes": 139231,
         "bestmove": "d1d7"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_qless_03",
@@ -443,12 +443,12 @@
         "bestmove": "e3e4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 283301,
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 107417,
         "bestmove": "e3e4"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_piece_01",
@@ -473,15 +473,15 @@
       "movetime": 1000,
       "fen": "7k/8/8/8/8/8/3RK3/8 w - - 0 1",
       "current-final": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 8,
-        "nodes": 447840,
+        "nodes": 177215,
         "bestmove": "d2d7"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 8,
-        "nodes": 447840,
+        "nodes": 177215,
         "bestmove": "d2d7"
       },
       "depth_gain": 0
@@ -509,15 +509,15 @@
       "movetime": 1000,
       "fen": "8/8/8/8/3k4/8/PPP5/4K3 w - - 0 1",
       "current-final": {
-        "depth": 10,
-        "seldepth": 12,
-        "nodes": 517483,
+        "depth": 9,
+        "seldepth": 10,
+        "nodes": 209500,
         "bestmove": "e1d2"
       },
       "current-final-lmr-null-window": {
-        "depth": 10,
-        "seldepth": 12,
-        "nodes": 517483,
+        "depth": 9,
+        "seldepth": 10,
+        "nodes": 209500,
         "bestmove": "e1d2"
       },
       "depth_gain": 0
@@ -553,7 +553,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 14,
-        "nodes": 96709,
+        "nodes": 96735,
         "bestmove": "b6c7"
       },
       "depth_gain": 0
@@ -569,27 +569,27 @@
         "bestmove": "f8b4"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 17,
-        "nodes": 337331,
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 144925,
         "bestmove": "f8b4"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_03",
       "movetime": 1000,
       "fen": "r4rk1/pbp1qppp/2p5/8/4Q3/P2BP2P/1P4P1/R4RK1 b - - 0 11",
       "current-final": {
-        "depth": 9,
-        "seldepth": 22,
-        "nodes": 236054,
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 73253,
         "bestmove": "e7e4"
       },
       "current-final-lmr-null-window": {
-        "depth": 10,
+        "depth": 9,
         "seldepth": 22,
-        "nodes": 320270,
+        "nodes": 126957,
         "bestmove": "e7e4"
       },
       "depth_gain": 1
@@ -607,7 +607,7 @@
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 16,
-        "nodes": 188361,
+        "nodes": 188365,
         "bestmove": "d7e5"
       },
       "depth_gain": 1
@@ -617,15 +617,15 @@
       "movetime": 1000,
       "fen": "r2qr1k1/1p3p1p/p1bbpnpB/8/3pN3/1P1P1P2/P1P1N1PP/R2Q2KR b - - 2 13",
       "current-final": {
-        "depth": 7,
-        "seldepth": 19,
-        "nodes": 319360,
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 96323,
         "bestmove": "e6e5"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 19,
-        "nodes": 201856,
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 63874,
         "bestmove": "e6e5"
       },
       "depth_gain": 0
@@ -641,12 +641,12 @@
         "bestmove": "e2b2"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 18,
-        "nodes": 224514,
+        "nodes": 105935,
         "bestmove": "e2b2"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_07",
@@ -659,27 +659,27 @@
         "bestmove": "e7d6"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 16,
-        "nodes": 325465,
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 76583,
         "bestmove": "e7d6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_08",
       "movetime": 1000,
       "fen": "r1r3k1/ppp2ppp/4bb2/1N1pN3/8/8/PB3PPP/3RR1K1 b - - 2 16",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 19,
-        "nodes": 240842,
+        "nodes": 114019,
         "bestmove": "c7c5"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 18,
-        "nodes": 341600,
+        "nodes": 162436,
         "bestmove": "c7c5"
       },
       "depth_gain": 1
@@ -695,12 +695,12 @@
         "bestmove": "b2c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 22,
-        "nodes": 179480,
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 85872,
         "bestmove": "b2c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_10",
@@ -715,7 +715,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 21,
-        "nodes": 144029,
+        "nodes": 144035,
         "bestmove": "h6h5"
       },
       "depth_gain": 1
@@ -731,12 +731,12 @@
         "bestmove": "e1g1"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 18,
-        "nodes": 301766,
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 93262,
         "bestmove": "e1g1"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_12",
@@ -749,27 +749,27 @@
         "bestmove": "g7f6"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 252868,
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 132693,
         "bestmove": "g7f6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_13",
       "movetime": 1000,
       "fen": "r5k1/p1p2bpp/1p6/3n4/3BB3/2P5/P1PK1PPP/7R b - - 0 20",
       "current-final": {
-        "depth": 7,
-        "seldepth": 16,
-        "nodes": 235242,
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 130839,
         "bestmove": "a8d8"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 16,
-        "nodes": 280200,
+        "nodes": 159628,
         "bestmove": "a8d8"
       },
       "depth_gain": 1
@@ -779,33 +779,33 @@
       "movetime": 1000,
       "fen": "3rr1k1/1p3p1p/p1b3p1/4p1q1/3bN3/1P1PBP2/P2Q1KPP/4R2R b - - 8 21",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 18,
-        "nodes": 212136,
+        "nodes": 88742,
         "bestmove": "g5e7"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 18,
-        "nodes": 137257,
+        "nodes": 137258,
         "bestmove": "g5e7"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_15",
       "movetime": 1000,
       "fen": "r5kr/1p6/pq2p2p/1B1pN3/8/P7/1PQ2PPP/R1R3K1 b - - 0 22",
       "current-final": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 22,
-        "nodes": 216283,
+        "nodes": 98031,
         "bestmove": "h8h7"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 22,
-        "nodes": 251671,
+        "nodes": 150017,
         "bestmove": "h8h7"
       },
       "depth_gain": 1
@@ -823,7 +823,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 238992,
+        "nodes": 239044,
         "bestmove": "c1e1"
       },
       "depth_gain": 1
@@ -841,7 +841,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 14,
-        "nodes": 55484,
+        "nodes": 55486,
         "bestmove": "c5d4"
       },
       "depth_gain": 0
@@ -857,30 +857,30 @@
         "bestmove": "f6e7"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 25,
-        "nodes": 300139,
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 95333,
         "bestmove": "f6e7"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_19",
       "movetime": 1000,
       "fen": "3r3r/5p1p/pp1k1p2/3P1bp1/4p3/1B5P/PPP2PP1/3RR1K1 w - - 2 27",
       "current-final": {
-        "depth": 7,
-        "seldepth": 17,
-        "nodes": 283203,
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 65606,
         "bestmove": "g1f1"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 128688,
+        "nodes": 128720,
         "bestmove": "g1f1"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_20",
@@ -895,7 +895,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 192670,
+        "nodes": 192674,
         "bestmove": "c6d7"
       },
       "depth_gain": 1
@@ -905,18 +905,18 @@
       "movetime": 1000,
       "fen": "4r1k1/1p3p2/1Q5p/6p1/3Nq3/4P3/r4PPP/3R2KR w - - 0 30",
       "current-final": {
-        "depth": 7,
-        "seldepth": 17,
-        "nodes": 329041,
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 105100,
         "bestmove": "b6h6"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 17,
-        "nodes": 174393,
+        "nodes": 174405,
         "bestmove": "b6h6"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_22",
@@ -949,7 +949,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 20,
-        "nodes": 187160,
+        "nodes": 187162,
         "bestmove": "e7f8"
       },
       "depth_gain": 1
@@ -959,18 +959,18 @@
       "movetime": 1000,
       "fen": "3r4/5p1p/p2k1p2/1p1P1b2/4p1rP/1B6/PPP2KP1/3R3R w - - 0 33",
       "current-final": {
-        "depth": 7,
-        "seldepth": 18,
-        "nodes": 350853,
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 113575,
         "bestmove": "d1f1"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 18,
-        "nodes": 182101,
+        "nodes": 182129,
         "bestmove": "d1f1"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_25",
@@ -983,12 +983,12 @@
         "bestmove": "e1g1"
       },
       "current-final-lmr-null-window": {
-        "depth": 6,
-        "seldepth": 17,
-        "nodes": 376303,
-        "bestmove": "e1g1"
+        "depth": 5,
+        "seldepth": 15,
+        "nodes": 73604,
+        "bestmove": "g2g3"
       },
-      "depth_gain": 0
+      "depth_gain": -1
     },
     {
       "id": "s7_mid_26",
@@ -1019,12 +1019,12 @@
         "bestmove": "c7b6"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 19,
-        "nodes": 321525,
-        "bestmove": "c7e7"
+        "depth": 6,
+        "seldepth": 17,
+        "nodes": 80279,
+        "bestmove": "c7b6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_28",
@@ -1037,12 +1037,12 @@
         "bestmove": "f8e7"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 15,
-        "nodes": 314662,
+        "depth": 6,
+        "seldepth": 12,
+        "nodes": 95621,
         "bestmove": "f8e7"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_29",
@@ -1057,7 +1057,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 16,
-        "nodes": 157650,
+        "nodes": 157655,
         "bestmove": "b4b1"
       },
       "depth_gain": 0
@@ -1067,15 +1067,15 @@
       "movetime": 1000,
       "fen": "r7/5pk1/5n1p/2NpBb2/3P1P2/4RP2/2r4P/3R3K w - - 1 41",
       "current-final": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 18,
-        "nodes": 297562,
+        "nodes": 80845,
         "bestmove": "d1g1"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 18,
-        "nodes": 251646,
+        "nodes": 131487,
         "bestmove": "d1g1"
       },
       "depth_gain": 1
@@ -1085,51 +1085,51 @@
       "movetime": 1000,
       "fen": "3rr1k1/pp3pPp/6p1/q7/2b5/3B1N2/1PP3PP/1K4QR b - - 3 21",
       "current-final": {
-        "depth": 7,
-        "seldepth": 19,
-        "nodes": 331954,
-        "bestmove": "a5a2"
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 100952,
+        "bestmove": "c4d3"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 19,
-        "nodes": 210430,
+        "nodes": 210433,
         "bestmove": "a5a2"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_02",
       "movetime": 1000,
       "fen": "4k3/2Rb4/3r3p/4p1p1/5p2/7P/4R1P1/6K1 w - - 0 61",
       "current-final": {
-        "depth": 7,
-        "seldepth": 15,
-        "nodes": 376483,
+        "depth": 6,
+        "seldepth": 13,
+        "nodes": 96540,
         "bestmove": "e2e5"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 14,
-        "nodes": 180871,
+        "nodes": 180873,
         "bestmove": "e2e5"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_03",
       "movetime": 1000,
       "fen": "r1b2rk1/ppp1b1pp/1nn1p3/1N1q1pP1/3P3P/3BPN2/PP3P2/RQB2RK1 w - - 9 12",
       "current-final": {
-        "depth": 7,
-        "seldepth": 23,
-        "nodes": 213524,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 75204,
         "bestmove": "e3e4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 22,
-        "nodes": 261684,
+        "depth": 7,
+        "seldepth": 21,
+        "nodes": 104821,
         "bestmove": "e3e4"
       },
       "depth_gain": 1
@@ -1157,16 +1157,16 @@
       "movetime": 1000,
       "fen": "4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38",
       "current-final": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 15,
-        "nodes": 439642,
-        "bestmove": "c5e7"
+        "nodes": 112174,
+        "bestmove": "c5e3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 15,
-        "nodes": 296740,
-        "bestmove": "c5e7"
+        "nodes": 94072,
+        "bestmove": "c5e3"
       },
       "depth_gain": 0
     },
@@ -1183,7 +1183,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 146039,
+        "nodes": 146047,
         "bestmove": "d5f4"
       },
       "depth_gain": 1
@@ -1199,27 +1199,27 @@
         "bestmove": "a2b2"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 17,
-        "nodes": 266315,
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 78634,
         "bestmove": "a2b2"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_tac_08",
       "movetime": 1000,
       "fen": "rn1q2k1/p4ppp/1pp2b2/4p3/Q1P1B3/4P3/PP3PPP/1RB3K1 b - - 1 9",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 17,
-        "nodes": 285449,
+        "nodes": 63774,
         "bestmove": "d8d6"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 19,
-        "nodes": 359194,
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 163781,
         "bestmove": "h7h6"
       },
       "depth_gain": 1
@@ -1229,18 +1229,18 @@
       "movetime": 1000,
       "fen": "r3r1k1/ppp2ppp/1bq5/4pb2/3nN3/2NPB3/PPPQ1PPP/3RR1K1 b - - 9 6",
       "current-final": {
-        "depth": 6,
-        "seldepth": 25,
-        "nodes": 308696,
-        "bestmove": "f5g6"
+        "depth": 5,
+        "seldepth": 16,
+        "nodes": 46490,
+        "bestmove": "c6g6"
       },
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 17,
-        "nodes": 130266,
+        "nodes": 130274,
         "bestmove": "c6g6"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_10",
@@ -1255,7 +1255,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 14,
-        "nodes": 135332,
+        "nodes": 135333,
         "bestmove": "c3e2"
       },
       "depth_gain": 1
@@ -1271,12 +1271,12 @@
         "bestmove": "a5c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 18,
-        "nodes": 221759,
-        "bestmove": "g6h6"
+        "nodes": 112129,
+        "bestmove": "a5c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_tac_12",
@@ -1291,7 +1291,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 14,
-        "nodes": 91380,
+        "nodes": 91382,
         "bestmove": "b5h5"
       },
       "depth_gain": 0
@@ -1301,16 +1301,16 @@
       "movetime": 1000,
       "fen": "4nk2/pp3p2/8/1Pr1B3/6p1/3R4/P1PK1PPP/8 w - - 4 29",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 14,
-        "nodes": 324014,
-        "bestmove": "e5d4"
+        "nodes": 127303,
+        "bestmove": "d3e3"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 14,
-        "nodes": 280325,
-        "bestmove": "e5d4"
+        "nodes": 107548,
+        "bestmove": "d3e3"
       },
       "depth_gain": 0
     },
@@ -1355,16 +1355,16 @@
       "movetime": 1000,
       "fen": "4r3/1p4pp/p1q2k2/3R1P2/4PK2/P3R3/8/8 b - - 14 36",
       "current-final": {
-        "depth": 7,
-        "seldepth": 16,
-        "nodes": 387724,
-        "bestmove": "f6f7"
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 88388,
+        "bestmove": "c6c7"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 15,
-        "nodes": 318266,
-        "bestmove": "f6f7"
+        "nodes": 79569,
+        "bestmove": "c6c7"
       },
       "depth_gain": 0
     },
@@ -1381,7 +1381,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 290308,
+        "nodes": 290312,
         "bestmove": "d2d4"
       },
       "depth_gain": 1
@@ -1391,33 +1391,33 @@
       "movetime": 1000,
       "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1",
       "current-final": {
-        "depth": 7,
-        "seldepth": 16,
-        "nodes": 306028,
+        "depth": 6,
+        "seldepth": 14,
+        "nodes": 69756,
         "bestmove": "g3f4"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 14,
-        "nodes": 115141,
+        "nodes": 115156,
         "bestmove": "g3f4"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_19",
       "movetime": 1000,
       "fen": "8/5p2/7p/2r3p1/8/P4k1P/1K1p4/6R1 b - - 1 39",
       "current-final": {
-        "depth": 7,
-        "seldepth": 12,
-        "nodes": 359764,
+        "depth": 6,
+        "seldepth": 11,
+        "nodes": 83897,
         "bestmove": "c5e5"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 12,
-        "nodes": 359764,
+        "depth": 6,
+        "seldepth": 11,
+        "nodes": 83897,
         "bestmove": "c5e5"
       },
       "depth_gain": 0
@@ -1435,7 +1435,7 @@
       "current-final-lmr-null-window": {
         "depth": 6,
         "seldepth": 15,
-        "nodes": 132262,
+        "nodes": 132264,
         "bestmove": "d7e8n"
       },
       "depth_gain": 0
@@ -1453,7 +1453,7 @@
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 17,
-        "nodes": 498244,
+        "nodes": 498409,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1471,7 +1471,7 @@
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 24,
-        "nodes": 738016,
+        "nodes": 738124,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1481,15 +1481,15 @@
       "movetime": 3000,
       "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 19,
-        "nodes": 726510,
+        "nodes": 139929,
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 22,
-        "nodes": 1003867,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 261073,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1505,12 +1505,12 @@
         "bestmove": "d2d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 28,
-        "nodes": 946900,
+        "depth": 8,
+        "seldepth": 23,
+        "nodes": 560532,
         "bestmove": "d2d4"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_opening_05",
@@ -1523,27 +1523,27 @@
         "bestmove": "d2d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 23,
-        "nodes": 778763,
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 320729,
         "bestmove": "d2d4"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_mid_01",
       "movetime": 3000,
       "fen": "r1bq1rk1/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w - - 6 6",
       "current-final": {
-        "depth": 7,
-        "seldepth": 22,
-        "nodes": 768862,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 202475,
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 22,
-        "nodes": 841497,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 280714,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1553,15 +1553,15 @@
       "movetime": 3000,
       "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
       "current-final": {
-        "depth": 7,
-        "seldepth": 21,
-        "nodes": 658910,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 175806,
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 21,
-        "nodes": 796585,
+        "depth": 7,
+        "seldepth": 20,
+        "nodes": 322511,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1577,12 +1577,12 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 25,
-        "nodes": 1065959,
+        "depth": 8,
+        "seldepth": 22,
+        "nodes": 591258,
         "bestmove": "b1c3"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_mid_04",
@@ -1595,12 +1595,12 @@
         "bestmove": "d4d5"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 24,
-        "nodes": 917465,
+        "nodes": 575184,
         "bestmove": "d4d5"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_mid_05",
@@ -1613,27 +1613,27 @@
         "bestmove": "c3d5"
       },
       "current-final-lmr-null-window": {
-        "depth": 10,
-        "seldepth": 24,
-        "nodes": 763154,
+        "depth": 9,
+        "seldepth": 20,
+        "nodes": 277271,
         "bestmove": "c3d5"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_mid_06",
       "movetime": 3000,
       "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 6 5",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 25,
-        "nodes": 710541,
+        "nodes": 215264,
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 25,
-        "nodes": 931939,
+        "nodes": 370133,
         "bestmove": "b1c3"
       },
       "depth_gain": 1
@@ -1649,30 +1649,30 @@
         "bestmove": "e3d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 27,
-        "nodes": 614010,
+        "depth": 8,
+        "seldepth": 20,
+        "nodes": 278052,
         "bestmove": "e3d4"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_mid_08",
       "movetime": 3000,
       "fen": "r3kb1r/ppp2ppp/2q1p3/3p1bB1/1n1Pn3/N4N2/PPP2PPP/R2QKB1R w KQkq - 0 5",
       "current-final": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 24,
-        "nodes": 772490,
+        "nodes": 334070,
         "bestmove": "f1b5"
       },
       "current-final-lmr-null-window": {
         "depth": 10,
         "seldepth": 24,
-        "nodes": 594009,
+        "nodes": 594013,
         "bestmove": "f1b5"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_s4_tac_01",
@@ -1687,7 +1687,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 30,
-        "nodes": 640235,
+        "nodes": 640258,
         "bestmove": "d7c8r"
       },
       "depth_gain": 2
@@ -1697,9 +1697,9 @@
       "movetime": 3000,
       "fen": "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
       "current-final": {
-        "depth": 7,
-        "seldepth": 31,
-        "nodes": 638760,
+        "depth": 6,
+        "seldepth": 26,
+        "nodes": 285778,
         "bestmove": "e2a6"
       },
       "current-final-lmr-null-window": {
@@ -1708,7 +1708,7 @@
         "nodes": 455357,
         "bestmove": "e2a6"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_tac_03",
@@ -1721,27 +1721,27 @@
         "bestmove": "c4c5"
       },
       "current-final-lmr-null-window": {
-        "depth": 10,
+        "depth": 9,
         "seldepth": 29,
-        "nodes": 988787,
+        "nodes": 410809,
         "bestmove": "c4c5"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_tac_04",
       "movetime": 3000,
       "fen": "2r3r1/1bp2k2/ppn1N1pQ/3p1p2/3P2P1/7B/qPP2P1P/1R2R1K1 b - - 0 16",
       "current-final": {
-        "depth": 8,
-        "seldepth": 25,
-        "nodes": 921693,
+        "depth": 7,
+        "seldepth": 22,
+        "nodes": 295199,
         "bestmove": "f7f6"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 25,
-        "nodes": 917572,
+        "nodes": 439577,
         "bestmove": "f7f6"
       },
       "depth_gain": 1
@@ -1757,12 +1757,12 @@
         "bestmove": "c8e6"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 24,
-        "nodes": 855993,
+        "depth": 8,
+        "seldepth": 23,
+        "nodes": 367270,
         "bestmove": "c8e6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_closed_01",
@@ -1775,63 +1775,63 @@
         "bestmove": "b1c3"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 18,
-        "nodes": 783644,
+        "nodes": 222292,
         "bestmove": "b1c3"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_s4_closed_02",
       "movetime": 3000,
       "fen": "rnbq1rk1/ppp1bppp/4pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQ - 0 6",
       "current-final": {
-        "depth": 7,
-        "seldepth": 22,
-        "nodes": 830259,
+        "depth": 6,
+        "seldepth": 20,
+        "nodes": 260602,
         "bestmove": "e2e3"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 23,
-        "nodes": 512648,
+        "nodes": 512718,
         "bestmove": "e2e3"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_closed_03",
       "movetime": 3000,
       "fen": "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 0 6",
       "current-final": {
-        "depth": 7,
-        "seldepth": 20,
-        "nodes": 901499,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 225369,
         "bestmove": "e2e3"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 21,
-        "nodes": 468041,
+        "nodes": 468091,
         "bestmove": "e2e3"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_s4_closed_04",
       "movetime": 3000,
       "fen": "r1bq1rk1/ppp1bppp/2np1n2/4p3/2P1P3/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 7",
       "current-final": {
-        "depth": 7,
-        "seldepth": 24,
-        "nodes": 934397,
-        "bestmove": "d3d4"
+        "depth": 6,
+        "seldepth": 22,
+        "nodes": 137242,
+        "bestmove": "c3d5"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 25,
-        "nodes": 893384,
+        "depth": 7,
+        "seldepth": 23,
+        "nodes": 429083,
         "bestmove": "d3d4"
       },
       "depth_gain": 1
@@ -1849,7 +1849,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 18,
-        "nodes": 379146,
+        "nodes": 379164,
         "bestmove": "a1d1"
       },
       "depth_gain": 1
@@ -1867,7 +1867,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 15,
-        "nodes": 414960,
+        "nodes": 414990,
         "bestmove": "d1d7"
       },
       "depth_gain": 1
@@ -1877,18 +1877,18 @@
       "movetime": 3000,
       "fen": "r4rk1/pp3ppp/2p2n2/3p4/3P4/1PN1PN2/P1P2PPP/2R1R1K1 w - - 0 12",
       "current-final": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 833090,
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 241030,
         "bestmove": "e3e4"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 20,
-        "nodes": 466182,
+        "nodes": 466196,
         "bestmove": "e3e4"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_s4_piece_01",
@@ -1993,7 +1993,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 19,
-        "nodes": 384351,
+        "nodes": 384547,
         "bestmove": "b6c7"
       },
       "depth_gain": 1
@@ -2009,48 +2009,48 @@
         "bestmove": "f8b4"
       },
       "current-final-lmr-null-window": {
-        "depth": 10,
+        "depth": 9,
         "seldepth": 17,
-        "nodes": 1017760,
+        "nodes": 337344,
         "bestmove": "f8b4"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_03",
       "movetime": 3000,
       "fen": "r4rk1/pbp1qppp/2p5/8/4Q3/P2BP2P/1P4P1/R4RK1 b - - 0 11",
       "current-final": {
-        "depth": 10,
+        "depth": 9,
         "seldepth": 22,
-        "nodes": 858835,
+        "nodes": 236054,
         "bestmove": "e7e4"
       },
       "current-final-lmr-null-window": {
         "depth": 11,
         "seldepth": 25,
-        "nodes": 649936,
+        "nodes": 649997,
         "bestmove": "e7e4"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_mid_04",
       "movetime": 3000,
       "fen": "r3k2r/ppnn1ppp/1qp1p3/3pPb2/NP6/P3P3/2PBBPPP/R2Q1RK1 b kq - 2 12",
       "current-final": {
-        "depth": 8,
-        "seldepth": 25,
-        "nodes": 768409,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 98587,
         "bestmove": "d7e5"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 18,
-        "nodes": 515968,
+        "nodes": 515985,
         "bestmove": "d7e5"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_mid_05",
@@ -2065,7 +2065,7 @@
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 24,
-        "nodes": 499269,
+        "nodes": 499288,
         "bestmove": "e6e5"
       },
       "depth_gain": 1
@@ -2075,18 +2075,18 @@
       "movetime": 3000,
       "fen": "r2r2k1/p1p2pp1/2Nn1b1p/2p5/2P5/4B3/Pq2QPPP/R2R2K1 w - - 0 15",
       "current-final": {
-        "depth": 8,
-        "seldepth": 19,
-        "nodes": 835720,
+        "depth": 7,
+        "seldepth": 18,
+        "nodes": 148733,
         "bestmove": "e2b2"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 19,
-        "nodes": 416054,
+        "nodes": 416057,
         "bestmove": "e2b2"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_mid_07",
@@ -2101,7 +2101,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 325465,
+        "nodes": 325469,
         "bestmove": "e7d6"
       },
       "depth_gain": 1
@@ -2111,15 +2111,15 @@
       "movetime": 3000,
       "fen": "r1r3k1/ppp2ppp/4bb2/1N1pN3/8/8/PB3PPP/3RR1K1 b - - 2 16",
       "current-final": {
-        "depth": 8,
-        "seldepth": 21,
-        "nodes": 852830,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 240842,
         "bestmove": "c7c5"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 19,
-        "nodes": 791458,
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 341623,
         "bestmove": "c7c5"
       },
       "depth_gain": 1
@@ -2129,18 +2129,18 @@
       "movetime": 3000,
       "fen": "r4rk1/pp3ppp/3bb1q1/1R4BB/2p5/P1n4P/1PP2PP1/1RQ3K1 w - - 0 17",
       "current-final": {
-        "depth": 8,
-        "seldepth": 25,
-        "nodes": 772624,
-        "bestmove": "h5g6"
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 102076,
+        "bestmove": "b2c3"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 23,
-        "nodes": 436691,
+        "nodes": 436695,
         "bestmove": "b2c3"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_mid_10",
@@ -2155,7 +2155,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 21,
-        "nodes": 683692,
+        "nodes": 683744,
         "bestmove": "h6h5"
       },
       "depth_gain": 1
@@ -2173,7 +2173,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 18,
-        "nodes": 301766,
+        "nodes": 301779,
         "bestmove": "e1g1"
       },
       "depth_gain": 1
@@ -2189,12 +2189,12 @@
         "bestmove": "g7f6"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 20,
-        "nodes": 699427,
+        "nodes": 252873,
         "bestmove": "g7f6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_13",
@@ -2209,7 +2209,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 20,
-        "nodes": 552506,
+        "nodes": 552555,
         "bestmove": "a8d8"
       },
       "depth_gain": 1
@@ -2225,12 +2225,12 @@
         "bestmove": "g5e7"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 25,
-        "nodes": 790637,
-        "bestmove": "g5h4"
+        "depth": 8,
+        "seldepth": 21,
+        "nodes": 327697,
+        "bestmove": "g5e7"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_15",
@@ -2245,7 +2245,7 @@
       "current-final-lmr-null-window": {
         "depth": 10,
         "seldepth": 24,
-        "nodes": 482855,
+        "nodes": 482952,
         "bestmove": "h8h7"
       },
       "depth_gain": 1
@@ -2261,46 +2261,46 @@
         "bestmove": "d3e2"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 805423,
-        "bestmove": "d3e2"
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 239044,
+        "bestmove": "c1e1"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_17",
       "movetime": 3000,
       "fen": "r3r3/6k1/3Q3p/2B2p2/p7/4P3/PPP5/1K6 w - - 2 24",
       "current-final": {
-        "depth": 8,
-        "seldepth": 16,
-        "nodes": 1056105,
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 62426,
         "bestmove": "c5d4"
       },
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 16,
-        "nodes": 469688,
+        "nodes": 469690,
         "bestmove": "c5d4"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_18",
       "movetime": 3000,
       "fen": "1r1r2k1/1pp3p1/p1n1qbbp/P3p3/1PN1PpN1/2PP3P/2Q1B1P1/1K1R1R2 b - - 1 26",
       "current-final": {
-        "depth": 7,
-        "seldepth": 25,
-        "nodes": 660970,
-        "bestmove": "f6h4"
+        "depth": 6,
+        "seldepth": 21,
+        "nodes": 112890,
+        "bestmove": "f6e7"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
+        "depth": 7,
         "seldepth": 25,
-        "nodes": 922884,
-        "bestmove": "f6h4"
+        "nodes": 300144,
+        "bestmove": "f6e7"
       },
       "depth_gain": 1
     },
@@ -2317,7 +2317,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 19,
-        "nodes": 645271,
+        "nodes": 645352,
         "bestmove": "g1h2"
       },
       "depth_gain": 2
@@ -2333,12 +2333,12 @@
         "bestmove": "c6d7"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 19,
-        "nodes": 908158,
+        "depth": 8,
+        "seldepth": 16,
+        "nodes": 491291,
         "bestmove": "c6d7"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_21",
@@ -2351,12 +2351,12 @@
         "bestmove": "b6h6"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 18,
-        "nodes": 779166,
+        "depth": 8,
+        "seldepth": 17,
+        "nodes": 389426,
         "bestmove": "b6h6"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_22",
@@ -2381,15 +2381,15 @@
       "movetime": 3000,
       "fen": "6r1/pb1kB1b1/3p4/4p1Qp/2p1p3/2qPK2P/5P2/2NR4 w - - 0 32",
       "current-final": {
-        "depth": 8,
-        "seldepth": 21,
-        "nodes": 771333,
+        "depth": 7,
+        "seldepth": 19,
+        "nodes": 335137,
         "bestmove": "e7f8"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 21,
-        "nodes": 659765,
+        "nodes": 360801,
         "bestmove": "e7f8"
       },
       "depth_gain": 1
@@ -2405,12 +2405,12 @@
         "bestmove": "d1f1"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 22,
-        "nodes": 819674,
+        "nodes": 515711,
         "bestmove": "d1a1"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_mid_25",
@@ -2461,7 +2461,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 19,
-        "nodes": 760745,
+        "nodes": 760766,
         "bestmove": "c7e7"
       },
       "depth_gain": 2
@@ -2477,27 +2477,27 @@
         "bestmove": "f8e7"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 16,
-        "nodes": 980350,
+        "depth": 7,
+        "seldepth": 15,
+        "nodes": 314677,
         "bestmove": "f8e7"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_mid_29",
       "movetime": 3000,
       "fen": "R7/1p1r2pp/4k3/4p3/pQ3n2/8/2P2PPP/5K2 w - - 18 41",
       "current-final": {
-        "depth": 7,
-        "seldepth": 18,
-        "nodes": 912939,
-        "bestmove": "b4c4"
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 201400,
+        "bestmove": "b4b1"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 19,
-        "nodes": 1082008,
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 515243,
         "bestmove": "b4e1"
       },
       "depth_gain": 1
@@ -2507,18 +2507,18 @@
       "movetime": 3000,
       "fen": "r7/5pk1/5n1p/2NpBb2/3P1P2/4RP2/2r4P/3R3K w - - 1 41",
       "current-final": {
-        "depth": 9,
-        "seldepth": 19,
-        "nodes": 897215,
+        "depth": 8,
+        "seldepth": 18,
+        "nodes": 297562,
         "bestmove": "d1g1"
       },
       "current-final-lmr-null-window": {
         "depth": 10,
         "seldepth": 20,
-        "nodes": 686156,
+        "nodes": 686195,
         "bestmove": "d1g1"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_tac_01",
@@ -2533,7 +2533,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 24,
-        "nodes": 786581,
+        "nodes": 786612,
         "bestmove": "d8d3"
       },
       "depth_gain": 2
@@ -2549,12 +2549,12 @@
         "bestmove": "e2e5"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
-        "seldepth": 17,
-        "nodes": 1249398,
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 598359,
         "bestmove": "e2e5"
       },
-      "depth_gain": 2
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_03",
@@ -2569,7 +2569,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 24,
-        "nodes": 485277,
+        "nodes": 485287,
         "bestmove": "e3e4"
       },
       "depth_gain": 2
@@ -2597,33 +2597,33 @@
       "movetime": 3000,
       "fen": "4r1k1/5p1p/6pP/2b5/1p3R2/pP2BKP1/P4P2/8 b - - 0 38",
       "current-final": {
-        "depth": 9,
-        "seldepth": 16,
-        "nodes": 1233745,
+        "depth": 8,
+        "seldepth": 15,
+        "nodes": 439642,
         "bestmove": "c5e7"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 17,
-        "nodes": 865862,
+        "nodes": 865906,
         "bestmove": "c5e7"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_06",
       "movetime": 3000,
       "fen": "3r2k1/5ppp/p2N4/2RnPPP1/8/1b1K4/1B5P/8 b - - 2 31",
       "current-final": {
-        "depth": 8,
-        "seldepth": 18,
-        "nodes": 884553,
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 406032,
         "bestmove": "f7f6"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 21,
-        "nodes": 824657,
+        "nodes": 503603,
         "bestmove": "f7f6"
       },
       "depth_gain": 1
@@ -2633,15 +2633,15 @@
       "movetime": 3000,
       "fen": "3r2k1/5ppp/8/8/2P1Q3/2R5/rP1q1PK1/1R6 b - - 0 29",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 18,
-        "nodes": 705889,
+        "nodes": 152635,
         "bestmove": "a2b2"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 20,
-        "nodes": 811822,
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 266317,
         "bestmove": "a2b2"
       },
       "depth_gain": 1
@@ -2651,36 +2651,36 @@
       "movetime": 3000,
       "fen": "rn1q2k1/p4ppp/1pp2b2/4p3/Q1P1B3/4P3/PP3PPP/1RB3K1 b - - 1 9",
       "current-final": {
-        "depth": 8,
-        "seldepth": 22,
-        "nodes": 1027756,
+        "depth": 7,
+        "seldepth": 17,
+        "nodes": 285449,
         "bestmove": "d8d6"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 19,
-        "nodes": 625133,
+        "nodes": 625214,
         "bestmove": "h7h6"
       },
-      "depth_gain": 1
+      "depth_gain": 2
     },
     {
       "id": "s7_tac_09",
       "movetime": 3000,
       "fen": "r3r1k1/ppp2ppp/1bq5/4pb2/3nN3/2NPB3/PPPQ1PPP/3RR1K1 b - - 9 6",
       "current-final": {
-        "depth": 7,
+        "depth": 6,
         "seldepth": 25,
-        "nodes": 940430,
+        "nodes": 308696,
         "bestmove": "f5g6"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 25,
-        "nodes": 417663,
+        "nodes": 417685,
         "bestmove": "c6g6"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_10",
@@ -2695,7 +2695,7 @@
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 16,
-        "nodes": 454950,
+        "nodes": 454952,
         "bestmove": "c3e2"
       },
       "depth_gain": 1
@@ -2711,30 +2711,30 @@
         "bestmove": "g6h5"
       },
       "current-final-lmr-null-window": {
-        "depth": 9,
+        "depth": 8,
         "seldepth": 18,
-        "nodes": 634652,
-        "bestmove": "g6h5"
+        "nodes": 221761,
+        "bestmove": "g6h6"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_tac_12",
       "movetime": 3000,
       "fen": "2r3k1/5pp1/p6p/1q6/2p1Q3/P4K1P/1PR2P2/8 b - - 47 56",
       "current-final": {
-        "depth": 7,
-        "seldepth": 18,
-        "nodes": 964508,
+        "depth": 6,
+        "seldepth": 16,
+        "nodes": 173830,
         "bestmove": "b5h5"
       },
       "current-final-lmr-null-window": {
         "depth": 7,
         "seldepth": 17,
-        "nodes": 385650,
+        "nodes": 385658,
         "bestmove": "b5h5"
       },
-      "depth_gain": 0
+      "depth_gain": 1
     },
     {
       "id": "s7_tac_13",
@@ -2747,27 +2747,27 @@
         "bestmove": "e5d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 17,
-        "nodes": 1417034,
+        "depth": 7,
+        "seldepth": 14,
+        "nodes": 280330,
         "bestmove": "e5d4"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_tac_14",
       "movetime": 3000,
       "fen": "1k1r1b1r/ppp1n1pp/2nq2b1/3p1p2/3P1N2/P2BPN1P/1PQB1PP1/1R2R1K1 w - - 12 12",
       "current-final": {
-        "depth": 6,
-        "seldepth": 23,
-        "nodes": 662342,
+        "depth": 5,
+        "seldepth": 16,
+        "nodes": 83810,
         "bestmove": "f4g6"
       },
       "current-final-lmr-null-window": {
-        "depth": 7,
-        "seldepth": 22,
-        "nodes": 810175,
+        "depth": 6,
+        "seldepth": 19,
+        "nodes": 135281,
         "bestmove": "f4g6"
       },
       "depth_gain": 1
@@ -2803,7 +2803,7 @@
       "current-final-lmr-null-window": {
         "depth": 8,
         "seldepth": 16,
-        "nodes": 829748,
+        "nodes": 829826,
         "bestmove": "f6f7"
       },
       "depth_gain": 1
@@ -2819,12 +2819,12 @@
         "bestmove": "d2d4"
       },
       "current-final-lmr-null-window": {
-        "depth": 8,
-        "seldepth": 18,
-        "nodes": 1200842,
+        "depth": 7,
+        "seldepth": 16,
+        "nodes": 290312,
         "bestmove": "d2d4"
       },
-      "depth_gain": 1
+      "depth_gain": 0
     },
     {
       "id": "s7_tac_18",
@@ -2839,7 +2839,7 @@
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 17,
-        "nodes": 652380,
+        "nodes": 652430,
         "bestmove": "g3f4"
       },
       "depth_gain": 2
@@ -2867,66 +2867,68 @@
       "movetime": 3000,
       "fen": "4rk2/1QpPr3/p7/8/4NP2/4P3/PP5P/2KR3R w - - 1 29",
       "current-final": {
-        "depth": 8,
-        "seldepth": 18,
-        "nodes": 1184557,
-        "bestmove": "b7a6"
+        "depth": 6,
+        "seldepth": 15,
+        "nodes": 242194,
+        "bestmove": "d7e8n"
       },
       "current-final-lmr-null-window": {
         "depth": 9,
         "seldepth": 17,
-        "nodes": 744269,
+        "nodes": 744310,
         "bestmove": "b7a6"
       },
-      "depth_gain": 1
+      "depth_gain": 3
     }
   ],
   "summary": {
     "movetime1000": {
       "positions": 80,
-      "median_depth_a": 7.0,
+      "median_depth_a": 6.0,
       "median_depth_b": 7.0,
-      "mean_depth_a": 6.775,
-      "mean_depth_b": 7.362,
-      "median_seldepth_a": 17.0,
-      "median_seldepth_b": 18.0,
-      "gained": 44,
-      "lost": 0,
+      "mean_depth_a": 6.412,
+      "mean_depth_b": 6.85,
+      "median_seldepth_a": 16.5,
+      "median_seldepth_b": 16.5,
+      "gained": 35,
+      "lost": 1,
       "depth_distribution_a": {
-        "7": 32,
-        "6": 34,
-        "8": 7,
-        "9+": 4,
-        "5": 3
+        "6": 47,
+        "5": 8,
+        "7": 18,
+        "8": 4,
+        "9+": 3
       },
       "depth_distribution_b": {
-        "7": 38,
-        "9+": 9,
-        "6": 15,
-        "8": 18
+        "7": 33,
+        "6": 32,
+        "8": 8,
+        "9+": 5,
+        "5": 2
       }
     },
     "movetime3000": {
       "positions": 80,
       "median_depth_a": 7.0,
-      "median_depth_b": 9.0,
-      "mean_depth_a": 7.513,
-      "mean_depth_b": 8.512,
+      "median_depth_b": 8.0,
+      "mean_depth_a": 7.138,
+      "mean_depth_b": 8.088,
       "median_seldepth_a": 18.0,
-      "median_seldepth_b": 19.5,
-      "gained": 62,
+      "median_seldepth_b": 19.0,
+      "gained": 60,
       "lost": 0,
       "depth_distribution_a": {
-        "7": 40,
-        "8": 22,
-        "9+": 9,
-        "6": 9
+        "7": 37,
+        "6": 22,
+        "8": 14,
+        "9+": 6,
+        "5": 1
       },
       "depth_distribution_b": {
-        "8": 23,
-        "9+": 41,
-        "7": 15,
-        "6": 1
+        "8": 25,
+        "7": 28,
+        "9+": 25,
+        "6": 2
       }
     }
   }

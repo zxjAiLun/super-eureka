@@ -1,0 +1,2784 @@
+{
+  "rows": [
+    {
+      "i": 0,
+      "depth": 8,
+      "fen": "1k1r3r/pbpq1pb1/2pp2p1/3Pp3/2P5/1Q2P1P1/PP2NP2/R1B1R1K1 b - - 2 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d7h3",
+      "teacher_mate": 5,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "d7h3",
+        "score": "cp:616"
+      },
+      "b": {
+        "bestmove": "d7h3",
+        "score": "cp:616"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 1,
+      "depth": 8,
+      "fen": "r2b1k2/1Q4p1/7p/4p3/pPq3b1/P1P3P1/1n3PP1/1N3R1K b - - 0 20",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c4f1",
+      "teacher_mate": null,
+      "teacher_cp_stm": 666,
+      "a": {
+        "bestmove": "c4f1",
+        "score": "cp:994"
+      },
+      "b": {
+        "bestmove": "c4f1",
+        "score": "cp:994"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 2,
+      "depth": 8,
+      "fen": "b5kr/2R2p1p/p4p2/3p4/3P4/8/PP3PPK/4R3 w - - 2 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c7c8",
+      "teacher_mate": null,
+      "teacher_cp_stm": 715,
+      "a": {
+        "bestmove": "e1e8",
+        "score": "cp:605"
+      },
+      "b": {
+        "bestmove": "e1e8",
+        "score": "cp:605"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 3,
+      "depth": 8,
+      "fen": "1r1q1b2/pp5p/3pbp2/k2Np3/1N1nP3/6Q1/PPP2PPP/R3KB1R b KQ - 2 10",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e6d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -647,
+      "a": {
+        "bestmove": "e6d5",
+        "score": "cp:-917"
+      },
+      "b": {
+        "bestmove": "d4c2",
+        "score": "cp:-912"
+      },
+      "a_match": true,
+      "b_match": false,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 4,
+      "depth": 8,
+      "fen": "r2r2k1/pqpp1ppp/1pn1p3/7P/2P1P3/3b1NP1/Pb3PB1/R1BQR1K1 w - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c1b2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 559,
+      "a": {
+        "bestmove": "c1b2",
+        "score": "cp:40"
+      },
+      "b": {
+        "bestmove": "c1b2",
+        "score": "cp:40"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 5,
+      "depth": 8,
+      "fen": "r6r/pp2kppp/2p5/5b2/8/1P2BNP1/P3nPBP/R3R2K b - - 1 13",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e2g3",
+      "teacher_mate": null,
+      "teacher_cp_stm": -683,
+      "a": {
+        "bestmove": "f5d3",
+        "score": "cp:-432"
+      },
+      "b": {
+        "bestmove": "f5d3",
+        "score": "cp:-432"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 6,
+      "depth": 8,
+      "fen": "2kq3r/p3bp1p/2N2n2/2p3BN/3pP3/3P4/2P2PPP/1bQ2RK1 b - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f6h5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -516,
+      "a": {
+        "bestmove": "f6h5",
+        "score": "cp:-698"
+      },
+      "b": {
+        "bestmove": "f6h5",
+        "score": "cp:-698"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 7,
+      "depth": 8,
+      "fen": "r4rk1/pp3ppp/2n5/4P3/3B1PP1/3Q1q2/PP1K3P/1R5R b - - 0 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f3f4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 500,
+      "a": {
+        "bestmove": "f3g4",
+        "score": "cp:214"
+      },
+      "b": {
+        "bestmove": "f3g4",
+        "score": "cp:214"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 8,
+      "depth": 8,
+      "fen": "r1b3k1/pp3ppp/1bn5/4p1P1/4P3/5N1P/P4qBK/3Q4 b - - 0 18",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c8e6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 845,
+      "a": {
+        "bestmove": "f2e3",
+        "score": "cp:1175"
+      },
+      "b": {
+        "bestmove": "f2e3",
+        "score": "cp:1175"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 9,
+      "depth": 8,
+      "fen": "r4k2/pp4bB/3p4/3p4/2n5/8/PPN2rPP/1K5R w - - 0 16",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h7g6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -601,
+      "a": {
+        "bestmove": "b2b3",
+        "score": "cp:-637"
+      },
+      "b": {
+        "bestmove": "b2b3",
+        "score": "cp:-637"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 10,
+      "depth": 8,
+      "fen": "r1br1k2/ppq1n1pQ/2p1p2p/4P2N/8/1P1Bb3/PBP3PR/1K1R4 b - - 5 13",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e7f5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -524,
+      "a": {
+        "bestmove": "e7f5",
+        "score": "cp:-212"
+      },
+      "b": {
+        "bestmove": "e7f5",
+        "score": "cp:-212"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 11,
+      "depth": 8,
+      "fen": "r2q1b2/pp1k3p/3p1p2/3Np3/3nP3/2Q5/PPP2PPP/2R1KB1R w K - 5 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c3h3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 679,
+      "a": {
+        "bestmove": "c3h3",
+        "score": "cp:755"
+      },
+      "b": {
+        "bestmove": "c3h3",
+        "score": "cp:755"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 12,
+      "depth": 8,
+      "fen": "r4Bk1/5ppp/pp6/3p4/q2P4/8/P4PPP/R4RK1 b - - 0 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a8f8",
+      "teacher_mate": null,
+      "teacher_cp_stm": 535,
+      "a": {
+        "bestmove": "g8f8",
+        "score": "cp:510"
+      },
+      "b": {
+        "bestmove": "g8f8",
+        "score": "cp:510"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 13,
+      "depth": 8,
+      "fen": "r1k4r/pp3ppp/5n2/2p4q/2B2b2/5P2/PP3P1P/R1BQ2RK w - - 0 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c1f4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 527,
+      "a": {
+        "bestmove": "c1f4",
+        "score": "cp:273"
+      },
+      "b": {
+        "bestmove": "c1f4",
+        "score": "cp:273"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 14,
+      "depth": 8,
+      "fen": "2n5/1R3p1p/2r1k1p1/1N6/3B3b/PKP2P2/1P4PP/8 b - - 0 26",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h4d8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -512,
+      "a": {
+        "bestmove": "c8d6",
+        "score": "cp:-315"
+      },
+      "b": {
+        "bestmove": "c8d6",
+        "score": "cp:-315"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 15,
+      "depth": 8,
+      "fen": "r3kb1r/N2n2p1/p3p2p/2p1q3/8/4B3/5PPP/5RK1 b kq - 0 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a8a7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 930,
+      "a": {
+        "bestmove": "f8d6",
+        "score": "cp:1927"
+      },
+      "b": {
+        "bestmove": "a8a7",
+        "score": "cp:1927"
+      },
+      "a_match": false,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 16,
+      "depth": 8,
+      "fen": "r1b2k1r/ppp2qp1/3b3p/3B4/8/P2QBN2/1P3PPP/R4RK1 b - - 3 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c8f5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -518,
+      "a": {
+        "bestmove": "f7h5",
+        "score": "cp:-390"
+      },
+      "b": {
+        "bestmove": "f7f6",
+        "score": "cp:-386"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 4,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 17,
+      "depth": 8,
+      "fen": "r5k1/p4p1p/4p3/2p5/2P1q2P/5bP1/P2KNP2/3R4 b - - 3 17",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e4c4",
+      "teacher_mate": 6,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "e4e2",
+        "score": "cp:1922"
+      },
+      "b": {
+        "bestmove": "e4e2",
+        "score": "cp:1922"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 18,
+      "depth": 8,
+      "fen": "5k1r/pq2nppp/1p6/3pQ3/8/8/PPP2PPP/3R1RK1 b - - 1 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h7h5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -521,
+      "a": {
+        "bestmove": "f7f6",
+        "score": "cp:-218"
+      },
+      "b": {
+        "bestmove": "f7f6",
+        "score": "cp:-218"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 19,
+      "depth": 8,
+      "fen": "6kr/1b3p1p/p1p2p2/3Q4/3P4/8/PP3PPK/2R1R3 b - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c6d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -632,
+      "a": {
+        "bestmove": "c6d5",
+        "score": "cp:-515"
+      },
+      "b": {
+        "bestmove": "c6d5",
+        "score": "cp:-515"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 20,
+      "depth": 8,
+      "fen": "r1k4r/pp3ppp/3Q1n2/2p2q2/2B2B2/5P2/PP3P1P/R5RK b - - 2 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f6e8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -608,
+      "a": {
+        "bestmove": "f6e8",
+        "score": "cp:-346"
+      },
+      "b": {
+        "bestmove": "f6e8",
+        "score": "cp:-346"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 21,
+      "depth": 8,
+      "fen": "r3kb1r/p2n2p1/p3p2p/1Np1q3/8/4B3/5PPP/5RK1 w kq - 0 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b5a3",
+      "teacher_mate": null,
+      "teacher_cp_stm": -875,
+      "a": {
+        "bestmove": "b5a3",
+        "score": "cp:-1730"
+      },
+      "b": {
+        "bestmove": "b5a3",
+        "score": "cp:-1730"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 22,
+      "depth": 8,
+      "fen": "rn2k2r/p4p1p/6p1/3Pqb2/8/1Qb5/P1pNPPPP/2R1KB1R w Kkq - 6 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e2e3",
+      "teacher_mate": null,
+      "teacher_cp_stm": -572,
+      "a": {
+        "bestmove": "e2e3",
+        "score": "cp:-282"
+      },
+      "b": {
+        "bestmove": "e2e3",
+        "score": "cp:-282"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 23,
+      "depth": 8,
+      "fen": "r3N2Q/1bpkbp1p/p1p4B/2npPq2/8/2N5/PPP2PPP/3R1RK1 w - - 5 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e8f6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 578,
+      "a": {
+        "bestmove": "e8f6",
+        "score": "cp:585"
+      },
+      "b": {
+        "bestmove": "e8f6",
+        "score": "cp:585"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 24,
+      "depth": 8,
+      "fen": "7Q/p2pkp2/1p6/2pq4/3p4/P7/3KPPPP/R4B1R w - - 3 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h8h4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 557,
+      "a": {
+        "bestmove": "h8h4",
+        "score": "cp:1220"
+      },
+      "b": {
+        "bestmove": "h8h4",
+        "score": "cp:1220"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 25,
+      "depth": 8,
+      "fen": "1r1q1bQ1/pp5p/3pbp2/k2Np3/1N1nP3/8/PPP2PPP/R3KB1R w KQ - 1 10",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g8g3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 655,
+      "a": {
+        "bestmove": "g8g3",
+        "score": "cp:660"
+      },
+      "b": {
+        "bestmove": "g8g3",
+        "score": "cp:660"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 26,
+      "depth": 8,
+      "fen": "r1b2rk1/2pn1ppp/p2b1n2/1p1P2B1/N1BPN3/2P5/PP3PPP/R3K2R b KQ - 0 7",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f6e4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 535,
+      "a": {
+        "bestmove": "f6e4",
+        "score": "cp:460"
+      },
+      "b": {
+        "bestmove": "f6e4",
+        "score": "cp:460"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 27,
+      "depth": 8,
+      "fen": "r6r/1bpkqpp1/p3pn1p/3pP3/3P3B/2PB1Q2/2P2PPP/R4RK1 b - - 0 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h8b8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -551,
+      "a": {
+        "bestmove": "h8e8",
+        "score": "cp:-365"
+      },
+      "b": {
+        "bestmove": "h8e8",
+        "score": "cp:-365"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 28,
+      "depth": 8,
+      "fen": "2r1r3/pb2bkpp/5p2/B7/2ppP3/6P1/PP3P1P/2R1R1K1 w - - 4 17",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e1d1",
+      "teacher_mate": null,
+      "teacher_cp_stm": -512,
+      "a": {
+        "bestmove": "g3g4",
+        "score": "cp:-370"
+      },
+      "b": {
+        "bestmove": "g3g4",
+        "score": "cp:-370"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 29,
+      "depth": 8,
+      "fen": "r3r1k1/p1p2ppp/b1p2P2/q1bp4/8/1PPB1N1P/P1Q2PP1/R1B2RK1 b - - 0 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a6d3",
+      "teacher_mate": null,
+      "teacher_cp_stm": -515,
+      "a": {
+        "bestmove": "a6d3",
+        "score": "cp:-325"
+      },
+      "b": {
+        "bestmove": "a6d3",
+        "score": "cp:-325"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 30,
+      "depth": 8,
+      "fen": "2kr4/1p3ppp/B7/6P1/1P3q2/Q1P4P/PK6/7b b - - 0 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b7a6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 712,
+      "a": {
+        "bestmove": "f4d2",
+        "score": "mate:7"
+      },
+      "b": {
+        "bestmove": "f4d2",
+        "score": "mate:7"
+      },
+      "a_match": false,
+      "b_match": false,
+      "a_mate": 7,
+      "b_mate": 7,
+      "mate_transition": false
+    },
+    {
+      "i": 31,
+      "depth": 8,
+      "fen": "5r2/1p1k2p1/1p2p1p1/3p4/2Pp4/8/PP5P/R1B2BK1 w - - 1 16",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c4d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 554,
+      "a": {
+        "bestmove": "c1g5",
+        "score": "cp:327"
+      },
+      "b": {
+        "bestmove": "f1d3",
+        "score": "cp:317"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 10,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 32,
+      "depth": 8,
+      "fen": "1r3rk1/p1p2pp1/2p4p/2P5/3P4/P3P3/1P2QKbn/R1B3Nq b - - 1 21",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g2e4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 851,
+      "a": {
+        "bestmove": "g2e4",
+        "score": "cp:939"
+      },
+      "b": {
+        "bestmove": "g2e4",
+        "score": "cp:939"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 33,
+      "depth": 8,
+      "fen": "r1bb1k2/1p4p1/7p/4p3/pPq2n2/P1P3Q1/1n3PPP/1N3RK1 w - - 0 17",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f1e1",
+      "teacher_mate": null,
+      "teacher_cp_stm": -798,
+      "a": {
+        "bestmove": "g3f3",
+        "score": "cp:-989"
+      },
+      "b": {
+        "bestmove": "g3f3",
+        "score": "cp:-989"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 34,
+      "depth": 8,
+      "fen": "rnb1r1k1/pp4bp/2p3p1/5p2/2n1B3/PqN2PP1/RP2N2P/2B1KQ1R w K - 0 10",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f1g2",
+      "teacher_mate": null,
+      "teacher_cp_stm": -546,
+      "a": {
+        "bestmove": "f1f2",
+        "score": "cp:-405"
+      },
+      "b": {
+        "bestmove": "f1g2",
+        "score": "cp:-398"
+      },
+      "a_match": false,
+      "b_match": true,
+      "cp_delta": 7,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 35,
+      "depth": 8,
+      "fen": "r3r1k1/p1p2ppp/2p2P2/1qb5/2P5/3Q1N1P/P4PP1/R1B2RK1 b - - 0 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b5b6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -502,
+      "a": {
+        "bestmove": "b5b6",
+        "score": "cp:-375"
+      },
+      "b": {
+        "bestmove": "b5b6",
+        "score": "cp:-375"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 36,
+      "depth": 8,
+      "fen": "4r1k1/ppp2ppp/3p4/3P4/2Pp1q2/P6P/1P2rPP1/R3QK1R b - - 2 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e2e1",
+      "teacher_mate": null,
+      "teacher_cp_stm": 685,
+      "a": {
+        "bestmove": "d4d3",
+        "score": "cp:995"
+      },
+      "b": {
+        "bestmove": "d4d3",
+        "score": "cp:995"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 37,
+      "depth": 8,
+      "fen": "r7/1bp1bp1N/p1p1k2B/2npP3/8/2N5/PPP2PPP/3R1RK1 b - - 0 16",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a8g8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -658,
+      "a": {
+        "bestmove": "a8h8",
+        "score": "cp:-607"
+      },
+      "b": {
+        "bestmove": "a8h8",
+        "score": "cp:-607"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 38,
+      "depth": 8,
+      "fen": "r6r/p3kpbp/2Q3p1/8/3p4/6P1/PnP1NP1P/R5K1 w - - 0 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c6b7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 628,
+      "a": {
+        "bestmove": "c6b7",
+        "score": "cp:370"
+      },
+      "b": {
+        "bestmove": "c6b7",
+        "score": "cp:370"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 39,
+      "depth": 8,
+      "fen": "1r1q1b2/pp5p/1k1p1p2/3bp3/1N1nP3/Q7/PPP2PPP/R3KB1R w KQ - 2 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b4d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 650,
+      "a": {
+        "bestmove": "b4d5",
+        "score": "cp:725"
+      },
+      "b": {
+        "bestmove": "b4d5",
+        "score": "cp:725"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 40,
+      "depth": 8,
+      "fen": "r4rk1/2qbbp2/pn2p1B1/2ppN3/3P1P2/8/PPQ1NPP1/2KR3R w - - 2 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g6f7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 598,
+      "a": {
+        "bestmove": "g6h7",
+        "score": "cp:530"
+      },
+      "b": {
+        "bestmove": "g6h7",
+        "score": "cp:530"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 41,
+      "depth": 8,
+      "fen": "2kr3r/pbp1qpb1/3p4/6p1/2Pp4/1Q4P1/PP3PN1/R1B2RK1 w - - 0 10",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b3d1",
+      "teacher_mate": null,
+      "teacher_cp_stm": -519,
+      "a": {
+        "bestmove": "f2f3",
+        "score": "cp:-190"
+      },
+      "b": {
+        "bestmove": "b3b5",
+        "score": "cp:-182"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 8,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 42,
+      "depth": 8,
+      "fen": "2kr1b1r/p4ppp/2np4/1p1p4/3P4/1RBB1P2/q4P1P/3QR1K1 w - - 0 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d3b5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 529,
+      "a": {
+        "bestmove": "b3b5",
+        "score": "cp:24"
+      },
+      "b": {
+        "bestmove": "e1e2",
+        "score": "cp:20"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 4,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 43,
+      "depth": 8,
+      "fen": "2kq3r/p3bp1p/2p2n2/2p1N1BN/3pP3/3P4/2P2PPP/1bQ2RK1 w - - 1 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e5c6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 576,
+      "a": {
+        "bestmove": "e5c6",
+        "score": "cp:696"
+      },
+      "b": {
+        "bestmove": "e5c6",
+        "score": "cp:696"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 44,
+      "depth": 8,
+      "fen": "r2q1rk1/pppbnppp/2p5/2P2P2/2B1P3/4B1Q1/P1P2RPP/3R2K1 b - - 8 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b7b5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -558,
+      "a": {
+        "bestmove": "g8h8",
+        "score": "cp:-375"
+      },
+      "b": {
+        "bestmove": "g8h8",
+        "score": "cp:-375"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 45,
+      "depth": 8,
+      "fen": "r1b1kb1r/3p1ppp/8/Ppp1P3/6n1/7N/3q2PP/R4RK1 b kq - 0 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d2d4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 885,
+      "a": {
+        "bestmove": "c8b7",
+        "score": "cp:2122"
+      },
+      "b": {
+        "bestmove": "c8b7",
+        "score": "cp:2122"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 46,
+      "depth": 8,
+      "fen": "r3r1k1/ppp2p1p/1b2b3/8/2Np4/1Q1P1qP1/PPP2P1P/R1B1R1K1 b - - 2 9",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e6d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 661,
+      "a": {
+        "bestmove": "e6c4",
+        "score": "cp:650"
+      },
+      "b": {
+        "bestmove": "e6c4",
+        "score": "cp:650"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 47,
+      "depth": 8,
+      "fen": "r1b1r3/ppp1P3/5Q2/3qRp1p/1R1p4/B1k5/P1P2PPP/6K1 w - - 4 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e5d5",
+      "teacher_mate": 4,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "e5d5",
+        "score": "mate:7"
+      },
+      "b": {
+        "bestmove": "e5d5",
+        "score": "mate:7"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": 7,
+      "b_mate": 7,
+      "mate_transition": false
+    },
+    {
+      "i": 48,
+      "depth": 8,
+      "fen": "r1b2k1r/ppp2qp1/3b3p/8/4B3/P2QBN2/1P3PPP/R4RK1 w - - 2 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e4g6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 650,
+      "a": {
+        "bestmove": "f3h4",
+        "score": "cp:490"
+      },
+      "b": {
+        "bestmove": "f3h4",
+        "score": "cp:490"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 49,
+      "depth": 8,
+      "fen": "r3kbr1/pp5p/4pp2/4N3/1nP4P/8/PP3Pb1/R1B3KR w q - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c1g5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -691,
+      "a": {
+        "bestmove": "h1h2",
+        "score": "cp:-735"
+      },
+      "b": {
+        "bestmove": "h1h2",
+        "score": "cp:-690"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 45,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 50,
+      "depth": 8,
+      "fen": "r6r/1bpkqpp1/p3pn1p/3pP3/3P3B/2bB1Q2/1PP2PPP/R4RK1 w - - 0 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e5f6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 578,
+      "a": {
+        "bestmove": "e5f6",
+        "score": "cp:365"
+      },
+      "b": {
+        "bestmove": "e5f6",
+        "score": "cp:365"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 51,
+      "depth": 8,
+      "fen": "rnb1r1k1/pp4bp/2p3p1/8/2n1p3/PqN2PP1/RP2N1QP/2B1K2R w K - 0 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e1g1",
+      "teacher_mate": null,
+      "teacher_cp_stm": -530,
+      "a": {
+        "bestmove": "f3e4",
+        "score": "cp:-418"
+      },
+      "b": {
+        "bestmove": "f3e4",
+        "score": "cp:-418"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 52,
+      "depth": 8,
+      "fen": "8/p2pkp1Q/1p6/2pq2b1/3p4/P7/3NPPPP/R3KB1R b KQ - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g5d2",
+      "teacher_mate": null,
+      "teacher_cp_stm": -533,
+      "a": {
+        "bestmove": "d5e6",
+        "score": "cp:-1200"
+      },
+      "b": {
+        "bestmove": "g5f6",
+        "score": "cp:-1195"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 53,
+      "depth": 8,
+      "fen": "r1br1k2/1p4p1/7p/4p1b1/pPq2n2/P1Pn2Q1/1B3PPP/1N1R1RK1 w - - 0 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h2h4",
+      "teacher_mate": null,
+      "teacher_cp_stm": -740,
+      "a": {
+        "bestmove": "g1h1",
+        "score": "cp:-928"
+      },
+      "b": {
+        "bestmove": "g1h1",
+        "score": "cp:-928"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 54,
+      "depth": 8,
+      "fen": "r1b2k1r/ppp3pp/3b4/Q3pp1q/8/P1NB1N2/1P3PPP/R1B1K2R b KQ - 1 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c8e6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -521,
+      "a": {
+        "bestmove": "e5e4",
+        "score": "cp:-347"
+      },
+      "b": {
+        "bestmove": "e5e4",
+        "score": "cp:-347"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 55,
+      "depth": 8,
+      "fen": "r4rk1/p4p1p/3Rp3/2p2q2/Q1P4P/5bP1/P3NP2/4K3 w - - 1 13",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a4d1",
+      "teacher_mate": null,
+      "teacher_cp_stm": -582,
+      "a": {
+        "bestmove": "d6d2",
+        "score": "cp:-593"
+      },
+      "b": {
+        "bestmove": "d6d2",
+        "score": "cp:-593"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 56,
+      "depth": 8,
+      "fen": "r1b2rk1/1pq1ppbp/p1n3p1/3Q2B1/8/2P1PN2/PP3PPP/R4RK1 b - - 0 7",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h7h6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 515,
+      "a": {
+        "bestmove": "h7h6",
+        "score": "cp:250"
+      },
+      "b": {
+        "bestmove": "h7h6",
+        "score": "cp:250"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 57,
+      "depth": 8,
+      "fen": "r1q1k2r/pR1n1p1p/5p2/N1b1pN2/Q3P3/6P1/P4P1P/5RK1 b kq - 9 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e8g8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -509,
+      "a": {
+        "bestmove": "e8g8",
+        "score": "cp:-330"
+      },
+      "b": {
+        "bestmove": "e8g8",
+        "score": "cp:-330"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 58,
+      "depth": 8,
+      "fen": "r3kb1r/p2n1pp1/p3p2p/1NpP4/8/6q1/3B1PPP/5RK1 w kq - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d5e6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -746,
+      "a": {
+        "bestmove": "h2g3",
+        "score": "cp:-1123"
+      },
+      "b": {
+        "bestmove": "h2g3",
+        "score": "cp:-1123"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 59,
+      "depth": 8,
+      "fen": "r2r2k1/ppqn1p1p/4b1p1/2p5/2PRN3/2Q3P1/PP3PBP/4R1K1 w - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d4d7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 596,
+      "a": {
+        "bestmove": "d4d7",
+        "score": "cp:335"
+      },
+      "b": {
+        "bestmove": "d4d7",
+        "score": "cp:335"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 60,
+      "depth": 8,
+      "fen": "r1b1r3/ppp1P3/5Q2/3R1p1p/1R1p4/B1k5/P1P2PPP/6K1 b - - 0 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c7c5",
+      "teacher_mate": -3,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "c7c5",
+        "score": "mate:-6"
+      },
+      "b": {
+        "bestmove": "c7c5",
+        "score": "mate:-6"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": -6,
+      "b_mate": -6,
+      "mate_transition": false
+    },
+    {
+      "i": 61,
+      "depth": 8,
+      "fen": "r3k2r/pp2bppp/2pn4/q2nPb2/8/1PN1BNP1/P2Q1PBP/R4RK1 w kq - 3 9",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e5d6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 515,
+      "a": {
+        "bestmove": "c3d5",
+        "score": "cp:212"
+      },
+      "b": {
+        "bestmove": "c3d5",
+        "score": "cp:212"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 62,
+      "depth": 8,
+      "fen": "r1b2rk1/p1q2ppp/1p2pn2/n7/2BP4/3N1N2/PPQ2PPP/2KR3R b - - 3 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c7c4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 516,
+      "a": {
+        "bestmove": "c7c4",
+        "score": "cp:285"
+      },
+      "b": {
+        "bestmove": "c7c4",
+        "score": "cp:285"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 63,
+      "depth": 8,
+      "fen": "r3rq2/1bpk1p2/p3pB1p/3p4/3P4/2PB1Q2/2P2PPP/R4RK1 w - - 1 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a1a5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 566,
+      "a": {
+        "bestmove": "f3h5",
+        "score": "cp:420"
+      },
+      "b": {
+        "bestmove": "f3f4",
+        "score": "cp:385"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 35,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 64,
+      "depth": 8,
+      "fen": "3rk2r/p4pp1/2p4p/1pb1p3/4P3/1BP3PK/PPQNbq1P/R3R3 b k - 1 13",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g7g5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 576,
+      "a": {
+        "bestmove": "d8d2",
+        "score": "cp:595"
+      },
+      "b": {
+        "bestmove": "d8d2",
+        "score": "cp:595"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 65,
+      "depth": 8,
+      "fen": "r1b1r3/pppqPQ2/8/2kp1p1p/8/1R6/P1P2PPP/2B1R1K1 w - - 0 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c1a3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 892,
+      "a": {
+        "bestmove": "f7f6",
+        "score": "cp:735"
+      },
+      "b": {
+        "bestmove": "f7f6",
+        "score": "cp:735"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 66,
+      "depth": 8,
+      "fen": "2kr3r/pbp1qpb1/2pp4/6p1/2Pp4/1Q2P1P1/PP3PN1/R1B2RK1 b - - 1 8",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c6c5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 536,
+      "a": {
+        "bestmove": "h8h3",
+        "score": "cp:180"
+      },
+      "b": {
+        "bestmove": "c6c5",
+        "score": "cp:175"
+      },
+      "a_match": false,
+      "b_match": true,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 67,
+      "depth": 8,
+      "fen": "2r1r1k1/pp1b1ppp/5q2/3Q4/3N2P1/8/PP3P1P/R1B1R1K1 b - - 0 13",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e8e1",
+      "teacher_mate": null,
+      "teacher_cp_stm": 531,
+      "a": {
+        "bestmove": "e8e1",
+        "score": "cp:405"
+      },
+      "b": {
+        "bestmove": "e8e1",
+        "score": "cp:405"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 68,
+      "depth": 8,
+      "fen": "r3r3/1bpkqpp1/p3pn1p/3pP3/3P3B/2PB1Q2/2P2PPP/R4RK1 w - - 1 9",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e5f6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 587,
+      "a": {
+        "bestmove": "e5f6",
+        "score": "cp:368"
+      },
+      "b": {
+        "bestmove": "e5f6",
+        "score": "cp:368"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 69,
+      "depth": 8,
+      "fen": "r4rk1/pp3ppp/2p5/q2n4/3Q4/1PB2P1P/P1P2P2/R3K1R1 b Q - 0 9",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "a5c3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 510,
+      "a": {
+        "bestmove": "a5c3",
+        "score": "cp:336"
+      },
+      "b": {
+        "bestmove": "a5c3",
+        "score": "cp:336"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 70,
+      "depth": 8,
+      "fen": "r1r2k2/ppq2p1Q/4p3/3pn1N1/8/7P/PPP2PP1/4RRK1 w - - 1 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e1e5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 759,
+      "a": {
+        "bestmove": "e1e5",
+        "score": "cp:657"
+      },
+      "b": {
+        "bestmove": "e1e5",
+        "score": "cp:657"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 71,
+      "depth": 8,
+      "fen": "3r4/pb1k1p2/8/4n1Q1/2pNp3/P7/1q3PPP/3K1B1R b - - 0 16",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b2d4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 559,
+      "a": {
+        "bestmove": "b2d4",
+        "score": "cp:395"
+      },
+      "b": {
+        "bestmove": "b2d4",
+        "score": "cp:395"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 72,
+      "depth": 8,
+      "fen": "r2k3r/p1bn2p1/2p1B3/P1B1p2p/4p2N/2P5/1P1R1PPP/2K5 b - - 1 17",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d8c8",
+      "teacher_mate": null,
+      "teacher_cp_stm": -529,
+      "a": {
+        "bestmove": "d8c8",
+        "score": "cp:-262"
+      },
+      "b": {
+        "bestmove": "d8c8",
+        "score": "cp:-262"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 73,
+      "depth": 8,
+      "fen": "3r1rk1/pbQ1n1pp/8/1p1q1P2/3P4/P3PB2/1B3P1P/R4RK1 b - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "d5f3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 709,
+      "a": {
+        "bestmove": "d5f3",
+        "score": "cp:780"
+      },
+      "b": {
+        "bestmove": "d5f3",
+        "score": "cp:780"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 74,
+      "depth": 8,
+      "fen": "3r2k1/Bp2ppb1/6pp/8/4P3/3b2N1/Pr3PPP/2R1K1R1 b - - 0 12",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "b7b6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 581,
+      "a": {
+        "bestmove": "b7b6",
+        "score": "cp:240"
+      },
+      "b": {
+        "bestmove": "g7e5",
+        "score": "cp:240"
+      },
+      "a_match": true,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 75,
+      "depth": 8,
+      "fen": "r3kbr1/pp3p1p/4p3/4N3/1nP5/8/PP3PbP/R1B3KR w q - 2 11",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "h2h4",
+      "teacher_mate": null,
+      "teacher_cp_stm": -690,
+      "a": {
+        "bestmove": "h2h4",
+        "score": "cp:-675"
+      },
+      "b": {
+        "bestmove": "h2h4",
+        "score": "cp:-675"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 76,
+      "depth": 8,
+      "fen": "r3kb1r/1b1p1ppp/8/Ppp1P3/3q1N2/8/5nPP/R4RK1 b kq - 6 17",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "f2h3",
+      "teacher_mate": 3,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "f2h3",
+        "score": "mate:5"
+      },
+      "b": {
+        "bestmove": "f2h3",
+        "score": "mate:5"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": 5,
+      "b_mate": 5,
+      "mate_transition": false
+    },
+    {
+      "i": 77,
+      "depth": 8,
+      "fen": "1nr2N1k/2q2Pp1/p4b1p/8/1pB5/2N5/PPQ2PbP/3RR1K1 w - - 2 19",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c2h7",
+      "teacher_mate": 1,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "c2h7",
+        "score": "mate:1"
+      },
+      "b": {
+        "bestmove": "c2h7",
+        "score": "mate:1"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": 1,
+      "b_mate": 1,
+      "mate_transition": false
+    },
+    {
+      "i": 78,
+      "depth": 8,
+      "fen": "r1br1k2/ppq3pQ/2p1p2p/4Pn1N/8/1P1Bb3/PBP3PR/1K1R4 w - - 6 14",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g2g4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 555,
+      "a": {
+        "bestmove": "g2g4",
+        "score": "cp:212"
+      },
+      "b": {
+        "bestmove": "g2g4",
+        "score": "cp:212"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 79,
+      "depth": 8,
+      "fen": "1r3rk1/p1p2pp1/2p4p/2P5/3P2n1/P3P2b/1PQ3R1/R1B2KNq w - - 6 19",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "c2e2",
+      "teacher_mate": null,
+      "teacher_cp_stm": -767,
+      "a": {
+        "bestmove": "e3e4",
+        "score": "cp:-825"
+      },
+      "b": {
+        "bestmove": "e3e4",
+        "score": "cp:-825"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 80,
+      "depth": 8,
+      "fen": "r3kb2/pp3p1p/4p3/4N3/1nP3r1/8/PP3PbP/R1B3KR b q - 1 10",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "g4g8",
+      "teacher_mate": null,
+      "teacher_cp_stm": 659,
+      "a": {
+        "bestmove": "g4g8",
+        "score": "cp:655"
+      },
+      "b": {
+        "bestmove": "g4g8",
+        "score": "cp:655"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 81,
+      "depth": 8,
+      "fen": "r1b3k1/pp3ppp/1bn1p3/6P1/8/4qN1P/P3PRB1/3Q2K1 b - - 2 16",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e3f2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 722,
+      "a": {
+        "bestmove": "e3f2",
+        "score": "cp:1112"
+      },
+      "b": {
+        "bestmove": "e3f2",
+        "score": "cp:1112"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 82,
+      "depth": 8,
+      "fen": "r3kbr1/pp5p/4p3/4p3/1nP1b2P/8/PP1BKP1R/R7 b q - 3 15",
+      "source": "s6-eval-shard",
+      "teacher_bestmove": "e4d3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 917,
+      "a": {
+        "bestmove": "e4d3",
+        "score": "cp:1032"
+      },
+      "b": {
+        "bestmove": "e4d3",
+        "score": "cp:1032"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 83,
+      "depth": 8,
+      "fen": "4r3/Nppb2kp/n6q/P2P4/3P2p1/6pP/1P4P1/R2R3K b - - 0 24",
+      "source": "s6-challenge",
+      "teacher_bestmove": "g4h3",
+      "teacher_mate": 5,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "g4h3",
+        "score": "cp:1327"
+      },
+      "b": {
+        "bestmove": "g4h3",
+        "score": "cp:1327"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 84,
+      "depth": 8,
+      "fen": "8/8/8/3qbR2/3kp1P1/7P/5P2/5K2 b - - 34 64",
+      "source": "s6-challenge",
+      "teacher_bestmove": "d4d3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 520,
+      "a": {
+        "bestmove": "d5c5",
+        "score": "cp:578"
+      },
+      "b": {
+        "bestmove": "d5c5",
+        "score": "cp:578"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 85,
+      "depth": 8,
+      "fen": "8/7R/1r5p/pk4p1/b7/8/4KP2/8 w - - 6 59",
+      "source": "s6-challenge",
+      "teacher_bestmove": "f2f4",
+      "teacher_mate": null,
+      "teacher_cp_stm": -525,
+      "a": {
+        "bestmove": "h7c7",
+        "score": "cp:-512"
+      },
+      "b": {
+        "bestmove": "h7c7",
+        "score": "cp:-512"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 86,
+      "depth": 8,
+      "fen": "4rk2/1QpPr3/p7/8/4NP2/4P3/PP5P/2KR3R w - - 1 29",
+      "source": "s6-challenge",
+      "teacher_bestmove": "d7e8r",
+      "teacher_mate": null,
+      "teacher_cp_stm": 1143,
+      "a": {
+        "bestmove": "b7a6",
+        "score": "cp:2226"
+      },
+      "b": {
+        "bestmove": "b7a6",
+        "score": "cp:2226"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 87,
+      "depth": 8,
+      "fen": "3r1r2/2k2p2/p4R2/1b1P1N2/3KP1P1/8/5P2/4R3 w - - 1 44",
+      "source": "s6-challenge",
+      "teacher_bestmove": "f2f3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 583,
+      "a": {
+        "bestmove": "f5h6",
+        "score": "cp:355"
+      },
+      "b": {
+        "bestmove": "e1c1",
+        "score": "cp:350"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 88,
+      "depth": 8,
+      "fen": "4r1k1/p4pp1/3Q3p/8/2p3P1/P1Pb1K1P/5P2/r7 b - - 2 39",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a1g1",
+      "teacher_mate": null,
+      "teacher_cp_stm": 607,
+      "a": {
+        "bestmove": "a1g1",
+        "score": "cp:480"
+      },
+      "b": {
+        "bestmove": "a1g1",
+        "score": "cp:480"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 89,
+      "depth": 8,
+      "fen": "8/5p2/7p/2r3p1/8/P4k1P/1K1p4/6R1 b - - 1 39",
+      "source": "s6-challenge",
+      "teacher_bestmove": "f3f2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 596,
+      "a": {
+        "bestmove": "c5c6",
+        "score": "cp:592"
+      },
+      "b": {
+        "bestmove": "c5c6",
+        "score": "cp:592"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 90,
+      "depth": 8,
+      "fen": "4r3/6pp/5k2/3p4/1pr1nBb1/4K3/PRP2PPP/6R1 b - - 4 21",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e4c3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 800,
+      "a": {
+        "bestmove": "e4c5",
+        "score": "cp:747"
+      },
+      "b": {
+        "bestmove": "e4c5",
+        "score": "cp:747"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 91,
+      "depth": 8,
+      "fen": "4r3/ppp2kp1/4n3/8/8/2N1PP2/PP5P/6K1 w - - 1 24",
+      "source": "s6-challenge",
+      "teacher_bestmove": "g1g2",
+      "teacher_mate": null,
+      "teacher_cp_stm": -502,
+      "a": {
+        "bestmove": "g1f2",
+        "score": "cp:-443"
+      },
+      "b": {
+        "bestmove": "g1f2",
+        "score": "cp:-443"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 92,
+      "depth": 8,
+      "fen": "3r3r/1p2kP1p/1qp1B1p1/3p4/8/2B4P/PPQ1R1P1/1K3R2 w - - 0 24",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e6d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 999,
+      "a": {
+        "bestmove": "e6g4",
+        "score": "cp:1638"
+      },
+      "b": {
+        "bestmove": "e6g4",
+        "score": "cp:1638"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 93,
+      "depth": 8,
+      "fen": "3rr1k1/pp3pPp/6p1/q7/2b5/3B1N2/1PP3PP/1K4QR b - - 3 21",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a5a2",
+      "teacher_mate": 5,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "d8d3",
+        "score": "cp:495"
+      },
+      "b": {
+        "bestmove": "d8d3",
+        "score": "cp:495"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 94,
+      "depth": 8,
+      "fen": "8/p6R/1bk2P2/4B3/P3K2p/8/6PP/8 b - - 0 44",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a7a6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -759,
+      "a": {
+        "bestmove": "b6a5",
+        "score": "cp:-1010"
+      },
+      "b": {
+        "bestmove": "b6a5",
+        "score": "cp:-1010"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 95,
+      "depth": 8,
+      "fen": "8/p7/8/8/4K2P/1k6/5P2/8 b - - 0 54",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a7a5",
+      "teacher_mate": null,
+      "teacher_cp_stm": -578,
+      "a": {
+        "bestmove": "b3c4",
+        "score": "cp:-816"
+      },
+      "b": {
+        "bestmove": "b3c4",
+        "score": "cp:-816"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 96,
+      "depth": 8,
+      "fen": "8/5p1p/R1pb4/5k2/P4P2/5K2/7P/8 w - - 1 39",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a6c6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 535,
+      "a": {
+        "bestmove": "a6a7",
+        "score": "cp:177"
+      },
+      "b": {
+        "bestmove": "a6a7",
+        "score": "cp:177"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 97,
+      "depth": 8,
+      "fen": "8/R7/2k2p2/5P2/4K3/8/8/8 b - - 0 56",
+      "source": "s6-challenge",
+      "teacher_bestmove": "c6d6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -579,
+      "a": {
+        "bestmove": "c6c5",
+        "score": "cp:-655"
+      },
+      "b": {
+        "bestmove": "c6c5",
+        "score": "cp:-655"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 98,
+      "depth": 8,
+      "fen": "8/8/8/4b3/1p6/3k4/P5P1/4K3 b - - 11 69",
+      "source": "s6-challenge",
+      "teacher_bestmove": "d3c2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 531,
+      "a": {
+        "bestmove": "d3e3",
+        "score": "cp:282"
+      },
+      "b": {
+        "bestmove": "d3e3",
+        "score": "cp:282"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 99,
+      "depth": 8,
+      "fen": "8/8/8/8/P1k5/r7/4K3/8 b - - 2 91",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a3h3",
+      "teacher_mate": null,
+      "teacher_cp_stm": 548,
+      "a": {
+        "bestmove": "c4d4",
+        "score": "cp:716"
+      },
+      "b": {
+        "bestmove": "c4d4",
+        "score": "cp:716"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 100,
+      "depth": 8,
+      "fen": "8/1p4RP/1k2K3/p2PP3/7r/1P6/8/8 b - - 0 76",
+      "source": "s6-challenge",
+      "teacher_bestmove": "h4h6",
+      "teacher_mate": null,
+      "teacher_cp_stm": -566,
+      "a": {
+        "bestmove": "a5a4",
+        "score": "cp:-418"
+      },
+      "b": {
+        "bestmove": "a5a4",
+        "score": "cp:-418"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 101,
+      "depth": 8,
+      "fen": "r4rk1/qpp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e1e3",
+      "teacher_mate": null,
+      "teacher_cp_stm": -574,
+      "a": {
+        "bestmove": "e1e3",
+        "score": "cp:-305"
+      },
+      "b": {
+        "bestmove": "e1e3",
+        "score": "cp:-305"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 102,
+      "depth": 8,
+      "fen": "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 b - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "g3g6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 540,
+      "a": {
+        "bestmove": "g3f4",
+        "score": "cp:405"
+      },
+      "b": {
+        "bestmove": "g3f4",
+        "score": "cp:405"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 103,
+      "depth": 8,
+      "fen": "r4rk1/ppp2ppp/8/8/8/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e1e7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 501,
+      "a": {
+        "bestmove": "d2d4",
+        "score": "cp:535"
+      },
+      "b": {
+        "bestmove": "d2d4",
+        "score": "cp:530"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 104,
+      "depth": 8,
+      "fen": "r4rk1/ppp2ppp/4N3/3B4/3P4/8/PPP2PPP/R3Q1K1 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e6f8",
+      "teacher_mate": null,
+      "teacher_cp_stm": 881,
+      "a": {
+        "bestmove": "e6f8",
+        "score": "cp:1532"
+      },
+      "b": {
+        "bestmove": "e6f8",
+        "score": "cp:1532"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 105,
+      "depth": 8,
+      "fen": "r4rk1/ppp2ppp/8/8/2P5/8/PPPP1PPP/R3Q1K1 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e1e7",
+      "teacher_mate": null,
+      "teacher_cp_stm": 518,
+      "a": {
+        "bestmove": "e1e5",
+        "score": "cp:635"
+      },
+      "b": {
+        "bestmove": "d2d4",
+        "score": "cp:630"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 5,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 106,
+      "depth": 8,
+      "fen": "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e4a4",
+      "teacher_mate": null,
+      "teacher_cp_stm": 537,
+      "a": {
+        "bestmove": "e4a4",
+        "score": "cp:1016"
+      },
+      "b": {
+        "bestmove": "e4a4",
+        "score": "cp:1016"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 107,
+      "depth": 8,
+      "fen": "4k3/8/8/4r3/4Q3/8/8/K7 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e4e5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 540,
+      "a": {
+        "bestmove": "e4e5",
+        "score": "cp:1107"
+      },
+      "b": {
+        "bestmove": "e4e5",
+        "score": "cp:1107"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 108,
+      "depth": 8,
+      "fen": "6k1/5ppp/8/8/8/8/8/R6K w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a1a8",
+      "teacher_mate": 1,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "a1a8",
+        "score": "mate:1"
+      },
+      "b": {
+        "bestmove": "a1a8",
+        "score": "mate:1"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": 1,
+      "b_mate": 1,
+      "mate_transition": false
+    },
+    {
+      "i": 109,
+      "depth": 8,
+      "fen": "7k/4P3/8/8/8/8/8/K7 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e7e8q",
+      "teacher_mate": null,
+      "teacher_cp_stm": 519,
+      "a": {
+        "bestmove": "e7e8q",
+        "score": "cp:1107"
+      },
+      "b": {
+        "bestmove": "e7e8q",
+        "score": "cp:1107"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 110,
+      "depth": 8,
+      "fen": "8/P7/8/8/8/8/8/k6K w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "h1g2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 691,
+      "a": {
+        "bestmove": "a7a8q",
+        "score": "cp:1093"
+      },
+      "b": {
+        "bestmove": "a7a8q",
+        "score": "cp:1093"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 111,
+      "depth": 8,
+      "fen": "4k3/P7/8/8/8/8/7p/4K3 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "a7a8q",
+      "teacher_mate": null,
+      "teacher_cp_stm": 516,
+      "a": {
+        "bestmove": "a7a8q",
+        "score": "cp:1012"
+      },
+      "b": {
+        "bestmove": "a7a8q",
+        "score": "cp:1012"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 112,
+      "depth": 8,
+      "fen": "7k/8/5K2/8/3Q4/8/8/8 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "f6f7",
+      "teacher_mate": 2,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "d4g1",
+        "score": "mate:3"
+      },
+      "b": {
+        "bestmove": "d4g1",
+        "score": "mate:3"
+      },
+      "a_match": false,
+      "b_match": false,
+      "a_mate": 3,
+      "b_mate": 3,
+      "mate_transition": false
+    },
+    {
+      "i": 113,
+      "depth": 8,
+      "fen": "7k/8/5K2/8/3R4/8/8/8 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "f6g6",
+      "teacher_mate": 2,
+      "teacher_cp_stm": null,
+      "a": {
+        "bestmove": "f6g6",
+        "score": "mate:3"
+      },
+      "b": {
+        "bestmove": "f6g6",
+        "score": "mate:3"
+      },
+      "a_match": true,
+      "b_match": true,
+      "a_mate": 3,
+      "b_mate": 3,
+      "mate_transition": false
+    },
+    {
+      "i": 114,
+      "depth": 8,
+      "fen": "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "d7e8q",
+      "teacher_mate": null,
+      "teacher_cp_stm": 503,
+      "a": {
+        "bestmove": "d7e8q",
+        "score": "cp:1059"
+      },
+      "b": {
+        "bestmove": "d7e8q",
+        "score": "cp:1059"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 115,
+      "depth": 8,
+      "fen": "3p3k/4P3/8/8/8/8/8/4K3 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e7e8q",
+      "teacher_mate": null,
+      "teacher_cp_stm": 554,
+      "a": {
+        "bestmove": "e7d8q",
+        "score": "cp:1125"
+      },
+      "b": {
+        "bestmove": "e7d8q",
+        "score": "cp:1125"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 116,
+      "depth": 8,
+      "fen": "6k1/8/8/3pK3/8/8/4P3/R7 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e5d5",
+      "teacher_mate": null,
+      "teacher_cp_stm": 719,
+      "a": {
+        "bestmove": "a1a7",
+        "score": "cp:681"
+      },
+      "b": {
+        "bestmove": "a1a7",
+        "score": "cp:681"
+      },
+      "a_match": false,
+      "b_match": false,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 117,
+      "depth": 8,
+      "fen": "4k3/8/4r3/8/4Q3/8/8/K7 w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e4e6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 546,
+      "a": {
+        "bestmove": "e4e6",
+        "score": "cp:1141"
+      },
+      "b": {
+        "bestmove": "e4e6",
+        "score": "cp:1141"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 118,
+      "depth": 8,
+      "fen": "4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e5d6",
+      "teacher_mate": null,
+      "teacher_cp_stm": 895,
+      "a": {
+        "bestmove": "e5d6",
+        "score": "cp:692"
+      },
+      "b": {
+        "bestmove": "e5d6",
+        "score": "cp:692"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    },
+    {
+      "i": 119,
+      "depth": 8,
+      "fen": "6k1/8/8/8/8/8/3q4/4K2R w - - 0 1",
+      "source": "s6-challenge",
+      "teacher_bestmove": "e1d2",
+      "teacher_mate": null,
+      "teacher_cp_stm": 508,
+      "a": {
+        "bestmove": "e1d2",
+        "score": "cp:692"
+      },
+      "b": {
+        "bestmove": "e1d2",
+        "score": "cp:692"
+      },
+      "a_match": true,
+      "b_match": true,
+      "cp_delta": 0,
+      "a_mate": null,
+      "b_mate": null,
+      "mate_transition": false
+    }
+  ],
+  "depth": 8,
+  "summary": {
+    "corpus_positions": 120,
+    "completed_rows": 120,
+    "timeouts_or_errors": [],
+    "mate_labelled_positions": 11,
+    "completed_mate_labelled_positions": 11,
+    "a_matches": 58,
+    "b_matches": 59,
+    "a_only": [
+      3,
+      74
+    ],
+    "b_only": [
+      15,
+      34,
+      66
+    ],
+    "a_mate_detected": 8,
+    "b_mate_detected": 8,
+    "mate_side_mismatches": [],
+    "cp_div_ge_100": 0,
+    "cp_div_ge_300": 0,
+    "cp_div_ge_500": 0,
+    "mate_transitions": [],
+    "mate_distance_changes": [],
+    "hard_reject_mate_losses": []
+  }
+}

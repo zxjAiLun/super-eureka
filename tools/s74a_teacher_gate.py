@@ -86,6 +86,13 @@ def main() -> int:
                    "teacher_bestmove": pos["teacher_bestmove"],
                    "teacher_mate": pos.get("teacher_mate"),
                    "a": a, "b": b}
+            if pos["teacher_bestmove"] in (None, "(none)"):
+                rec["classification"] = "TERMINAL/NOT_APPLICABLE"
+            elif (a or {}).get("error") or (a or {}).get("timeout") \
+                    or (b or {}).get("error") or (b or {}).get("timeout"):
+                rec["classification"] = "ENGINE_FAILURE"
+            else:
+                rec["classification"] = "OK"
             if a and b:
                 rec["a_match"] = a.get("bestmove") == pos["teacher_bestmove"]
                 rec["b_match"] = b.get("bestmove") == pos["teacher_bestmove"]
@@ -102,17 +109,31 @@ def main() -> int:
             print(f"s74a_teacher d{d} {i} a={rec.get('a_match')} "
                   f"b={rec.get('b_match')}", flush=True)
 
-    # Aggregate per depth.
+    # Aggregate per depth. A row is evaluable only if BOTH A and B produced a
+    # real bench result. Rows whose teacher_bestmove is "(none)" are terminal
+    # / no-move fixtures: label them TERMINAL/NOT_APPLICABLE instead of
+    # counting them as engine failures.
     summaries = {}
     for d in depths:
         rs = [r for r in results["rows"] if r["depth"] == d
               and r.get("a") and r.get("b") and "error" not in (r["a"] or {})
-              and "timeout" not in (r["a"] or {})]
+              and "timeout" not in (r["a"] or {})
+              and "error" not in (r["b"] or {}) and "timeout" not in (r["b"] or {})]
+        terminal = [r for r in results["rows"] if r["depth"] == d
+                    and r.get("teacher_bestmove") in (None, "(none)")]
+        genuine_fail = [r for r in results["rows"] if r["depth"] == d
+                        and r not in rs and r not in terminal]
         a_m = sum(1 for r in rs if r.get("a_match"))
         b_m = sum(1 for r in rs if r.get("b_match"))
         deltas = [r.get("cp_delta") for r in rs if r.get("cp_delta") is not None]
         summaries[f"depth{d}"] = {
             "positions": len(rs),
+            "terminal_not_applicable": len(terminal),
+            "genuine_engine_failures": len(genuine_fail),
+            "mate_labelled_positions": sum(
+                1 for r in rs
+                if str(r.get("teacher_mate", "none")).lstrip("-").isdigit()
+                and int(r["teacher_mate"]) != 0),
             "a_matches": a_m, "b_matches": b_m,
             "a_only": [r["i"] for r in rs if r.get("a_match") and not r.get("b_match")],
             "b_only": [r["i"] for r in rs if r.get("b_match") and not r.get("a_match")],
