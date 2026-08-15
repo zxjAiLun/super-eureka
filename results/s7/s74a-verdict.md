@@ -144,6 +144,12 @@ Verdict by original gate: all three depths **STRONG**.
 Qualification unchanged: >=10 gained, gained > lost, no material regression.
 Both time controls pass clearly.
 
+> Host note: the rerun landed while the machine was under an unrelated
+> high-CPU training load. A/B order is rotated/interleaved and both arms
+> share the same load, so the relative depth gate remains valid; absolute
+> depths are conservative. The single 1000ms loss (`s7_mid_25`, 6→5) is
+> 1/80 and does not approach material regression.
+
 ### Teacher challenge (d6, regenerated with repaired binary)
 
 - evaluable rows: **176**; terminal/no-move rows 158 and 164 labelled
