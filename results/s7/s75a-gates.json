@@ -36737,6 +36737,12 @@
     "dirty_clean_bridge": {
       "current-final": "30/30 exact",
       "current-final-single-evasion": "30/30 exact"
+    },
+    "final_clean_release_binary_sha256": "e5c85c0951fb456956f5b7203a41859e841c71b1fbc7a5a46cee2bbe9075eaaf",
+    "final_clean_source_sha": "61f973c3482d7dccbce040b41587f2a91a3506d5",
+    "final_clean_bridge": {
+      "current-final": "30/30 exact",
+      "current-final-single-evasion": "30/30 exact"
     }
   },
   "g0": {

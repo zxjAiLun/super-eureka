@@ -103,9 +103,12 @@ verdict:               DIAGNOSTIC ONLY / NO VETO
 ```text
 gate runs used dirty pre-commit binary:
   11a4ebb0df8b6937ab2dbc7dd7ca83cf5f18ee174a25280f6314804bbd00bcfd
-clean committed release binary:
-  bc4f910ab75912a2d0b8449d1ac0367b4a0d1fd314ac46e9a50ad95fc939e37c
-30 S4 d6 bridge (both profiles): 30/30 exact
+final clean release binary:
+  source 61f973c3482d7dccbce040b41587f2a91a3506d5
+  sha256 e5c85c0951fb456956f5b7203a41859e841c71b1fbc7a5a46cee2bbe9075eaaf
+  UCI dirty false
+30 S4 d6 bridge (both profiles, dirty-gate -> final-clean):
+  30/30 exact
 ```
 
 ## Verdict
