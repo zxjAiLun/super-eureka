@@ -191,6 +191,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
         SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
         SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
+        SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
     }
 }
 
@@ -443,6 +444,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-qsearch-lazy" => SearchProfile::CurrentFinalQsearchLazy,
                     "current-final-qsearch-delta" => SearchProfile::CurrentFinalQsearchDelta,
                     "current-final-lmr-null-window" => SearchProfile::CurrentFinalLmrNullWindow,
+                    "current-final-single-evasion" => SearchProfile::CurrentFinalSingleEvasion,
                     other => {
                         return Err(format!(
                             "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window)",
@@ -1249,7 +1251,7 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         })
         .collect();
     format!(
-        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}",
+        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}          s75a_extension_applied_total={} s75a_extension_applied_depth1={}          s75a_extension_budget_2_to_1={} s75a_extension_budget_1_to_0={}          s75a_opportunity_blocked_budget_0={}",
         stats.s75_main_nodes,
         stats.s75_main_in_check_nodes,
         stats.s75_main_single_evasion_nodes_raw,
@@ -1280,6 +1282,11 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         stats.s75_q_check_child_evasions_1,
         stats.s75_q_check_child_evasions_2,
         stats.s75_q_check_child_evasions_3plus,
+        stats.s75a_extension_applied_total,
+        stats.s75a_extension_applied_depth1,
+        stats.s75a_extension_budget_2_to_1,
+        stats.s75a_extension_budget_1_to_0,
+        stats.s75a_opportunity_blocked_budget_0,
     )
 }
 
