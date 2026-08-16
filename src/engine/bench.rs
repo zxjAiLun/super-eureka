@@ -1103,7 +1103,9 @@ fn format_s72_attribution(stats: &SearchStats) -> String {
         stats.s72_d_quiet_cutoffs[3],
         stats.s72_d_quiet_cutoffs[4],
         stats.s72_d_quiet_cutoffs[5],
-    ) + format_s73_attribution(stats).as_str() + format_s74_attribution(stats).as_str()
+    ) + format_s73_attribution(stats).as_str()
+        + format_s74_attribution(stats).as_str()
+        + format_s75_attribution(stats).as_str()
 }
 
 /// S7.3 selectivity-attribution counters, appended after the S7.2 block for
@@ -1231,6 +1233,54 @@ fn format_s74_attribution(stats: &SearchStats) -> String {
 
 fn idx_bucket_label(i: usize) -> &'static str {
     ["i0", "i1", "i2_3", "i4_7", "i8p"][i]
+}
+
+/// S7.5-0 forcing-opportunity funnel (OBSERVATION ONLY, profiling-gated).
+/// Main and qsearch are reported as separate families so the two trees can be
+/// analyzed independently.
+fn format_s75_attribution(stats: &SearchStats) -> String {
+    let chain: Vec<String> = (0..3)
+        .map(|i| {
+            format!(
+                "chain{}={}",
+                ["1", "2", "3p"][i],
+                stats.s75_main_single_evasion_chain[i]
+            )
+        })
+        .collect();
+    format!(
+        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}",
+        stats.s75_main_nodes,
+        stats.s75_main_in_check_nodes,
+        stats.s75_main_single_evasion_nodes_raw,
+        stats.s75_main_single_evasion_actionable_depth1,
+        stats.s75_main_single_evasion_actionable_depth2plus,
+        stats.s75_main_single_evasion_depth3plus,
+        chain.join(","),
+        stats.s75_main_checking_edges_searched,
+        stats.s75_main_check_child_entered,
+        stats.s75_main_check_child_movegen,
+        stats.s75_main_check_child_terminal_0,
+        stats.s75_main_check_child_evasions_1,
+        stats.s75_main_check_child_evasions_2,
+        stats.s75_main_check_child_evasions_3plus,
+        stats.s75_main_depth1_nodes,
+        stats.s75_main_depth1_in_check,
+        stats.s75_main_depth1_single_evasion,
+        stats.s75_main_depth1_entered_from_checking_edge,
+        stats.s75_q_nodes,
+        stats.s75_q_in_check_nodes,
+        stats.s75_q_single_evasion_nodes_raw,
+        stats.s75_q_single_evasion_qply0,
+        stats.s75_q_single_evasion_qply1plus,
+        stats.s75_q_checking_edges_searched,
+        stats.s75_q_check_child_entered,
+        stats.s75_q_check_child_movegen,
+        stats.s75_q_check_child_terminal_0,
+        stats.s75_q_check_child_evasions_1,
+        stats.s75_q_check_child_evasions_2,
+        stats.s75_q_check_child_evasions_3plus,
+    )
 }
 
 #[inline]

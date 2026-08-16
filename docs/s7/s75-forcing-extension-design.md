@@ -48,7 +48,8 @@ production:   ZERO CHANGE
 ### 2.1 Main search funnel
 
 ```text
-s75_main_nodes
+s75_main_nodes                    # derived: actual acquired main-tree nodes
+                                  #        = nodes - qsearch_nodes
 s75_main_in_check_nodes
 
 s75_main_single_evasion_nodes_raw

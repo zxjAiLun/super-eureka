@@ -821,6 +821,36 @@ pub struct SearchContext {
     pub s74_lmr_nw_verified_cutoff: AtomicU64,
     pub s74_lmr_nw_depth: [AtomicU64; 4],
     pub s74_lmr_nw_idx: [AtomicU64; 4],
+    /// S7.5-0 forcing-opportunity attribution (OBSERVATION ONLY, profiling-gated).
+    pub s75_main_in_check_nodes: AtomicU64,
+    pub s75_main_single_evasion_nodes_raw: AtomicU64,
+    pub s75_main_single_evasion_actionable_depth1: AtomicU64,
+    pub s75_main_single_evasion_actionable_depth2plus: AtomicU64,
+    pub s75_main_single_evasion_depth3plus: AtomicU64,
+    pub s75_main_single_evasion_chain: [AtomicU64; 3],
+    pub s75_main_checking_edges_searched: AtomicU64,
+    pub s75_main_check_child_entered: AtomicU64,
+    pub s75_main_check_child_movegen: AtomicU64,
+    pub s75_main_check_child_terminal_0: AtomicU64,
+    pub s75_main_check_child_evasions_1: AtomicU64,
+    pub s75_main_check_child_evasions_2: AtomicU64,
+    pub s75_main_check_child_evasions_3plus: AtomicU64,
+    pub s75_main_depth1_nodes: AtomicU64,
+    pub s75_main_depth1_in_check: AtomicU64,
+    pub s75_main_depth1_single_evasion: AtomicU64,
+    pub s75_main_depth1_entered_from_checking_edge: AtomicU64,
+    pub s75_q_nodes: AtomicU64,
+    pub s75_q_in_check_nodes: AtomicU64,
+    pub s75_q_single_evasion_nodes_raw: AtomicU64,
+    pub s75_q_single_evasion_qply0: AtomicU64,
+    pub s75_q_single_evasion_qply1plus: AtomicU64,
+    pub s75_q_checking_edges_searched: AtomicU64,
+    pub s75_q_check_child_entered: AtomicU64,
+    pub s75_q_check_child_movegen: AtomicU64,
+    pub s75_q_check_child_terminal_0: AtomicU64,
+    pub s75_q_check_child_evasions_1: AtomicU64,
+    pub s75_q_check_child_evasions_2: AtomicU64,
+    pub s75_q_check_child_evasions_3plus: AtomicU64,
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -1056,6 +1086,37 @@ pub struct SearchStats {
     pub s74_lmr_nw_verified_cutoff: u64,
     pub s74_lmr_nw_depth: [u64; 4],
     pub s74_lmr_nw_idx: [u64; 4],
+    /// S7.5-0 forcing-opportunity attribution (OBSERVATION ONLY, profiling-gated).
+    pub s75_main_nodes: u64,
+    pub s75_main_in_check_nodes: u64,
+    pub s75_main_single_evasion_nodes_raw: u64,
+    pub s75_main_single_evasion_actionable_depth1: u64,
+    pub s75_main_single_evasion_actionable_depth2plus: u64,
+    pub s75_main_single_evasion_depth3plus: u64,
+    pub s75_main_single_evasion_chain: [u64; 3],
+    pub s75_main_checking_edges_searched: u64,
+    pub s75_main_check_child_entered: u64,
+    pub s75_main_check_child_movegen: u64,
+    pub s75_main_check_child_terminal_0: u64,
+    pub s75_main_check_child_evasions_1: u64,
+    pub s75_main_check_child_evasions_2: u64,
+    pub s75_main_check_child_evasions_3plus: u64,
+    pub s75_main_depth1_nodes: u64,
+    pub s75_main_depth1_in_check: u64,
+    pub s75_main_depth1_single_evasion: u64,
+    pub s75_main_depth1_entered_from_checking_edge: u64,
+    pub s75_q_nodes: u64,
+    pub s75_q_in_check_nodes: u64,
+    pub s75_q_single_evasion_nodes_raw: u64,
+    pub s75_q_single_evasion_qply0: u64,
+    pub s75_q_single_evasion_qply1plus: u64,
+    pub s75_q_checking_edges_searched: u64,
+    pub s75_q_check_child_entered: u64,
+    pub s75_q_check_child_movegen: u64,
+    pub s75_q_check_child_terminal_0: u64,
+    pub s75_q_check_child_evasions_1: u64,
+    pub s75_q_check_child_evasions_2: u64,
+    pub s75_q_check_child_evasions_3plus: u64,
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -1226,6 +1287,35 @@ impl SearchContext {
             s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
             s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
             s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s75_main_in_check_nodes: AtomicU64::new(0),
+            s75_main_single_evasion_nodes_raw: AtomicU64::new(0),
+            s75_main_single_evasion_actionable_depth1: AtomicU64::new(0),
+            s75_main_single_evasion_actionable_depth2plus: AtomicU64::new(0),
+            s75_main_single_evasion_depth3plus: AtomicU64::new(0),
+            s75_main_single_evasion_chain: std::array::from_fn(|_| AtomicU64::new(0)),
+            s75_main_checking_edges_searched: AtomicU64::new(0),
+            s75_main_check_child_entered: AtomicU64::new(0),
+            s75_main_check_child_movegen: AtomicU64::new(0),
+            s75_main_check_child_terminal_0: AtomicU64::new(0),
+            s75_main_check_child_evasions_1: AtomicU64::new(0),
+            s75_main_check_child_evasions_2: AtomicU64::new(0),
+            s75_main_check_child_evasions_3plus: AtomicU64::new(0),
+            s75_main_depth1_nodes: AtomicU64::new(0),
+            s75_main_depth1_in_check: AtomicU64::new(0),
+            s75_main_depth1_single_evasion: AtomicU64::new(0),
+            s75_main_depth1_entered_from_checking_edge: AtomicU64::new(0),
+            s75_q_nodes: AtomicU64::new(0),
+            s75_q_in_check_nodes: AtomicU64::new(0),
+            s75_q_single_evasion_nodes_raw: AtomicU64::new(0),
+            s75_q_single_evasion_qply0: AtomicU64::new(0),
+            s75_q_single_evasion_qply1plus: AtomicU64::new(0),
+            s75_q_checking_edges_searched: AtomicU64::new(0),
+            s75_q_check_child_entered: AtomicU64::new(0),
+            s75_q_check_child_movegen: AtomicU64::new(0),
+            s75_q_check_child_terminal_0: AtomicU64::new(0),
+            s75_q_check_child_evasions_1: AtomicU64::new(0),
+            s75_q_check_child_evasions_2: AtomicU64::new(0),
+            s75_q_check_child_evasions_3plus: AtomicU64::new(0),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1445,6 +1535,35 @@ impl SearchContext {
             s74_lmr_nw_verified_cutoff: AtomicU64::new(0),
             s74_lmr_nw_depth: std::array::from_fn(|_| AtomicU64::new(0)),
             s74_lmr_nw_idx: std::array::from_fn(|_| AtomicU64::new(0)),
+            s75_main_in_check_nodes: AtomicU64::new(0),
+            s75_main_single_evasion_nodes_raw: AtomicU64::new(0),
+            s75_main_single_evasion_actionable_depth1: AtomicU64::new(0),
+            s75_main_single_evasion_actionable_depth2plus: AtomicU64::new(0),
+            s75_main_single_evasion_depth3plus: AtomicU64::new(0),
+            s75_main_single_evasion_chain: std::array::from_fn(|_| AtomicU64::new(0)),
+            s75_main_checking_edges_searched: AtomicU64::new(0),
+            s75_main_check_child_entered: AtomicU64::new(0),
+            s75_main_check_child_movegen: AtomicU64::new(0),
+            s75_main_check_child_terminal_0: AtomicU64::new(0),
+            s75_main_check_child_evasions_1: AtomicU64::new(0),
+            s75_main_check_child_evasions_2: AtomicU64::new(0),
+            s75_main_check_child_evasions_3plus: AtomicU64::new(0),
+            s75_main_depth1_nodes: AtomicU64::new(0),
+            s75_main_depth1_in_check: AtomicU64::new(0),
+            s75_main_depth1_single_evasion: AtomicU64::new(0),
+            s75_main_depth1_entered_from_checking_edge: AtomicU64::new(0),
+            s75_q_nodes: AtomicU64::new(0),
+            s75_q_in_check_nodes: AtomicU64::new(0),
+            s75_q_single_evasion_nodes_raw: AtomicU64::new(0),
+            s75_q_single_evasion_qply0: AtomicU64::new(0),
+            s75_q_single_evasion_qply1plus: AtomicU64::new(0),
+            s75_q_checking_edges_searched: AtomicU64::new(0),
+            s75_q_check_child_entered: AtomicU64::new(0),
+            s75_q_check_child_movegen: AtomicU64::new(0),
+            s75_q_check_child_terminal_0: AtomicU64::new(0),
+            s75_q_check_child_evasions_1: AtomicU64::new(0),
+            s75_q_check_child_evasions_2: AtomicU64::new(0),
+            s75_q_check_child_evasions_3plus: AtomicU64::new(0),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1680,6 +1799,71 @@ impl SearchContext {
                 self.s74_lmr_nw_depth[i].load(Ordering::Relaxed)
             }),
             s74_lmr_nw_idx: std::array::from_fn(|i| self.s74_lmr_nw_idx[i].load(Ordering::Relaxed)),
+            s75_main_nodes: self
+                .nodes
+                .load(Ordering::Relaxed)
+                .saturating_sub(self.qsearch_nodes.load(Ordering::Relaxed)),
+            s75_main_in_check_nodes: self.s75_main_in_check_nodes.load(Ordering::Relaxed),
+            s75_main_single_evasion_nodes_raw: self
+                .s75_main_single_evasion_nodes_raw
+                .load(Ordering::Relaxed),
+            s75_main_single_evasion_actionable_depth1: self
+                .s75_main_single_evasion_actionable_depth1
+                .load(Ordering::Relaxed),
+            s75_main_single_evasion_actionable_depth2plus: self
+                .s75_main_single_evasion_actionable_depth2plus
+                .load(Ordering::Relaxed),
+            s75_main_single_evasion_depth3plus: self
+                .s75_main_single_evasion_depth3plus
+                .load(Ordering::Relaxed),
+            s75_main_single_evasion_chain: std::array::from_fn(|i| {
+                self.s75_main_single_evasion_chain[i].load(Ordering::Relaxed)
+            }),
+            s75_main_checking_edges_searched: self
+                .s75_main_checking_edges_searched
+                .load(Ordering::Relaxed),
+            s75_main_check_child_entered: self.s75_main_check_child_entered.load(Ordering::Relaxed),
+            s75_main_check_child_movegen: self.s75_main_check_child_movegen.load(Ordering::Relaxed),
+            s75_main_check_child_terminal_0: self
+                .s75_main_check_child_terminal_0
+                .load(Ordering::Relaxed),
+            s75_main_check_child_evasions_1: self
+                .s75_main_check_child_evasions_1
+                .load(Ordering::Relaxed),
+            s75_main_check_child_evasions_2: self
+                .s75_main_check_child_evasions_2
+                .load(Ordering::Relaxed),
+            s75_main_check_child_evasions_3plus: self
+                .s75_main_check_child_evasions_3plus
+                .load(Ordering::Relaxed),
+            s75_main_depth1_nodes: self.s75_main_depth1_nodes.load(Ordering::Relaxed),
+            s75_main_depth1_in_check: self.s75_main_depth1_in_check.load(Ordering::Relaxed),
+            s75_main_depth1_single_evasion: self
+                .s75_main_depth1_single_evasion
+                .load(Ordering::Relaxed),
+            s75_main_depth1_entered_from_checking_edge: self
+                .s75_main_depth1_entered_from_checking_edge
+                .load(Ordering::Relaxed),
+            s75_q_nodes: self.s75_q_nodes.load(Ordering::Relaxed),
+            s75_q_in_check_nodes: self.s75_q_in_check_nodes.load(Ordering::Relaxed),
+            s75_q_single_evasion_nodes_raw: self
+                .s75_q_single_evasion_nodes_raw
+                .load(Ordering::Relaxed),
+            s75_q_single_evasion_qply0: self.s75_q_single_evasion_qply0.load(Ordering::Relaxed),
+            s75_q_single_evasion_qply1plus: self
+                .s75_q_single_evasion_qply1plus
+                .load(Ordering::Relaxed),
+            s75_q_checking_edges_searched: self
+                .s75_q_checking_edges_searched
+                .load(Ordering::Relaxed),
+            s75_q_check_child_entered: self.s75_q_check_child_entered.load(Ordering::Relaxed),
+            s75_q_check_child_movegen: self.s75_q_check_child_movegen.load(Ordering::Relaxed),
+            s75_q_check_child_terminal_0: self.s75_q_check_child_terminal_0.load(Ordering::Relaxed),
+            s75_q_check_child_evasions_1: self.s75_q_check_child_evasions_1.load(Ordering::Relaxed),
+            s75_q_check_child_evasions_2: self.s75_q_check_child_evasions_2.load(Ordering::Relaxed),
+            s75_q_check_child_evasions_3plus: self
+                .s75_q_check_child_evasions_3plus
+                .load(Ordering::Relaxed),
             s72_d_quiet_cutoffs: std::array::from_fn(|i| {
                 self.s72_d_quiet_cutoffs[i].load(Ordering::Relaxed)
             }),
@@ -3446,6 +3630,7 @@ fn negamax_entered_impl_with_null(
         tt,
         heur,
         allow_null,
+        0,
         extension_budget,
     )
 }
@@ -3653,6 +3838,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // PVS on top). `M4Reference` passes `None` and is never read/written.
     heur: &mut Option<SearchHeuristics>,
     allow_null: bool,
+    single_evasion_chain: u8,
     extension_budget: u8,
 ) -> Option<i32> {
     // UCI seldepth: this node's own `ply` IS the global ply.
@@ -3662,6 +3848,30 @@ fn negamax_entered_impl_with_null_and_extensions(
 
     // Terminal-node check MUST run before the depth==0 evaluation.
     let node_in_check = pos.is_in_check(pos.side);
+    // S7.5-0: forcing-opportunity main funnel. Observation-only; every
+    // counter update is profiling-gated. `s75_main_nodes` is derived in
+    // SearchStats as nodes - qsearch_nodes (actual acquired main-tree nodes).
+    if ctx.profiling_enabled {
+        if depth == 1 {
+            ctx.add_profile_counter(&ctx.s75_main_depth1_nodes, 1);
+        }
+        if node_in_check {
+            ctx.add_profile_counter(&ctx.s75_main_in_check_nodes, 1);
+            if depth == 1 {
+                ctx.add_profile_counter(&ctx.s75_main_depth1_in_check, 1);
+            }
+        }
+        // A non-root node in check means the parent just searched a checking
+        // edge. Counting at child entry avoids an extra make/unmake check in
+        // the parent move loop.
+        if ply > 0 && node_in_check {
+            ctx.add_profile_counter(&ctx.s75_main_checking_edges_searched, 1);
+            ctx.add_profile_counter(&ctx.s75_main_check_child_entered, 1);
+            if depth == 1 {
+                ctx.add_profile_counter(&ctx.s75_main_depth1_entered_from_checking_edge, 1);
+            }
+        }
+    }
     // S7.0 depth attribution: classify this node once, gated so the
     // production (profiling-off) path pays nothing beyond the boolean check.
     if ctx.profiling_enabled {
@@ -3686,6 +3896,42 @@ fn negamax_entered_impl_with_null_and_extensions(
     // child probe's discarded list for the same position.
     ctx.add_profile_counter(&ctx.negamax_body_generations, 1);
     let mut moves = generate_legal_moves_profiled(pos, ctx);
+    // S7.5-0: natural main-search movegen is the ONLY point where a checking
+    // child's evasion count is classified. No extra legal generation is run.
+    if ctx.profiling_enabled && node_in_check {
+        ctx.add_profile_counter(&ctx.s75_main_check_child_movegen, 1);
+        match moves.len() {
+            0 => ctx.add_profile_counter(&ctx.s75_main_check_child_terminal_0, 1),
+            1 => ctx.add_profile_counter(&ctx.s75_main_check_child_evasions_1, 1),
+            2 => ctx.add_profile_counter(&ctx.s75_main_check_child_evasions_2, 1),
+            _ => ctx.add_profile_counter(&ctx.s75_main_check_child_evasions_3plus, 1),
+        }
+    }
+    let current_single_evasion_chain = if ctx.profiling_enabled && node_in_check && moves.len() == 1
+    {
+        ctx.add_profile_counter(&ctx.s75_main_single_evasion_nodes_raw, 1);
+        if depth == 1 {
+            ctx.add_profile_counter(&ctx.s75_main_single_evasion_actionable_depth1, 1);
+            ctx.add_profile_counter(&ctx.s75_main_depth1_single_evasion, 1);
+        } else {
+            ctx.add_profile_counter(&ctx.s75_main_single_evasion_actionable_depth2plus, 1);
+            if depth >= 3 {
+                ctx.add_profile_counter(&ctx.s75_main_single_evasion_depth3plus, 1);
+            }
+        }
+        let chain = single_evasion_chain.saturating_add(1);
+        let chain_bucket = if chain == 1 {
+            0
+        } else if chain == 2 {
+            1
+        } else {
+            2
+        };
+        ctx.add_profile_counter(&ctx.s75_main_single_evasion_chain[chain_bucket], 1);
+        chain
+    } else {
+        0
+    };
     if moves.is_empty() {
         if node_in_check {
             return Some(-(MATE - ply as i32));
@@ -3802,6 +4048,7 @@ fn negamax_entered_impl_with_null_and_extensions(
             tt,
             heur,
             false,
+            0,
             extension_budget,
         );
         path.pop();
@@ -3828,6 +4075,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                 tt,
                 heur,
                 false,
+                single_evasion_chain,
                 extension_budget,
             );
         }
@@ -4129,6 +4377,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 tt,
                                 heur,
                                 true,
+                                current_single_evasion_chain,
                                 child_extension_budget,
                             ) {
                                 Some(s) => -s,
@@ -4176,6 +4425,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                     tt,
                                     heur,
                                     true,
+                                    current_single_evasion_chain,
                                     child_extension_budget,
                                 ) {
                                     Some(s) => {
@@ -4209,6 +4459,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 tt,
                                 heur,
                                 true,
+                                current_single_evasion_chain,
                                 child_extension_budget,
                             ) {
                                 Some(s) => MoveOutcome::Candidate(-s),
@@ -4254,6 +4505,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                             tt,
                             heur,
                             true,
+                            current_single_evasion_chain,
                             child_extension_budget,
                         ) {
                             Some(s) => -s,
@@ -4343,6 +4595,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 tt,
                                 heur,
                                 true,
+                                current_single_evasion_chain,
                                 child_extension_budget,
                             ) {
                                 Some(s) => {
@@ -5749,6 +6002,17 @@ fn quiescence_entered_impl_with_profile(
     if in_check {
         ctx.add_profile_counter(&ctx.qsearch_in_check_entries, 1);
     }
+    // S7.5-0: qsearch forcing funnel, kept strictly separate from main.
+    // A qsearch node with qply > 0 and in check was entered from a checking
+    // edge inside qsearch; a qply == 0 in-check node came from the main tree.
+    ctx.add_profile_counter(&ctx.s75_q_nodes, 1);
+    if ctx.profiling_enabled && in_check {
+        ctx.add_profile_counter(&ctx.s75_q_in_check_nodes, 1);
+        ctx.add_profile_counter(&ctx.s75_q_check_child_entered, 1);
+        if qply > 0 {
+            ctx.add_profile_counter(&ctx.s75_q_checking_edges_searched, 1);
+        }
+    }
 
     // The reference path generates every legal move. The isolated candidate
     // generates only tactical legal moves at non-check nodes and all legal
@@ -5785,6 +6049,26 @@ fn quiescence_entered_impl_with_profile(
     } else {
         generate_legal_moves_profiled(pos, ctx)
     };
+    // S7.5-0: classify the in-check child's natural qsearch movegen result.
+    // This is the same `legal` list the normal qsearch path uses; no extra
+    // legal generation is performed for attribution.
+    if ctx.profiling_enabled && in_check {
+        ctx.add_profile_counter(&ctx.s75_q_check_child_movegen, 1);
+        match legal.len() {
+            0 => ctx.add_profile_counter(&ctx.s75_q_check_child_terminal_0, 1),
+            1 => ctx.add_profile_counter(&ctx.s75_q_check_child_evasions_1, 1),
+            2 => ctx.add_profile_counter(&ctx.s75_q_check_child_evasions_2, 1),
+            _ => ctx.add_profile_counter(&ctx.s75_q_check_child_evasions_3plus, 1),
+        }
+        if legal.len() == 1 {
+            ctx.add_profile_counter(&ctx.s75_q_single_evasion_nodes_raw, 1);
+            if qply == 0 {
+                ctx.add_profile_counter(&ctx.s75_q_single_evasion_qply0, 1);
+            } else {
+                ctx.add_profile_counter(&ctx.s75_q_single_evasion_qply1plus, 1);
+            }
+        }
+    }
     if lazy {
         ctx.add_profile_counter(&ctx.qsearch_lazy_has_any_probes, 1);
         if !has_any_legal_move_profiled(pos, ctx) {
@@ -6243,6 +6527,34 @@ fn root_search_with_window(
     };
     let root_in_check = pos.is_in_check(pos.side);
     let root_single_evasion = root_in_check && root_moves.len() == 1;
+    // S7.5-0: count the root in the main funnel. The root has no parent edge,
+    // so it never contributes to checking-edge / chain-entry counters except
+    // as the first link of a single-evasion chain.
+    if ctx.profiling_enabled {
+        if depth == 1 {
+            ctx.add_profile_counter(&ctx.s75_main_depth1_nodes, 1);
+        }
+        if root_in_check {
+            ctx.add_profile_counter(&ctx.s75_main_in_check_nodes, 1);
+            if depth == 1 {
+                ctx.add_profile_counter(&ctx.s75_main_depth1_in_check, 1);
+            }
+        }
+        if root_single_evasion {
+            ctx.add_profile_counter(&ctx.s75_main_single_evasion_nodes_raw, 1);
+            if depth == 1 {
+                ctx.add_profile_counter(&ctx.s75_main_single_evasion_actionable_depth1, 1);
+                ctx.add_profile_counter(&ctx.s75_main_depth1_single_evasion, 1);
+            } else {
+                ctx.add_profile_counter(&ctx.s75_main_single_evasion_actionable_depth2plus, 1);
+                if depth >= 3 {
+                    ctx.add_profile_counter(&ctx.s75_main_single_evasion_depth3plus, 1);
+                }
+            }
+            ctx.add_profile_counter(&ctx.s75_main_single_evasion_chain[0], 1);
+        }
+    }
+    let root_single_evasion_chain = if root_single_evasion { 1 } else { 0 };
     let root_extension_budget = if profile.uses_forcing_search() {
         MAX_FORCING_EXTENSIONS
     } else {
@@ -6387,6 +6699,7 @@ fn root_search_with_window(
                             tt,
                             heur,
                             true,
+                            root_single_evasion_chain,
                             child_extension_budget,
                         ) {
                             Some(s) => RootMoveOutcome::Candidate(-s),
@@ -6417,6 +6730,7 @@ fn root_search_with_window(
                             tt,
                             heur,
                             true,
+                            root_single_evasion_chain,
                             child_extension_budget,
                         ) {
                             Some(s) => -s,
@@ -6471,6 +6785,7 @@ fn root_search_with_window(
                                 tt,
                                 heur,
                                 true,
+                                root_single_evasion_chain,
                                 child_extension_budget,
                             ) {
                                 Some(s) => {
