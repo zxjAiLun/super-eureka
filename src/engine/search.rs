@@ -107,16 +107,20 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   movegen while replacing only the evaluator; all threat-aware, forcing,
 ///   aspiration, LMR, null, futility, SEE, and qsearch-pruning features stay
 ///   disabled.
-/// * `Current` is the production configuration: M4.1 quiet move ordering plus
-///   the M4.2 PVS at both non-root nodes (Commit 3) and the root (Commit 4),
-///   with the D1.2 specialized non-check qsearch move generator integrated.
+/// * `Current` is the historical production configuration: M4.1 quiet move
+///   ordering plus the M4.2 PVS at both non-root nodes (Commit 3) and the
+///   root (Commit 4), with the D1.2 specialized non-check qsearch move
+///   generator integrated. It is retained as [`ROLLBACK_PROFILE`] and is NOT
+///   the current default.
 /// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
-/// * `CurrentFinal` is the explicitly selected S3-FINAL candidate. It combines
-///   the existing aspiration, LMR, verified null-probe, shallow futility, and
-///   conservative qsearch SEE-pruning paths without enabling E2/threat
-///   evaluation or forcing-search features.
+/// * `CurrentFinal` is [`PRODUCTION_PROFILE`]: the S3-FINAL candidate plus
+///   the promoted LegalityFast, SingleBuffer, SingleGeneration, and S7.4A
+///   LMR-on-null-window policies. It combines the existing aspiration, LMR,
+///   verified null-probe, shallow futility, and conservative qsearch
+///   SEE-pruning paths without enabling E2/threat evaluation or
+///   forcing-search features.
 ///
 /// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
 /// non-root nodes, NO PVS at either the root or a non-root node), while
@@ -202,6 +206,16 @@ pub(crate) enum SearchProfile {
     /// CurrentFinal.
     CurrentFinalLmrNullWindow,
 }
+
+/// Canonical current production profile. UCI startup defaults, the default
+/// UCI handshake, and the normal production search entry all resolve here.
+/// `--profile current-final` and the retained S7.4A alias select the exact
+/// same production search semantics.
+pub(crate) const PRODUCTION_PROFILE: SearchProfile = SearchProfile::CurrentFinal;
+
+/// Explicit historical rollback profile. `--profile current` selects this;
+/// it never receives promoted production policy bits.
+pub(crate) const ROLLBACK_PROFILE: SearchProfile = SearchProfile::Current;
 
 impl SearchProfile {
     #[inline]
@@ -6801,7 +6815,9 @@ pub(crate) fn search_best_move_with_history_and_tt(
 
 /// Profile-aware search entry (M4.1). Threads `profile` through the whole
 /// search core so the move-ordering strategy can differ by [`SearchProfile`].
-/// The UCI production path calls this with `SearchProfile::Current`; the
+/// The UCI production path calls this with the process-selected startup
+/// profile, whose default is [`PRODUCTION_PROFILE`] (`CurrentFinal`);
+/// `--profile current` explicitly selects [`ROLLBACK_PROFILE`]. The
 /// historical M4.0 reference entry
 /// ([`search_best_move_with_history_and_tt`]) and the in-crate tests call it
 /// with `SearchProfile::M4Reference` to reproduce the locked baseline exactly.

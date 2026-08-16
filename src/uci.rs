@@ -215,7 +215,7 @@ fn write_uci_handshake_with_profile<W: Write>(
 /// Compatibility wrapper for tests and callers that use the default profile.
 #[cfg(test)]
 fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
-    write_uci_handshake_with_profile(out, startup_tt_failed, search::SearchProfile::CurrentFinal)
+    write_uci_handshake_with_profile(out, startup_tt_failed, search::PRODUCTION_PROFILE)
 }
 
 /// Consumable variant used by `run()`. It takes a mutable `startup_tt_notice_pending`
@@ -407,12 +407,13 @@ fn handle_setoption(
 }
 
 /// Parse the optional command-line profile used when launching a tournament
-/// candidate. The default is the promoted `CurrentFinal`; explicitly selected
-/// `current` remains available as the historical production baseline. Dormant
-/// null/standalone search candidates and the closed D1.3 qsearch-pruning
-/// profile remain separate from both profiles.
+/// candidate. The default is [`search::PRODUCTION_PROFILE`] (`CurrentFinal`);
+/// explicitly selected `current` resolves to
+/// [`search::ROLLBACK_PROFILE`]. Dormant null/standalone search candidates
+/// and the closed D1.3 qsearch-pruning profile remain separate from both
+/// production identities.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
-    let mut profile = search::SearchProfile::CurrentFinal;
+    let mut profile = search::PRODUCTION_PROFILE;
     let mut profile_seen = false;
     let mut it = args.iter();
 
@@ -432,7 +433,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     .next()
                     .ok_or_else(|| "--profile requires a value".to_string())?;
                 profile = match name.as_str() {
-                    "current" => search::SearchProfile::Current,
+                    "current" => search::ROLLBACK_PROFILE,
                     "current-lmr" => search::SearchProfile::CurrentLmr,
                     "current-threat-aware" => search::SearchProfile::CurrentThreatAware,
                     "current-eval2" => search::SearchProfile::CurrentEval2,
@@ -507,9 +508,9 @@ fn print_startup_help() {
     println!("Default: current-final");
 }
 
-/// Run the UCI loop using the promoted default production profile.
+/// Run the UCI loop using the canonical production profile.
 pub fn run() {
-    run_with_profile(search::SearchProfile::CurrentFinal);
+    run_with_profile(search::PRODUCTION_PROFILE);
 }
 
 /// Parse startup arguments and run the UCI loop with the selected profile.
@@ -911,15 +912,36 @@ mod tests {
     }
 
     #[test]
-    fn startup_profile_defaults_to_current_final_and_accepts_cumulative_candidates() {
+    fn startup_profile_defaults_to_production_profile_and_keeps_rollback() {
+        assert_eq!(
+            search::PRODUCTION_PROFILE,
+            search::SearchProfile::CurrentFinal,
+            "the canonical production profile must be CurrentFinal"
+        );
+        assert_eq!(
+            search::ROLLBACK_PROFILE,
+            search::SearchProfile::Current,
+            "the canonical rollback profile must be Current"
+        );
+        assert_ne!(
+            search::PRODUCTION_PROFILE,
+            search::ROLLBACK_PROFILE,
+            "production and rollback must be distinct"
+        );
         assert_eq!(
             startup_profile(&[]),
-            search::SearchProfile::CurrentFinal,
-            "no startup arguments must select promoted CurrentFinal"
+            search::PRODUCTION_PROFILE,
+            "no startup arguments must select PRODUCTION_PROFILE"
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-final"]),
+            search::PRODUCTION_PROFILE,
+            "--profile current-final must be the production identity"
         );
         assert_eq!(
             startup_profile(&["--profile", "current"]),
-            search::SearchProfile::Current
+            search::ROLLBACK_PROFILE,
+            "--profile current must be the explicit rollback identity"
         );
         assert_eq!(
             startup_profile(&["--profile", "current-lmr"]),
