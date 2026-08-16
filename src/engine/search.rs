@@ -154,9 +154,11 @@ pub(crate) enum SearchProfile {
     CurrentAspirationLmrFutilitySee,
     /// S4.4E production search configuration: S3 production search plus the
     /// S4.3E promoted unpinned non-check full-legality fast path, the S4.4E
-    /// promoted single-buffer full-legal materialization, and the S5.0D
+    /// promoted single-buffer full-legal materialization, the S5.0D
     /// promoted has-any child terminal probe (identical move lists, order
-    /// and search tree). Default UCI startup profile.
+    /// and search tree), and the S7.4A promoted LMR-on-null-window policy
+    /// (existing LMR rules applied on caller-null-window nodes with exactly
+    /// one full-depth verification re-search). Default UCI startup profile.
     CurrentFinal,
     /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
     /// the existing history heuristic (previous best stays first; no root
@@ -193,12 +195,11 @@ pub(crate) enum SearchProfile {
     /// top of the existing SEE<0 production prune. TREE-CHANGING candidate;
     /// CurrentFinal itself is untouched.
     CurrentFinalQsearchDelta,
-    /// S7.4A candidate: exactly CurrentFinal except that the EXISTING LMR
-    /// policy is actually applied on later moves at caller-null-window
-    /// nodes, where `pvs_child_window` currently returns `ChildWindow::Full`
-    /// and the proposed reduction is discarded (S7.3: ~232k theoretical R1
-    /// vs ~27k applied). TREE-CHANGING candidate; CurrentFinal itself is
-    /// untouched.
+    /// S7.4A candidate, PROMOTED into production CurrentFinal after the
+    /// formal pentanomial SPRT accepted H1 (tournament
+    /// 2cf04fe6-2120-45c1-852b-e2462e3f62d9). Retained as a
+    /// historical/compatibility alias; search behavior is identical to
+    /// CurrentFinal.
     CurrentFinalLmrNullWindow,
 }
 
@@ -350,12 +351,26 @@ impl SearchProfile {
         matches!(self, Self::CurrentFinalQsearchDelta)
     }
 
-    /// S7.4A: apply the EXISTING LMR policy on caller-null-window nodes where
-    /// `pvs_child_window()` would otherwise fall back to `ChildWindow::Full`
-    /// and silently discard the proposed reduction. Candidate-only.
+    /// S7.4A, PROMOTED: apply the EXISTING LMR policy on caller-null-window
+    /// nodes where `pvs_child_window()` would otherwise fall back to
+    /// `ChildWindow::Full` and silently discard the proposed reduction.
+    /// Production policy for CurrentFinal and every profile whose base
+    /// semantics are defined as CurrentFinal; `Current` and all pre-S7.4A
+    /// experimental profiles remain unchanged (false).
     #[inline]
     pub(crate) const fn uses_lmr_null_window(self) -> bool {
-        matches!(self, Self::CurrentFinalLmrNullWindow)
+        matches!(
+            self,
+            Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
+        )
     }
 
     #[inline]
@@ -555,8 +570,8 @@ pub(crate) struct SearchFeaturePolicy {
     pub(crate) qsearch_see: bool,
     /// S7.1B: conservative SEE-delta qsearch pruning (candidate only).
     pub(crate) qsearch_delta: bool,
-    /// S7.4A: apply the existing LMR reduction on caller-null-window nodes
-    /// (candidate only; CurrentFinal keeps the full-depth fallback).
+    /// S7.4A, PROMOTED: apply the existing LMR reduction on
+    /// caller-null-window nodes (production CurrentFinal policy).
     pub(crate) lmr_null_window: bool,
 }
 
@@ -4042,7 +4057,7 @@ fn negamax_entered_impl_with_null_and_extensions(
         // scout row — whenever this move becomes the node's best.
         #[cfg(test)]
         let mut researched_row: Option<Vec<Move>> = None;
-        // S7.4A: set when this move was verified by a candidate full-depth
+        // S7.4A (promoted): set when this move was verified by a full-depth
         // null-window re-search after a reduced improve, so only a VERIFIED
         // result can be counted as an LMR-null-window cutoff.
         let mut s74_nw_verified = false;
@@ -4064,14 +4079,15 @@ fn negamax_entered_impl_with_null_and_extensions(
                         // overflow fallbacks. The manual probe already spent
                         // the single node for this child.
                         //
-                        // S7.4A: on a caller-null-window node (beta ==
-                        // alpha_before_move + 1) CurrentFinal discards
-                        // `reduction` here (the S7.3 suppression). The
-                        // candidate instead applies the EXISTING LMR policy:
-                        // one reduced null-window search with the CALLER'S
+                        // S7.4A, PROMOTED: on a caller-null-window node
+                        // (beta == alpha_before_move + 1) production
+                        // CurrentFinal applies the EXISTING LMR policy: one
+                        // reduced null-window search with the CALLER'S
                         // window; fail-low accepted; any improvement verified
                         // by exactly one full-depth re-search before it may
-                        // cut off or earn heuristics.
+                        // cut off or earn heuristics. Profiles without the
+                        // promoted policy keep the historical full-depth
+                        // fallback (and the S7.3 suppression counter).
                         let s74_nw_caller =
                             reduction > 0 && beta == alpha_before_move.saturating_add(1);
                         if s74_nw_caller && ctx.features().lmr_null_window {
@@ -8464,12 +8480,12 @@ mod tests {
     }
 
     #[test]
-    fn lmr_null_window_profile_inherits_current_final_exactly_except_nw_lmr() {
+    fn lmr_null_window_alias_matches_promoted_current_final() {
         use SearchProfile::{CurrentFinal, CurrentFinalLmrNullWindow as Nw};
 
-        // S7.4A: structural regression proof. Every production policy
-        // dimension must agree between CurrentFinal and the S7.4A candidate;
-        // the ONLY permitted difference is uses_lmr_null_window.
+        // S7.4A promotion: structural regression proof. Every production
+        // policy dimension must agree between CurrentFinal and the S7.4A
+        // compatibility alias, INCLUDING uses_lmr_null_window.
         assert_eq!(CurrentFinal.uses_pvs(), Nw.uses_pvs());
         assert_eq!(CurrentFinal.uses_see(), Nw.uses_see());
         assert_eq!(CurrentFinal.uses_aspiration(), Nw.uses_aspiration());
@@ -8520,12 +8536,17 @@ mod tests {
             CurrentFinal.uses_threat_aware_eval(),
             Nw.uses_threat_aware_eval()
         );
-        // The qsearch-delta lane stays evidence-only for this candidate too.
+        // The qsearch-delta lane stays evidence-only.
         assert!(!Nw.uses_qsearch_delta());
 
-        // The single intended difference.
-        assert!(!CurrentFinal.uses_lmr_null_window());
+        // Promotion: the S7.4A policy is now production CurrentFinal policy,
+        // and the alias remains exactly equal to it.
+        assert!(CurrentFinal.uses_lmr_null_window());
         assert!(Nw.uses_lmr_null_window());
+        assert_eq!(
+            CurrentFinal.uses_lmr_null_window(),
+            Nw.uses_lmr_null_window()
+        );
 
         // Explicit guards for the two arms forgotten in the original
         // (misconfigured) S7.1B candidate.
@@ -8535,8 +8556,8 @@ mod tests {
             "S7.4A must inherit SingleBuffer materialization"
         );
 
-        // The resolved hot-path policy must agree on every shared feature
-        // bit and differ only on the LMR-null-window bit.
+        // The resolved hot-path policies must agree bit-for-bit, including
+        // the promoted LMR-null-window bit.
         let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
         let nw = SearchFeaturePolicy::for_profile(Nw, None);
         assert_eq!(cf.lmr, nw.lmr);
@@ -8544,12 +8565,71 @@ mod tests {
         assert_eq!(cf.null_move, nw.null_move);
         assert_eq!(cf.qsearch_see, nw.qsearch_see);
         assert_eq!(cf.qsearch_delta, nw.qsearch_delta);
-        assert!(!cf.lmr_null_window);
+        assert!(cf.lmr_null_window);
         assert!(nw.lmr_null_window);
+        assert_eq!(cf.lmr_null_window, nw.lmr_null_window);
     }
 
     #[test]
-    fn lmr_null_window_candidate_applies_reduces_and_verifies_correctly() {
+    fn lmr_null_window_promotion_profile_family_is_exact() {
+        use SearchProfile::{
+            Current, CurrentAspirationLmr, CurrentAspirationLmrFutilitySee, CurrentFinal,
+            CurrentFinalLegalityFast, CurrentFinalLmrNullWindow, CurrentFinalQsearchDelta,
+            CurrentFinalQsearchLazy, CurrentFinalRootHistory, CurrentFinalRootPrevScore,
+            CurrentFinalSingleBuffer, CurrentFinalSingleGeneration, CurrentLmr, LmrCandidate,
+        };
+
+        // Every profile whose base semantics are CurrentFinal or
+        // CurrentFinal + X carries the promoted production policy.
+        let promoted = [
+            CurrentFinal,
+            CurrentFinalRootHistory,
+            CurrentFinalRootPrevScore,
+            CurrentFinalLegalityFast,
+            CurrentFinalSingleBuffer,
+            CurrentFinalSingleGeneration,
+            CurrentFinalQsearchLazy,
+            CurrentFinalQsearchDelta,
+            CurrentFinalLmrNullWindow,
+        ];
+        for profile in promoted {
+            assert!(
+                profile.uses_lmr_null_window(),
+                "{profile:?} must use promoted S7.4A LMR-on-null-window"
+            );
+            assert!(
+                SearchFeaturePolicy::for_profile(profile, None).lmr_null_window,
+                "{profile:?} resolved policy must enable lmr_null_window"
+            );
+        }
+
+        // Rollback and historical pre-S7.4A profiles remain unchanged.
+        let unchanged = [
+            Current,
+            CurrentLmr,
+            CurrentAspirationLmr,
+            CurrentAspirationLmrFutilitySee,
+            LmrCandidate,
+        ];
+        for profile in unchanged {
+            assert!(
+                !profile.uses_lmr_null_window(),
+                "{profile:?} must keep the pre-promotion behavior"
+            );
+            assert!(
+                !SearchFeaturePolicy::for_profile(profile, None).lmr_null_window,
+                "{profile:?} resolved policy must keep lmr_null_window off"
+            );
+        }
+        assert!(!Current.uses_lmr_null_window());
+        assert!(
+            !SearchFeaturePolicy::for_profile(Current, None).lmr_null_window,
+            "historical Current rollback profile must remain unchanged"
+        );
+    }
+
+    #[test]
+    fn lmr_null_window_promoted_profile_applies_reduces_and_verifies_correctly() {
         fn run(profile: SearchProfile) -> (Option<i32>, SearchStats) {
             // White is a knight down: eval (~-320) stays above the depth-4
             // futility margin from alpha=0, so quiets are NOT shallow-pruned;
@@ -8592,50 +8672,77 @@ mod tests {
             (score, ctx.stats())
         }
 
-        let (_, base) = run(SearchProfile::CurrentFinal);
-        let (cand_score, cand) = run(SearchProfile::CurrentFinalLmrNullWindow);
+        // CurrentLmr is the historical LMR profile without the promoted
+        // policy: on caller-null-window nodes it still shows the S7.3
+        // suppression and never enters the S7.4A path.
+        let (_, legacy) = run(SearchProfile::CurrentLmr);
+        assert!(legacy.s74_lmr_proposed > 0);
+        assert!(legacy.s74_lmr_suppressed_by_null_window > 0);
+        assert_eq!(legacy.s74_lmr_applied_null_window, 0);
 
-        // Baseline: LMR proposals on null-window callers are suppressed (the
-        // exact S7.3 finding) and the candidate path is never taken.
-        assert!(base.s74_lmr_proposed > 0);
-        assert!(base.s74_lmr_suppressed_by_null_window > 0);
-        assert_eq!(base.s74_lmr_applied_null_window, 0);
+        let (prod_score, prod) = run(SearchProfile::CurrentFinal);
+        let (alias_score, alias) = run(SearchProfile::CurrentFinalLmrNullWindow);
 
-        // Candidate: the previously suppressed population is now applied;
-        // every applied reduction terminates in exactly one of: fail-low
-        // accept, or exactly one full-depth re-search.
-        assert_eq!(cand.s74_lmr_suppressed_by_null_window, 0);
-        assert!(cand.s74_lmr_applied_null_window > 0);
+        for (label, stats) in [("production CurrentFinal", prod), ("alias", alias)] {
+            // The previously suppressed population is now applied; every
+            // applied reduction terminates in exactly one of: fail-low
+            // accept, or exactly one full-depth re-search.
+            assert_eq!(stats.s74_lmr_suppressed_by_null_window, 0, "{label}");
+            assert!(stats.s74_lmr_applied_null_window > 0, "{label}");
+            assert_eq!(
+                stats.s74_lmr_applied_null_window,
+                stats.s74_lmr_nw_fail_low + stats.s74_lmr_nw_research,
+                "{label}"
+            );
+            // Contract A: this fixture is all fail-low, so no verification is
+            // requested and no verification node is acquired.
+            assert_eq!(stats.s74_lmr_nw_research, 0, "{label}");
+            assert_eq!(stats.s74_lmr_nw_research_entered, 0, "{label}");
+            // Verified cutoffs can only originate from re-searched moves.
+            assert!(
+                stats.s74_lmr_nw_verified_cutoff <= stats.s74_lmr_nw_research,
+                "{label}"
+            );
+            // S7.4A Repair 1: every re-search is a NEW real search entry
+            // acquired through the exact-once `try_enter_node` contract.
+            // Entries can never exceed requests, and in an unlimited
+            // fixed-depth run every requested verification enters.
+            assert!(
+                stats.s74_lmr_nw_research_entered <= stats.s74_lmr_nw_research,
+                "{label}"
+            );
+            assert_eq!(
+                stats.s74_lmr_nw_research_entered, stats.s74_lmr_nw_research,
+                "unlimited run: every requested verification must enter ({label})"
+            );
+            // The depth and index splits each account for every application.
+            assert_eq!(
+                stats.s74_lmr_nw_depth.iter().sum::<u64>(),
+                stats.s74_lmr_applied_null_window,
+                "{label}"
+            );
+            assert_eq!(
+                stats.s74_lmr_nw_idx.iter().sum::<u64>(),
+                stats.s74_lmr_applied_null_window,
+                "{label}"
+            );
+        }
+
+        // Production CurrentFinal and the retained S7.4A alias are
+        // search-semantically identical in this deterministic fixture.
+        assert_eq!(prod_score, alias_score);
+        assert_eq!(prod.nodes, alias.nodes);
+        assert_eq!(prod.qsearch_nodes, alias.qsearch_nodes);
         assert_eq!(
-            cand.s74_lmr_applied_null_window,
-            cand.s74_lmr_nw_fail_low + cand.s74_lmr_nw_research
+            prod.s74_lmr_applied_null_window,
+            alias.s74_lmr_applied_null_window
         );
-        // Contract A: this fixture is all fail-low, so no verification is
-        // requested and no verification node is acquired.
-        assert_eq!(cand.s74_lmr_nw_research, 0);
-        assert_eq!(cand.s74_lmr_nw_research_entered, 0);
-        // Verified cutoffs can only originate from re-searched moves.
-        assert!(cand.s74_lmr_nw_verified_cutoff <= cand.s74_lmr_nw_research);
-        // S7.4A Repair 1: every re-search is a NEW real search entry acquired
-        // through the exact-once `try_enter_node` contract. Entries can never
-        // exceed requests, and in an unlimited fixed-depth run (no stop flag,
-        // no deadline, no node budget) every requested verification enters.
-        assert!(cand.s74_lmr_nw_research_entered <= cand.s74_lmr_nw_research);
-        assert_eq!(
-            cand.s74_lmr_nw_research_entered, cand.s74_lmr_nw_research,
-            "unlimited run: every requested verification must enter"
-        );
-        // The depth and index splits each account for every application.
-        assert_eq!(
-            cand.s74_lmr_nw_depth.iter().sum::<u64>(),
-            cand.s74_lmr_applied_null_window
-        );
-        assert_eq!(
-            cand.s74_lmr_nw_idx.iter().sum::<u64>(),
-            cand.s74_lmr_applied_null_window
-        );
-        // The candidate search completes with a bounded, sane score.
-        let s = cand_score.expect("candidate search must complete");
+        assert_eq!(prod.s74_lmr_nw_fail_low, alias.s74_lmr_nw_fail_low);
+
+        // Both promoted searches complete with a bounded, sane score.
+        let s = prod_score.expect("production CurrentFinal search must complete");
+        assert!(s > -(MATE - 1000) && s < MATE - 1000);
+        let s = alias_score.expect("S7.4A alias search must complete");
         assert!(s > -(MATE - 1000) && s < MATE - 1000);
     }
 
