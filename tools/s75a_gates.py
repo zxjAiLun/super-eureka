@@ -152,13 +152,14 @@ def gate_g4(engine: Path, result: dict, resume: bool) -> None:
         for idx, pos in enumerate(rows):
             if (pos["id"], t) in done:
                 continue
-            a = run_bench(engine, A, pos["fen"], f"--movetime {t}")
-            b = run_bench(engine, B, pos["fen"], f"--movetime {t}")
+            order = [A, B] if idx % 2 == 0 else [B, A]
+            runs = {p: run_bench(engine, p, pos["fen"], f"--movetime {t}")
+                    for p in order}
             sec.append({"id": pos["id"], "movetime": t, "fen": pos["fen"],
-                        A: a, B: b})
+                        "execution_order": order, A: runs[A], B: runs[B]})
             write(result)
-            da, db = (int_or_none(a.get("completed_depth")),
-                      int_or_none(b.get("completed_depth")))
+            da, db = (int_or_none(runs[A].get("completed_depth")),
+                      int_or_none(runs[B].get("completed_depth")))
             print(f"s75a_g4 {pos['id']} {t}ms d {da} -> {db}", flush=True)
     summaries = {}
     for t in (1000, 3000):
@@ -321,40 +322,61 @@ def gate_g5(engine: Path, result: dict, resume: bool) -> None:
 # ---------------------------------------------------------------------------
 # G5W
 # ---------------------------------------------------------------------------
+def _bestmove_winner(a, b, teacher_move):
+    """Return (candidate_win, candidate_loss) from teacher-bestmove only."""
+    am = a.get("bestmove") == teacher_move
+    bm = b.get("bestmove") == teacher_move
+    if am == bm:
+        return False, False
+    return bm, am
+
+
+def _cp_error_winner(a, b, teacher_cp):
+    ca, cb = cp_value(a.get("score")), cp_value(b.get("score"))
+    if ca is None or cb is None or not isinstance(teacher_cp, int):
+        return False, False
+    ea, eb = abs(ca - teacher_cp), abs(cb - teacher_cp)
+    if ea - eb >= 100:
+        return True, False
+    if eb - ea >= 100:
+        return False, True
+    return False, False
+
+
 def _g5w_classify(a, b, pos):
-    """Returns (candidate_wins, candidate_losses, hard_reject_kind)."""
+    """Frozen teacher-directed single classification.
+
+    Returns (candidate_win, candidate_loss, hard_reject_kind,
+             mate_distance_direction) where mate_distance_direction is
+    'candidate_closer' / 'candidate_farther' / None and never changes the
+    directional classification by itself.
+    """
     ma, mb = mate_signed(a.get("score")), mate_signed(b.get("score"))
     tm = pos.get("teacher_mate")
+    distance_dir = None
     if isinstance(tm, int) and tm != 0:
         a_ok = _mate_state_correct(ma, tm)
         b_ok = _mate_state_correct(mb, tm)
         if a_ok and not b_ok:
-            return False, True, "baseline_correct_mate_lost"
+            return False, True, "baseline_correct_mate_lost", distance_dir
         if isinstance(mb, int) and not b_ok:
-            return False, True, "candidate_wrong_mate_side"
+            return False, True, "candidate_wrong_mate_side", distance_dir
         if not a_ok and b_ok:
-            return True, False, None
+            return True, False, None, distance_dir
         if a_ok and b_ok and isinstance(ma, int) and isinstance(mb, int):
             if abs(mb) < abs(ma):
-                return True, False, None
-            if abs(mb) > abs(ma):
-                return False, True, None
-        return False, False, None
+                distance_dir = "candidate_closer"
+            elif abs(mb) > abs(ma):
+                distance_dir = "candidate_farther"
+        win, loss = _bestmove_winner(a, b, pos.get("teacher_bestmove"))
+        return win, loss, None, distance_dir
     teacher_move = pos.get("teacher_bestmove")
-    am = a.get("bestmove") == teacher_move
-    bm = b.get("bestmove") == teacher_move
-    if am != bm:
-        return bm, am, None
-    if not am and not bm:
-        ca, cb = cp_value(a.get("score")), cp_value(b.get("score"))
-        tc = pos.get("teacher_cp_stm")
-        if ca is not None and cb is not None and isinstance(tc, int):
-            ea, eb = abs(ca - tc), abs(cb - tc)
-            if ea - eb >= 100:
-                return True, False, None
-            if eb - ea >= 100:
-                return False, True, None
-    return False, False, None
+    win, loss = _bestmove_winner(a, b, teacher_move)
+    if win or loss:
+        return win, loss, None, distance_dir
+    # bestmove state is tied (both match or both miss): use non-mate cp error
+    win, loss = _cp_error_winner(a, b, pos.get("teacher_cp_stm"))
+    return win, loss, None, distance_dir
 
 
 def gate_g5w(engine: Path, result: dict, resume: bool) -> None:
@@ -366,16 +388,20 @@ def gate_g5w(engine: Path, result: dict, resume: bool) -> None:
         for i, pos in enumerate(rows):
             if (i, t) in done:
                 continue
-            a = run_bench(engine, A, pos["fen"], f"--movetime {t}")
-            b = run_bench(engine, B, pos["fen"], f"--movetime {t}")
-            rec = {"i": i, "movetime": t, "fen": pos["fen"], A: a, B: b,
+            order = [A, B] if i % 2 == 0 else [B, A]
+            runs = {p: run_bench(engine, p, pos["fen"], f"--movetime {t}")
+                    for p in order}
+            a, b = runs[A], runs[B]
+            rec = {"i": i, "movetime": t, "fen": pos["fen"],
+                   "execution_order": order, A: a, B: b,
                    "teacher_bestmove": pos.get("teacher_bestmove"),
                    "teacher_cp_stm": pos.get("teacher_cp_stm"),
                    "teacher_mate": pos.get("teacher_mate")}
             if row_ok(a) and row_ok(b) and a.get("bestmove") and b.get("bestmove"):
-                win, loss, hard = _g5w_classify(a, b, pos)
+                win, loss, hard, dist = _g5w_classify(a, b, pos)
                 rec.update({"candidate_win": win, "candidate_loss": loss,
-                            "hard_reject": hard, "completed": True})
+                            "hard_reject": hard, "completed": True,
+                            "mate_distance_direction": dist})
             else:
                 rec["completed"] = False
             sec.append(rec)
@@ -390,12 +416,18 @@ def gate_g5w(engine: Path, result: dict, resume: bool) -> None:
         wins = sum(1 for r in comp if r.get("candidate_win"))
         losses = sum(1 for r in comp if r.get("candidate_loss"))
         hard = [r for r in comp if r.get("hard_reject")]
+        closer = sum(1 for r in comp
+                     if r.get("mate_distance_direction") == "candidate_closer")
+        farther = sum(1 for r in comp
+                      if r.get("mate_distance_direction") == "candidate_farther")
         summaries[f"movetime{t}"] = {
             "completed": len(comp),
             "expected": len(rows),
             "candidate_wins": wins,
             "candidate_losses": losses,
             "hard_rejects": hard,
+            "mate_distance_closer_to_teacher": closer,
+            "mate_distance_farther_from_teacher": farther,
             "pass": len(comp) == len(rows) and len(hard) == 0
                     and (wins > losses if t == 3000 else wins >= losses),
         }
@@ -450,12 +482,15 @@ def write(result: dict) -> None:
 
 
 def main() -> int:
+    global OUT
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", type=Path, required=True)
     ap.add_argument("--gates", default="g3,g4,g5,g5w,g6")
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
+    OUT = args.out
     engine = args.engine.resolve()
     result = {}
     if args.resume and OUT.exists():
