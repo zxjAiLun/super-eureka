@@ -9,6 +9,7 @@ same runner to execute the S7.5B candidate without duplicating the gate code.
     B = current-final-single-evasion   (S7.5A candidate)
 
 Gates:
+  G0   production invariance:       30 S4 x d6, exact cross-source fields
   G3   fixed-depth explosion fuse: 80 S7 x d6/d7, nodes < 2x, wall < 2x
   G4   fixed-wall cost gate:        80 S7 x 1s/3s, frozen cost pass rule
   G5   fixed-depth teacher gate:    S6 teacher challenge, d6
@@ -30,6 +31,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 S7_CORPUS = REPO / "tools/data/s7_depth_attribution_corpus.jsonl"
+S4_CORPUS = S7_CORPUS
 R2_CORPUS = REPO / "data/s7/s74a-r2-tactical-corpus.jsonl"
 TEACHER = REPO / "data/s6/s6-teacher-challenge-v1.jsonl"
 OUT = REPO / "results/s7/s75a-gates.json"
@@ -100,6 +102,44 @@ def mate_signed(score: str | None) -> int | None:
 
 def row_ok(rec: dict | None) -> bool:
     return bool(rec) and not rec.get("error") and not rec.get("timeout")
+
+
+# ---------------------------------------------------------------------------
+# G0
+# ---------------------------------------------------------------------------
+def gate_g0(engine: Path, baseline_engine: Path, result: dict, resume: bool) -> None:
+    sec = result.setdefault("g0_rows", [])
+    done = {r["id"] for r in sec} if resume else set()
+    rows = [json.loads(line) for line in S4_CORPUS.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+    rows = [row for row in rows if row.get("stratum") == "s4"]
+    exact_fields = ("nodes", "qsearch_nodes", "score", "bestmove", "pv", "seldepth")
+    for pos in rows:
+        if pos["id"] in done:
+            continue
+        baseline = run_bench(baseline_engine, A, pos["fen"], "--depth 6")
+        candidate = run_bench(engine, A, pos["fen"], "--depth 6")
+        mismatches = [
+            field for field in exact_fields
+            if not row_ok(baseline)
+            or not row_ok(candidate)
+            or baseline.get(field) != candidate.get(field)
+        ]
+        sec.append({"id": pos["id"], "fen": pos["fen"],
+                    "baseline": baseline, "candidate": candidate,
+                    "mismatches": mismatches})
+        write(result)
+        print(f"s75_g0 {pos['id']} pass={not mismatches}", flush=True)
+    summary = {
+        "positions": len(rows),
+        "completed": sum(1 for row in sec if row.get("baseline") and row.get("candidate")),
+        "mismatches": sum(1 for row in sec if row.get("mismatches")),
+        "failed_ids": [row["id"] for row in sec if row.get("mismatches")],
+    }
+    summary["pass"] = summary["completed"] == len(rows) and summary["mismatches"] == 0
+    result["g0_summary"] = summary
+    write(result)
+    print(f"s75_g0_summary {json.dumps(summary, indent=2)}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +548,8 @@ def main() -> int:
     ap.add_argument("--gates", default="g3,g4,g5,g5w,g6")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--baseline-engine", type=Path,
+                    help="baseline binary required by G0")
     ap.add_argument("--candidate-profile", default=B,
                     help="candidate profile compared with current-final")
     args = ap.parse_args()
@@ -520,7 +562,11 @@ def main() -> int:
         result = json.loads(OUT.read_text(encoding="utf-8"))
     gates = [g.strip() for g in args.gates.split(",") if g.strip()]
     for gate in gates:
-        if gate == "g3":
+        if gate == "g0":
+            if args.baseline_engine is None:
+                raise SystemExit("g0 requires --baseline-engine")
+            gate_g0(engine, args.baseline_engine.resolve(), result, args.resume)
+        elif gate == "g3":
             gate_g3(engine, result, args.resume)
         elif gate == "g4":
             gate_g4(engine, result, args.resume)

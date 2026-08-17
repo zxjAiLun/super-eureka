@@ -621,6 +621,14 @@ struct ExtensionBudgets {
     check2: u8,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ChildExtension {
+    depth: u32,
+    budgets: ExtensionBudgets,
+    /// True only when this edge actually consumed the independent B extension.
+    check2_extended: bool,
+}
+
 /// What the caller wants the search to do.
 ///
 /// Time control is *not* here: `movetime` / clock fields are parsed into a
@@ -4626,7 +4634,11 @@ fn negamax_entered_impl_with_null_and_extensions(
         } else {
             None
         };
-        let (child_depth, child_extension_budgets) = child_extension_params(
+        let ChildExtension {
+            depth: child_depth,
+            budgets: child_extension_budgets,
+            check2_extended,
+        } = child_extension_params(
             pos,
             depth,
             _profile,
@@ -4697,7 +4709,8 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 &ctx.s74_lmr_nw_idx[s74_idx_bucket(move_idx)],
                                 1,
                             );
-                            let nw_scout_depth = depth.saturating_sub(1 + reduction);
+                            let nw_scout_depth =
+                                reduced_child_depth(depth, reduction, check2_extended);
                             let nw_reduced = match negamax_entered_impl_with_null_and_extensions(
                                 pos,
                                 nw_scout_depth,
@@ -4822,7 +4835,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                         #[cfg(test)]
                         pvs_counters::mark_scout();
                         let scout_depth = if reduction > 0 {
-                            depth.saturating_sub(1 + reduction)
+                            reduced_child_depth(depth, reduction, check2_extended)
                         } else {
                             child_depth
                         };
@@ -5944,7 +5957,7 @@ fn child_extension_params(
     parent_has_single_evasion: bool,
     child_has_check2_evasions: bool,
     ctx: &SearchContext,
-) -> (u32, ExtensionBudgets) {
+) -> ChildExtension {
     let a_opportunity = profile.uses_single_evasion_extension()
         && depth > 0
         && parent_in_check
@@ -5974,6 +5987,7 @@ fn child_extension_params(
         forcing: forcing_budget,
         check2: extension_budgets.check2,
     };
+    let mut check2_extended = false;
     if profile.uses_bounded_check2_extension() && child_has_check2_evasions && depth > 0 {
         ctx.add_profile_counter(&ctx.s75b_extension_opportunities, 1);
         if a_opportunity {
@@ -5984,9 +5998,20 @@ fn child_extension_params(
             ctx.add_profile_counter(&ctx.s75b_extension_applied, 1);
             child_depth = depth;
             child_budgets.check2 -= 1;
+            check2_extended = true;
         }
     }
-    (child_depth, child_budgets)
+    ChildExtension {
+        depth: child_depth,
+        budgets: child_budgets,
+        check2_extended,
+    }
+}
+
+fn reduced_child_depth(depth: u32, reduction: u32, check2_extended: bool) -> u32 {
+    depth
+        .saturating_sub(1 + reduction)
+        .saturating_add(u32::from(check2_extended))
 }
 
 /// S7.5A: extend exactly one edge when the CURRENT node is in check and has
@@ -7092,7 +7117,11 @@ fn root_search_with_window(
         } else {
             None
         };
-        let (child_depth, child_extension_budgets) = child_extension_params(
+        let ChildExtension {
+            depth: child_depth,
+            budgets: child_extension_budgets,
+            check2_extended: _,
+        } = child_extension_params(
             pos,
             depth,
             profile,
@@ -9537,29 +9566,29 @@ mod tests {
         let profile = SearchProfile::CurrentFinalBoundedCheck2;
         let budgets = extension_budgets_for_profile(profile);
 
-        let (depth, remaining) =
-            child_extension_params(&pos, 4, profile, budgets, false, false, true, &ctx);
-        assert_eq!(depth, 4);
+        let extension = child_extension_params(&pos, 4, profile, budgets, false, false, true, &ctx);
+        assert_eq!(extension.depth, 4);
+        assert!(extension.check2_extended);
         assert_eq!(
-            remaining,
+            extension.budgets,
             ExtensionBudgets {
                 forcing: 2,
                 check2: 0
             }
         );
 
-        let (depth, remaining) =
-            child_extension_params(&pos, 4, profile, budgets, true, true, true, &ctx);
-        assert_eq!(depth, 4);
+        let extension = child_extension_params(&pos, 4, profile, budgets, true, true, true, &ctx);
+        assert_eq!(extension.depth, 4);
+        assert!(!extension.check2_extended);
         assert_eq!(
-            remaining,
+            extension.budgets,
             ExtensionBudgets {
                 forcing: 1,
                 check2: 1
             }
         );
 
-        let (depth, remaining) = child_extension_params(
+        let extension = child_extension_params(
             &pos,
             4,
             profile,
@@ -9572,9 +9601,10 @@ mod tests {
             true,
             &ctx,
         );
-        assert_eq!(depth, 3);
+        assert_eq!(extension.depth, 3);
+        assert!(!extension.check2_extended);
         assert_eq!(
-            remaining,
+            extension.budgets,
             ExtensionBudgets {
                 forcing: 2,
                 check2: 0
@@ -9586,6 +9616,14 @@ mod tests {
         assert_eq!(stats.s75b_extension_applied, 1);
         assert_eq!(stats.s75b_extension_blocked_budget0, 1);
         assert_eq!(stats.s75b_extension_blocked_a_overlap, 1);
+    }
+
+    #[test]
+    fn s75b_reduced_depth_preserves_the_single_check2_offset() {
+        assert_eq!(reduced_child_depth(6, 1, false), 4);
+        assert_eq!(reduced_child_depth(6, 1, true), 5);
+        assert_eq!(reduced_child_depth(6, 2, false), 3);
+        assert_eq!(reduced_child_depth(6, 2, true), 4);
     }
 
     #[test]
