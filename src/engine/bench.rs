@@ -194,6 +194,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
         SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
         SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
+        SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
     }
 }
 
@@ -448,9 +449,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-qsearch-delta" => SearchProfile::CurrentFinalQsearchDelta,
                     "current-final-lmr-null-window" => SearchProfile::CurrentFinalLmrNullWindow,
                     "current-final-single-evasion" => SearchProfile::CurrentFinalSingleEvasion,
+                    "current-final-bounded-check2" => SearchProfile::CurrentFinalBoundedCheck2,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2)",
                             other
                         ));
                     }
@@ -1256,7 +1258,7 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         })
         .collect();
     format!(
-        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}          s75a_extension_applied_total={} s75a_extension_applied_depth1={}          s75a_extension_budget_2_to_1={} s75a_extension_budget_1_to_0={}          s75a_opportunity_blocked_budget_0={}          s75b_checking_edges={} s75b_check2_child_seen={}          s75b_check2_at_parent_depth1={} s75b_check2_at_parent_depth2plus={}          s75b_check2_budget2={} s75b_check2_budget1={} s75b_check2_budget0={}          s75b_check2_followed_by_single_evasion={}          s75b_single_evasion_followed_by_check2={}          s75b_probe_calls={} s75b_probe_pseudo_moves={}          s75b_probe_legality_tests={} s75b_probe_claim_skipped={}",
+        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}          s75a_extension_applied_total={} s75a_extension_applied_depth1={}          s75a_extension_budget_2_to_1={} s75a_extension_budget_1_to_0={}          s75a_opportunity_blocked_budget_0={}          s75b_checking_edges={} s75b_check2_child_seen={}          s75b_check2_at_parent_depth1={} s75b_check2_at_parent_depth2plus={}          s75b_check2_budget2={} s75b_check2_budget1={} s75b_check2_budget0={}          s75b_extension_opportunities={} s75b_extension_applied={} s75b_extension_blocked_budget0={} s75b_extension_blocked_a_overlap={}          s75b_check2_followed_by_single_evasion={}          s75b_single_evasion_followed_by_check2={}          s75b_probe_calls={} s75b_probe_pseudo_moves={}          s75b_probe_legality_tests={} s75b_probe_claim_skipped={}",
         stats.s75_main_nodes,
         stats.s75_main_in_check_nodes,
         stats.s75_main_single_evasion_nodes_raw,
@@ -1299,6 +1301,10 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         stats.s75b_check2_budget2,
         stats.s75b_check2_budget1,
         stats.s75b_check2_budget0,
+        stats.s75b_extension_opportunities,
+        stats.s75b_extension_applied,
+        stats.s75b_extension_blocked_budget0,
+        stats.s75b_extension_blocked_a_overlap,
         stats.s75b_check2_followed_by_single_evasion,
         stats.s75b_single_evasion_followed_by_check2,
         stats.s75b_probe_calls,
@@ -2199,7 +2205,7 @@ fn print_help() {
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final>  search profile (default reference == M4.0 baseline)"
+        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-bounded-check2>  search profile (default reference == M4.0 baseline)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -2687,6 +2693,10 @@ mod tests {
                 SearchProfile::CurrentAspirationLmrFutilitySee,
             ),
             ("current-final", SearchProfile::CurrentFinal),
+            (
+                "current-final-bounded-check2",
+                SearchProfile::CurrentFinalBoundedCheck2,
+            ),
         ] {
             let parsed = parse_args(&[
                 "profile".to_string(),
@@ -2765,6 +2775,10 @@ mod tests {
             "current-aspiration-lmr-futility-see"
         );
         assert_eq!(profile_str(SearchProfile::CurrentFinal), "current-final");
+        assert_eq!(
+            profile_str(SearchProfile::CurrentFinalBoundedCheck2),
+            "current-final-bounded-check2"
+        );
     }
 
     #[test]

@@ -164,6 +164,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
         search::SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
         search::SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
+        search::SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -469,10 +470,13 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-single-evasion" => {
                         search::SearchProfile::CurrentFinalSingleEvasion
                     }
+                    "current-final-bounded-check2" => {
+                        search::SearchProfile::CurrentFinalBoundedCheck2
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2)",
                             other
                         ));
                     }

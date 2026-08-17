@@ -211,6 +211,9 @@ pub(crate) enum SearchProfile {
     /// historical/compatibility alias; search behavior is identical to
     /// CurrentFinal.
     CurrentFinalSingleEvasion,
+    /// S7.5B candidate: exactly CurrentFinal plus one independent bounded
+    /// extension when the checking child has exactly two legal evasions.
+    CurrentFinalBoundedCheck2,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -256,6 +259,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -278,6 +282,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -296,6 +301,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -316,6 +322,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -345,6 +352,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
@@ -367,6 +375,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -397,6 +406,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -462,6 +472,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -485,6 +496,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -508,6 +520,7 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
     }
 
@@ -539,7 +552,14 @@ impl SearchProfile {
                 | Self::CurrentFinalQsearchDelta
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
         )
+    }
+
+    /// S7.5B: main-search-only bounded checking extension.
+    #[inline]
+    pub(crate) const fn uses_bounded_check2_extension(self) -> bool {
+        matches!(self, Self::CurrentFinalBoundedCheck2)
     }
 
     #[inline]
@@ -586,10 +606,20 @@ const MAX_FORCING_EXTENSIONS: u8 = 4;
 /// S7.5A frozen budget: at most two single-evasion extensions per root line.
 /// Never retuned from tactical-corpus results.
 const S75A_FORCING_BUDGET: u8 = 2;
+/// S7.5B frozen budget: at most one bounded check2 extension per root line.
+const S75B_CHECK2_BUDGET: u8 = 1;
 
 /// A threat-aware qsearch may add quiet checking moves only for the first two
 /// qsearch plies. Captures and promotions retain the existing qsearch rules.
 const MAX_FORCING_QPLY: u32 = 2;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ExtensionBudgets {
+    /// S7.5A budget, or the legacy threat-aware forcing budget.
+    forcing: u8,
+    /// S7.5B bounded check2 budget.
+    check2: u8,
+}
 
 /// What the caller wants the search to do.
 ///
@@ -626,6 +656,8 @@ pub(crate) struct SearchFeaturePolicy {
     pub(crate) lmr_null_window: bool,
     /// S7.5A: main-search single-evasion extension (candidate only).
     pub(crate) single_evasion_extension: bool,
+    /// S7.5B: main-search bounded check2 extension (candidate only).
+    pub(crate) bounded_check2_extension: bool,
 }
 
 const FEATURE_LMR: u32 = 1 << 0;
@@ -635,6 +667,7 @@ const FEATURE_QSEE: u32 = 1 << 3;
 const FEATURE_QDELTA: u32 = 1 << 4;
 const FEATURE_LMNW: u32 = 1 << 5;
 const FEATURE_S75A_SE: u32 = 1 << 6;
+const FEATURE_S75B_CHECK2: u32 = 1 << 7;
 
 impl SearchFeaturePolicy {
     /// Resolve the effective policy for `profile`, applying diagnostic
@@ -651,6 +684,7 @@ impl SearchFeaturePolicy {
             qsearch_delta: profile.uses_qsearch_delta(),
             lmr_null_window: profile.uses_lmr_null_window(),
             single_evasion_extension: profile.uses_single_evasion_extension(),
+            bounded_check2_extension: profile.uses_bounded_check2_extension(),
         }
     }
 
@@ -677,6 +711,9 @@ impl SearchFeaturePolicy {
         if self.single_evasion_extension {
             bits |= FEATURE_S75A_SE;
         }
+        if self.bounded_check2_extension {
+            bits |= FEATURE_S75B_CHECK2;
+        }
         bits
     }
 
@@ -689,6 +726,7 @@ impl SearchFeaturePolicy {
             qsearch_delta: bits & FEATURE_QDELTA != 0,
             lmr_null_window: bits & FEATURE_LMNW != 0,
             single_evasion_extension: bits & FEATURE_S75A_SE != 0,
+            bounded_check2_extension: bits & FEATURE_S75B_CHECK2 != 0,
         }
     }
 }
@@ -913,6 +951,11 @@ pub struct SearchContext {
     pub s75b_check2_budget2: AtomicU64,
     pub s75b_check2_budget1: AtomicU64,
     pub s75b_check2_budget0: AtomicU64,
+    /// S7.5B candidate extension funnel (profiling-gated).
+    pub s75b_extension_opportunities: AtomicU64,
+    pub s75b_extension_applied: AtomicU64,
+    pub s75b_extension_blocked_budget0: AtomicU64,
+    pub s75b_extension_blocked_a_overlap: AtomicU64,
     pub s75b_check2_followed_by_single_evasion: AtomicU64,
     pub s75b_single_evasion_followed_by_check2: AtomicU64,
     pub s75b_probe_calls: AtomicU64,
@@ -1198,6 +1241,10 @@ pub struct SearchStats {
     pub s75b_check2_budget2: u64,
     pub s75b_check2_budget1: u64,
     pub s75b_check2_budget0: u64,
+    pub s75b_extension_opportunities: u64,
+    pub s75b_extension_applied: u64,
+    pub s75b_extension_blocked_budget0: u64,
+    pub s75b_extension_blocked_a_overlap: u64,
     pub s75b_check2_followed_by_single_evasion: u64,
     pub s75b_single_evasion_followed_by_check2: u64,
     pub s75b_probe_calls: u64,
@@ -1415,6 +1462,10 @@ impl SearchContext {
             s75b_check2_budget2: AtomicU64::new(0),
             s75b_check2_budget1: AtomicU64::new(0),
             s75b_check2_budget0: AtomicU64::new(0),
+            s75b_extension_opportunities: AtomicU64::new(0),
+            s75b_extension_applied: AtomicU64::new(0),
+            s75b_extension_blocked_budget0: AtomicU64::new(0),
+            s75b_extension_blocked_a_overlap: AtomicU64::new(0),
             s75b_check2_followed_by_single_evasion: AtomicU64::new(0),
             s75b_single_evasion_followed_by_check2: AtomicU64::new(0),
             s75b_probe_calls: AtomicU64::new(0),
@@ -1681,6 +1732,10 @@ impl SearchContext {
             s75b_check2_budget2: AtomicU64::new(0),
             s75b_check2_budget1: AtomicU64::new(0),
             s75b_check2_budget0: AtomicU64::new(0),
+            s75b_extension_opportunities: AtomicU64::new(0),
+            s75b_extension_applied: AtomicU64::new(0),
+            s75b_extension_blocked_budget0: AtomicU64::new(0),
+            s75b_extension_blocked_a_overlap: AtomicU64::new(0),
             s75b_check2_followed_by_single_evasion: AtomicU64::new(0),
             s75b_single_evasion_followed_by_check2: AtomicU64::new(0),
             s75b_probe_calls: AtomicU64::new(0),
@@ -2005,6 +2060,14 @@ impl SearchContext {
             s75b_check2_budget2: self.s75b_check2_budget2.load(Ordering::Relaxed),
             s75b_check2_budget1: self.s75b_check2_budget1.load(Ordering::Relaxed),
             s75b_check2_budget0: self.s75b_check2_budget0.load(Ordering::Relaxed),
+            s75b_extension_opportunities: self.s75b_extension_opportunities.load(Ordering::Relaxed),
+            s75b_extension_applied: self.s75b_extension_applied.load(Ordering::Relaxed),
+            s75b_extension_blocked_budget0: self
+                .s75b_extension_blocked_budget0
+                .load(Ordering::Relaxed),
+            s75b_extension_blocked_a_overlap: self
+                .s75b_extension_blocked_a_overlap
+                .load(Ordering::Relaxed),
             s75b_check2_followed_by_single_evasion: self
                 .s75b_check2_followed_by_single_evasion
                 .load(Ordering::Relaxed),
@@ -2574,6 +2637,31 @@ fn probe_child_draw(
 /// S7.5B-0: observe a checking child after the ordinary child probe has
 /// already acquired its node. The bounded evasion count is deliberately not
 /// fed into normal move-generation counters and never influences search.
+#[derive(Clone, Copy)]
+struct S75bProbeInfo {
+    evasions: u8,
+    pseudo_moves: u64,
+    legality_tests: u64,
+}
+
+fn s75b_diagnostic_enabled(ctx: &SearchContext) -> bool {
+    ctx.diagnostics
+        .as_ref()
+        .is_some_and(|diagnostics| diagnostics.s75b_probe)
+}
+
+fn s75b_probe_checking_child(pos: &mut Position, probe: &ChildProbe) -> Option<S75bProbeInfo> {
+    if !pos.is_in_check(pos.side) || !matches!(probe, ChildProbe::Continue) {
+        return None;
+    }
+    let (evasions, stats) = count_legal_evasions_up_to_3_with_stats(pos);
+    Some(S75bProbeInfo {
+        evasions,
+        pseudo_moves: stats.pseudo_moves,
+        legality_tests: stats.make_moves,
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_s75b_checking_edge(
     pos: &mut Position,
@@ -2583,11 +2671,9 @@ fn record_s75b_checking_edge(
     parent_check2: bool,
     probe: &ChildProbe,
     ctx: &SearchContext,
+    probe_info: Option<S75bProbeInfo>,
 ) {
-    let enabled = ctx
-        .diagnostics
-        .as_ref()
-        .is_some_and(|diagnostics| diagnostics.s75b_probe);
+    let enabled = s75b_diagnostic_enabled(ctx);
     if !enabled || !pos.is_in_check(pos.side) {
         return;
     }
@@ -2602,15 +2688,17 @@ fn record_s75b_checking_edge(
         ChildProbe::Continue => {}
     }
 
-    let (evasions, stats) = count_legal_evasions_up_to_3_with_stats(pos);
+    let Some(probe_info) = probe_info.or_else(|| s75b_probe_checking_child(pos, probe)) else {
+        return;
+    };
     ctx.add_profile_counter(&ctx.s75b_probe_calls, 1);
-    ctx.add_profile_counter(&ctx.s75b_probe_pseudo_moves, stats.pseudo_moves);
-    ctx.add_profile_counter(&ctx.s75b_probe_legality_tests, stats.make_moves);
+    ctx.add_profile_counter(&ctx.s75b_probe_pseudo_moves, probe_info.pseudo_moves);
+    ctx.add_profile_counter(&ctx.s75b_probe_legality_tests, probe_info.legality_tests);
 
-    if evasions == 1 && parent_check2 {
+    if probe_info.evasions == 1 && parent_check2 {
         ctx.add_profile_counter(&ctx.s75b_check2_followed_by_single_evasion, 1);
     }
-    if evasions != 2 {
+    if probe_info.evasions != 2 {
         return;
     }
     ctx.add_profile_counter(&ctx.s75b_check2_child_seen, 1);
@@ -3031,12 +3119,22 @@ fn current_tt_key_with_forcing_budget(
     path: &SearchPath,
     forcing_budget: u8,
 ) -> TtKey {
+    current_tt_key_with_budgets(pos, path, forcing_budget, 0)
+}
+
+fn current_tt_key_with_budgets(
+    pos: &Position,
+    path: &SearchPath,
+    forcing_budget: u8,
+    check2_budget: u8,
+) -> TtKey {
     debug_assert_eq!(path.last(), Some(&pos.zobrist_key()));
-    TtKey::new_with_forcing_budget(
+    TtKey::new_with_budgets(
         pos.zobrist_key(),
         pos.halfmove_clock(),
         path.repetition_signature(),
         forcing_budget,
+        check2_budget,
     )
 }
 
@@ -3821,7 +3919,7 @@ fn negamax_entered_impl_with_null(
     heur: &mut Option<SearchHeuristics>,
     allow_null: bool,
 ) -> Option<i32> {
-    let extension_budget = extension_budget_for_profile(profile);
+    let extension_budgets = extension_budgets_for_profile(profile);
     negamax_entered_impl_with_null_and_extensions(
         pos,
         depth,
@@ -3837,7 +3935,7 @@ fn negamax_entered_impl_with_null(
         heur,
         allow_null,
         0,
-        extension_budget,
+        extension_budgets,
     )
 }
 
@@ -4045,7 +4143,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     heur: &mut Option<SearchHeuristics>,
     allow_null: bool,
     single_evasion_chain: u8,
-    extension_budget: u8,
+    extension_budgets: ExtensionBudgets,
 ) -> Option<i32> {
     // UCI seldepth: this node's own `ply` IS the global ply.
     ctx.record_seldepth(ply);
@@ -4174,10 +4272,16 @@ fn negamax_entered_impl_with_null_and_extensions(
     // draw precedence — so every TT hit or cut-off still consumes exactly
     // one real node. On a cut-off we return the decoded score and leave
     // the (already-cleared) PV row empty.
-    let extension_context =
-        _profile.uses_forcing_search() || _profile.uses_single_evasion_extension();
+    let extension_context = _profile.uses_forcing_search()
+        || _profile.uses_single_evasion_extension()
+        || _profile.uses_bounded_check2_extension();
     let key = if extension_context && depth != 0 {
-        current_tt_key_with_forcing_budget(pos, path, extension_budget)
+        current_tt_key_with_budgets(
+            pos,
+            path,
+            extension_budgets.forcing,
+            extension_budgets.check2,
+        )
     } else {
         current_tt_key(pos, path)
     };
@@ -4260,7 +4364,7 @@ fn negamax_entered_impl_with_null_and_extensions(
             heur,
             false,
             0,
-            extension_budget,
+            extension_budgets,
         );
         path.pop();
         let null_score = match null_result {
@@ -4287,7 +4391,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                 heur,
                 false,
                 single_evasion_chain,
-                extension_budget,
+                extension_budgets,
             );
         }
         ctx.add_profile_counter(&ctx.null_fail_lows, 1);
@@ -4496,16 +4600,6 @@ fn negamax_entered_impl_with_null_and_extensions(
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
-        let (child_depth, child_extension_budget) = child_extension_params(
-            pos,
-            depth,
-            _profile,
-            extension_budget,
-            node_in_check,
-            single_evasion_node,
-            ctx,
-        );
-
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
             pos,
@@ -4525,14 +4619,33 @@ fn negamax_entered_impl_with_null_and_extensions(
             }
         };
 
+        let probe_info = if (_profile.uses_bounded_check2_extension() && depth > 0)
+            || s75b_diagnostic_enabled(ctx)
+        {
+            s75b_probe_checking_child(pos, &probe)
+        } else {
+            None
+        };
+        let (child_depth, child_extension_budgets) = child_extension_params(
+            pos,
+            depth,
+            _profile,
+            extension_budgets,
+            node_in_check,
+            single_evasion_node,
+            probe_info.is_some_and(|info| info.evasions == 2),
+            ctx,
+        );
+
         record_s75b_checking_edge(
             pos,
             depth,
-            extension_budget,
+            extension_budgets.forcing,
             single_evasion_node,
             check2_node,
             &probe,
             ctx,
+            probe_info,
         );
 
         // P2.2: when this move goes through a full re-search, remember the
@@ -4600,7 +4713,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 heur,
                                 true,
                                 current_single_evasion_chain,
-                                child_extension_budget,
+                                child_extension_budgets,
                             ) {
                                 Some(s) => -s,
                                 None => {
@@ -4648,7 +4761,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                     heur,
                                     true,
                                     current_single_evasion_chain,
-                                    child_extension_budget,
+                                    child_extension_budgets,
                                 ) {
                                     Some(s) => {
                                         s74_nw_verified = true;
@@ -4682,7 +4795,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 heur,
                                 true,
                                 current_single_evasion_chain,
-                                child_extension_budget,
+                                child_extension_budgets,
                             ) {
                                 Some(s) => MoveOutcome::Candidate(-s),
                                 None => {
@@ -4728,7 +4841,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                             heur,
                             true,
                             current_single_evasion_chain,
-                            child_extension_budget,
+                            child_extension_budgets,
                         ) {
                             Some(s) => -s,
                             None => {
@@ -4818,7 +4931,7 @@ fn negamax_entered_impl_with_null_and_extensions(
                                 heur,
                                 true,
                                 current_single_evasion_chain,
-                                child_extension_budget,
+                                child_extension_budgets,
                             ) {
                                 Some(s) => {
                                     // P2: pair the scout's stale child row
@@ -5808,21 +5921,39 @@ fn extension_budget_for_profile(profile: SearchProfile) -> u8 {
     }
 }
 
+fn extension_budgets_for_profile(profile: SearchProfile) -> ExtensionBudgets {
+    ExtensionBudgets {
+        forcing: extension_budget_for_profile(profile),
+        check2: if profile.uses_bounded_check2_extension() {
+            S75B_CHECK2_BUDGET
+        } else {
+            0
+        },
+    }
+}
+
 /// Dispatch child depth/budget across the legacy threat-aware forcing path
 /// and the isolated S7.5A single-evasion path.
+#[allow(clippy::too_many_arguments)]
 fn child_extension_params(
     child: &Position,
     depth: u32,
     profile: SearchProfile,
-    extension_budget: u8,
+    extension_budgets: ExtensionBudgets,
     parent_in_check: bool,
     parent_has_single_evasion: bool,
+    child_has_check2_evasions: bool,
     ctx: &SearchContext,
-) -> (u32, u8) {
-    if profile.uses_single_evasion_extension() {
+) -> (u32, ExtensionBudgets) {
+    let a_opportunity = profile.uses_single_evasion_extension()
+        && depth > 0
+        && parent_in_check
+        && parent_has_single_evasion
+        && extension_budgets.forcing > 0;
+    let (mut child_depth, forcing_budget) = if profile.uses_single_evasion_extension() {
         s75a_single_evasion_child_params(
             depth,
-            extension_budget,
+            extension_budgets.forcing,
             parent_in_check,
             parent_has_single_evasion,
             ctx,
@@ -5832,12 +5963,30 @@ fn child_extension_params(
             child,
             depth,
             profile,
-            extension_budget,
+            extension_budgets.forcing,
             parent_in_check,
             parent_has_single_evasion,
             ctx,
         )
+    };
+
+    let mut child_budgets = ExtensionBudgets {
+        forcing: forcing_budget,
+        check2: extension_budgets.check2,
+    };
+    if profile.uses_bounded_check2_extension() && child_has_check2_evasions && depth > 0 {
+        ctx.add_profile_counter(&ctx.s75b_extension_opportunities, 1);
+        if a_opportunity {
+            ctx.add_profile_counter(&ctx.s75b_extension_blocked_a_overlap, 1);
+        } else if child_budgets.check2 == 0 {
+            ctx.add_profile_counter(&ctx.s75b_extension_blocked_budget0, 1);
+        } else {
+            ctx.add_profile_counter(&ctx.s75b_extension_applied, 1);
+            child_depth = depth;
+            child_budgets.check2 -= 1;
+        }
     }
+    (child_depth, child_budgets)
 }
 
 /// S7.5A: extend exactly one edge when the CURRENT node is in check and has
@@ -6850,7 +6999,7 @@ fn root_search_with_window(
         }
     }
     let root_single_evasion_chain = if root_single_evasion { 1 } else { 0 };
-    let root_extension_budget = extension_budget_for_profile(profile);
+    let root_extension_budgets = extension_budgets_for_profile(profile);
 
     let mut pv = PvTable::default();
     // Capacity for this iteration: ply indices 0..=depth+MAX_QPLY. `+2`
@@ -6871,10 +7020,15 @@ fn root_search_with_window(
     // of the pre-TT search, and MVV-LVA reordering at the root would
     // change both. So this is a pure hash-move lift, identical to
     // `order_moves_with_hash` minus its `order_moves` pre-pass.
-    let root_key = if root_extension_budget == 0 {
+    let root_key = if root_extension_budgets == ExtensionBudgets::default() {
         current_tt_key(pos, path)
     } else {
-        current_tt_key_with_forcing_budget(pos, path, root_extension_budget)
+        current_tt_key_with_budgets(
+            pos,
+            path,
+            root_extension_budgets.forcing,
+            root_extension_budgets.check2,
+        )
     };
     ctx.add_profile_counter(&ctx.tt_probes, 1);
     // S7.5A keeps normal TT reuse semantics; legacy forcing stays exact-depth.
@@ -6912,16 +7066,6 @@ fn root_search_with_window(
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
 
-        let (child_depth, child_extension_budget) = child_extension_params(
-            pos,
-            depth,
-            profile,
-            root_extension_budget,
-            root_in_check,
-            root_single_evasion,
-            ctx,
-        );
-
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
             pos,
@@ -6941,14 +7085,33 @@ fn root_search_with_window(
             }
         };
 
+        let probe_info = if (profile.uses_bounded_check2_extension() && depth > 0)
+            || s75b_diagnostic_enabled(ctx)
+        {
+            s75b_probe_checking_child(pos, &probe)
+        } else {
+            None
+        };
+        let (child_depth, child_extension_budgets) = child_extension_params(
+            pos,
+            depth,
+            profile,
+            root_extension_budgets,
+            root_in_check,
+            root_single_evasion,
+            probe_info.is_some_and(|info| info.evasions == 2),
+            ctx,
+        );
+
         record_s75b_checking_edge(
             pos,
             depth,
-            root_extension_budget,
+            root_extension_budgets.forcing,
             root_single_evasion,
             root_check2,
             &probe,
             ctx,
+            probe_info,
         );
 
         // P2: when this root move goes through a full re-search, remember the
@@ -7002,7 +7165,7 @@ fn root_search_with_window(
                             heur,
                             true,
                             root_single_evasion_chain,
-                            child_extension_budget,
+                            child_extension_budgets,
                         ) {
                             Some(s) => RootMoveOutcome::Candidate(-s),
                             None => {
@@ -7033,7 +7196,7 @@ fn root_search_with_window(
                             heur,
                             true,
                             root_single_evasion_chain,
-                            child_extension_budget,
+                            child_extension_budgets,
                         ) {
                             Some(s) => -s,
                             None => {
@@ -7088,7 +7251,7 @@ fn root_search_with_window(
                                 heur,
                                 true,
                                 root_single_evasion_chain,
-                                child_extension_budget,
+                                child_extension_budgets,
                             ) {
                                 Some(s) => {
                                     #[cfg(test)]
@@ -7185,7 +7348,15 @@ fn root_search_with_window(
             move_scores,
         };
         if store_result {
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
+            store_root_iteration(
+                tt,
+                pos,
+                path,
+                depth,
+                &iteration,
+                ctx,
+                root_extension_budgets,
+            );
         }
         return Some(iteration);
     }
@@ -7198,7 +7369,15 @@ fn root_search_with_window(
             move_scores,
         };
         if store_result {
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
+            store_root_iteration(
+                tt,
+                pos,
+                path,
+                depth,
+                &iteration,
+                ctx,
+                root_extension_budgets,
+            );
         }
         iteration
     })
@@ -7211,12 +7390,17 @@ fn store_root_iteration(
     depth: u32,
     iteration: &RootIteration,
     ctx: &SearchContext,
-    forcing_budget: u8,
+    extension_budgets: ExtensionBudgets,
 ) {
-    let root_key = if forcing_budget == 0 {
+    let root_key = if extension_budgets == ExtensionBudgets::default() {
         current_tt_key(pos, path)
     } else {
-        current_tt_key_with_forcing_budget(pos, path, forcing_budget)
+        current_tt_key_with_budgets(
+            pos,
+            path,
+            extension_budgets.forcing,
+            extension_budgets.check2,
+        )
     };
     let store_move = if iteration.pv.is_empty() {
         None
@@ -7298,8 +7482,16 @@ fn root_search_with_aspiration(
             false,
         )?;
         if full_window || (iteration.score > alpha && iteration.score < beta) {
-            let root_extension_budget = extension_budget_for_profile(profile);
-            store_root_iteration(tt, pos, path, depth, &iteration, ctx, root_extension_budget);
+            let root_extension_budgets = extension_budgets_for_profile(profile);
+            store_root_iteration(
+                tt,
+                pos,
+                path,
+                depth,
+                &iteration,
+                ctx,
+                root_extension_budgets,
+            );
             return Some(iteration);
         }
 
@@ -9197,14 +9389,14 @@ mod tests {
         use SearchProfile::{
             AspirationCandidate, Current, CurrentAspiration, CurrentAspirationLmr,
             CurrentAspirationLmrFutility, CurrentAspirationLmrFutilitySee, CurrentEval2,
-            CurrentFinal, CurrentFinalLegalityFast, CurrentFinalLmrNullWindow,
-            CurrentFinalQsearchDelta, CurrentFinalQsearchLazy, CurrentFinalRootHistory,
-            CurrentFinalRootPrevScore, CurrentFinalSingleBuffer, CurrentFinalSingleEvasion,
-            CurrentFinalSingleGeneration, CurrentLmr, CurrentQsearchFastPruning,
-            CurrentQsearchMovegen, CurrentQsearchPruning, CurrentThreatAware,
-            CurrentThreatAwareEvalOnly, CurrentThreatAwareEvalOrder, CurrentThreatAwareNoQchecks,
-            CurrentThreatAwareOrderOnly, FutilityCandidate, LmrCandidate, M41Reference,
-            M4Reference, NullMoveCandidate, PvsReference, SeeCandidate,
+            CurrentFinal, CurrentFinalBoundedCheck2, CurrentFinalLegalityFast,
+            CurrentFinalLmrNullWindow, CurrentFinalQsearchDelta, CurrentFinalQsearchLazy,
+            CurrentFinalRootHistory, CurrentFinalRootPrevScore, CurrentFinalSingleBuffer,
+            CurrentFinalSingleEvasion, CurrentFinalSingleGeneration, CurrentLmr,
+            CurrentQsearchFastPruning, CurrentQsearchMovegen, CurrentQsearchPruning,
+            CurrentThreatAware, CurrentThreatAwareEvalOnly, CurrentThreatAwareEvalOrder,
+            CurrentThreatAwareNoQchecks, CurrentThreatAwareOrderOnly, FutilityCandidate,
+            LmrCandidate, M41Reference, M4Reference, NullMoveCandidate, PvsReference, SeeCandidate,
         };
 
         let promoted = [
@@ -9218,6 +9410,7 @@ mod tests {
             CurrentFinalQsearchDelta,
             CurrentFinalLmrNullWindow,
             CurrentFinalSingleEvasion,
+            CurrentFinalBoundedCheck2,
         ];
         for profile in promoted {
             assert!(
@@ -9314,6 +9507,101 @@ mod tests {
     }
 
     #[test]
+    fn s75b_profile_is_current_final_plus_one_policy_bit() {
+        let current = SearchFeaturePolicy::for_profile(SearchProfile::CurrentFinal, None);
+        let candidate =
+            SearchFeaturePolicy::for_profile(SearchProfile::CurrentFinalBoundedCheck2, None);
+        assert!(candidate.bounded_check2_extension);
+        assert!(candidate.single_evasion_extension);
+        assert_eq!(current.to_bits() ^ candidate.to_bits(), FEATURE_S75B_CHECK2);
+        assert_eq!(
+            extension_budgets_for_profile(SearchProfile::CurrentFinal),
+            ExtensionBudgets {
+                forcing: S75A_FORCING_BUDGET,
+                check2: 0,
+            }
+        );
+        assert_eq!(
+            extension_budgets_for_profile(SearchProfile::CurrentFinalBoundedCheck2),
+            ExtensionBudgets {
+                forcing: S75A_FORCING_BUDGET,
+                check2: S75B_CHECK2_BUDGET,
+            }
+        );
+    }
+
+    #[test]
+    fn s75b_extension_is_bounded_and_never_stacks_with_s75a() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        let profile = SearchProfile::CurrentFinalBoundedCheck2;
+        let budgets = extension_budgets_for_profile(profile);
+
+        let (depth, remaining) =
+            child_extension_params(&pos, 4, profile, budgets, false, false, true, &ctx);
+        assert_eq!(depth, 4);
+        assert_eq!(
+            remaining,
+            ExtensionBudgets {
+                forcing: 2,
+                check2: 0
+            }
+        );
+
+        let (depth, remaining) =
+            child_extension_params(&pos, 4, profile, budgets, true, true, true, &ctx);
+        assert_eq!(depth, 4);
+        assert_eq!(
+            remaining,
+            ExtensionBudgets {
+                forcing: 1,
+                check2: 1
+            }
+        );
+
+        let (depth, remaining) = child_extension_params(
+            &pos,
+            4,
+            profile,
+            ExtensionBudgets {
+                forcing: 2,
+                check2: 0,
+            },
+            false,
+            false,
+            true,
+            &ctx,
+        );
+        assert_eq!(depth, 3);
+        assert_eq!(
+            remaining,
+            ExtensionBudgets {
+                forcing: 2,
+                check2: 0
+            }
+        );
+
+        let stats = ctx.stats();
+        assert_eq!(stats.s75b_extension_opportunities, 3);
+        assert_eq!(stats.s75b_extension_applied, 1);
+        assert_eq!(stats.s75b_extension_blocked_budget0, 1);
+        assert_eq!(stats.s75b_extension_blocked_a_overlap, 1);
+    }
+
+    #[test]
+    fn s75b_tt_context_isolated_from_a_budget_and_b_zero_compatible() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let path = SearchPath::new(vec![pos.zobrist_key()]);
+        let a2_b0 = current_tt_key_with_budgets(&pos, &path, 2, 0);
+        let a2_b1 = current_tt_key_with_budgets(&pos, &path, 2, 1);
+        let a1_b1 = current_tt_key_with_budgets(&pos, &path, 1, 1);
+        assert_ne!(a2_b0, a2_b1);
+        assert_ne!(a2_b1, a1_b1);
+        assert_eq!(a2_b0, current_tt_key_with_forcing_budget(&pos, &path, 2));
+        assert_eq!(a2_b1.bounded_check2_budget, 1);
+    }
+
+    #[test]
     fn s75b_probe_is_tree_neutral_and_records_post_a_context() {
         fn run(s75b_probe: bool) -> (Move, Option<i32>, u32, bool, Vec<Move>, SearchStats, String) {
             let mut pos = parse_fen(START_FEN).unwrap();
@@ -9387,12 +9675,30 @@ mod tests {
         let check2_fen = "1k4rr/8/8/8/8/8/4Q3/7K w - - 0 1";
         let mut check2 = parse_fen(check2_fen).unwrap();
         let before = check2.zobrist_key();
-        record_s75b_checking_edge(&mut check2, 4, 2, true, false, &ChildProbe::Continue, &ctx);
+        record_s75b_checking_edge(
+            &mut check2,
+            4,
+            2,
+            true,
+            false,
+            &ChildProbe::Continue,
+            &ctx,
+            None,
+        );
         assert_eq!(check2.zobrist_key(), before);
 
         let check1_fen = "k3r3/8/8/8/8/2B5/3P1P2/3RKR2 w - - 0 1";
         let mut check1 = parse_fen(check1_fen).unwrap();
-        record_s75b_checking_edge(&mut check1, 1, 0, false, true, &ChildProbe::Continue, &ctx);
+        record_s75b_checking_edge(
+            &mut check1,
+            1,
+            0,
+            false,
+            true,
+            &ChildProbe::Continue,
+            &ctx,
+            None,
+        );
 
         let stats = ctx.stats();
         assert_eq!(stats.s75b_checking_edges, 2);

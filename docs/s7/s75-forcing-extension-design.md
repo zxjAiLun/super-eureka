@@ -169,6 +169,22 @@ checking child 恰有 2 个合法应招
     -> extension
 ```
 
+Candidate contract frozen after S7.5B-0:
+
+```text
+profile:   current-final-bounded-check2
+base:      CurrentFinal
+predicate: uses_bounded_check2_extension()
+A budget:  S75A_FORCING_BUDGET = 2 (unchanged)
+B budget:  1, independent from A
+scope:     main search only, depth > 0, probe result == Continue
+stacking:  if the same edge already receives the A extension, B does not apply
+TT:        (position, A budget, B budget); B=0 preserves the old key context
+```
+
+The candidate uses the existing capped `count_legal_evasions_up_to_3_with_stats`
+helper after the ordinary child probe and extends only for `evasions == 2`.
+
 ```text
 0 evasions = checkmate -> terminal，不进入 eligibility
 1 evasion          -> 已由 S7.5A single-evasion 覆盖
@@ -182,8 +198,8 @@ B 要回答的问题：
 “A 无法覆盖、但分支因子仍极低的两应招将军，值不值得 extension？”
 ```
 
-若 B 成功，再单独评估 `evasions <= 2` 以及 A+B adjacent stacking。S75A/B
-共用总 forcing budget；B 预算同样 TBD_AFTER_S75_0 / S7.5A evidence。
+若 B 成功，再单独评估 `evasions <= 2`。A+B adjacent stacking remains
+explicitly disabled on the same edge in this first candidate.
 
 ## 5. S7.5C — singular extension（设计占位）
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """S7.5A single-evasion extension gate runner.
 
-Runs the frozen gate chain against the same release binary:
+Runs the frozen gate chain against the same release binary. The default
+candidate remains the historical S7.5A alias; `--candidate-profile` allows the
+same runner to execute the S7.5B candidate without duplicating the gate code.
 
     A = current-final                  (production baseline)
     B = current-final-single-evasion   (S7.5A candidate)
@@ -41,6 +43,8 @@ FIELDS = [
     "s75a_extension_applied_total", "s75a_extension_applied_depth1",
     "s75a_extension_budget_2_to_1", "s75a_extension_budget_1_to_0",
     "s75a_opportunity_blocked_budget_0",
+    "s75b_extension_opportunities", "s75b_extension_applied",
+    "s75b_extension_blocked_budget0", "s75b_extension_blocked_a_overlap",
 ]
 
 
@@ -180,6 +184,18 @@ def gate_g4(engine: Path, result: dict, resume: bool) -> None:
         blocked = sum(
             int_or_none(r[B].get("s75a_opportunity_blocked_budget_0")) or 0
             for r in rs)
+        b_opportunities = sum(
+            int_or_none(r[B].get("s75b_extension_opportunities")) or 0
+            for r in rs)
+        b_applied = sum(
+            int_or_none(r[B].get("s75b_extension_applied")) or 0
+            for r in rs)
+        b_budget0 = sum(
+            int_or_none(r[B].get("s75b_extension_blocked_budget0")) or 0
+            for r in rs)
+        b_overlap = sum(
+            int_or_none(r[B].get("s75b_extension_blocked_a_overlap")) or 0
+            for r in rs)
         summaries[f"movetime{t}"] = {
             "completed": len(rs),
             "median_depth_a": statistics.median(da),
@@ -197,6 +213,10 @@ def gate_g4(engine: Path, result: dict, resume: bool) -> None:
             "budget_2_to_1": b21,
             "budget_1_to_0": b10,
             "budget0_blocked": blocked,
+            "s75b_opportunities": b_opportunities,
+            "s75b_applied": b_applied,
+            "s75b_budget0_blocked": b_budget0,
+            "s75b_a_overlap_blocked": b_overlap,
             "losing_ge_2_plies": len(drops),
             "pass_completed": len(rs) == len(rows),
             "pass_median": statistics.median(db) >= statistics.median(da) - 1,
@@ -482,15 +502,18 @@ def write(result: dict) -> None:
 
 
 def main() -> int:
-    global OUT
+    global OUT, B
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", type=Path, required=True)
     ap.add_argument("--gates", default="g3,g4,g5,g5w,g6")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--candidate-profile", default=B,
+                    help="candidate profile compared with current-final")
     args = ap.parse_args()
 
     OUT = args.out
+    B = args.candidate_profile
     engine = args.engine.resolve()
     result = {}
     if args.resume and OUT.exists():
