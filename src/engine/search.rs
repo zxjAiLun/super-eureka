@@ -205,9 +205,11 @@ pub(crate) enum SearchProfile {
     /// historical/compatibility alias; search behavior is identical to
     /// CurrentFinal.
     CurrentFinalLmrNullWindow,
-    /// S7.5A candidate: exactly CurrentFinal plus a main-search-only
-    /// single-evasion extension. Never folded into CurrentFinal until the
-    /// full G0-G6/G5W gate chain and independent review pass.
+    /// S7.5A candidate, PROMOTED into production CurrentFinal after the
+    /// formal pentanomial SPRT accepted H1 (tournament
+    /// d5bce5fd-b6cb-4562-9506-74c219ffd759). Retained as a
+    /// historical/compatibility alias; search behavior is identical to
+    /// CurrentFinal.
     CurrentFinalSingleEvasion,
 }
 
@@ -525,7 +527,19 @@ impl SearchProfile {
     /// S7.5A: main-search-only single-evasion extension.
     #[inline]
     pub(crate) const fn uses_single_evasion_extension(self) -> bool {
-        matches!(self, Self::CurrentFinal | Self::CurrentFinalSingleEvasion)
+        matches!(
+            self,
+            Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
+                | Self::CurrentFinalSingleEvasion
+        )
     }
 
     #[inline]
@@ -8939,11 +8953,10 @@ mod tests {
     }
 
     #[test]
-    fn s75a_single_evasion_profile_inherits_current_final_exactly_except_s75a() {
+    fn s75a_single_evasion_profile_matches_promoted_current_final() {
         use SearchProfile::{CurrentFinal, CurrentFinalSingleEvasion as Cand};
 
-        // Every production policy dimension must agree; the ONLY difference
-        // is uses_single_evasion_extension.
+        // The promoted candidate alias must remain identical to production.
         assert_eq!(CurrentFinal.uses_pvs(), Cand.uses_pvs());
         assert_eq!(CurrentFinal.uses_see(), Cand.uses_see());
         assert_eq!(CurrentFinal.uses_aspiration(), Cand.uses_aspiration());
@@ -9021,6 +9034,81 @@ mod tests {
         assert_eq!(cf.lmr_null_window, cand.lmr_null_window);
         assert!(cf.single_evasion_extension);
         assert!(cand.single_evasion_extension);
+    }
+
+    #[test]
+    fn s75a_single_evasion_promotion_profile_family_is_exact() {
+        use SearchProfile::{
+            AspirationCandidate, Current, CurrentAspiration, CurrentAspirationLmr,
+            CurrentAspirationLmrFutility, CurrentAspirationLmrFutilitySee, CurrentEval2,
+            CurrentFinal, CurrentFinalLegalityFast, CurrentFinalLmrNullWindow,
+            CurrentFinalQsearchDelta, CurrentFinalQsearchLazy, CurrentFinalRootHistory,
+            CurrentFinalRootPrevScore, CurrentFinalSingleBuffer, CurrentFinalSingleEvasion,
+            CurrentFinalSingleGeneration, CurrentLmr, CurrentQsearchFastPruning,
+            CurrentQsearchMovegen, CurrentQsearchPruning, CurrentThreatAware,
+            CurrentThreatAwareEvalOnly, CurrentThreatAwareEvalOrder, CurrentThreatAwareNoQchecks,
+            CurrentThreatAwareOrderOnly, FutilityCandidate, LmrCandidate, M41Reference,
+            M4Reference, NullMoveCandidate, PvsReference, SeeCandidate,
+        };
+
+        let promoted = [
+            CurrentFinal,
+            CurrentFinalRootHistory,
+            CurrentFinalRootPrevScore,
+            CurrentFinalLegalityFast,
+            CurrentFinalSingleBuffer,
+            CurrentFinalSingleGeneration,
+            CurrentFinalQsearchLazy,
+            CurrentFinalQsearchDelta,
+            CurrentFinalLmrNullWindow,
+            CurrentFinalSingleEvasion,
+        ];
+        for profile in promoted {
+            assert!(
+                profile.uses_single_evasion_extension(),
+                "{profile:?} must use promoted S7.5A single-evasion extension"
+            );
+            assert!(
+                SearchFeaturePolicy::for_profile(profile, None).single_evasion_extension,
+                "{profile:?} resolved policy must enable single_evasion_extension"
+            );
+        }
+
+        let unchanged = [
+            M4Reference,
+            M41Reference,
+            PvsReference,
+            SeeCandidate,
+            AspirationCandidate,
+            LmrCandidate,
+            NullMoveCandidate,
+            FutilityCandidate,
+            Current,
+            CurrentLmr,
+            CurrentThreatAware,
+            CurrentThreatAwareNoQchecks,
+            CurrentThreatAwareEvalOrder,
+            CurrentThreatAwareEvalOnly,
+            CurrentThreatAwareOrderOnly,
+            CurrentEval2,
+            CurrentQsearchMovegen,
+            CurrentQsearchPruning,
+            CurrentQsearchFastPruning,
+            CurrentAspiration,
+            CurrentAspirationLmr,
+            CurrentAspirationLmrFutility,
+            CurrentAspirationLmrFutilitySee,
+        ];
+        for profile in unchanged {
+            assert!(
+                !profile.uses_single_evasion_extension(),
+                "{profile:?} must keep S7.5A disabled"
+            );
+            assert!(
+                !SearchFeaturePolicy::for_profile(profile, None).single_evasion_extension,
+                "{profile:?} resolved policy must keep S7.5A disabled"
+            );
+        }
     }
 
     #[test]
