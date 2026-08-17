@@ -286,8 +286,9 @@ Arena only after explicit GO
 3. S7.5A 实现
 4. G0-G6 + G5W
 5. verdict review
-6. 只有 A 通过，才设计/实现 S7.5B
-7. S7.5C 只做 precondition observation / design
+6. S7.5B candidate 实现与独立 G0-G6 + G5W review
+7. 只有 candidate 通过并明确 GO，才进入 Arena
+8. S7.5C 只做 precondition observation / design
 ```
 
 ## 8. Hard constraints
