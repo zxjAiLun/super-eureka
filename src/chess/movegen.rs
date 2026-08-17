@@ -581,6 +581,41 @@ pub(crate) fn has_any_legal_move_with_stats(pos: &mut Position) -> (bool, Movege
     )
 }
 
+/// Count legal moves for an in-check position, saturating at `3` for `3+`.
+/// The probe stops after the third legal move and never materializes a legal
+/// move list. Its stats are intentionally returned to the caller instead of
+/// being folded into the ordinary move-generation attribution counters.
+pub(crate) fn count_legal_evasions_up_to_3_with_stats(pos: &mut Position) -> (u8, MovegenStats) {
+    let mut pseudo = Vec::new();
+    generate_pseudo_moves(pos, &mut pseudo);
+    let pseudo_count = pseudo.len() as u64;
+    let us = pos.side;
+    let mut legal_count = 0u8;
+    let mut legality_tests = 0u64;
+    for m in pseudo {
+        legality_tests += 1;
+        let undo = pos.make_move(m);
+        let legal = !pos.is_square_attacked(pos.king_sq[us as usize], us.opposite());
+        pos.unmake_move(undo);
+        if legal {
+            legal_count += 1;
+            if legal_count == 3 {
+                break;
+            }
+        }
+    }
+    (
+        legal_count,
+        MovegenStats {
+            pseudo_moves: pseudo_count,
+            legal_moves: legal_count as u64,
+            make_moves: legality_tests,
+            unmake_moves: legality_tests,
+            ..MovegenStats::default()
+        },
+    )
+}
+
 /// The first qsearch evasion implementation deliberately reuses the complete
 /// legal generator. Its separate name makes the check-node contract explicit
 /// and leaves room for checker/pin-specific generation later.
@@ -1256,6 +1291,58 @@ mod tests {
         ] {
             assert_evasions_match_general(fen);
         }
+    }
+
+    #[test]
+    fn bounded_evasion_count_matches_full_generation_and_restores_position() {
+        let fixtures = [
+            // checkmate: 0 legal evasions
+            "7k/6Q1/5K2/8/8/8/8/8 b - - 0 1",
+            // capture the checking rook: 1 legal evasion
+            "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
+            // two legal block evasions
+            "1k4rr/8/8/8/8/8/4Q3/7K w - - 0 1",
+            // one legal block evasion
+            "k3r3/8/8/8/8/2B5/3P1P2/3RKR2 w - - 0 1",
+            // multiple king, capture, and block evasions: 3+
+            "4r1k1/8/8/8/2B5/8/8/4K3 w - - 0 1",
+        ];
+        let mut seen = [false; 4];
+
+        for fen in fixtures {
+            let mut expected_pos = parse_fen(fen).expect("fixture must parse");
+            let expected = generate_legal_moves(&mut expected_pos);
+            let mut pseudo = Vec::new();
+            let pristine = parse_fen(fen).expect("fixture must parse");
+            let mut actual_pos = parse_fen(fen).expect("fixture must parse");
+            generate_pseudo_moves(&actual_pos, &mut pseudo);
+            let (actual, stats) = count_legal_evasions_up_to_3_with_stats(&mut actual_pos);
+
+            assert_eq!(
+                actual as usize,
+                expected.len().min(3),
+                "count mismatch for {fen}"
+            );
+            assert_eq!(
+                stats.pseudo_moves,
+                pseudo.len() as u64,
+                "pseudo count for {fen}"
+            );
+            assert_eq!(
+                stats.make_moves, stats.unmake_moves,
+                "probe balance for {fen}"
+            );
+            assert_eq!(
+                actual_pos.zobrist_key, pristine.zobrist_key,
+                "restore for {fen}"
+            );
+            seen[actual as usize] = true;
+        }
+
+        assert!(
+            seen.into_iter().all(|seen| seen),
+            "fixtures must cover 0/1/2/3+"
+        );
     }
 
     #[test]

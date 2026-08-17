@@ -144,6 +144,18 @@ same position + same extension budget
     -> normal CurrentFinal TT probe/store policy
 ```
 
+### 3.2 S7.5B-0 post-A observation
+
+S7.5A 已进入 production 后，S7.5B 必须先以新的 `CurrentFinal` 基线做
+observation-only attribution。`s75b-probe` 只在 bench diagnostic 中启用，
+对 checking child 使用饱和到 `3+` 的合法应招 probe；它不改变 depth、budget、
+TT、node acquisition 或搜索结果。B 的 budget 语义（shared 或独立）和任何
+candidate 实现都必须等待这一步数据后再冻结。
+
+固定 corpus 仍为 `80 S7 d6/d7 + 120 R2 d8`。B-0 单独记录 checking-edge、
+`evasions == 2` 的 parent depth/A-budget、与 single-evasion 的相邻关系，以及
+probe pseudo-move/legality-test 成本；不得回写或混入 pre-A 的 S7.5-0 evidence。
+
 - 仅当 same position + different remaining budget 时必须隔离。
 - 若实现发现普通 `depth >= requested` TT reuse 在 extension 下有正确性问题：
   **STOP**，把 exact-depth TT policy 作为独立设计决策，不得顺手继承 S2.1。

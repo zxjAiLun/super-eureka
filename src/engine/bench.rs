@@ -146,6 +146,8 @@ struct BenchArgs {
     /// S4.1c Phase B: every root move gets a full-window child search (no
     /// root scout + conditional re-search). Diagnostic only.
     diag_root_full_window: bool,
+    /// S7.5B-0: post-A bounded check2 opportunity/probe-cost attribution.
+    diag_s75b_probe: bool,
     /// S4.3A: sampled wall-time attribution rate (e.g. 256 = 1/256 calls).
     /// Profile suite only; never set on the production UCI path.
     timing_sample: Option<u32>,
@@ -267,6 +269,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut diag_null = false;
     let mut diag_qsee = false;
     let mut diag_root_full_window = false;
+    let mut diag_s75b_probe = false;
     let mut timing_sample: Option<u32> = None;
     let mut forced_root: Option<String> = None;
     let mut target_root: Option<String> = None;
@@ -523,9 +526,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "no-null" => diag_null = true,
                     "no-qsee" => diag_qsee = true,
                     "root-full-window" => diag_root_full_window = true,
+                    "s75b-probe" => diag_s75b_probe = true,
                     other => {
                         return Err(format!(
-                            "bench: invalid --diag '{}' (expected no-lmr|no-futility|no-null|no-qsee|root-full-window)",
+                            "bench: invalid --diag '{}' (expected no-lmr|no-futility|no-null|no-qsee|root-full-window|s75b-probe)",
                             other
                         ));
                     }
@@ -609,6 +613,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         diag_null,
         diag_qsee,
         diag_root_full_window,
+        diag_s75b_probe,
         forced_root,
         target_root,
         timing_sample,
@@ -1251,7 +1256,7 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         })
         .collect();
     format!(
-        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}          s75a_extension_applied_total={} s75a_extension_applied_depth1={}          s75a_extension_budget_2_to_1={} s75a_extension_budget_1_to_0={}          s75a_opportunity_blocked_budget_0={}",
+        " s75_main_nodes={} s75_main_in_check_nodes={}          s75_main_single_evasion_nodes_raw={}          s75_main_single_evasion_actionable_depth1={}          s75_main_single_evasion_actionable_depth2plus={}          s75_main_single_evasion_depth3plus={}          s75_main_single_evasion_chain:{}          s75_main_checking_edges_searched={} s75_main_check_child_entered={}          s75_main_check_child_movegen={} s75_main_check_child_terminal_0={}          s75_main_check_child_evasions_1={} s75_main_check_child_evasions_2={}          s75_main_check_child_evasions_3plus={}          s75_main_depth1_nodes={} s75_main_depth1_in_check={}          s75_main_depth1_single_evasion={}          s75_main_depth1_entered_from_checking_edge={}          s75_q_nodes={} s75_q_in_check_nodes={}          s75_q_single_evasion_nodes_raw={} s75_q_single_evasion_qply0={}          s75_q_single_evasion_qply1plus={}          s75_q_checking_edges_searched={} s75_q_check_child_entered={}          s75_q_check_child_movegen={} s75_q_check_child_terminal_0={}          s75_q_check_child_evasions_1={} s75_q_check_child_evasions_2={}          s75_q_check_child_evasions_3plus={}          s75a_extension_applied_total={} s75a_extension_applied_depth1={}          s75a_extension_budget_2_to_1={} s75a_extension_budget_1_to_0={}          s75a_opportunity_blocked_budget_0={}          s75b_checking_edges={} s75b_check2_child_seen={}          s75b_check2_at_parent_depth1={} s75b_check2_at_parent_depth2plus={}          s75b_check2_budget2={} s75b_check2_budget1={} s75b_check2_budget0={}          s75b_check2_followed_by_single_evasion={}          s75b_single_evasion_followed_by_check2={}          s75b_probe_calls={} s75b_probe_pseudo_moves={}          s75b_probe_legality_tests={} s75b_probe_claim_skipped={}",
         stats.s75_main_nodes,
         stats.s75_main_in_check_nodes,
         stats.s75_main_single_evasion_nodes_raw,
@@ -1287,6 +1292,19 @@ fn format_s75_attribution(stats: &SearchStats) -> String {
         stats.s75a_extension_budget_2_to_1,
         stats.s75a_extension_budget_1_to_0,
         stats.s75a_opportunity_blocked_budget_0,
+        stats.s75b_checking_edges,
+        stats.s75b_check2_child_seen,
+        stats.s75b_check2_at_parent_depth1,
+        stats.s75b_check2_at_parent_depth2plus,
+        stats.s75b_check2_budget2,
+        stats.s75b_check2_budget1,
+        stats.s75b_check2_budget0,
+        stats.s75b_check2_followed_by_single_evasion,
+        stats.s75b_single_evasion_followed_by_check2,
+        stats.s75b_probe_calls,
+        stats.s75b_probe_pseudo_moves,
+        stats.s75b_probe_legality_tests,
+        stats.s75b_probe_claim_skipped,
     )
 }
 
@@ -1588,6 +1606,7 @@ fn run_one(
         || cfg.diag_null
         || cfg.diag_qsee
         || cfg.diag_root_full_window
+        || cfg.diag_s75b_probe
         || cfg.forced_root.is_some()
         || cfg.target_root.is_some()
     {
@@ -1617,6 +1636,7 @@ fn run_one(
             disable_futility: cfg.diag_futility,
             disable_null_move: cfg.diag_null,
             disable_qsearch_see: cfg.diag_qsee,
+            s75b_probe: cfg.diag_s75b_probe,
         });
     }
 
@@ -2530,6 +2550,14 @@ mod tests {
         assert_eq!(a.nodes, 50_000);
         // unspecified --profile stays at the reference default.
         assert_eq!(a.profile, SearchProfile::M4Reference);
+
+        let b = parse_args(&[
+            "profile".to_string(),
+            "--diag".to_string(),
+            "s75b-probe".to_string(),
+        ])
+        .unwrap();
+        assert!(b.diag_s75b_probe);
     }
 
     #[test]
@@ -2881,6 +2909,9 @@ mod tests {
                 qsearch_checking_captures_kept: 3,
                 qsearch_promotions_kept: 4,
                 qsearch_en_passant_kept: 5,
+                s75b_check2_child_seen: 9,
+                s75b_probe_calls: 10,
+                s75b_probe_legality_tests: 11,
                 ..SearchStats::default()
             },
         };
@@ -2897,6 +2928,9 @@ mod tests {
         assert!(line.contains("qsearch_checking_captures_kept=3"));
         assert!(line.contains("qsearch_promotions_kept=4"));
         assert!(line.contains("qsearch_en_passant_kept=5"));
+        assert!(line.contains("s75b_check2_child_seen=9"));
+        assert!(line.contains("s75b_probe_calls=10"));
+        assert!(line.contains("s75b_probe_legality_tests=11"));
         assert!(line.contains("check_extensions=0"));
         assert!(line.contains("single_evasion_extensions=0"));
         assert!(line.contains("qsearch_check_moves=0"));
@@ -2933,6 +2967,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
             target_root: None,
@@ -2966,6 +3001,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            diag_s75b_probe: false,
             timing_sample: None,
             forced_root: forced_root.map(|s| s.to_string()),
             target_root: target_root.map(|s| s.to_string()),
@@ -3046,6 +3082,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
             target_root: None,
@@ -3104,6 +3141,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
             target_root: None,
@@ -3161,6 +3199,7 @@ mod tests {
                 diag_null: false,
                 diag_qsee: false,
                 diag_root_full_window: false,
+                diag_s75b_probe: false,
                 timing_sample: None,
                 forced_root: None,
                 target_root: None,
@@ -3202,6 +3241,7 @@ mod tests {
                 diag_null: false,
                 diag_qsee: false,
                 diag_root_full_window: false,
+                diag_s75b_probe: false,
                 timing_sample: None,
                 forced_root: None,
                 target_root: None,
@@ -3337,6 +3377,7 @@ mod tests {
             diag_null: false,
             diag_qsee: false,
             diag_root_full_window: false,
+            diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
             target_root: None,

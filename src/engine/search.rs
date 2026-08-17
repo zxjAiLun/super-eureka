@@ -30,10 +30,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::chess::movegen::{
-    generate_legal_evasions_with_stats, generate_legal_moves_fast_single_buffer_with_stats,
-    generate_legal_moves_fast_with_stats, generate_legal_moves_with_stats,
-    generate_legal_tactical_moves_with_stats, has_any_legal_move_with_stats, FullLegalSub,
-    MovegenStats,
+    count_legal_evasions_up_to_3_with_stats, generate_legal_evasions_with_stats,
+    generate_legal_moves_fast_single_buffer_with_stats, generate_legal_moves_fast_with_stats,
+    generate_legal_moves_with_stats, generate_legal_tactical_moves_with_stats,
+    has_any_legal_move_with_stats, FullLegalSub, MovegenStats,
 };
 use crate::chess::position::{Position, Undo};
 use crate::chess::types::*;
@@ -712,6 +712,9 @@ pub(crate) struct SearchDiagnostics {
     pub(crate) disable_futility: bool,
     pub(crate) disable_null_move: bool,
     pub(crate) disable_qsearch_see: bool,
+    /// S7.5B-0: enable post-A bounded check2 opportunity and probe-cost
+    /// attribution. Observation only; never changes search policy.
+    pub(crate) s75b_probe: bool,
 }
 
 /// S4.0B: the initial (pre-filter) root rank of the diagnostic target move.
@@ -902,6 +905,20 @@ pub struct SearchContext {
     pub s75a_extension_budget_2_to_1: AtomicU64,
     pub s75a_extension_budget_1_to_0: AtomicU64,
     pub s75a_opportunity_blocked_budget_0: AtomicU64,
+    /// S7.5B-0 post-A bounded check2 attribution (bench diagnostic only).
+    pub s75b_checking_edges: AtomicU64,
+    pub s75b_check2_child_seen: AtomicU64,
+    pub s75b_check2_at_parent_depth1: AtomicU64,
+    pub s75b_check2_at_parent_depth2plus: AtomicU64,
+    pub s75b_check2_budget2: AtomicU64,
+    pub s75b_check2_budget1: AtomicU64,
+    pub s75b_check2_budget0: AtomicU64,
+    pub s75b_check2_followed_by_single_evasion: AtomicU64,
+    pub s75b_single_evasion_followed_by_check2: AtomicU64,
+    pub s75b_probe_calls: AtomicU64,
+    pub s75b_probe_pseudo_moves: AtomicU64,
+    pub s75b_probe_legality_tests: AtomicU64,
+    pub s75b_probe_claim_skipped: AtomicU64,
     pub check_extensions: AtomicU64,
     pub single_evasion_extensions: AtomicU64,
     pub qsearch_check_moves: AtomicU64,
@@ -1174,6 +1191,19 @@ pub struct SearchStats {
     pub s75a_extension_budget_2_to_1: u64,
     pub s75a_extension_budget_1_to_0: u64,
     pub s75a_opportunity_blocked_budget_0: u64,
+    pub s75b_checking_edges: u64,
+    pub s75b_check2_child_seen: u64,
+    pub s75b_check2_at_parent_depth1: u64,
+    pub s75b_check2_at_parent_depth2plus: u64,
+    pub s75b_check2_budget2: u64,
+    pub s75b_check2_budget1: u64,
+    pub s75b_check2_budget0: u64,
+    pub s75b_check2_followed_by_single_evasion: u64,
+    pub s75b_single_evasion_followed_by_check2: u64,
+    pub s75b_probe_calls: u64,
+    pub s75b_probe_pseudo_moves: u64,
+    pub s75b_probe_legality_tests: u64,
+    pub s75b_probe_claim_skipped: u64,
     pub check_extensions: u64,
     pub single_evasion_extensions: u64,
     pub qsearch_check_moves: u64,
@@ -1378,6 +1408,19 @@ impl SearchContext {
             s75a_extension_budget_2_to_1: AtomicU64::new(0),
             s75a_extension_budget_1_to_0: AtomicU64::new(0),
             s75a_opportunity_blocked_budget_0: AtomicU64::new(0),
+            s75b_checking_edges: AtomicU64::new(0),
+            s75b_check2_child_seen: AtomicU64::new(0),
+            s75b_check2_at_parent_depth1: AtomicU64::new(0),
+            s75b_check2_at_parent_depth2plus: AtomicU64::new(0),
+            s75b_check2_budget2: AtomicU64::new(0),
+            s75b_check2_budget1: AtomicU64::new(0),
+            s75b_check2_budget0: AtomicU64::new(0),
+            s75b_check2_followed_by_single_evasion: AtomicU64::new(0),
+            s75b_single_evasion_followed_by_check2: AtomicU64::new(0),
+            s75b_probe_calls: AtomicU64::new(0),
+            s75b_probe_pseudo_moves: AtomicU64::new(0),
+            s75b_probe_legality_tests: AtomicU64::new(0),
+            s75b_probe_claim_skipped: AtomicU64::new(0),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1631,6 +1674,19 @@ impl SearchContext {
             s75a_extension_budget_2_to_1: AtomicU64::new(0),
             s75a_extension_budget_1_to_0: AtomicU64::new(0),
             s75a_opportunity_blocked_budget_0: AtomicU64::new(0),
+            s75b_checking_edges: AtomicU64::new(0),
+            s75b_check2_child_seen: AtomicU64::new(0),
+            s75b_check2_at_parent_depth1: AtomicU64::new(0),
+            s75b_check2_at_parent_depth2plus: AtomicU64::new(0),
+            s75b_check2_budget2: AtomicU64::new(0),
+            s75b_check2_budget1: AtomicU64::new(0),
+            s75b_check2_budget0: AtomicU64::new(0),
+            s75b_check2_followed_by_single_evasion: AtomicU64::new(0),
+            s75b_single_evasion_followed_by_check2: AtomicU64::new(0),
+            s75b_probe_calls: AtomicU64::new(0),
+            s75b_probe_pseudo_moves: AtomicU64::new(0),
+            s75b_probe_legality_tests: AtomicU64::new(0),
+            s75b_probe_claim_skipped: AtomicU64::new(0),
 
             check_extensions: AtomicU64::new(0),
             single_evasion_extensions: AtomicU64::new(0),
@@ -1940,6 +1996,25 @@ impl SearchContext {
             s75a_opportunity_blocked_budget_0: self
                 .s75a_opportunity_blocked_budget_0
                 .load(Ordering::Relaxed),
+            s75b_checking_edges: self.s75b_checking_edges.load(Ordering::Relaxed),
+            s75b_check2_child_seen: self.s75b_check2_child_seen.load(Ordering::Relaxed),
+            s75b_check2_at_parent_depth1: self.s75b_check2_at_parent_depth1.load(Ordering::Relaxed),
+            s75b_check2_at_parent_depth2plus: self
+                .s75b_check2_at_parent_depth2plus
+                .load(Ordering::Relaxed),
+            s75b_check2_budget2: self.s75b_check2_budget2.load(Ordering::Relaxed),
+            s75b_check2_budget1: self.s75b_check2_budget1.load(Ordering::Relaxed),
+            s75b_check2_budget0: self.s75b_check2_budget0.load(Ordering::Relaxed),
+            s75b_check2_followed_by_single_evasion: self
+                .s75b_check2_followed_by_single_evasion
+                .load(Ordering::Relaxed),
+            s75b_single_evasion_followed_by_check2: self
+                .s75b_single_evasion_followed_by_check2
+                .load(Ordering::Relaxed),
+            s75b_probe_calls: self.s75b_probe_calls.load(Ordering::Relaxed),
+            s75b_probe_pseudo_moves: self.s75b_probe_pseudo_moves.load(Ordering::Relaxed),
+            s75b_probe_legality_tests: self.s75b_probe_legality_tests.load(Ordering::Relaxed),
+            s75b_probe_claim_skipped: self.s75b_probe_claim_skipped.load(Ordering::Relaxed),
             s72_d_quiet_cutoffs: std::array::from_fn(|i| {
                 self.s72_d_quiet_cutoffs[i].load(Ordering::Relaxed)
             }),
@@ -2494,6 +2569,65 @@ fn probe_child_draw(
         return Some(ChildProbe::IntendedClaim);
     }
     Some(ChildProbe::Continue)
+}
+
+/// S7.5B-0: observe a checking child after the ordinary child probe has
+/// already acquired its node. The bounded evasion count is deliberately not
+/// fed into normal move-generation counters and never influences search.
+#[allow(clippy::too_many_arguments)]
+fn record_s75b_checking_edge(
+    pos: &mut Position,
+    parent_depth: u32,
+    parent_budget: u8,
+    parent_single_evasion: bool,
+    parent_check2: bool,
+    probe: &ChildProbe,
+    ctx: &SearchContext,
+) {
+    let enabled = ctx
+        .diagnostics
+        .as_ref()
+        .is_some_and(|diagnostics| diagnostics.s75b_probe);
+    if !enabled || !pos.is_in_check(pos.side) {
+        return;
+    }
+
+    ctx.add_profile_counter(&ctx.s75b_checking_edges, 1);
+    match probe {
+        ChildProbe::Terminal(_) => return,
+        ChildProbe::IntendedClaim => {
+            ctx.add_profile_counter(&ctx.s75b_probe_claim_skipped, 1);
+            return;
+        }
+        ChildProbe::Continue => {}
+    }
+
+    let (evasions, stats) = count_legal_evasions_up_to_3_with_stats(pos);
+    ctx.add_profile_counter(&ctx.s75b_probe_calls, 1);
+    ctx.add_profile_counter(&ctx.s75b_probe_pseudo_moves, stats.pseudo_moves);
+    ctx.add_profile_counter(&ctx.s75b_probe_legality_tests, stats.make_moves);
+
+    if evasions == 1 && parent_check2 {
+        ctx.add_profile_counter(&ctx.s75b_check2_followed_by_single_evasion, 1);
+    }
+    if evasions != 2 {
+        return;
+    }
+    ctx.add_profile_counter(&ctx.s75b_check2_child_seen, 1);
+    if parent_single_evasion {
+        ctx.add_profile_counter(&ctx.s75b_single_evasion_followed_by_check2, 1);
+    }
+    if parent_depth == 1 {
+        ctx.add_profile_counter(&ctx.s75b_check2_at_parent_depth1, 1);
+    } else {
+        ctx.add_profile_counter(&ctx.s75b_check2_at_parent_depth2plus, 1);
+    }
+    match parent_budget {
+        0 => ctx.add_profile_counter(&ctx.s75b_check2_budget0, 1),
+        1 => ctx.add_profile_counter(&ctx.s75b_check2_budget1, 1),
+        2 => ctx.add_profile_counter(&ctx.s75b_check2_budget2, 1),
+        _ => {}
+    }
 }
 
 /// PVS child-window decision for one move at a non-root ordinary negamax
@@ -4209,6 +4343,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     };
 
     let single_evasion_node = node_in_check && moves.len() == 1;
+    let check2_node = node_in_check && moves.len() == 2;
 
     // M4.1: for non-M4Reference profiles (`M41Reference` and `Current`),
     // apply the seven-level ordering (§5) at this non-root ordinary negamax
@@ -4389,6 +4524,16 @@ fn negamax_entered_impl_with_null_and_extensions(
                 return None;
             }
         };
+
+        record_s75b_checking_edge(
+            pos,
+            depth,
+            extension_budget,
+            single_evasion_node,
+            check2_node,
+            &probe,
+            ctx,
+        );
 
         // P2.2: when this move goes through a full re-search, remember the
         // child PV row the RE-SEARCH rewrote, so the commit block can verify
@@ -6676,6 +6821,7 @@ fn root_search_with_window(
     };
     let root_in_check = pos.is_in_check(pos.side);
     let root_single_evasion = root_in_check && root_moves.len() == 1;
+    let root_check2 = root_in_check && root_moves.len() == 2;
     // S7.5-0: count the root in the main funnel. The root has no parent edge,
     // so it never contributes to checking-edge / chain-entry counters except
     // as the first link of a single-evasion chain.
@@ -6794,6 +6940,16 @@ fn root_search_with_window(
                 return None;
             }
         };
+
+        record_s75b_checking_edge(
+            pos,
+            depth,
+            root_extension_budget,
+            root_single_evasion,
+            root_check2,
+            &probe,
+            ctx,
+        );
 
         // P2: when this root move goes through a full re-search, remember the
         // child PV row the RE-SEARCH rewrote so the commit block can verify
@@ -9155,6 +9311,99 @@ mod tests {
         assert!(cand.uses_single_evasion_extension());
         assert!(!cand.uses_forcing_search());
         assert_eq!(extension_budget_for_profile(cand), S75A_FORCING_BUDGET);
+    }
+
+    #[test]
+    fn s75b_probe_is_tree_neutral_and_records_post_a_context() {
+        fn run(s75b_probe: bool) -> (Move, Option<i32>, u32, bool, Vec<Move>, SearchStats, String) {
+            let mut pos = parse_fen(START_FEN).unwrap();
+            let history = vec![pos.zobrist_key()];
+            let limits = SearchLimits {
+                depth: Some(5),
+                ..SearchLimits::default()
+            };
+            let mut ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+            if s75b_probe {
+                let diagnostics = SearchDiagnostics {
+                    s75b_probe: true,
+                    ..SearchDiagnostics::default()
+                };
+                ctx.diagnostics = Some(diagnostics);
+            }
+            let mut tt = TranspositionTable::disabled();
+            let outcome = search_best_move_with_history_tt_and_profile(
+                &mut pos,
+                &history,
+                &limits,
+                &ctx,
+                &mut tt,
+                SearchProfile::CurrentFinal,
+            )
+            .expect("startpos is non-terminal");
+            let after = to_fen(&pos);
+            (
+                outcome.best_move,
+                outcome.score,
+                outcome.completed_depth,
+                outcome.stopped,
+                outcome.pv,
+                ctx.stats(),
+                after,
+            )
+        }
+
+        let base = run(false);
+        let probed = run(true);
+        assert_eq!(base.0, probed.0);
+        assert_eq!(base.1, probed.1);
+        assert_eq!(base.2, probed.2);
+        assert_eq!(base.3, probed.3);
+        assert_eq!(base.4, probed.4);
+        assert_eq!(base.5.nodes, probed.5.nodes);
+        assert_eq!(base.5.qsearch_nodes, probed.5.qsearch_nodes);
+        assert_eq!(
+            base.5.legal_move_generations,
+            probed.5.legal_move_generations
+        );
+        assert_eq!(base.5.make_moves, probed.5.make_moves);
+        assert_eq!(base.5.unmake_moves, probed.5.unmake_moves);
+        assert_eq!(base.6, START_FEN);
+        assert_eq!(probed.6, START_FEN);
+        assert!(probed.5.s75b_checking_edges > 0);
+        assert!(probed.5.s75b_probe_calls > 0);
+        assert_eq!(base.5.s75b_checking_edges, 0);
+        assert_eq!(base.5.s75b_probe_calls, 0);
+    }
+
+    #[test]
+    fn s75b_probe_classifies_check2_adjacency_without_search_policy_changes() {
+        let diagnostics = SearchDiagnostics {
+            s75b_probe: true,
+            ..SearchDiagnostics::default()
+        };
+        let mut ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
+        ctx.diagnostics = Some(diagnostics);
+
+        let check2_fen = "1k4rr/8/8/8/8/8/4Q3/7K w - - 0 1";
+        let mut check2 = parse_fen(check2_fen).unwrap();
+        let before = check2.zobrist_key();
+        record_s75b_checking_edge(&mut check2, 4, 2, true, false, &ChildProbe::Continue, &ctx);
+        assert_eq!(check2.zobrist_key(), before);
+
+        let check1_fen = "k3r3/8/8/8/8/2B5/3P1P2/3RKR2 w - - 0 1";
+        let mut check1 = parse_fen(check1_fen).unwrap();
+        record_s75b_checking_edge(&mut check1, 1, 0, false, true, &ChildProbe::Continue, &ctx);
+
+        let stats = ctx.stats();
+        assert_eq!(stats.s75b_checking_edges, 2);
+        assert_eq!(stats.s75b_check2_child_seen, 1);
+        assert_eq!(stats.s75b_check2_at_parent_depth2plus, 1);
+        assert_eq!(stats.s75b_check2_budget2, 1);
+        assert_eq!(stats.s75b_single_evasion_followed_by_check2, 1);
+        assert_eq!(stats.s75b_check2_followed_by_single_evasion, 1);
+        assert_eq!(stats.s75b_probe_calls, 2);
+        assert!(stats.s75b_probe_pseudo_moves > 0);
+        assert!(stats.s75b_probe_legality_tests > 0);
     }
 
     #[test]
