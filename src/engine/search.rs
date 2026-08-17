@@ -522,11 +522,10 @@ impl SearchProfile {
         )
     }
 
-    /// S7.5A: main-search-only single-evasion extension. Candidate-only;
-    /// production CurrentFinal keeps the ordinary depth decrement.
+    /// S7.5A: main-search-only single-evasion extension.
     #[inline]
     pub(crate) const fn uses_single_evasion_extension(self) -> bool {
-        matches!(self, Self::CurrentFinalSingleEvasion)
+        matches!(self, Self::CurrentFinal | Self::CurrentFinalSingleEvasion)
     }
 
     #[inline]
@@ -9004,7 +9003,7 @@ mod tests {
             Cand.uses_threat_aware_eval()
         );
 
-        assert!(!CurrentFinal.uses_single_evasion_extension());
+        assert!(CurrentFinal.uses_single_evasion_extension());
         assert!(Cand.uses_single_evasion_extension());
         assert!(!Cand.uses_forcing_search());
         assert!(Cand.uses_null_move());
@@ -9020,7 +9019,7 @@ mod tests {
         assert_eq!(cf.qsearch_see, cand.qsearch_see);
         assert_eq!(cf.qsearch_delta, cand.qsearch_delta);
         assert_eq!(cf.lmr_null_window, cand.lmr_null_window);
-        assert!(!cf.single_evasion_extension);
+        assert!(cf.single_evasion_extension);
         assert!(cand.single_evasion_extension);
     }
 
