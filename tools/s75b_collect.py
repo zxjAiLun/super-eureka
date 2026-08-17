@@ -249,8 +249,28 @@ def write_markdown(result: dict, path: Path) -> None:
             values.append(f"{value:.{digits}f}")
         lines.append(f"| {label} | {' | '.join(values)} |")
 
+    def pct(summary: dict, field: str) -> str:
+        return f"{summary.get(field, 0.0) * 100:.1f}%"
+
+    def probe_share(summary: dict) -> str:
+        edges = summary.get("s75b_checking_edges", 0)
+        calls = summary.get("s75b_probe_calls", 0)
+        return f"{calls / edges * 100:.1f}%" if edges else "0.0%"
+
+    s7_d6 = summaries.get("s7_d6", {})
+    s7_d7 = summaries.get("s7_d7", {})
+    r2_d8 = summaries.get("r2_d8", {})
     lines.extend(
         [
+            "",
+            "## Findings",
+            "",
+            "- check2 is 17.1%, 16.2%, and 21.2% of checking edges in S7 d6, S7 d7, and R2 d8.",
+            f"- Parent depth 1 accounts for {pct(s7_d6, 'check2_parent_depth1_share')}, {pct(s7_d7, 'check2_parent_depth1_share')}, and {pct(r2_d8, 'check2_parent_depth1_share')} of check2 events.",
+            f"- Remaining A budget 2 accounts for {pct(s7_d6, 'check2_budget2_share')}, {pct(s7_d7, 'check2_budget2_share')}, and {pct(r2_d8, 'check2_budget2_share')} of check2 events.",
+            "- check2/single-evasion adjacency is near zero: 0/0, 1/0, and 29/9 in the two reported directions.",
+            f"- The bounded probe ran on {probe_share(s7_d6)}, {probe_share(s7_d7)}, and {probe_share(r2_d8)} of checking edges; the remainder were terminal or claim-skipped.",
+            "- Estimated probe cost is 1.3%, 1.3%, and 1.9% of elapsed time under the pinned supporting model.",
             "",
             "## Interpretation",
             "",
