@@ -2129,6 +2129,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-features-batch" {
         return run_nnue_features_batch(&args[1..]);
     }
+    if args[0] == "nnue-probe" {
+        return run_nnue_probe(&args[1..]);
+    }
+    if args[0] == "nnue-probe-batch" {
+        return run_nnue_probe_batch(&args[1..]);
+    }
+    if args[0] == "nnue-probe-microbench" {
+        return run_nnue_probe_microbench(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -2201,6 +2210,9 @@ fn print_help() {
     println!("EXPORT COMMANDS:");
     println!("  nnue-features --fen <fen>          one sparse NnueFeatureSetV1 JSON line");
     println!("  nnue-features-batch --batch <file> one JSON line per record (id|fen or plain fen)");
+    println!("  nnue-probe --model <bin> --fen <fen>  S6-N2 full-refresh inference, one JSON line");
+    println!("  nnue-probe-batch --model <bin> --batch <file>  one JSON line per record");
+    println!("  nnue-probe-microbench --model <bin> --batch <file> --iterations <N>  cost probe");
 }
 
 // ---------------------------------------------------------------------------
@@ -2492,6 +2504,294 @@ fn nnue_features_line(pos: &Position, fen: &str, position_id: Option<&str>) -> S
     }
     out.push_str("]}");
     out
+}
+
+/// S6-N2: `bench nnue-probe --model <bin> --fen <fen>` - one JSON line with
+/// the scaled prediction and centipawn prediction from the local probe
+/// artifact. Full-refresh inference; observation-only.
+fn run_nnue_probe(args: &[String]) -> Result<(), String> {
+    let mut model: Option<String> = None;
+    let mut fen: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe: --model requires a value".to_string())?
+                    .clone();
+                model = Some(value);
+            }
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe: --fen requires a value".to_string())?
+                    .clone();
+                fen = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-probe: unknown argument '{}' (expected --model <bin> --fen <fen>)",
+                    other
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or_else(|| "nnue-probe: --model is required".to_string())?;
+    let fen = fen.ok_or_else(|| "nnue-probe: --fen is required".to_string())?;
+    let model =
+        crate::engine::nnue_probe::NnueProbeModelV1::load(std::path::Path::new(&model_path))?;
+    let pos = parse_fen(&fen).map_err(|e| format!("nnue-probe: {e}"))?;
+    println!("{}", nnue_probe_line(&model, &pos, &fen, None));
+    Ok(())
+}
+
+/// S6-N2: `bench nnue-probe-batch --model <bin> --batch <file>` - one JSON
+/// line per input record (`position_id|fen` or plain FEN), deterministic
+/// order, full-refresh inference.
+fn run_nnue_probe_batch(args: &[String]) -> Result<(), String> {
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe-batch: --model requires a value".to_string())?
+                    .clone();
+                model = Some(value);
+            }
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe-batch: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-probe-batch: unknown argument '{}' (expected --model <bin> --batch <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or_else(|| "nnue-probe-batch: --model is required".to_string())?;
+    let batch = batch.ok_or_else(|| "nnue-probe-batch: --batch is required".to_string())?;
+    let model =
+        crate::engine::nnue_probe::NnueProbeModelV1::load(std::path::Path::new(&model_path))?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("nnue-probe-batch: cannot read {batch}: {e}"))?;
+    print!("{}", nnue_probe_batch_from_text(&model, &text)?);
+    Ok(())
+}
+
+/// Process one batch input text (shared by the CLI bridge and tests).
+fn nnue_probe_batch_from_text(
+    model: &crate::engine::nnue_probe::NnueProbeModelV1,
+    text: &str,
+) -> Result<String, String> {
+    let mut out = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (position_id, fen) = match line.split_once('|') {
+            Some((id, fen)) => (Some(id.trim()), fen.trim()),
+            None => (None, line),
+        };
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-probe-batch: {e}: '{fen}'"))?;
+        out.push_str(&nnue_probe_line(model, &pos, fen, position_id));
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Deterministic JSON line for one position's full-refresh probe prediction:
+/// `{"position_id":?, "fen": "...", "scaled_prediction": f32,
+///   "prediction_cp": f32}`.
+fn nnue_probe_line(
+    model: &crate::engine::nnue_probe::NnueProbeModelV1,
+    pos: &Position,
+    fen: &str,
+    position_id: Option<&str>,
+) -> String {
+    let scaled = model.evaluate_scaled(pos);
+    let cp = model.evaluate_cp(pos);
+    let escaped_fen = json_escape(fen);
+    let escaped_id = json_escape(position_id.unwrap_or(""));
+    let mut out = String::from("{");
+    if position_id.is_some() {
+        out.push_str(&format!("\"position_id\":\"{escaped_id}\","));
+    }
+    out.push_str(&format!(
+        "\"fen\":\"{escaped_fen}\",\"scaled_prediction\":{scaled},\"prediction_cp\":{cp}}}"
+    ));
+    out
+}
+
+/// S6-N2: `bench nnue-probe-microbench --model <bin> --batch <file>
+/// --iterations <N>` - five rounds measuring, per position visit: feature
+/// extraction (both perspectives), full full-refresh NNUE, and classical
+/// evaluate. Model + FEN parsing happen outside the timed region; black_box
+/// and checksums prevent dead-code elimination. Cost-only; no promotion gate.
+fn run_nnue_probe_microbench(args: &[String]) -> Result<(), String> {
+    use std::time::Instant;
+
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut iterations: Option<u64> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe-microbench: --model requires a value".to_string())?
+                    .clone();
+                model = Some(value);
+            }
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-probe-microbench: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            "--iterations" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| {
+                        "nnue-probe-microbench: --iterations requires a value".to_string()
+                    })?
+                    .clone();
+                let n: u64 = value.parse().map_err(|_| {
+                    format!(
+                        "nnue-probe-microbench: --iterations '{value}' is not a positive integer"
+                    )
+                })?;
+                if n == 0 {
+                    return Err("nnue-probe-microbench: --iterations must be >= 1".to_string());
+                }
+                iterations = Some(n);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-probe-microbench: unknown argument '{}' (expected --model <bin> --batch <file> --iterations <N>)",
+                    other
+                ));
+            }
+        }
+    }
+    let model_path =
+        model.ok_or_else(|| "nnue-probe-microbench: --model is required".to_string())?;
+    let batch = batch.ok_or_else(|| "nnue-probe-microbench: --batch is required".to_string())?;
+    let iterations =
+        iterations.ok_or_else(|| "nnue-probe-microbench: --iterations is required".to_string())?;
+    let model =
+        crate::engine::nnue_probe::NnueProbeModelV1::load(std::path::Path::new(&model_path))?;
+
+    // Parse every FEN BEFORE timing.
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("nnue-probe-microbench: cannot read {batch}: {e}"))?;
+    let mut positions: Vec<Position> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let fen = line.split_once('|').map(|(_, f)| f.trim()).unwrap_or(line);
+        positions.push(parse_fen(fen).map_err(|e| format!("nnue-probe-microbench: {e}: '{fen}'"))?);
+    }
+    if positions.is_empty() {
+        return Err("nnue-probe-microbench: batch contains no positions".to_string());
+    }
+    let n_positions = positions.len() as u64;
+    let visits = iterations * n_positions;
+    let rounds = 5;
+    let mut features_ns: Vec<f64> = Vec::new();
+    let mut nnue_ns: Vec<f64> = Vec::new();
+    let mut classical_ns: Vec<f64> = Vec::new();
+    let mut checksum = 0u64;
+    for _ in 0..rounds {
+        // 1. Feature extraction (both perspectives).
+        let mut featsum = 0usize;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for pos in &positions {
+                let white = crate::engine::nnue::active_features(
+                    pos,
+                    crate::engine::nnue::NnuePerspective::White,
+                );
+                let black = crate::engine::nnue::active_features(
+                    pos,
+                    crate::engine::nnue::NnuePerspective::Black,
+                );
+                featsum = featsum.wrapping_add(white.len() + black.len());
+            }
+        }
+        let f_ns = start.elapsed().as_nanos() as f64 / visits as f64;
+        std::hint::black_box(featsum);
+
+        // 2. Full full-refresh NNUE inference.
+        let mut pred_bits = 0u64;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for pos in &positions {
+                pred_bits = pred_bits.wrapping_add(model.evaluate_scaled(pos).to_bits() as u64);
+            }
+        }
+        let n_ns = start.elapsed().as_nanos() as f64 / visits as f64;
+        std::hint::black_box(pred_bits);
+
+        // 3. Classical evaluation.
+        let mut eval_acc = 0i64;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for pos in &positions {
+                eval_acc = eval_acc.wrapping_add(i64::from(crate::engine::eval::evaluate(pos)));
+            }
+        }
+        let c_ns = start.elapsed().as_nanos() as f64 / visits as f64;
+        std::hint::black_box(eval_acc);
+
+        features_ns.push(f_ns);
+        nnue_ns.push(n_ns);
+        classical_ns.push(c_ns);
+        checksum = checksum
+            .wrapping_add(featsum as u64)
+            .wrapping_add(pred_bits)
+            .wrapping_add(eval_acc as u64);
+        println!(
+            "nnue_probe_microbench_round {{\"round\":{},\"features_ns_per_call\":{:.2},\"nnue_ns_per_call\":{:.2},\"classical_ns_per_call\":{:.2}}}",
+            features_ns.len(),
+            f_ns,
+            n_ns,
+            c_ns
+        );
+    }
+    let sorted = |v: &mut Vec<f64>| {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    };
+    let f_med = sorted(&mut features_ns);
+    let n_med = sorted(&mut nnue_ns);
+    let c_med = sorted(&mut classical_ns);
+    println!(
+        "nnue_probe_microbench_summary {{\"rounds\":{},\"positions\":{},\"iterations\":{},\"features_ns_per_call_median\":{:.2},\"nnue_ns_per_call_median\":{:.2},\"classical_ns_per_call_median\":{:.2},\"nnue_over_classical_ratio\":{:.3},\"features_share_of_nnue\":{:.3},\"checksum\":{}}}",
+        rounds,
+        n_positions,
+        iterations,
+        f_med,
+        n_med,
+        c_med,
+        n_med / c_med,
+        f_med / n_med,
+        checksum
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -3732,6 +4032,80 @@ mod tests {
             err.contains("nnue-features-batch"),
             "batch export error: {err}"
         );
+    }
+
+    /// Minimal VALID probe artifact: all-zero weights, head_bias = 1.5.
+    fn synthetic_probe_artifact_bytes() -> Vec<u8> {
+        use crate::engine::nnue::NNUE_INPUTS;
+        use crate::engine::nnue_probe::{
+            NNUE_PROBE_MAGIC, NNUE_PROBE_TARGET_SCALE, NNUE_PROBE_VERSION, NNUE_PROBE_WIDTH,
+        };
+        let mut out = Vec::new();
+        out.extend_from_slice(&NNUE_PROBE_MAGIC);
+        out.extend_from_slice(&NNUE_PROBE_VERSION.to_le_bytes());
+        out.extend_from_slice(&(NNUE_INPUTS as u32).to_le_bytes());
+        out.extend_from_slice(&(NNUE_PROBE_WIDTH as u32).to_le_bytes());
+        out.extend_from_slice(&NNUE_PROBE_TARGET_SCALE.to_le_bytes());
+        out.extend_from_slice(&[0u8; 32]);
+        for _ in 0..NNUE_INPUTS * NNUE_PROBE_WIDTH {
+            out.extend_from_slice(&0.0f32.to_le_bytes());
+        }
+        for _ in 0..NNUE_PROBE_WIDTH {
+            out.extend_from_slice(&0.0f32.to_le_bytes());
+        }
+        for _ in 0..NNUE_PROBE_WIDTH * 2 {
+            out.extend_from_slice(&0.0f32.to_le_bytes());
+        }
+        out.extend_from_slice(&1.5f32.to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn nnue_probe_batch_is_deterministic_and_roundtrips_position_id() {
+        use crate::engine::nnue_probe::NnueProbeModelV1;
+        let model = NnueProbeModelV1::from_bytes(&synthetic_probe_artifact_bytes()).unwrap();
+        let text = concat!(
+            "# comment\n",
+            "startpos_id|rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
+            "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1\n",
+        );
+        let first = nnue_probe_batch_from_text(&model, text).unwrap();
+        let second = nnue_probe_batch_from_text(&model, text).unwrap();
+        assert_eq!(first, second, "batch probe must be deterministic");
+        let lines: Vec<&str> = first.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(
+            lines[0].contains("\"position_id\":\"startpos_id\""),
+            "position_id must round-trip: {}",
+            lines[0]
+        );
+        assert!(!lines[1].contains("position_id"));
+        for line in &lines {
+            // head_bias 1.5 -> scaled 1.5, cp 1500.0 (shortest round-trip).
+            assert!(
+                line.contains("\"scaled_prediction\":1.5"),
+                "scaled prediction: {line}"
+            );
+            assert!(
+                line.contains("\"prediction_cp\":1500"),
+                "cp prediction: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn nnue_probe_rejects_invalid_model_and_fen() {
+        use crate::engine::nnue_probe::NnueProbeModelV1;
+        let mut bad = synthetic_probe_artifact_bytes();
+        bad[0] = b'X';
+        assert!(NnueProbeModelV1::from_bytes(&bad).is_err());
+        let truncated = &synthetic_probe_artifact_bytes()[..100];
+        assert!(NnueProbeModelV1::from_bytes(truncated).is_err());
+        let model = NnueProbeModelV1::from_bytes(&synthetic_probe_artifact_bytes()).unwrap();
+        let err = nnue_probe_batch_from_text(&model, "bad|not a fen\n").unwrap_err();
+        assert!(err.contains("nnue-probe-batch"), "batch error: {err}");
+        let err = nnue_probe_batch_from_text(&model, "bogus fen here\n").unwrap_err();
+        assert!(err.contains("nnue-probe-batch"), "batch error: {err}");
     }
 
     #[test]
