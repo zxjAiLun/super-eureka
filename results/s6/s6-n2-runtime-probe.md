@@ -19,7 +19,8 @@ labels SHA256:       78dd8d52a34d1dd10a5d09cb3295be8f3a91a495d808fbd8b0cb68d31d6
 magic "EUNN1F32", version 1, inputs 40960, width 32, target_scale 1000.0
 header 56 B + payload: features [40960][32] input-major, acc_bias [32],
 head.weight [64] own-then-opponent, head.bias [1]  -> total 5243324 B
-offsets: header 0, features 56, acc_bias 5242888, head 5243008, head.bias 5243304
+offsets (canonical, from artifact_offsets()): header 0, features 56,
+acc_bias 5242936, head 5243064, head.bias 5243320, end 5243324
 checkpoint SHA embedded raw in header; loader rejects any length/shape/
 finite/trailing mismatch.
 ```
@@ -43,12 +44,12 @@ float32 summation order (~1e-5 cp).
 
 | metric | median ns/call |
 |---|---:|
-| feature extraction (both perspectives) | 118.56 |
-| full full-refresh NNUE (incl. extraction) | 367.32 |
-| classical evaluate | 121.07 |
+| feature extraction (both perspectives) | 121.75 |
+| full full-refresh NNUE (incl. extraction) | 376.99 |
+| classical evaluate | 122.16 |
 
 ```text
-NNUE / classical ratio:      3.034
+NNUE / classical ratio:      3.086
 feature-extraction share of NNUE: 0.323
 checksum:                    82793484820000
 ```
