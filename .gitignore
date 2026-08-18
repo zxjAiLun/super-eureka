@@ -66,3 +66,6 @@ data/s6/s6-eval-v1-core-shard01/labels.jsonl
 /results/s7/*.err
 
 data/s6/s6-eval-v1-core-300k/
+
+# S6-N1 NNUE probe checkpoints (local-only, never committed)
+/data/s6/models/
