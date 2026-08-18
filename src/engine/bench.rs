@@ -2141,6 +2141,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "eval-features-schema" {
         return run_eval_features_schema(&args[1..]);
     }
+    if args[0] == "nnue-features" {
+        return run_nnue_features(&args[1..]);
+    }
+    if args[0] == "nnue-features-batch" {
+        return run_nnue_features_batch(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -2209,6 +2215,10 @@ fn print_help() {
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
+    println!();
+    println!("EXPORT COMMANDS:");
+    println!("  nnue-features --fen <fen>          one sparse NnueFeatureSetV1 JSON line");
+    println!("  nnue-features-batch --batch <file> one JSON line per record (id|fen or plain fen)");
 }
 
 // ---------------------------------------------------------------------------
@@ -2332,6 +2342,121 @@ fn features_line(pos: &mut crate::chess::position::Position, fen: &str) -> Strin
             feature_name(fv.id),
             fv.value
         ));
+    }
+    out.push_str("]}");
+    out
+}
+
+/// S6-N1: `bench nnue-features --fen <fen>` - deterministic sparse
+/// NnueFeatureSetV1 export (JSON line). `active_features()` in
+/// [`crate::engine::nnue`] is the single encoding source of truth; this is
+/// only a CLI bridge. Observation-only; never wired into evaluation/search.
+fn run_nnue_features(args: &[String]) -> Result<(), String> {
+    let mut fen: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-features: --fen requires a value".to_string())?
+                    .clone();
+                fen = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-features: unknown argument '{}' (expected --fen <fen>)",
+                    other
+                ));
+            }
+        }
+    }
+    let fen = fen.ok_or_else(|| "nnue-features: --fen is required".to_string())?;
+    println!("{}", nnue_features_for_fen(&fen)?);
+    Ok(())
+}
+
+fn nnue_features_for_fen(fen: &str) -> Result<String, String> {
+    let pos = parse_fen(fen).map_err(|e| format!("nnue-features: {e}"))?;
+    Ok(nnue_features_line(&pos, fen, None))
+}
+
+/// S6-N1: `bench nnue-features-batch --batch <file>` - one JSON line per
+/// input record, in deterministic file order. Each non-empty, non-comment
+/// line is either `position_id|fen` (the id round-trips into the output) or a
+/// plain FEN (no position_id emitted).
+fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
+    let mut batch: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-features-batch: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-features-batch: unknown argument '{}' (expected --batch <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let batch = batch.ok_or_else(|| "nnue-features-batch: --batch is required".to_string())?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("nnue-features-batch: cannot read {batch}: {e}"))?;
+    print!("{}", nnue_features_batch_from_text(&text)?);
+    Ok(())
+}
+
+/// Process one batch input text (used by both the CLI bridge and the tests).
+fn nnue_features_batch_from_text(text: &str) -> Result<String, String> {
+    let mut out = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (position_id, fen) = match line.split_once('|') {
+            Some((id, fen)) => (Some(id.trim()), fen.trim()),
+            None => (None, line),
+        };
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-features-batch: {e}: '{fen}'"))?;
+        out.push_str(&nnue_features_line(&pos, fen, position_id));
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Deterministic JSON line for one position's NnueFeatureSetV1 sparse export:
+/// `{"position_id":?, "fen": "...", "white": [u16...], "black": [u16...]}`.
+fn nnue_features_line(pos: &Position, fen: &str, position_id: Option<&str>) -> String {
+    use crate::engine::nnue::{active_features, NnuePerspective};
+    let white = active_features(pos, NnuePerspective::White);
+    let black = active_features(pos, NnuePerspective::Black);
+    let escaped_fen = fen.replace('"', "\\\"");
+    let escaped_id = position_id.unwrap_or("").replace('"', "\\\"");
+    let mut out = String::from("{");
+    if position_id.is_some() {
+        out.push_str(&format!("\"position_id\":\"{escaped_id}\","));
+    }
+    out.push_str(&format!("\"fen\":\"{escaped_fen}\","));
+    out.push_str("\"white\":[");
+    for (i, v) in white.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&v.to_string());
+    }
+    out.push_str("],\"black\":[");
+    for (i, v) in black.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&v.to_string());
     }
     out.push_str("]}");
     out
@@ -3498,5 +3623,82 @@ mod tests {
             }
         }
         panic!("unknown fixture id {}", id);
+    }
+
+    // ---- S6-N1 NNUE sparse exporter tests ----
+
+    fn json_array(values: &[u16]) -> String {
+        let mut out = String::from("[");
+        for (i, v) in values.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&v.to_string());
+        }
+        out.push(']');
+        out
+    }
+
+    #[test]
+    fn nnue_single_export_matches_active_features_exact() {
+        use crate::engine::nnue::{active_features, NnuePerspective};
+        let fens = [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+        ];
+        for fen in fens {
+            let pos = parse_fen(fen).unwrap();
+            let line = nnue_features_line(&pos, fen, None);
+            let white = active_features(&pos, NnuePerspective::White);
+            let black = active_features(&pos, NnuePerspective::Black);
+            let expected = format!(
+                "{{\"fen\":\"{fen}\",\"white\":{},\"black\":{}}}",
+                json_array(&white),
+                json_array(&black)
+            );
+            assert_eq!(
+                line, expected,
+                "export must equal direct active_features for {fen}"
+            );
+        }
+    }
+
+    #[test]
+    fn nnue_batch_export_is_deterministic_and_roundtrips_position_id() {
+        let text = concat!(
+            "# comment line\n",
+            "startpos_id|rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
+        );
+        let first = nnue_features_batch_from_text(text).unwrap();
+        let second = nnue_features_batch_from_text(text).unwrap();
+        assert_eq!(first, second, "batch export must be deterministic");
+
+        let lines: Vec<&str> = first.lines().collect();
+        assert_eq!(lines.len(), 2, "comment lines are skipped");
+        assert!(
+            lines[0].contains("\"position_id\":\"startpos_id\""),
+            "position_id must round-trip"
+        );
+        assert!(
+            !lines[1].contains("position_id"),
+            "plain FEN lines must not emit position_id"
+        );
+        for line in &lines {
+            assert!(line.contains("\"white\":["));
+            assert!(line.contains("\"black\":["));
+        }
+    }
+
+    #[test]
+    fn nnue_export_rejects_malformed_fen() {
+        let err = nnue_features_for_fen("this is not a fen").unwrap_err();
+        assert!(err.contains("nnue-features"), "single export error: {err}");
+        let err = nnue_features_batch_from_text("bad|this is not a fen\n").unwrap_err();
+        assert!(
+            err.contains("nnue-features-batch"),
+            "batch export error: {err}"
+        );
     }
 }
