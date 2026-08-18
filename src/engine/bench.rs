@@ -1969,25 +1969,7 @@ fn run_eval_breakdown(args: &[String]) -> Result<(), String> {
     }
     let fen = fen.ok_or_else(|| "eval-breakdown: --fen is required".to_string())?;
     let pos = parse_fen(&fen).map_err(|e| format!("eval-breakdown: invalid FEN: {}", e))?;
-    let cps = evaluate_components_white(&pos);
-    let side = if pos.side == crate::chess::types::Color::White {
-        "w"
-    } else {
-        "b"
-    };
-    println!(
-        "eval_breakdown fen=\"{}\" side={} phase={} material_pst={} pawn_structure={} mobility={} piece_activity={} rook_activity={} development_space={} king_safety={}",
-        fen,
-        side,
-        cps.phase,
-        cps.material_pst,
-        cps.pawn_structure,
-        cps.mobility,
-        cps.piece_activity,
-        cps.rook_activity,
-        cps.development_space,
-        cps.king_safety,
-    );
+    println!("{}", eval_breakdown_line(&pos, &fen));
     if let Some(n) = repeats {
         let base_start = std::time::Instant::now();
         let mut acc = 0i64;
@@ -2431,14 +2413,64 @@ fn nnue_features_batch_from_text(text: &str) -> Result<String, String> {
     Ok(out)
 }
 
+/// S4.2A: one `eval_breakdown` line for a position. `base_eval_stm` is the
+/// exact side-to-move-perspective score from `crate::engine::eval::evaluate`,
+/// so Python consumers never re-implement the classical evaluator.
+fn eval_breakdown_line(pos: &Position, fen: &str) -> String {
+    let cps = evaluate_components_white(pos);
+    let side = if pos.side == crate::chess::types::Color::White {
+        "w"
+    } else {
+        "b"
+    };
+    format!(
+        "eval_breakdown fen=\"{}\" side={} phase={} material_pst={} pawn_structure={} mobility={} piece_activity={} rook_activity={} development_space={} king_safety={} base_eval_stm={}",
+        json_escape(fen),
+        side,
+        cps.phase,
+        cps.material_pst,
+        cps.pawn_structure,
+        cps.mobility,
+        cps.piece_activity,
+        cps.rook_activity,
+        cps.development_space,
+        cps.king_safety,
+        crate::engine::eval::evaluate(pos),
+    )
+}
+
+/// JSON string escaping for export lines: `"` -> `\"`, `\` -> `\\`, and every
+/// control character U+0000..=U+001F is escaped (`\b \f \n \r \t` short forms,
+/// otherwise `\u00xx`). Identity for all other bytes, so normal FENs and ids
+/// produce byte-identical output.
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{0008}' => out.push_str("\\b"),
+            '\u{000c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// Deterministic JSON line for one position's NnueFeatureSetV1 sparse export:
 /// `{"position_id":?, "fen": "...", "white": [u16...], "black": [u16...]}`.
 fn nnue_features_line(pos: &Position, fen: &str, position_id: Option<&str>) -> String {
     use crate::engine::nnue::{active_features, NnuePerspective};
     let white = active_features(pos, NnuePerspective::White);
     let black = active_features(pos, NnuePerspective::Black);
-    let escaped_fen = fen.replace('"', "\\\"");
-    let escaped_id = position_id.unwrap_or("").replace('"', "\\\"");
+    let escaped_fen = json_escape(fen);
+    let escaped_id = json_escape(position_id.unwrap_or(""));
     let mut out = String::from("{");
     if position_id.is_some() {
         out.push_str(&format!("\"position_id\":\"{escaped_id}\","));
@@ -3700,5 +3732,93 @@ mod tests {
             err.contains("nnue-features-batch"),
             "batch export error: {err}"
         );
+    }
+
+    #[test]
+    fn nnue_export_escapes_quotes_backslashes_and_control_chars() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        // Backslash, quote, tab, and U+001F in the position_id.
+        let line = nnue_features_line(&pos, fen, Some("id\\x\"y\tz\u{1f}"));
+        assert!(
+            line.contains("\"position_id\":\"id\\\\x\\\"y\\tz\\u001f\""),
+            "escaped id: {line}"
+        );
+        // No raw control characters anywhere in the export.
+        for c in line.chars() {
+            assert!((c as u32) >= 0x20, "raw control char in export: {:?}", c);
+        }
+        // No unescaped backslash or quote: every occurrence is part of an
+        // escape sequence (`\\`, `\"`).
+        let mut chars = line.chars();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                let next = chars.next().expect("escape has a continuation");
+                assert!(
+                    matches!(next, '\\' | '"' | 'b' | 'f' | 'n' | 'r' | 't' | 'u'),
+                    "invalid escape \\{next}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn nnue_export_accepts_tab_separated_fen_and_escapes_it() {
+        // parse_fen uses split_whitespace, so tab-separated fields parse.
+        let tab_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR\tw\tKQkq\t-\t0\t1";
+        let pos = parse_fen(tab_fen).unwrap();
+        let line = nnue_features_line(&pos, tab_fen, None);
+        assert!(line.contains("\\t"), "tab must be escaped: {line}");
+        assert!(!line.contains('\t'), "raw tab in export: {line}");
+        // The emitted fen field is exactly json_escape(tab_fen): a JSON parser
+        // decodes it back to the original tab-separated FEN.
+        let start = line.find("\"fen\":\"").expect("fen field") + 7;
+        let end = line[start..].find("\",\"white\"").expect("white field") + start;
+        assert_eq!(&line[start..end], json_escape(tab_fen));
+    }
+
+    #[test]
+    fn nnue_export_normal_input_bytes_are_stable() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let line = nnue_features_line(&pos, fen, Some("startpos_id"));
+        // Exact literal from the pre-escape-helper bridge (04396a0 output):
+        // identity escaping keeps normal bytes unchanged.
+        assert!(line.starts_with(
+            "{\"position_id\":\"startpos_id\",\"fen\":\"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\",\"white\":["
+        ));
+        assert!(line.ends_with("]}"));
+        assert!(
+            !line.contains("\\u00"),
+            "no control escapes for normal input"
+        );
+        assert!(
+            !line.contains("\\\\"),
+            "no backslash escapes for normal input"
+        );
+    }
+
+    #[test]
+    fn eval_breakdown_base_eval_stm_matches_evaluate_exactly() {
+        use crate::engine::eval::evaluate;
+        let fens = [
+            // KQK
+            "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
+            // KRK
+            "7k/8/8/8/8/8/3RK3/8 w - - 0 1",
+            // Ordinary fixture
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        ];
+        for fen in fens {
+            let pos = parse_fen(fen).unwrap();
+            let line = eval_breakdown_line(&pos, fen);
+            let expected = format!("base_eval_stm={}", evaluate(&pos));
+            assert!(
+                line.contains(&expected),
+                "line must contain {expected}: {line}"
+            );
+            // The value is signed: never appears as a bare substring of another field.
+            assert!(line.contains(" base_eval_stm="));
+        }
     }
 }
