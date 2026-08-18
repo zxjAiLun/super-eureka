@@ -1,9 +1,11 @@
 //! S6.1A — FeatureSetV1: deterministic sparse chess feature extraction.
 //!
-//! ONE Rust implementation is the single source of truth for feature
-//! semantics. It feeds BOTH the future runtime learned evaluator and the
-//! sparse exporter consumed by the Python trainer. Python never re-implements
-//! chess feature definitions (S6 contract).
+//! ONE Rust implementation is the single source of truth for this LEGACY /
+//! LINEAR learned-eval feature contract. It feeds the sparse exporter consumed
+//! by the Python tooling and is a diagnostic/training asset. It is NOT the
+//! S6 NNUE runtime input schema: the future king-conditioned NNUE encoding
+//! lives in [`crate::engine::nnue`] and is a separate, frozen contract.
+//! Python never re-implements chess feature definitions (S6 contract).
 //!
 //! Contract:
 //! - every feature is `white_count - black_count` (black squares mirrored to

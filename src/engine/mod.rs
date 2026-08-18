@@ -2,6 +2,7 @@ pub mod bench;
 pub mod draw;
 pub mod eval;
 pub mod features;
+pub mod nnue;
 pub mod search;
 pub mod time;
 pub mod tt;
