@@ -1,12 +1,14 @@
 {
-  "status": "COMPLETE",
-  "classification": "LEARNABLE_BUT_DATA_STARVED",
+  "status": "MEASUREMENT_COMPLETE",
+  "supersedes": "98bcdf01a7080325beb655c6f33b57f99806619f",
+  "supersedes_reason": "invalid measurement: evaluated the final epoch state instead of the best-epoch state",
   "hashes": {
     "dataset_sha256": "3a3483fd46fd5a570c4c62b7d93378efc80eafbab43ec155db5ac5894fbc6a9d",
     "labels_sha256": "78dd8d52a34d1dd10a5d09cb3295be8f3a91a495d808fbd8b0cb68d31d668aa5",
-    "checkpoint_sha256": "1a0f2d3b0010ff0eb8d0689d47e963ec7070e3dc17d3dab0feadfdfd6b307810",
-    "engine_git_sha": "deeb828cca9561192c364f9f3f813661e77f110a",
-    "trainer_git_sha": "deeb828cca9561192c364f9f3f813661e77f110a"
+    "checkpoint_sha256": "6bfdba6d7d9cc034d55d8bfe433ebb3b0d6f48d78afa2351f3ef465ac9003a66",
+    "engine_git_sha": "849682ee93e51c85d828cbb099591101c506ddc9",
+    "engine_binary_sha256": "d7e5a78c559dd0e6cb7ce14140b4ebc9d7148abe408bd5691dd6595d8472c86c",
+    "trainer_git_sha": "849682ee93e51c85d828cbb099591101c506ddc9"
   },
   "environment": {
     "python": "3.12.13",
@@ -54,54 +56,77 @@
   },
   "coverage": {
     "train": {
-      "positions": 4776,
-      "white_unique": 3979,
-      "black_unique": 3616,
-      "union_unique": 5100,
-      "union_fraction": 0.124512,
-      "white_fraction": 0.097144,
-      "black_fraction": 0.088281,
-      "total_activations": 209790
+      "positions": 4752,
+      "white_unique": 3947,
+      "black_unique": 3550,
+      "union_unique": 5019,
+      "union_fraction": 0.122534,
+      "white_fraction": 0.096362,
+      "black_fraction": 0.08667,
+      "total_activations": 208908,
+      "activation_frequency": {
+        "total_activations": 208908,
+        "observed_unique_features": 5019,
+        "unobserved_features": 35941,
+        "mean_activations_per_feature": 41.623,
+        "median_activations_per_feature": 4,
+        "p10_activations_per_feature": 1,
+        "p90_activations_per_feature": 52,
+        "singleton_features": 1221,
+        "features_with_activation_le5": 2861
+      }
     },
     "validation": {
-      "positions": 500,
-      "white_unique": 1230,
-      "black_unique": 1259,
-      "union_unique": 1821,
-      "union_fraction": 0.044458,
-      "white_fraction": 0.030029,
-      "black_fraction": 0.030737,
-      "total_activations": 22136,
-      "unseen_activations": 360,
-      "unseen_rate": 0.016263,
-      "positions_with_unseen": 144,
-      "positions_with_unseen_rate": 0.288
+      "positions": 497,
+      "white_unique": 1216,
+      "black_unique": 1248,
+      "union_unique": 1800,
+      "union_fraction": 0.043945,
+      "white_fraction": 0.029687,
+      "black_fraction": 0.030469,
+      "total_activations": 22030,
+      "unseen_activations": 349,
+      "unseen_rate": 0.015842,
+      "unseen_white_activations": 185,
+      "unseen_black_activations": 164,
+      "unseen_union_unique": 221,
+      "unseen_union_unique_rate": 0.005396,
+      "positions_with_unseen": 146,
+      "positions_with_unseen_rate": 0.293763
     },
     "holdout": {
-      "positions": 643,
-      "white_unique": 1510,
+      "positions": 642,
+      "white_unique": 1496,
       "black_unique": 1438,
-      "union_unique": 2189,
-      "union_fraction": 0.053442,
-      "white_fraction": 0.036865,
+      "union_unique": 2184,
+      "union_fraction": 0.05332,
+      "white_fraction": 0.036523,
       "black_fraction": 0.035107,
-      "total_activations": 27582,
-      "unseen_activations": 460,
-      "unseen_rate": 0.016678,
+      "total_activations": 27544,
+      "unseen_activations": 459,
+      "unseen_rate": 0.016664,
+      "unseen_white_activations": 226,
+      "unseen_black_activations": 233,
+      "unseen_union_unique": 256,
+      "unseen_union_unique_rate": 0.00625,
       "positions_with_unseen": 201,
-      "positions_with_unseen_rate": 0.312597
+      "positions_with_unseen_rate": 0.313084
     }
   },
   "training": {
     "epochs_run": 18,
     "best_epoch": 3,
     "best_val_loss": 0.100804,
+    "restored_validation_loss": 0.100804,
+    "best_state_restored": true,
     "train_loss_at_best_epoch": 0.07628,
     "final_train_loss": 0.015629,
     "overfit_gap": 0.024524,
     "early_stopped": true,
-    "elapsed_seconds": 8.0
+    "elapsed_seconds": 4.2
   },
+  "checkpoint_epoch": 3,
+  "checkpoint_roundtrip_validation_loss": 0.100804,
   "metrics": {
     "validation": {
       "zero": {
@@ -154,21 +179,21 @@
       },
       "nnue": {
         "n": 497,
-        "raw_mae_cp": 158.819,
-        "clipped_mae_cp": 158.819,
-        "clipped_rmse_cp": 212.384,
+        "raw_mae_cp": 141.502,
+        "clipped_mae_cp": 141.502,
+        "clipped_rmse_cp": 194.733,
         "buckets": {
           "0-100": {
             "n": 229,
-            "mae": 99.288
+            "mae": 68.05
           },
           "100-300": {
             "n": 184,
-            "mae": 153.56
+            "mae": 130.957
           },
           "300-1000": {
             "n": 84,
-            "mae": 332.634
+            "mae": 364.845
           },
           "1000-inf": {
             "n": 0,
@@ -176,11 +201,20 @@
           }
         }
       },
+      "signals": {
+        "zero_clipped_mae_cp": 159.785,
+        "classical_clipped_mae_cp": 168.614,
+        "nnue_clipped_mae_cp": 141.502,
+        "nnue_vs_zero_abs": -18.283,
+        "nnue_vs_zero_pct": -11.442,
+        "nnue_vs_classical_abs": -27.112,
+        "nnue_vs_classical_pct": -16.079
+      },
       "nnue_prediction_stats": {
-        "min": -523.1479,
-        "max": 536.4855,
-        "mean": 14.927,
-        "std": 152.4792
+        "min": -332.8661,
+        "max": 302.0326,
+        "mean": 18.6842,
+        "std": 89.525
       }
     },
     "holdout": {
@@ -234,21 +268,21 @@
       },
       "nnue": {
         "n": 642,
-        "raw_mae_cp": 154.394,
-        "clipped_mae_cp": 154.394,
-        "clipped_rmse_cp": 208.002,
+        "raw_mae_cp": 141.586,
+        "clipped_mae_cp": 141.586,
+        "clipped_rmse_cp": 191.139,
         "buckets": {
           "0-100": {
             "n": 316,
-            "mae": 105.591
+            "mae": 71.725
           },
           "100-300": {
             "n": 218,
-            "mae": 137.536
+            "mae": 139.147
           },
           "300-1000": {
             "n": 108,
-            "mae": 331.215
+            "mae": 350.915
           },
           "1000-inf": {
             "n": 0,
@@ -256,13 +290,22 @@
           }
         }
       },
+      "signals": {
+        "zero_clipped_mae_cp": 151.036,
+        "classical_clipped_mae_cp": 149.721,
+        "nnue_clipped_mae_cp": 141.586,
+        "nnue_vs_zero_abs": -9.45,
+        "nnue_vs_zero_pct": -6.257,
+        "nnue_vs_classical_abs": -8.135,
+        "nnue_vs_classical_pct": -5.433
+      },
       "nnue_prediction_stats": {
-        "min": -496.2283,
-        "max": 474.3568,
-        "mean": 18.7476,
-        "std": 145.8381
+        "min": -297.4135,
+        "max": 272.8031,
+        "mean": 26.5372,
+        "std": 84.9334
       }
     }
   },
-  "classification_rule": "STRONG_EARLY_SIGNAL: nnue holdout clipped MAE <= 0.95 * zero and <= 0.95 * classical; else LEARNABLE_BUT_DATA_STARVED; PIPELINE_FAILURE on any pipeline error"
+  "verdict": "CLOUD_VERDICT_PENDING"
 }

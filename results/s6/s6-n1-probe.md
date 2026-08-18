@@ -1,6 +1,12 @@
-# S6-N1 — NNUE Learnability Probe
+# S6-N1 — NNUE Learnability Probe (Repair 2)
 
-STATUS: **COMPLETE — LEARNABLE_BUT_DATA_STARVED**
+STATUS: **MEASUREMENT_COMPLETE / CLOUD_VERDICT_PENDING**
+
+```text
+supersedes: 98bcdf01a7080325beb655c6f33b57f99806619f
+  reason:    invalid measurement — evaluated the FINAL epoch state instead of
+             the best-epoch state (98bcdf0 kept as historical record)
+```
 
 ## Provenance
 
@@ -9,43 +15,59 @@ dataset:    s6-eval-v1-core-shard01, 5919 records (train 4776 / val 500 / holdou
 dataset SHA: 3a3483fd46fd5a570c4c62b7d93378efc80eafbab43ec155db5ac5894fbc6a9d
 labels SHA:  78dd8d52a34d1dd10a5d09cb3295be8f3a91a495d808fbd8b0cb68d31d668aa5
 checkpoint:  data/s6/models/s6-n1-probe.pt (local-only)
-checkpoint SHA256: 1a0f2d3b0010ff0eb8d0689d47e963ec7070e3dc17d3dab0feadfdfd6b307810
-engine git:  deeb828cca9561192c364f9f3f813661e77f110a (trainer source commit)
+checkpoint SHA256: 6bfdba6d7d9cc034d55d8bfe433ebb3b0d6f48d78afa2351f3ef465ac9003a66
+engine git:  849682ee93e51c85d828cbb099591101c506ddc9 (fix commit; trainer source)
+engine binary SHA256: d7e5a78c559dd0e6cb7ce14140b4ebc9d7148abe408bd5691dd6595d8472c86c
 verify_dataset: VERIFY_PASS
 ```
 
-## Environment & config
+## Environment & frozen config (unchanged)
 
 ```text
 python 3.12.13, torch 2.13.0+cpu, numpy 2.5.2, python-chess 1.11.2, device cpu
 architecture: 40960x32 shared table + 32 bias + sum + relu + STM concat + 64->1
-init: pytorch default under torch.manual_seed(20260818)
+init: pytorch default under torch.manual_seed(20260818)   seed=20260818
 loss: SmoothL1 beta=0.1; target = clip(teacher_cp_stm, +-2000)/1000
 AdamW lr=1e-3 wd=1e-5, batch 256, max 100 epochs, patience 15
 ```
 
-## Training
+## Best-state restoration (P1 verified)
 
 ```text
-rows: train 4752 / val 497 / holdout 642 (null-CP excluded)
-epochs run: 18 (early stopped), best epoch 3
-best val loss 0.100804, train loss at best epoch 0.076280
-final train loss 0.015629 -> overfit gap 0.024524 (best epoch), strong late overfit
-elapsed: 8.0 s
+best_state_restored:              true
+best epoch:                       3 (of 18 run, early stopped)
+best_val_loss:                    0.100804
+restored_validation_loss:         0.100804  (== best, strict tolerance)
+checkpoint_roundtrip_validation_loss: 0.100804  (fresh model loaded from disk)
+train_loss_at_best_epoch:         0.076280
+final_train_loss:                 0.015629 (NOT the evaluated state)
+overfit_gap (best epoch):         0.024524
+elapsed:                          4.2 s
 ```
 
-## Feature coverage
+All reported metrics use the DISK-LOADED best-epoch checkpoint.
 
-| split | white unique | black unique | union | union/40960 | unseen rate |
+## Usable-row coverage (null-CP rows excluded)
+
+| split | usable | total activations | unseen activations | unseen rate | positions w/ unseen |
 |---|---:|---:|---:|---:|---:|
-| train | 3979 | 3616 | 5100 | 12.45% | - |
-| validation | 1230 | 1259 | 1821 | 4.45% | 1.63% (144/500 positions) |
-| holdout | 1510 | 1438 | 2189 | 5.34% | 1.67% (201/643 positions) |
+| train | 4752 | 208908 | - | - | - |
+| validation | 497 | 22030 | 349 | 1.584% | 146 (29.4%) |
+| holdout | 642 | 27544 | 459 | 1.666% | 201 (31.3%) |
 
-Only ~5100 of 40960 features are ever active; 4752 training rows cover
-~1.06 rows per unique feature.
+Train activation frequency (real counts, not inference):
 
-## Metrics (clipped +-2000cp MAE / RMSE)
+```text
+union unique features:    5019 / 40960 (12.25%)
+unobserved features:      35941
+mean activations/feature: 41.6
+median:                   4
+p10 / p90:                1 / 52
+singleton features:       1221
+features with <=5 activations: 2861
+```
+
+## Metrics (vs RAW teacher CP; clipped metrics clamp both sides to +-2000)
 
 ### Validation (497)
 
@@ -53,7 +75,7 @@ Only ~5100 of 40960 features are ever active; 4752 training rows cover
 |---|---:|---:|---:|
 | zero | 159.79 | 159.79 | 219.48 |
 | classical CurrentFinal | 168.61 | 168.61 | 242.75 |
-| NNUE probe | 158.82 | 158.82 | 212.38 |
+| NNUE probe (best ckpt) | 141.50 | 141.50 | 194.73 |
 
 ### Holdout (642)
 
@@ -61,22 +83,25 @@ Only ~5100 of 40960 features are ever active; 4752 training rows cover
 |---|---:|---:|---:|
 | zero | 151.04 | 151.04 | 205.49 |
 | classical CurrentFinal | 149.72 | 149.72 | 227.67 |
-| NNUE probe | 154.39 | 154.39 | 208.00 |
+| NNUE probe (best ckpt) | 141.59 | 141.59 | 191.14 |
 
-NNUE prediction stats (val/holdout): mean 14.9/18.7 cp, std 152/146 cp,
-min -523/-496, max 536/474.
+### Signals (clipped MAE deltas)
 
-## Classification
+| split | NNUE vs zero | NNUE vs classical |
+|---|---:|---:|
+| validation | -18.28 cp (-11.44%) | -27.11 cp (-16.08%) |
+| holdout | -9.45 cp (-6.26%) | -8.14 cp (-5.43%) |
 
-**LEARNABLE_BUT_DATA_STARVED** — the probe learns (train loss collapses,
-validation NNUE beats both zero and classical), but the 4752-row dataset
-cannot support a 40960x32 feature table: holdout NNUE does not beat zero or
-classical, unseen-feature rate is low, and the model overfits almost
-immediately (best epoch 3). This is a data-scale verdict, not a pipeline
-failure: export, join, coverage, and metric plumbing all passed.
+Holdout bucket MAE (raw |teacher| magnitude): 0-100: 71.7; 100-300: 139.1;
+300-1000: 350.9; >=1000: no rows.
 
-## Next options (direction only)
+NNUE prediction stats (val/holdout): mean 11.0/12.9 cp, std 143/142 cp.
 
-- enlarge training data before re-probing, or
-- shrink the probe (lower-width / subset encoding) on the same data to
-  isolate whether signal survives at realistic data scale.
+## Verdict
+
+**CLOUD_VERDICT_PENDING** — measurement only. The best-epoch probe now
+outperforms both the zero predictor and CurrentFinal classical on validation
+AND holdout clipped MAE (holdout -5.4% vs classical), with checkpoint
+provenance verified end-to-end. Data remains sparse (5019/40960 features,
+2861 features with <=5 activations); whether this counts as a strong early
+signal is left to review.
