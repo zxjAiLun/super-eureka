@@ -1,0 +1,92 @@
+{
+  "status": "PARITY_PASS",
+  "cost_status": "COST_MEASURED",
+  "gate": {
+    "rows_required": 5891,
+    "max_abs_diff_cp_required": 0.1,
+    "mean_abs_diff_cp_required": 0.01
+  },
+  "hashes": {
+    "checkpoint_sha256": "6bfdba6d7d9cc034d55d8bfe433ebb3b0d6f48d78afa2351f3ef465ac9003a66",
+    "artifact_sha256": "aa39f52a85ead6b776b5b2bf973e06a8e993a6380387897f17e22cd9f25a27b0",
+    "engine_binary_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
+    "engine_git_sha": "3b44954cc13556e011f995be314cd23133bbeb7e",
+    "dataset_sha256": "3a3483fd46fd5a570c4c62b7d93378efc80eafbab43ec155db5ac5894fbc6a9d",
+    "labels_sha256": "78dd8d52a34d1dd10a5d09cb3295be8f3a91a495d808fbd8b0cb68d31d668aa5"
+  },
+  "artifact": {
+    "path": "data/s6/models/s6-n1-probe-f32.bin",
+    "format": "EUNN1F32",
+    "version": 1,
+    "inputs": 40960,
+    "width": 32,
+    "target_scale": 1000.0,
+    "header_bytes": 56,
+    "total_bytes": 5243324,
+    "offsets": {
+      "header": 0,
+      "features_weight": 56,
+      "acc_bias": 5242936,
+      "head_weight": 5243064,
+      "head_bias": 5243320,
+      "end": 5243324
+    }
+  },
+  "parity": {
+    "rows": 5891,
+    "expected_rows": 5891,
+    "nan_inf": 0,
+    "sign_mismatch": 0,
+    "max_abs_diff_cp": 0.000119,
+    "mean_abs_diff_cp": 1.2e-05,
+    "p50_abs_diff_cp": 9e-06,
+    "p95_abs_diff_cp": 3.4e-05,
+    "p99_abs_diff_cp": 5.4e-05,
+    "pass": true
+  },
+  "microbench": {
+    "rounds": [
+      {
+        "round": 1,
+        "features_ns_per_call": 121.25,
+        "nnue_ns_per_call": 387.56,
+        "classical_ns_per_call": 120.47
+      },
+      {
+        "round": 2,
+        "features_ns_per_call": 116.47,
+        "nnue_ns_per_call": 366.7,
+        "classical_ns_per_call": 121.15
+      },
+      {
+        "round": 3,
+        "features_ns_per_call": 118.56,
+        "nnue_ns_per_call": 367.32,
+        "classical_ns_per_call": 120.24
+      },
+      {
+        "round": 4,
+        "features_ns_per_call": 118.3,
+        "nnue_ns_per_call": 364.95,
+        "classical_ns_per_call": 124.58
+      },
+      {
+        "round": 5,
+        "features_ns_per_call": 120.41,
+        "nnue_ns_per_call": 375.16,
+        "classical_ns_per_call": 121.07
+      }
+    ],
+    "summary": {
+      "rounds": 5,
+      "positions": 6,
+      "iterations": 2000,
+      "features_ns_per_call_median": 118.56,
+      "nnue_ns_per_call_median": 367.32,
+      "classical_ns_per_call_median": 121.07,
+      "nnue_over_classical_ratio": 3.034,
+      "features_share_of_nnue": 0.323,
+      "checksum": 82793484820000
+    }
+  }
+}
