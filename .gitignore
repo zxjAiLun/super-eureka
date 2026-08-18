@@ -69,3 +69,6 @@ data/s6/s6-eval-v1-core-300k/
 
 # S6-N1 NNUE probe checkpoints (local-only, never committed)
 /data/s6/models/
+
+# S6 raw monthly archives (lichess 29GB downloads, local-only)
+/data/s6/raw/

@@ -56,6 +56,90 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def load_source_catalog(dir_paths: list[Path]) -> dict[str, dict]:
+    """Load one or more source catalogs into a single keyed catalog.
+
+    Accepts BOTH schemas:
+      - aggregate `source_manifest.json` (map: source_key -> {source_id,
+        source_family, sha256, ...});
+      - source-local `source-manifest.json` (single Lichess-style entry with
+        source_id / source_family / pgn_sha256).
+
+    Every PGN is verified against the ACTUAL FILE BYTES SHA-256 (the
+    lichess `pgn_sha256` convention; for ASCII PGNs it equals the old
+    text-based hash). Duplicate source keys OR duplicate source_ids across
+    all catalogs fail closed.
+    """
+    catalog: dict[str, dict] = {}
+    seen_source_ids: set[str] = set()
+
+    def check_unique(name: str, entry: dict, dir_path: Path) -> None:
+        if name in catalog:
+            raise SystemExit(
+                f"FAIL CLOSED: duplicate source key '{name}'")
+        src_id = entry.get("source_id")
+        if not src_id:
+            raise SystemExit(f"FAIL CLOSED: source '{name}' has no source_id")
+        if src_id in seen_source_ids:
+            raise SystemExit(
+                f"FAIL CLOSED: duplicate source_id '{src_id}' (key '{name}')")
+        seen_source_ids.add(src_id)
+
+    def verify_sha(pgn_path: Path, expected: str, name: str) -> None:
+        if not pgn_path.is_file():
+            raise SystemExit(
+                f"FAIL CLOSED: source PGN missing {pgn_path}")
+        actual = sha256_bytes(pgn_path.read_bytes())
+        if actual != expected:
+            raise SystemExit(
+                f"FAIL CLOSED: source SHA mismatch {name}: "
+                f"{actual[:12]} != {expected[:12]}")
+
+    for dir_path in map(Path, dir_paths):
+        agg = dir_path / "source_manifest.json"
+        local = dir_path / "source-manifest.json"
+        if agg.is_file():
+            manifest = json.loads(agg.read_text(encoding="utf-8"))
+            for name, entry in manifest.items():
+                check_unique(name, entry, dir_path)
+                verify_sha(dir_path / f"{name}.pgn", entry["sha256"], name)
+                catalog[name] = dict(entry)
+        elif local.is_file():
+            entry = json.loads(local.read_text(encoding="utf-8"))
+            name = entry.get("source_id") or entry.get("source_family")
+            if not name:
+                raise SystemExit(
+                    f"FAIL CLOSED: source-local manifest in {dir_path} has "
+                    f"no source_id/source_family")
+            check_unique(name, entry, dir_path)
+            verify_sha(dir_path / f"{entry['source_id']}.pgn",
+                       entry["pgn_sha256"], name)
+            catalog[name] = {**entry, "source_key": name,
+                             "sha256": entry["pgn_sha256"]}
+        else:
+            raise SystemExit(
+                f"FAIL CLOSED: no source manifest (aggregate or local) in "
+                f"{dir_path}")
+    return catalog
+
+
+def family_of(src_id: str, source_manifest: dict, final_mode: bool = False) -> str:
+    """FINAL contract: the family is a REQUIRED manifest field; the
+    arena- prefix fallback exists only for legacy exploratory shards."""
+    for src in source_manifest.values():
+        if src.get("source_id") == src_id:
+            fam = src.get("source_family")
+            if fam is None and final_mode:
+                raise ValueError(
+                    f"source {src_id} has no source_family "
+                    f"(REQUIRED in FINAL mode)")
+            if fam:
+                return fam
+    if src_id.startswith("arena-"):
+        return "arena"
+    return src_id.split("-", 1)[0]
+
+
 def phase_of(board: chess.Board) -> int:
     total = 0
     for sq, piece in board.piece_map().items():
@@ -133,10 +217,20 @@ def game_result_white(game) -> float | None:
     return {"1-0": 1.0, "1/2-1/2": 0.5, "0-1": 0.0}.get(r)
 
 
+def find_pgn(dir_paths: list[Path], source_name: str, src: dict) -> Path:
+    candidates = [f"{source_name}.pgn", f"{src['source_id']}.pgn"]
+    for dir_path in map(Path, dir_paths):
+        for name in candidates:
+            path = dir_path / name
+            if path.is_file():
+                return path
+    raise SystemExit(
+        f"FAIL CLOSED: cannot locate PGN for source '{source_name}' "
+        f"(id {src['source_id']})")
+
+
 def build(args) -> int:
-    sources_dir = Path(args.sources)
-    manifest_path = sources_dir / "source_manifest.json"
-    source_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    catalog = load_source_catalog(args.sources)
     sampling_version = args.sampling_version
     sampling_method = {
         1: "first_8_in_time_order",
@@ -144,18 +238,13 @@ def build(args) -> int:
     }[sampling_version]
 
     out_dir = Path(args.out) / args.dataset_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if out_dir.exists():
+        print(
+            f"FAIL CLOSED: {out_dir} already exists; refusing to overwrite "
+            f"(staging + atomic publish never clobbers an existing dataset)"
+        )
+        return 3
 
-    existing = out_dir / "dataset_manifest.json"
-    if existing.is_file():
-        prev = json.loads(existing.read_text(encoding="utf-8"))
-        if prev.get("dataset_id") != args.dataset_id:
-            print(
-                f"FAIL CLOSED: {out_dir} already holds dataset "
-                f"{prev.get('dataset_id')!r} (requested {args.dataset_id!r}); "
-                f"refusing to overwrite"
-            )
-            return 3
     records: list[dict] = []
     per_source: dict[str, int] = {}
     games_parsed = 0
@@ -165,12 +254,15 @@ def build(args) -> int:
     }
     candidates_seen = 0
 
-    # Deterministic source order (manifest key order is insertion order from
-    # the server; sort for reproducibility).
-    for source_name in sorted(source_manifest):
-        src = source_manifest[source_name]
-        pgn_path = sources_dir / f"{source_name}.pgn"
-        actual_sha = sha256_text(pgn_path.read_text(encoding="utf-8", errors="replace"))
+    # Deterministic source order (sorted keys for reproducibility).
+    for source_name in sorted(catalog):
+        src = catalog[source_name]
+        pgn_path = Path(args.sources[0]) / f"{source_name}.pgn"
+        # Locate the PGN: aggregate dirs name files by source key; source-local
+        # dirs name them by source_id.
+        if not pgn_path.is_file():
+            pgn_path = find_pgn(args.sources, source_name, src)
+        actual_sha = sha256_bytes(pgn_path.read_bytes())
         if actual_sha != src["sha256"]:
             print(f"SOURCE SHA MISMATCH {source_name}: {actual_sha[:12]} != {src['sha256'][:12]}")
             return 2
@@ -298,56 +390,43 @@ def build(args) -> int:
     for r in records:
         by_split[r["split"]].append(r)
 
-    # --- write shards ---
-    n = len(records)
-    shard_size = max(1, math.ceil(n / 4))
-    shard_hashes: list[str] = []
-    for i in range(0, n, shard_size):
-        part = records[i:i + shard_size]
-        lines = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in part)
-        shard_path = out_dir / f"part-{i // shard_size:04d}.jsonl"
-        shard_path.write_text(lines, encoding="utf-8")
-        shard_hashes.append(sha256_text(lines))
-
     # --- canonical representation hash (concatenation of sorted JSON lines) ---
     canonical = "".join(
         json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in records
     )
     dataset_sha = sha256_text(canonical)
-
-    def family_of(src_id: str) -> str:
-        # FINAL contract: the family is a REQUIRED manifest field; the
-        # arena- prefix fallback exists only for legacy exploratory shards.
-        for src in source_manifest.values():
-            if src.get("source_id") == src_id:
-                fam = src.get("source_family")
-                if fam is None and args.final_mode:
-                    raise ValueError(
-                        f"source {src_id} has no source_family "
-                        f"(REQUIRED in FINAL mode)"
-                    )
-                if fam:
-                    return fam
-        if src_id.startswith("arena-"):
-            return "arena"
-        return src_id.split("-", 1)[0]
+    n = len(records)
+    shard_size = max(1, math.ceil(n / 4))
 
     per_family: dict[str, int] = {}
     try:
         for r in records:
-            fam = family_of(r["source_id"])
+            fam = family_of(r["source_id"], catalog, final_mode=args.final_mode)
             per_family[fam] = per_family.get(fam, 0) + 1
     except ValueError as exc:
         print(f"FAIL CLOSED: {exc}")
         return 5
     largest_family = max(per_family.values()) if per_family else 0
     largest_share = largest_family / n if n else 0.0
+    family_count = len(per_family)
+    if family_count < MIN_FAMILIES:
+        not_final_reason = (
+            f"only {family_count} source family/families present; a second "
+            f"independent source family is required for FINAL")
+    elif largest_share > 0.70:
+        not_final_reason = (
+            f"largest source family share {largest_share:.2%} exceeds the "
+            f"70% contract")
+    elif n < TARGET:
+        not_final_reason = (
+            f"records_total {n} below the FINAL target {TARGET}")
+    else:
+        not_final_reason = "FINAL gate not enabled (--final-mode)"
     stats = {
         "dataset_id": args.dataset_id,
         "final": False,
         "final_target": TARGET,
-        "not_final_reason": "single source family (Arena historical); "
-                            "second independent source required for FINAL",
+        "not_final_reason": not_final_reason,
         "schema_version": SCHEMA_VERSION,
         "sampling_version": sampling_version,
         "sampling_method": sampling_method,
@@ -397,10 +476,10 @@ def build(args) -> int:
             "some": sum(1 for r in records
                         if chess.Board(r["fen"]).castling_rights != 0),
         },
-        "shards": [f"part-{i:04d}.jsonl" for i in range(math.ceil(n / shard_size))],
-        "shard_hashes": shard_hashes,
+        "shards": [],
+        "shard_hashes": [],
         "dataset_sha256": dataset_sha,
-        "sources": {k: v["sha256"] for k, v in source_manifest.items()},
+        "sources": {k: v["sha256"] for k, v in catalog.items()},
         "source_families": per_family,
         "largest_family_share": largest_share,
     }
@@ -416,8 +495,15 @@ def build(args) -> int:
         err = _final_target_and_write(records, stats, args, out_dir, shard_size)
         return 0 if err is None else err
 
-    (out_dir / "dataset_manifest.json").write_text(
-        json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    # --- non-final: build in staging, publish atomically after the gate ---
+    staging = Path(args.out) / f".staging-{args.dataset_id}"
+    import shutil
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True, exist_ok=True)
+    _write_dataset(records, stats, staging, shard_size)
+    import os
+    os.replace(staging, out_dir)
     print(json.dumps(stats, ensure_ascii=False, indent=2))
     return 0
 
@@ -451,7 +537,7 @@ def _final_target_and_write(records, stats, args, out_dir, shard_size) -> int | 
         return 5
 
     # rebuild stats for the selected records
-    stats = _stats_for(selected, stats, shard_size)
+    stats = _stats_for(selected, stats, shard_size, catalog)
     err = _final_gates_post(stats, args)
     if err:
         print(f"FAIL CLOSED (final-mode): {err}")
@@ -507,11 +593,11 @@ def _write_dataset(records, stats, target_dir, shard_size):
         json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _stats_for(records, base, shard_size):
+def _stats_for(records, base, shard_size, source_manifest):
     n = len(records)
     per_family: dict[str, int] = {}
     for r in records:
-        fam = family_of(r["source_id"])
+        fam = family_of(r["source_id"], source_manifest)
         per_family[fam] = per_family.get(fam, 0) + 1
     largest_share = max(per_family.values()) / n if per_family else 0.0
     buckets = {name: 0 for name in PHASE_BUCKETS}
@@ -562,8 +648,12 @@ def _final_gates_post(stats, args):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sources", required=True,
-                        help="dir with PGNs + source_manifest.json")
+    parser.add_argument("--sources", required=True, nargs="+",
+                        help="one or more source dirs; each holds either an "
+                             "aggregate source_manifest.json (map: key -> "
+                             "{source_id, source_family, sha256, ...}) or a "
+                             "source-local source-manifest.json (Lichess "
+                             "style) with pgn_sha256")
     parser.add_argument("--sampling-version", type=int, default=2,
                         choices=(1, 2),
                         help="1 = first-8-in-time-order (frozen shard01); "
