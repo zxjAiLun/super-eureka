@@ -201,6 +201,27 @@ B 要回答的问题：
 若 B 成功，再单独评估 `evasions <= 2`。A+B adjacent stacking remains
 explicitly disabled on the same edge in this first candidate.
 
+### 4.1 S7.5B final verdict
+
+```text
+S7.5B-0:       APPROVED / CLOSED
+implementation v1 (f66ab37):  P1 reduced-scout offset mismatch
+Repair 1 (207dc50):           APPROVED, contract-correct
+repaired gate evidence (619ea3b): APPROVED
+candidate verdict:            REJECTED / CLOSED
+Arena:                        NO-GO
+cost:                         G3/G4 PASS (nodes +7.4% / +5.6%, wall ~+8.1%)
+strength:                     G5 FAIL, G5W FAIL (losses > wins at 1s and 3s)
+S7.5C:                        NO-GO
+S7.5 forcing lane:            CLOSED FOR NOW
+```
+
+Do not parameter-fish this lane (B budget 2, evasions <= 2, depth-1-only,
+shared A budget, check classes). The frozen first candidate received a full
+contract-correct evaluation; the negative strength direction is the result.
+`current-final-bounded-check2` stays bench-only; never promote it and never
+let its policy leak into the NNUE candidate.
+
 ## 5. S7.5C — singular extension（设计占位）
 
 不实现 exclusion search 之前，观测 counter 只能叫：
@@ -281,14 +302,15 @@ Arena only after explicit GO
 ## 7. Execution order
 
 ```text
-1. S7.5-0 observation-only（当前已授权）
+1. S7.5-0 observation-only            -> CLOSED
 2. 数据 review，冻结 S75A_FORCING_BUDGET
-3. S7.5A 实现
+3. S7.5A 实现                          -> APPROVED / PRODUCTION / CLOSED
 4. G0-G6 + G5W
 5. verdict review
 6. S7.5B candidate 实现与独立 G0-G6 + G5W review
 7. 只有 candidate 通过并明确 GO，才进入 Arena
 8. S7.5C 只做 precondition observation / design
+9. 当前状态：S7.5B REJECTED / CLOSED，S7.5C NO-GO，lane CLOSED FOR NOW
 ```
 
 ## 8. Hard constraints
