@@ -95,7 +95,8 @@ features with <=5 activations: 2861
 Holdout bucket MAE (raw |teacher| magnitude): 0-100: 71.7; 100-300: 139.1;
 300-1000: 350.9; >=1000: no rows.
 
-NNUE prediction stats (val/holdout): mean 11.0/12.9 cp, std 143/142 cp.
+NNUE prediction stats (val/holdout): mean 18.6842/26.5372 cp, std 89.5250/84.9334
+cp, min -332.8661/-297.4135, max 302.0326/272.8031.
 
 ## Verdict
 
