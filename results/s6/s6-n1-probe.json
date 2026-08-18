@@ -1,0 +1,268 @@
+{
+  "status": "COMPLETE",
+  "classification": "LEARNABLE_BUT_DATA_STARVED",
+  "hashes": {
+    "dataset_sha256": "3a3483fd46fd5a570c4c62b7d93378efc80eafbab43ec155db5ac5894fbc6a9d",
+    "labels_sha256": "78dd8d52a34d1dd10a5d09cb3295be8f3a91a495d808fbd8b0cb68d31d668aa5",
+    "checkpoint_sha256": "1a0f2d3b0010ff0eb8d0689d47e963ec7070e3dc17d3dab0feadfdfd6b307810",
+    "engine_git_sha": "deeb828cca9561192c364f9f3f813661e77f110a",
+    "trainer_git_sha": "deeb828cca9561192c364f9f3f813661e77f110a"
+  },
+  "environment": {
+    "python": "3.12.13",
+    "torch": "2.13.0+cpu",
+    "numpy": "2.5.2",
+    "python_chess": "1.11.2",
+    "device": "cpu",
+    "os": "Linux"
+  },
+  "config": {
+    "inputs": 40960,
+    "width": 32,
+    "seed": 20260818,
+    "clip_cp": 2000.0,
+    "target_scale": 1000.0,
+    "loss": "SmoothL1",
+    "loss_beta": 0.1,
+    "optimizer": "AdamW",
+    "lr": 0.001,
+    "weight_decay": 1e-05,
+    "batch_size": 256,
+    "max_epochs": 100,
+    "patience": 15,
+    "init": "pytorch default init under torch.manual_seed(20260818)",
+    "head_ordering": "concat(stm_accumulator, opponent_accumulator)",
+    "activation": "clamp-min(0)"
+  },
+  "dataset": {
+    "total": 5919,
+    "dataset_id": "s6-eval-v1-core-shard01",
+    "splits": {
+      "train": {
+        "positions": 4776,
+        "cp_rows": 4752
+      },
+      "validation": {
+        "positions": 500,
+        "cp_rows": 497
+      },
+      "holdout": {
+        "positions": 643,
+        "cp_rows": 642
+      }
+    }
+  },
+  "coverage": {
+    "train": {
+      "positions": 4776,
+      "white_unique": 3979,
+      "black_unique": 3616,
+      "union_unique": 5100,
+      "union_fraction": 0.124512,
+      "white_fraction": 0.097144,
+      "black_fraction": 0.088281,
+      "total_activations": 209790
+    },
+    "validation": {
+      "positions": 500,
+      "white_unique": 1230,
+      "black_unique": 1259,
+      "union_unique": 1821,
+      "union_fraction": 0.044458,
+      "white_fraction": 0.030029,
+      "black_fraction": 0.030737,
+      "total_activations": 22136,
+      "unseen_activations": 360,
+      "unseen_rate": 0.016263,
+      "positions_with_unseen": 144,
+      "positions_with_unseen_rate": 0.288
+    },
+    "holdout": {
+      "positions": 643,
+      "white_unique": 1510,
+      "black_unique": 1438,
+      "union_unique": 2189,
+      "union_fraction": 0.053442,
+      "white_fraction": 0.036865,
+      "black_fraction": 0.035107,
+      "total_activations": 27582,
+      "unseen_activations": 460,
+      "unseen_rate": 0.016678,
+      "positions_with_unseen": 201,
+      "positions_with_unseen_rate": 0.312597
+    }
+  },
+  "training": {
+    "epochs_run": 18,
+    "best_epoch": 3,
+    "best_val_loss": 0.100804,
+    "train_loss_at_best_epoch": 0.07628,
+    "final_train_loss": 0.015629,
+    "overfit_gap": 0.024524,
+    "early_stopped": true,
+    "elapsed_seconds": 8.0
+  },
+  "metrics": {
+    "validation": {
+      "zero": {
+        "n": 497,
+        "raw_mae_cp": 159.785,
+        "clipped_mae_cp": 159.785,
+        "clipped_rmse_cp": 219.481,
+        "buckets": {
+          "0-100": {
+            "n": 229,
+            "mae": 47.943
+          },
+          "100-300": {
+            "n": 184,
+            "mae": 171.538
+          },
+          "300-1000": {
+            "n": 84,
+            "mae": 438.94
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "classical": {
+        "n": 497,
+        "raw_mae_cp": 168.614,
+        "clipped_mae_cp": 168.614,
+        "clipped_rmse_cp": 242.754,
+        "buckets": {
+          "0-100": {
+            "n": 229,
+            "mae": 95.376
+          },
+          "100-300": {
+            "n": 184,
+            "mae": 172.283
+          },
+          "300-1000": {
+            "n": 84,
+            "mae": 360.238
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "nnue": {
+        "n": 497,
+        "raw_mae_cp": 158.819,
+        "clipped_mae_cp": 158.819,
+        "clipped_rmse_cp": 212.384,
+        "buckets": {
+          "0-100": {
+            "n": 229,
+            "mae": 99.288
+          },
+          "100-300": {
+            "n": 184,
+            "mae": 153.56
+          },
+          "300-1000": {
+            "n": 84,
+            "mae": 332.634
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "nnue_prediction_stats": {
+        "min": -523.1479,
+        "max": 536.4855,
+        "mean": 14.927,
+        "std": 152.4792
+      }
+    },
+    "holdout": {
+      "zero": {
+        "n": 642,
+        "raw_mae_cp": 151.036,
+        "clipped_mae_cp": 151.036,
+        "clipped_rmse_cp": 205.492,
+        "buckets": {
+          "0-100": {
+            "n": 316,
+            "mae": 45.367
+          },
+          "100-300": {
+            "n": 218,
+            "mae": 179.174
+          },
+          "300-1000": {
+            "n": 108,
+            "mae": 403.417
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "classical": {
+        "n": 642,
+        "raw_mae_cp": 149.721,
+        "clipped_mae_cp": 149.721,
+        "clipped_rmse_cp": 227.671,
+        "buckets": {
+          "0-100": {
+            "n": 316,
+            "mae": 107.832
+          },
+          "100-300": {
+            "n": 218,
+            "mae": 141.89
+          },
+          "300-1000": {
+            "n": 108,
+            "mae": 288.093
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "nnue": {
+        "n": 642,
+        "raw_mae_cp": 154.394,
+        "clipped_mae_cp": 154.394,
+        "clipped_rmse_cp": 208.002,
+        "buckets": {
+          "0-100": {
+            "n": 316,
+            "mae": 105.591
+          },
+          "100-300": {
+            "n": 218,
+            "mae": 137.536
+          },
+          "300-1000": {
+            "n": 108,
+            "mae": 331.215
+          },
+          "1000-inf": {
+            "n": 0,
+            "mae": null
+          }
+        }
+      },
+      "nnue_prediction_stats": {
+        "min": -496.2283,
+        "max": 474.3568,
+        "mean": 18.7476,
+        "std": 145.8381
+      }
+    }
+  },
+  "classification_rule": "STRONG_EARLY_SIGNAL: nnue holdout clipped MAE <= 0.95 * zero and <= 0.95 * classical; else LEARNABLE_BUT_DATA_STARVED; PIPELINE_FAILURE on any pipeline error"
+}
