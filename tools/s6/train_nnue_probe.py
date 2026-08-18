@@ -94,6 +94,10 @@ def load_dataset(dataset_dir: Path) -> dict:
     for line in labels_path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             rec = json.loads(line)
+            if rec["position_id"] in labels:
+                raise SystemExit(
+                    f"PIPELINE_FAILURE: duplicate position_id in labels "
+                    f"{rec['position_id'][:16]}")
             labels[rec["position_id"]] = rec
     missing = set(ids) - set(labels)
     extra = set(labels) - set(ids)
@@ -241,26 +245,49 @@ def build_model(seed: int = SEED) -> NnueProbe:
 
 def coverage_for_split(exported: dict[str, dict], records: list[dict],
                        train_union: set[int] | None = None) -> dict:
+    """Coverage over USABLE records only (caller filters null-CP rows).
+
+    Unseen is counted PER ACTIVATION: each index in the white list and each
+    index in the black list is one activation, so the same unseen feature
+    active in both perspectives of one position counts twice.
+    positions_with_unseen is deduplicated per position.
+    """
     n_positions = len(records)
     white_set: set[int] = set()
     black_set: set[int] = set()
     union_set: set[int] = set()
     total_activations = 0
     unseen_activations = 0
+    unseen_white_activations = 0
+    unseen_black_activations = 0
+    unseen_union_unique: set[int] = set()
     positions_with_unseen = 0
     for r in records:
         rec = exported[r["position_id"]]
-        white = {int(i) for i in rec["white"]}
-        black = {int(i) for i in rec["black"]}
+        white_list = [int(i) for i in rec["white"]]
+        black_list = [int(i) for i in rec["black"]]
+        white = set(white_list)
+        black = set(black_list)
         union = white | black
         white_set |= white
         black_set |= black
         union_set |= union
-        total_activations += len(white) + len(black)
+        total_activations += len(white_list) + len(black_list)
         if train_union is not None:
-            unseen = sum(1 for i in union if i not in train_union)
-            unseen_activations += unseen
-            if unseen:
+            pos_has_unseen = False
+            for i in white_list:
+                if i not in train_union:
+                    unseen_activations += 1
+                    unseen_white_activations += 1
+                    unseen_union_unique.add(i)
+                    pos_has_unseen = True
+            for i in black_list:
+                if i not in train_union:
+                    unseen_activations += 1
+                    unseen_black_activations += 1
+                    unseen_union_unique.add(i)
+                    pos_has_unseen = True
+            if pos_has_unseen:
                 positions_with_unseen += 1
     result = {
         "positions": n_positions,
@@ -276,10 +303,45 @@ def coverage_for_split(exported: dict[str, dict], records: list[dict],
         result["unseen_activations"] = unseen_activations
         result["unseen_rate"] = round(
             unseen_activations / total_activations, 6) if total_activations else 0.0
+        result["unseen_white_activations"] = unseen_white_activations
+        result["unseen_black_activations"] = unseen_black_activations
+        result["unseen_union_unique"] = len(unseen_union_unique)
+        result["unseen_union_unique_rate"] = round(
+            len(unseen_union_unique) / NNUE_INPUTS, 6)
         result["positions_with_unseen"] = positions_with_unseen
         result["positions_with_unseen_rate"] = round(
             positions_with_unseen / n_positions, 6) if n_positions else 0.0
     return result
+
+
+def train_activation_frequency(exported: dict[str, dict],
+                               records: list[dict]) -> dict:
+    """Real activation counts per observed feature over usable train rows."""
+    freq: dict[int, int] = {}
+    for r in records:
+        rec = exported[r["position_id"]]
+        for i in rec["white"] + rec["black"]:
+            freq[int(i)] = freq.get(int(i), 0) + 1
+    observed = len(freq)
+    total = sum(freq.values())
+    values = sorted(freq.values())
+    mean = total / observed if observed else 0.0
+    median = values[len(values) // 2] if values else 0
+    p10 = values[max(0, (len(values) * 10 - 1) // 100)] if values else 0
+    p90 = values[min(len(values) - 1, (len(values) * 90 - 1) // 100)] if values else 0
+    singletons = sum(1 for v in values if v == 1)
+    le5 = sum(1 for v in values if v <= 5)
+    return {
+        "total_activations": total,
+        "observed_unique_features": observed,
+        "unobserved_features": NNUE_INPUTS - observed,
+        "mean_activations_per_feature": round(mean, 3),
+        "median_activations_per_feature": median,
+        "p10_activations_per_feature": p10,
+        "p90_activations_per_feature": p90,
+        "singleton_features": singletons,
+        "features_with_activation_le5": le5,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +349,12 @@ def coverage_for_split(exported: dict[str, dict], records: list[dict],
 # ---------------------------------------------------------------------------
 
 def clipped_metrics(pred_cp: list[float], target_cp: list[float]) -> dict:
+    """Metrics vs RAW teacher targets.
+
+    raw_mae_cp uses unclipped values on both sides; clipped MAE/RMSE clamp
+    BOTH prediction and raw target to +-CLIP_CP; buckets are assigned by the
+    RAW |target| magnitude and their MAE uses the clipped pair.
+    """
     n = len(pred_cp)
     raw_mae = statistics.mean(abs(p - t) for p, t in zip(pred_cp, target_cp))
     clipped_pred = [max(-CLIP_CP, min(CLIP_CP, p)) for p in pred_cp]
@@ -297,12 +365,14 @@ def clipped_metrics(pred_cp: list[float], target_cp: list[float]) -> dict:
     buckets: dict[str, dict] = {}
     for lo, hi in CP_BUCKETS:
         key = f"{lo}-{hi if hi else 'inf'}"
-        pairs = [(p, t) for p, t in zip(clipped_pred, clipped_target)
-                 if (hi is None or abs(t) < hi) and abs(t) >= lo]
-        if pairs:
+        bucket_maes: list[float] = []
+        for p, t, t_raw in zip(clipped_pred, clipped_target, target_cp):
+            if (hi is None or abs(t_raw) < hi) and abs(t_raw) >= lo:
+                bucket_maes.append(abs(p - t))
+        if bucket_maes:
             buckets[key] = {
-                "n": len(pairs),
-                "mae": round(statistics.mean(abs(p - t) for p, t in pairs), 3),
+                "n": len(bucket_maes),
+                "mae": round(statistics.mean(bucket_maes), 3),
             }
         else:
             buckets[key] = {"n": 0, "mae": None}
@@ -332,10 +402,15 @@ def index_tensor(indices: list[int]) -> torch.Tensor:
 
 def prepare_split(exported: dict[str, dict], records: list[dict],
                   labels: dict[str, dict]) -> dict:
-    """Rows = records with non-null teacher_cp_stm, in record order."""
+    """Rows = records with non-null teacher_cp_stm, in record order.
+
+    Keeps BOTH the raw teacher CP (for raw metrics / bucket assignment) and
+    the clipped-and-scaled target used for training.
+    """
     white: list[torch.Tensor] = []
     black: list[torch.Tensor] = []
     target: list[float] = []
+    raw_target_cp: list[float] = []
     stm_white: list[bool] = []
     fens: list[str] = []
     pids: list[str] = []
@@ -345,15 +420,18 @@ def prepare_split(exported: dict[str, dict], records: list[dict],
         if cp is None:
             continue
         rec = exported[r["position_id"]]
+        raw_cp = float(cp)
         white.append(index_tensor(rec["white"]))
         black.append(index_tensor(rec["black"]))
-        target.append(max(-CLIP_CP, min(CLIP_CP, float(cp))) / TARGET_SCALE)
+        raw_target_cp.append(raw_cp)
+        target.append(max(-CLIP_CP, min(CLIP_CP, raw_cp)) / TARGET_SCALE)
         stm_white.append(r["fen"].split()[1] == "w")
         fens.append(r["fen"])
         pids.append(r["position_id"])
     return {
         "white": white, "black": black,
         "target": torch.tensor(target, dtype=torch.float32),
+        "raw_target_cp": raw_target_cp,
         "stm_white": torch.tensor(stm_white, dtype=torch.bool),
         "fens": fens, "pids": pids,
     }
@@ -398,6 +476,7 @@ def train_probe(model: NnueProbe, train: dict, val: dict, seed: int = SEED) -> d
     best_epoch = 0
     best_val_loss = float("inf")
     best_train_loss = float("inf")
+    best_state: dict | None = None
     epochs_run = 0
     patience_left = PATIENCE
     train_losses: list[float] = []
@@ -427,15 +506,28 @@ def train_probe(model: NnueProbe, train: dict, val: dict, seed: int = SEED) -> d
             best_epoch = epoch
             best_train_loss = epoch_loss
             patience_left = PATIENCE
+            best_state = {k: v.detach().cpu().clone()
+                          for k, v in model.state_dict().items()}
         else:
             patience_left -= 1
             if patience_left <= 0:
                 break
     elapsed = time.monotonic() - start
+    if best_state is None:
+        raise SystemExit("PIPELINE_FAILURE: no best state found during training")
+    # Restore the BEST state, not the final epoch state.
+    model.load_state_dict(best_state)
+    _, restored_val_loss = evaluate_split(model, val)
+    if abs(restored_val_loss - best_val_loss) > 1e-6:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: restored validation loss {restored_val_loss} "
+            f"!= best_val_loss {best_val_loss}")
     return {
         "epochs_run": epochs_run,
         "best_epoch": best_epoch,
         "best_val_loss": round(best_val_loss, 6),
+        "restored_validation_loss": round(restored_val_loss, 6),
+        "best_state_restored": True,
         "train_loss_at_best_epoch": round(best_train_loss, 6),
         "final_train_loss": round(train_losses[-1], 6) if train_losses else None,
         "overfit_gap": round(best_val_loss - best_train_loss, 6),
@@ -446,24 +538,6 @@ def train_probe(model: NnueProbe, train: dict, val: dict, seed: int = SEED) -> d
 
 
 # ---------------------------------------------------------------------------
-# Classification
-# ---------------------------------------------------------------------------
-
-def classify(zero_mae: float, classical_mae: float, nnue_mae: float) -> str:
-    """Evidence-based label recorded in the results.
-
-    STRONG_EARLY_SIGNAL: NNUE beats BOTH zero and classical on holdout
-        clipped MAE by >= 5%.
-    LEARNABLE_BUT_DATA_STARVED: run completed; NNUE beats zero but not
-        classical by the margin, or beats neither (no reliable signal yet).
-    PIPELINE_FAILURE: any pipeline error aborts earlier with this label.
-    """
-    if nnue_mae <= zero_mae * 0.95 and nnue_mae <= classical_mae * 0.95:
-        return "STRONG_EARLY_SIGNAL"
-    return "LEARNABLE_BUT_DATA_STARVED"
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -471,6 +545,27 @@ def git_sha(path: Path) -> str:
     proc = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"],
                           capture_output=True, text=True, check=True)
     return proc.stdout.strip()
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def measurement_signals(split_name: str, zero: dict, classical: dict,
+                        nnue: dict) -> dict:
+    """Measurement-only signals; the verdict is left to review."""
+    z = zero["clipped_mae_cp"]
+    c = classical["clipped_mae_cp"]
+    m = nnue["clipped_mae_cp"]
+    return {
+        "zero_clipped_mae_cp": z,
+        "classical_clipped_mae_cp": c,
+        "nnue_clipped_mae_cp": m,
+        "nnue_vs_zero_abs": round(m - z, 3),
+        "nnue_vs_zero_pct": round((m - z) / z * 100.0, 3) if z else None,
+        "nnue_vs_classical_abs": round(m - c, 3),
+        "nnue_vs_classical_pct": round((m - c) / c * 100.0, 3) if c else None,
+    }
 
 
 def main() -> int:
@@ -485,6 +580,7 @@ def main() -> int:
 
     engine_sha = git_sha(repo)
     trainer_sha = git_sha(repo)
+    engine_binary_sha = file_sha256(args.engine)
     dataset = load_dataset(args.dataset)
     records = dataset["records"]
     labels = dataset["labels"]
@@ -504,18 +600,23 @@ def main() -> int:
         print(f"split {name}: positions={len(splits[name])} "
               f"cp_rows={len(split['target'])}", flush=True)
 
+    # Coverage is computed on USABLE (non-null CP) rows only.
+    usable: dict[str, list[dict]] = {}
+    for name, rows in splits.items():
+        usable[name] = [r for r in rows
+                        if labels[r["position_id"]]["teacher_cp_stm"] is not None]
     train_union: set[int] = set()
-    for r in splits["train"]:
+    for r in usable["train"]:
         rec = exported[r["position_id"]]
         train_union |= {int(i) for i in rec["white"]}
         train_union |= {int(i) for i in rec["black"]}
     coverage = {
-        "train": coverage_for_split(exported, splits["train"], None),
-        "validation": coverage_for_split(exported, splits["validation"], train_union),
-        "holdout": coverage_for_split(exported, splits["holdout"], train_union),
+        "train": coverage_for_split(exported, usable["train"], None),
+        "validation": coverage_for_split(exported, usable["validation"], train_union),
+        "holdout": coverage_for_split(exported, usable["holdout"], train_union),
     }
-    coverage["train"]["union_fraction"] = round(len(train_union) / NNUE_INPUTS, 6)
-    coverage["train"]["union_unique"] = len(train_union)
+    coverage["train"]["activation_frequency"] = train_activation_frequency(
+        exported, usable["train"])
     print(f"coverage train union={len(train_union)}/{NNUE_INPUTS}", flush=True)
 
     model = build_model(seed=SEED)
@@ -524,12 +625,13 @@ def main() -> int:
     print(f"best_epoch={training['best_epoch']} "
           f"best_val_loss={training['best_val_loss']}", flush=True)
 
-    # Restore best epoch checkpoint and evaluate once.
-    state = model.state_dict()
+    # Save checkpoint AFTER restoring the best state (train_probe already
+    # restored it), then round-trip: load from disk into a fresh model and
+    # verify the validation loss reproduces best_val_loss.
     checkpoint_dir = args.checkpoint.parent
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     torch.save({
-        "state_dict": state,
+        "state_dict": model.state_dict(),
         "architecture": {"inputs": NNUE_INPUTS, "width": WIDTH,
                          "activation": "relu", "head": "64->1 linear"},
         "seed": SEED,
@@ -543,42 +645,50 @@ def main() -> int:
         args.checkpoint.read_bytes()).hexdigest()
     print(f"checkpoint saved: {args.checkpoint} sha256={checkpoint_sha}", flush=True)
 
-    # Classical baseline: val + holdout only (eval-breakdown per position).
+    loaded_model = build_model(seed=SEED)
+    checkpoint = torch.load(args.checkpoint, weights_only=True)
+    loaded_model.load_state_dict(checkpoint["state_dict"])
+    _, roundtrip_val_loss = evaluate_split(loaded_model, prepared["validation"])
+    if abs(roundtrip_val_loss - training["best_val_loss"]) > 1e-6:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: checkpoint round-trip validation loss "
+            f"{roundtrip_val_loss} != best_val_loss {training['best_val_loss']}")
+    print(f"checkpoint round-trip validation loss {roundtrip_val_loss:.6f} "
+          f"== best {training['best_val_loss']:.6f}", flush=True)
+
+    # Final metrics use the DISK-LOADED model (the true checkpoint weights).
     metrics: dict[str, dict] = {}
     for name in ("validation", "holdout"):
         split = prepared[name]
-        n = len(split["target"])
-        zero_pred = [0.0] * n
-        zero = clipped_metrics(zero_pred, [t * TARGET_SCALE for t in split["target"].tolist()])
+        targets_raw = split["raw_target_cp"]
+        zero = clipped_metrics([0.0] * len(targets_raw), targets_raw)
         classical_pred: list[float] = []
         for fen in split["fens"]:
             classical_pred.append(float(classical_eval_stm(args.engine, fen)))
-        classical = clipped_metrics(
-            classical_pred, [t * TARGET_SCALE for t in split["target"].tolist()])
-        pred, _ = evaluate_split(model, split)
+        classical = clipped_metrics(classical_pred, targets_raw)
+        pred, _ = evaluate_split(loaded_model, split)
         nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
-        nnue = clipped_metrics(
-            nnue_pred_cp, [t * TARGET_SCALE for t in split["target"].tolist()])
+        nnue = clipped_metrics(nnue_pred_cp, targets_raw)
         metrics[name] = {
             "zero": zero,
             "classical": classical,
             "nnue": nnue,
+            "signals": measurement_signals(name, zero, classical, nnue),
             "nnue_prediction_stats": pred_stats(nnue_pred_cp),
         }
 
-    classification = classify(
-        metrics["holdout"]["zero"]["clipped_mae_cp"],
-        metrics["holdout"]["classical"]["clipped_mae_cp"],
-        metrics["holdout"]["nnue"]["clipped_mae_cp"])
-
     result = {
-        "status": "COMPLETE",
-        "classification": classification,
+        "status": "MEASUREMENT_COMPLETE",
+        "supersedes": "98bcdf01a7080325beb655c6f33b57f99806619f",
+        "supersedes_reason": (
+            "invalid measurement: evaluated the final epoch state instead of "
+            "the best-epoch state"),
         "hashes": {
             "dataset_sha256": dataset["dataset_sha"],
             "labels_sha256": dataset["labels_sha"],
             "checkpoint_sha256": checkpoint_sha,
             "engine_git_sha": engine_sha,
+            "engine_binary_sha256": engine_binary_sha,
             "trainer_git_sha": trainer_sha,
         },
         "environment": {
@@ -609,16 +719,15 @@ def main() -> int:
         },
         "coverage": coverage,
         "training": {k: v for k, v in training.items() if k != "train_losses"},
+        "checkpoint_epoch": training["best_epoch"],
+        "checkpoint_roundtrip_validation_loss": round(roundtrip_val_loss, 6),
         "metrics": metrics,
-        "classification_rule": (
-            "STRONG_EARLY_SIGNAL: nnue holdout clipped MAE <= 0.95 * zero "
-            "and <= 0.95 * classical; else LEARNABLE_BUT_DATA_STARVED; "
-            "PIPELINE_FAILURE on any pipeline error"),
+        "verdict": "CLOUD_VERDICT_PENDING",
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"results written to {args.out}", flush=True)
-    print(f"classification: {classification}", flush=True)
+    print("verdict: CLOUD_VERDICT_PENDING (measurement only)", flush=True)
     return 0
 
 

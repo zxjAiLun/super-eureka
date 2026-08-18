@@ -117,6 +117,17 @@ class DatasetJoinTests(unittest.TestCase):
         finally:
             ctx["tmp"].cleanup()
 
+    def test_fail_closed_duplicate_label_position_id(self):
+        ctx = make_synthetic_dataset()
+        try:
+            with open(ctx["dir"] / "labels.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(ctx["labels"][0]) + "\n")
+            with self.assertRaises(SystemExit) as cm:
+                probe.load_dataset(ctx["dir"])
+            self.assertIn("duplicate position_id in labels", str(cm.exception))
+        finally:
+            ctx["tmp"].cleanup()
+
 
 class ExportParsingTests(unittest.TestCase):
     def test_parse_export_line_ok(self):
@@ -164,6 +175,55 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(cov["unseen_activations"], 2)  # 5, 6
         self.assertEqual(cov["positions_with_unseen"], 1)
 
+    def test_unseen_counted_per_activation_across_perspectives(self):
+        exported = {"c": {"position_id": "c", "fen": START_FEN,
+                          "white": [5, 5], "black": [5]}}
+        records = [{"position_id": "c", "fen": START_FEN}]
+        cov = probe.coverage_for_split(exported, records, {0, 1, 2, 3, 4})
+        # The same unseen index 5 appears twice in white and once in black:
+        # three activations, one position.
+        self.assertEqual(cov["total_activations"], 3)
+        self.assertEqual(cov["unseen_activations"], 3)
+        self.assertEqual(cov["unseen_white_activations"], 2)
+        self.assertEqual(cov["unseen_black_activations"], 1)
+        self.assertEqual(cov["unseen_union_unique"], 1)
+        self.assertEqual(cov["positions_with_unseen"], 1)
+
+    def test_null_cp_row_excluded_from_usable_coverage(self):
+        exported = {
+            "a" * 64: {"position_id": "a" * 64, "fen": START_FEN,
+                       "white": [0, 1], "black": [2]},
+            "b" * 64: {"position_id": "b" * 64, "fen": MID_FEN,
+                       "white": [3], "black": [4]},
+        }
+        records = [
+            {"position_id": "a" * 64, "fen": START_FEN},
+            {"position_id": "b" * 64, "fen": MID_FEN},
+        ]
+        labels = {
+            "a" * 64: {"teacher_cp_stm": 120},
+            "b" * 64: {"teacher_cp_stm": None},
+        }
+        prepared = probe.prepare_split(exported, records, labels)
+        self.assertEqual(len(prepared["target"]), 1)
+        usable = [r for r in records
+                  if labels[r["position_id"]]["teacher_cp_stm"] is not None]
+        self.assertEqual(len(usable), 1)
+        cov = probe.coverage_for_split(exported, usable, None)
+        self.assertEqual(cov["positions"], 1)
+        self.assertEqual(cov["total_activations"], 3)
+
+    def test_train_activation_frequency(self):
+        freq = probe.train_activation_frequency(self.exported, self.records)
+        # indices: white {0:2, 1:1, 2:1, 5:1}, black {3:1, 4:1, 6:1}
+        self.assertEqual(freq["total_activations"], 8)
+        self.assertEqual(freq["observed_unique_features"], 7)
+        self.assertEqual(freq["unobserved_features"],
+                         probe.NNUE_INPUTS - 7)
+        self.assertEqual(freq["singleton_features"], 6)
+        self.assertEqual(freq["features_with_activation_le5"], 7)
+        self.assertEqual(freq["median_activations_per_feature"], 1)
+
 
 class MetricsTests(unittest.TestCase):
     def test_clipped_metrics_and_buckets(self):
@@ -184,6 +244,20 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(s["min"], 1.0)
         self.assertEqual(s["max"], 3.0)
         self.assertEqual(s["mean"], 2.0)
+
+    def test_raw_target_preserved_and_clip_metrics_distinguish(self):
+        exported = {"a" * 64: {"position_id": "a" * 64, "fen": START_FEN,
+                               "white": [0], "black": [1]}}
+        records = [{"position_id": "a" * 64, "fen": START_FEN, "split": "train"}]
+        labels = {"a" * 64: {"position_id": "a" * 64, "teacher_cp_stm": 5000}}
+        split = probe.prepare_split(exported, records, labels)
+        # Raw target survives; training target is clipped and scaled.
+        self.assertEqual(split["raw_target_cp"], [5000.0])
+        self.assertEqual(split["target"].tolist(), [2.0])
+        m = probe.clipped_metrics([0.0], [5000.0])
+        self.assertEqual(m["raw_mae_cp"], 5000.0)
+        self.assertEqual(m["clipped_mae_cp"], 2000.0)
+        self.assertNotEqual(m["raw_mae_cp"], m["clipped_mae_cp"])
 
 
 class ModelTests(unittest.TestCase):
@@ -236,6 +310,65 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(own[1].item(), 4)  # row 1 stm black -> black
         self.assertEqual(opp[0].item(), 3)
         self.assertEqual(opp[1].item(), 2)
+
+
+def make_probe_split(n: int = 32, seed: int = probe.SEED) -> dict:
+    """Small deterministic split for best-state tests."""
+    rng = torch.Generator().manual_seed(seed)
+    indices = torch.randint(0, 1000, (n * 20,), generator=rng).tolist()
+    return {
+        "white": [torch.tensor(indices[i * 20:(i + 1) * 20], dtype=torch.long)
+                  for i in range(n)],
+        "black": [torch.tensor([0, 1], dtype=torch.long)] * n,
+        "stm_white": torch.tensor([i % 2 == 0 for i in range(n)]),
+        "target": torch.randn(n, generator=rng) * 0.5,
+        "raw_target_cp": [0.0] * n,
+        "fens": [START_FEN] * n, "pids": [f"p{i}" for i in range(n)],
+    }
+
+
+class BestStateTests(unittest.TestCase):
+    def test_model_after_train_probe_matches_best_val_loss(self):
+        model = probe.build_model(seed=probe.SEED)
+        train = make_probe_split(32, seed=probe.SEED)
+        val = make_probe_split(24, seed=probe.SEED + 1)
+        training = probe.train_probe(model, train, val)
+        self.assertTrue(training["best_state_restored"])
+        self.assertEqual(training["restored_validation_loss"],
+                         training["best_val_loss"])
+        _, val_loss = probe.evaluate_split(model, val)
+        self.assertAlmostEqual(val_loss, training["best_val_loss"], places=6,
+                               msg="model must hold the BEST state, not the final epoch")
+        # The final-epoch state is (with high probability) a different loss;
+        # at minimum the best epoch must be well-defined.
+        self.assertGreaterEqual(training["best_epoch"], 1)
+
+    def test_checkpoint_round_trip_keeps_best_validation_loss(self):
+        model = probe.build_model(seed=probe.SEED)
+        train = make_probe_split(32, seed=probe.SEED)
+        val = make_probe_split(24, seed=probe.SEED + 1)
+        training = probe.train_probe(model, train, val)
+        with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+            path = Path(f.name)
+        try:
+            torch.save({
+                "state_dict": model.state_dict(),
+                "architecture": {"inputs": probe.NNUE_INPUTS,
+                                 "width": probe.WIDTH},
+                "seed": probe.SEED,
+                "dataset_sha256": "d" * 64,
+                "labels_sha256": "l" * 64,
+                "best_epoch": training["best_epoch"],
+                "best_val_loss": training["best_val_loss"],
+            }, path)
+            loaded = probe.build_model(seed=probe.SEED)
+            ckpt = torch.load(path, weights_only=True)
+            loaded.load_state_dict(ckpt["state_dict"])
+            _, roundtrip = probe.evaluate_split(loaded, val)
+            self.assertAlmostEqual(roundtrip, training["best_val_loss"], places=6)
+            self.assertEqual(ckpt["best_epoch"], training["best_epoch"])
+        finally:
+            path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
