@@ -192,5 +192,52 @@ class ArtifactLayoutTests(unittest.TestCase):
             self.assertEqual(len(info["artifact_sha256"]), 64)
 
 
+class TensorF32LeBytesTests(unittest.TestCase):
+    def test_known_float_exact_little_endian_bytes(self):
+        self.assertEqual(exp.tensor_f32_le_bytes(torch.tensor([1.0])),
+                         b"\x00\x00\x80\x3f")
+        self.assertEqual(exp.tensor_f32_le_bytes(torch.tensor([0.5])),
+                         b"\x00\x00\x00\x3f")
+        self.assertEqual(exp.tensor_f32_le_bytes(torch.tensor([-2.5])),
+                         b"\x00\x00\x20\xc0")
+        self.assertEqual(exp.tensor_f32_le_bytes(torch.tensor([1.0, 0.5])),
+                         b"\x00\x00\x80\x3f\x00\x00\x00\x3f")
+
+    def test_rejects_non_float32(self):
+        with self.assertRaises(SystemExit) as cm:
+            exp.tensor_f32_le_bytes(torch.tensor([1.0], dtype=torch.float64))
+        self.assertIn("float32", str(cm.exception))
+
+    def test_rejects_non_contiguous(self):
+        t = torch.randn(4, 4)[:, 0]  # strided view
+        self.assertFalse(t.is_contiguous())
+        with self.assertRaises(SystemExit) as cm:
+            exp.tensor_f32_le_bytes(t)
+        self.assertIn("contiguous", str(cm.exception))
+
+    def test_rejects_nonfinite(self):
+        with self.assertRaises(SystemExit) as cm:
+            exp.tensor_f32_le_bytes(torch.tensor([float("nan")]))
+        self.assertIn("non-finite", str(cm.exception))
+
+
+class ArtifactOffsetsTests(unittest.TestCase):
+    def test_exact_five_offsets(self):
+        self.assertEqual(exp.artifact_offsets(), {
+            "header": 0,
+            "features_weight": 56,
+            "acc_bias": 5242936,
+            "head_weight": 5243064,
+            "head_bias": 5243320,
+            "end": 5243324,
+        })
+
+    def test_offsets_consistent_with_total(self):
+        off = exp.artifact_offsets()
+        self.assertEqual(off["end"], exp.TOTAL_BYTES)
+        self.assertEqual(off["end"], exp.HEADER_BYTES + exp.PAYLOAD_BYTES)
+        self.assertEqual(off["features_weight"], exp.HEADER_BYTES)
+
+
 if __name__ == "__main__":
     unittest.main()

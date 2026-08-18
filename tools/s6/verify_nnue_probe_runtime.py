@@ -37,6 +37,32 @@ MAX_ABS_DIFF_CP = 0.1
 MEAN_ABS_DIFF_CP = 0.01
 
 
+def index_unique_rust_rows(rows: list[dict], expected: int) -> dict[str, dict]:
+    """Validate raw rust rows: exact expected count, then reject any
+    duplicate position_id. Returns the id-indexed rows."""
+    if len(rows) != expected:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: rust probe rows {len(rows)} != expected {expected}")
+    indexed: dict[str, dict] = {}
+    for row in rows:
+        pid = row["position_id"]
+        if pid in indexed:
+            raise SystemExit(
+                f"PIPELINE_FAILURE: duplicate position_id in rust probe rows "
+                f"{pid[:16]}")
+        indexed[pid] = row
+    return indexed
+
+
+def parity_passes(parity: dict) -> bool:
+    """Hard gate: exact row count, no NaN/Inf, tight cp bounds."""
+    return (
+        parity["rows"] == EXPECTED_CP_ROWS
+        and parity["nan_inf"] == 0
+        and parity["max_abs_diff_cp"] <= MAX_ABS_DIFF_CP
+        and parity["mean_abs_diff_cp"] <= MEAN_ABS_DIFF_CP)
+
+
 def engine_batch(engine: Path, args: list[str]) -> list[dict]:
     proc = subprocess.run([str(engine), *args], capture_output=True, text=True,
                           timeout=1800)
@@ -116,11 +142,7 @@ def main() -> int:
         rust_rows = engine_batch(engine, [
             "bench", "nnue-probe-batch", "--model", str(args.artifact),
             "--batch", str(batch_path)])
-    rust_by_id = {r["position_id"]: r for r in rust_rows}
-    if len(rust_by_id) != EXPECTED_CP_ROWS:
-        raise SystemExit(
-            f"PIPELINE_FAILURE: rust probe rows {len(rust_by_id)} != "
-            f"{EXPECTED_CP_ROWS}")
+    rust_by_id = index_unique_rust_rows(rust_rows, EXPECTED_CP_ROWS)
     if set(rust_by_id) != set(split["pids"]):
         raise SystemExit("PIPELINE_FAILURE: rust probe id set mismatch")
 
@@ -156,54 +178,53 @@ def main() -> int:
         "p95_abs_diff_cp": round(percentile(95), 6),
         "p99_abs_diff_cp": round(percentile(99), 6),
     }
-    parity["pass"] = (
-        len(diffs) == EXPECTED_CP_ROWS
-        and nan_inf == 0
-        and parity["max_abs_diff_cp"] <= MAX_ABS_DIFF_CP
-        and parity["mean_abs_diff_cp"] <= MEAN_ABS_DIFF_CP)
+    parity["pass"] = parity_passes(parity)
+
+    def build_result(microbench: dict | None) -> dict:
+        return {
+            "status": "PARITY_PASS" if parity["pass"] else "PARITY_FAIL",
+            "cost_status": "COST_MEASURED" if microbench is not None
+            else "NOT_RUN_PARITY_FAIL",
+            "gate": {
+                "rows_required": EXPECTED_CP_ROWS,
+                "max_abs_diff_cp_required": MAX_ABS_DIFF_CP,
+                "mean_abs_diff_cp_required": MEAN_ABS_DIFF_CP,
+            },
+            "hashes": {
+                "checkpoint_sha256": checkpoint_sha,
+                "artifact_sha256": artifact_sha,
+                "engine_binary_sha256": engine_binary_sha,
+                "engine_git_sha": git_sha,
+                "dataset_sha256": dataset["dataset_sha"],
+                "labels_sha256": dataset["labels_sha"],
+            },
+            "artifact": {
+                "path": str(args.artifact),
+                "format": exp.MAGIC.decode(),
+                "version": exp.FORMAT_VERSION,
+                "inputs": exp.EXPECTED_INPUTS,
+                "width": exp.EXPECTED_WIDTH,
+                "target_scale": exp.TARGET_SCALE,
+                "header_bytes": exp.HEADER_BYTES,
+                "total_bytes": exp.TOTAL_BYTES,
+                "offsets": exp.artifact_offsets(),
+            },
+            "parity": parity,
+            "microbench": microbench,
+        }
+
+    if not parity["pass"]:
+        # Write the failing record and exit BEFORE any microbench run.
+        result = build_result(None)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps({"status": result["status"], "parity": parity}),
+              flush=True)
+        return 2
 
     micro = run_microbench(engine, args.artifact, args.microbench_batch,
                            args.microbench_iterations)
-
-    result = {
-        "status": "PARITY_PASS" if parity["pass"] else "PARITY_FAIL",
-        "cost_status": "COST_MEASURED",
-        "gate": {
-            "rows_required": EXPECTED_CP_ROWS,
-            "max_abs_diff_cp_required": MAX_ABS_DIFF_CP,
-            "mean_abs_diff_cp_required": MEAN_ABS_DIFF_CP,
-        },
-        "hashes": {
-            "checkpoint_sha256": checkpoint_sha,
-            "artifact_sha256": artifact_sha,
-            "engine_binary_sha256": engine_binary_sha,
-            "engine_git_sha": git_sha,
-            "dataset_sha256": dataset["dataset_sha"],
-            "labels_sha256": dataset["labels_sha"],
-        },
-        "artifact": {
-            "path": str(args.artifact),
-            "format": exp.MAGIC.decode(),
-            "version": exp.FORMAT_VERSION,
-            "inputs": exp.EXPECTED_INPUTS,
-            "width": exp.EXPECTED_WIDTH,
-            "target_scale": exp.TARGET_SCALE,
-            "header_bytes": exp.HEADER_BYTES,
-            "total_bytes": exp.TOTAL_BYTES,
-            "offsets": {
-                "header": 0,
-                "features_weight": exp.HEADER_BYTES,
-                "acc_bias": exp.HEADER_BYTES + exp.EXPECTED_INPUTS * exp.EXPECTED_WIDTH * 4,
-                "head_weight": exp.HEADER_BYTES + exp.EXPECTED_INPUTS * exp.EXPECTED_WIDTH * 4
-                               + exp.EXPECTED_WIDTH * 4,
-                "head_bias": exp.HEADER_BYTES + exp.EXPECTED_INPUTS * exp.EXPECTED_WIDTH * 4
-                             + exp.EXPECTED_WIDTH * 4 + 64 * 4,
-                "end": exp.TOTAL_BYTES,
-            },
-        },
-        "parity": parity,
-        "microbench": micro,
-    }
+    result = build_result(micro)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"status": result["status"], "parity": parity}, indent=2),

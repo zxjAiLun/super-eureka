@@ -29,6 +29,7 @@ import struct
 import sys
 from pathlib import Path
 
+import numpy as np
 import torch
 
 MAGIC = b"EUNN1F32"
@@ -47,6 +48,43 @@ PAYLOAD_BYTES = (EXPECTED_INPUTS * EXPECTED_WIDTH * 4
                  + 64 * 4
                  + 1 * 4)
 TOTAL_BYTES = HEADER_BYTES + PAYLOAD_BYTES
+
+
+def tensor_f32_le_bytes(tensor: torch.Tensor) -> bytes:
+    """Serialize a tensor as little-endian float32 bytes.
+
+    Requires torch.float32, CPU, contiguous; rejects anything else. The
+    serialization goes through numpy with an explicit dtype="<f4" so the
+    little-endian byte order is pinned, never platform-dependent.
+    """
+    if tensor.dtype != torch.float32:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: tensor dtype {tensor.dtype} != float32")
+    if tensor.device.type != "cpu":
+        raise SystemExit(
+            f"PIPELINE_FAILURE: tensor device {tensor.device} != cpu")
+    if not tensor.is_contiguous():
+        raise SystemExit("PIPELINE_FAILURE: tensor is not contiguous")
+    if not torch.isfinite(tensor).all():
+        raise SystemExit("PIPELINE_FAILURE: non-finite value in tensor")
+    array = tensor.detach().numpy()
+    return np.ascontiguousarray(array, dtype="<f4").tobytes()
+
+
+def artifact_offsets() -> dict:
+    """Canonical S6-N2 artifact byte offsets (single source of truth for the
+    exporter AND the runtime verifier; never hand-recomputed)."""
+    acc_bias = HEADER_BYTES + EXPECTED_INPUTS * EXPECTED_WIDTH * 4
+    head_weight = acc_bias + EXPECTED_WIDTH * 4
+    head_bias = head_weight + 64 * 4
+    return {
+        "header": 0,
+        "features_weight": HEADER_BYTES,
+        "acc_bias": acc_bias,
+        "head_weight": head_weight,
+        "head_bias": head_bias,
+        "end": TOTAL_BYTES,
+    }
 
 
 def checkpoint_metadata_ok(ckpt: dict) -> None:
@@ -106,10 +144,10 @@ def build_artifact_bytes(features_t: torch.Tensor, acc_bias: torch.Tensor,
     header += bytes.fromhex(checkpoint_sha)
 
     payload = bytearray()
-    payload += features_t.numpy().tobytes()
-    payload += acc_bias.numpy().tobytes()
-    payload += head_weight.numpy().tobytes()
-    payload += head_bias.numpy().tobytes()
+    payload += tensor_f32_le_bytes(features_t)
+    payload += tensor_f32_le_bytes(acc_bias)
+    payload += tensor_f32_le_bytes(head_weight)
+    payload += tensor_f32_le_bytes(head_bias)
 
     blob = bytes(header) + bytes(payload)
     if len(blob) != TOTAL_BYTES:
@@ -132,23 +170,13 @@ def export_artifact(ckpt_path: Path, out_path: Path) -> dict:
     out_path.write_bytes(blob)
     artifact_sha = hashlib.sha256(blob).hexdigest()
 
-    offsets = {
-        "header": 0,
-        "features_weight": HEADER_BYTES,
-        "acc_bias": HEADER_BYTES + EXPECTED_INPUTS * EXPECTED_WIDTH * 4,
-        "head_weight": HEADER_BYTES + EXPECTED_INPUTS * EXPECTED_WIDTH * 4
-                       + EXPECTED_WIDTH * 4,
-        "head_bias": HEADER_BYTES + EXPECTED_INPUTS * EXPECTED_WIDTH * 4
-                     + EXPECTED_WIDTH * 4 + 64 * 4,
-        "end": len(blob),
-    }
     return {
         "artifact_path": str(out_path),
         "artifact_sha256": artifact_sha,
         "total_bytes": len(blob),
         "header_bytes": HEADER_BYTES,
         "payload_bytes": PAYLOAD_BYTES,
-        "offsets": offsets,
+        "offsets": artifact_offsets(),
         "checkpoint_sha256": info["sha"],
         "format": "S6-N2 probe format (bench-only, not production)",
     }
