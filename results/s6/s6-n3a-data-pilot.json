@@ -1,0 +1,118 @@
+{
+  "analysis": {
+    "dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+    "dataset_id": "s6-eval-v1-multisource-pilot01",
+    "records_total": 21531,
+    "per_family": {
+      "lichess-standard-rated-v1": 11214,
+      "arena": 10317
+    },
+    "per_phase": {
+      "high": 7099,
+      "mid": 8215,
+      "low": 5679,
+      "zero": 538
+    },
+    "per_split": {
+      "validation": 2057,
+      "train": 17362,
+      "holdout": 2112
+    },
+    "family_split": {
+      "lichess-standard-rated-v1": {
+        "validation": 1144,
+        "train": 9052,
+        "holdout": 1018
+      },
+      "arena": {
+        "train": 8310,
+        "holdout": 1094,
+        "validation": 913
+      }
+    },
+    "coverage": {
+      "train": {
+        "positions": 17362,
+        "white_unique": 13419,
+        "black_unique": 13431,
+        "union_unique": 17077,
+        "union_fraction": 0.416919,
+        "white_fraction": 0.327612,
+        "black_fraction": 0.327905,
+        "total_activations": 588098,
+        "activation_frequency": {
+          "total_activations": 588098,
+          "observed_unique_features": 17077,
+          "unobserved_features": 23883,
+          "mean_activations_per_feature": 34.438,
+          "median_activations_per_feature": 3,
+          "p10_activations_per_feature": 1,
+          "p90_activations_per_feature": 41,
+          "singleton_features": 4588,
+          "features_with_activation_le5": 10460
+        }
+      },
+      "validation": {
+        "positions": 2057,
+        "white_unique": 4826,
+        "black_unique": 4832,
+        "union_unique": 7065,
+        "union_fraction": 0.172485,
+        "white_fraction": 0.117822,
+        "black_fraction": 0.117969,
+        "total_activations": 68498,
+        "unseen_activations": 686,
+        "unseen_rate": 0.010015,
+        "unseen_white_activations": 357,
+        "unseen_black_activations": 329,
+        "unseen_union_unique": 570,
+        "unseen_union_unique_rate": 0.013916,
+        "positions_with_unseen": 392,
+        "positions_with_unseen_rate": 0.190569
+      },
+      "holdout": {
+        "positions": 2112,
+        "white_unique": 4981,
+        "black_unique": 4741,
+        "union_unique": 6976,
+        "union_fraction": 0.170313,
+        "white_fraction": 0.121606,
+        "black_fraction": 0.115747,
+        "total_activations": 71090,
+        "unseen_activations": 592,
+        "unseen_rate": 0.008327,
+        "unseen_white_activations": 304,
+        "unseen_black_activations": 288,
+        "unseen_union_unique": 466,
+        "unseen_union_unique_rate": 0.011377,
+        "positions_with_unseen": 360,
+        "positions_with_unseen_rate": 0.170455
+      }
+    }
+  },
+  "gate": {
+    "checks": {
+      "records_total >= 10000": true,
+      "families include arena + lichess-standard-rated-v1": true,
+      "each family share in [0.30, 0.70]": true,
+      "low+zero >= 10%": true,
+      "train feature union >= 6500": true,
+      "verify_dataset --allow-unlabeled pass": true,
+      "second rebuild dataset_sha256 identical": true
+    },
+    "pass": true,
+    "facts": {
+      "records_total": 21531,
+      "family_shares": {
+        "lichess-standard-rated-v1": 0.5208,
+        "arena": 0.4792
+      },
+      "low_plus_zero_share": 0.2887,
+      "train_union": 17077,
+      "verify_rc": 0,
+      "rebuilt_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+      "manifest_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af"
+    }
+  },
+  "status": "DATA_PILOT_PASS"
+}

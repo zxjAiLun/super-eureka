@@ -72,3 +72,8 @@ data/s6/s6-eval-v1-core-300k/
 
 # S6 raw monthly archives (lichess 29GB downloads, local-only)
 /data/s6/raw/
+
+# S6-N3A multisource pilot data (raw PGN/shards/manifest local-only)
+/data/s6/s6-eval-v1-multisource-pilot01/
+/data/s6/rebuild-check/
+/data/s6/sources/lichess-standard-rated-v1/
