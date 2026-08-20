@@ -94,8 +94,8 @@ def analyze(engine: Path, dataset_dir: Path, sources: list[str]) -> dict:
         per_family[fam] = per_family.get(fam, 0) + 1
         per_phase[phase] = per_phase.get(phase, 0) + 1
         per_split[r["split"]] = per_split.get(r["split"], 0) + 1
-        family_split.setdefault(fam, {})[r["split"]] = \
-            family_split[fam].get(r["split"], 0) + 1
+        fam_bucket = family_split.setdefault(fam, {})
+        fam_bucket[r["split"]] = fam_bucket.get(r["split"], 0) + 1
 
     return {
         "dataset_sha256": data["dataset_sha"],
