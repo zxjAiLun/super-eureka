@@ -57,7 +57,7 @@ def phase_bucket(phase: int) -> str:
     for name, (lo, hi) in PHASE_BUCKETS.items():
         if lo <= phase <= hi:
             return name
-    return "mid"
+    raise SystemExit(f"PIPELINE_FAILURE: phase {phase} outside 0..24")
 
 
 # ---------------------------------------------------------------------------
@@ -443,12 +443,19 @@ def subgroup_metrics(name: str, key: str, groups: dict[str, dict],
         nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
         nnue = clipped_metrics(nnue_pred_cp, targets_raw)
         signals = measurement_signals(name, zero, classical, nnue)
+        def _check_finite(obj, prefix):
+            if isinstance(obj, dict):
+                for kk, vv in obj.items():
+                    _check_finite(vv, f"{prefix}/{kk}")
+            elif isinstance(obj, list):
+                for vv in obj:
+                    _check_finite(vv, prefix)
+            elif isinstance(obj, float) and not math.isfinite(obj):
+                raise SystemExit(
+                    f"PIPELINE_FAILURE: non-finite metric {name}/{key}/"
+                    f"{label}/{prefix}")
         for m in (zero, classical, nnue):
-            for k, v in m.items():
-                if isinstance(v, float) and not math.isfinite(v):
-                    raise SystemExit(
-                        f"PIPELINE_FAILURE: non-finite metric {name}/{key}/"
-                        f"{label}/{k}")
+            _check_finite(m, "")
         out[label] = {
             "n": len(targets_raw),
             "zero": zero,
@@ -460,47 +467,110 @@ def subgroup_metrics(name: str, key: str, groups: dict[str, dict],
 
 
 def legacy_cross_eval(model: NnueProbe, engine: Path, legacy_dataset: Path,
-                      current_train: dict) -> dict:
-    """Evaluate the new model on the OLD frozen N1 holdout (never used for
-    training or early stopping). Proves zero overlap first and fails closed
-    on any intersection."""
-    legacy = load_dataset(legacy_dataset)
-    old_records = [r for r in legacy["records"] if r["split"] == "holdout"]
-    exported = export_all_features(engine, old_records)
-    old_holdout = prepare_split(exported, old_records, legacy["labels"])
+                      current_train: dict, legacy_checkpoint: Path | None = None,
+                      family_map: dict | None = None) -> dict:
+    """Evaluate on OLD N1 holdout with detailed overlap audit and dual-model comparison.
 
+    Steps:
+      - load legacy dataset (with labels)
+      - raw_holdout_positions / usable_cp_positions
+      - compute raw_position_id_overlap, usable_position_id_overlap, source_game_id_overlap,
+        excluded_usable_positions, eligible_positions, retained_fraction
+      - source_game_id overlap !=0 -> fail closed
+      - position_id overlap: exclude exact-FEN overlap before inference (mask)
+      - require eligible >=500 and retained >=0.95
+      - compute zero/classical/old_n1_nnue/new_n3b_nnue on eligible subset
+    """
+    legacy = load_dataset(legacy_dataset)
+    raw_holdout = [r for r in legacy["records"] if r["split"] == "holdout"]
+    usable_all = [r for r in raw_holdout if legacy["labels"][r["position_id"]].get("teacher_cp_stm") is not None]
+    exported = export_all_features(engine, raw_holdout)
+    # prepare for eligible subset needs exported; but we need to filter usable first
+    # Build full old_holdout split for metrics (will filter)
+    old_holdout_full = prepare_split(exported, raw_holdout, legacy["labels"])
+    # Overlap audit
     new_train_pids = set(current_train["pids"])
     new_train_gids = set(current_train.get("source_game_ids", []))
-    old_holdout_pids = set(old_holdout["pids"])
-    old_holdout_gids = set(old_holdout.get("source_game_ids", []))
-    pid_overlap = sorted(new_train_pids & old_holdout_pids)
-    gid_overlap = sorted(new_train_gids & old_holdout_gids)
-    if pid_overlap or gid_overlap:
-        raise SystemExit(
-            f"PIPELINE_FAILURE: legacy overlap - position_id "
-            f"{len(pid_overlap)}, source_game_id {len(gid_overlap)}")
+    raw_pids = {r["position_id"] for r in raw_holdout}
+    usable_pids = {r["position_id"] for r in usable_all}
+    raw_overlap = len(raw_pids & new_train_pids)
+    usable_overlap = len(usable_pids & new_train_pids)
+    gid_overlap = len({r["source_game_id"] for r in raw_holdout} & new_train_gids)
+    excluded = sorted(usable_pids & new_train_pids)
+    excluded_sha = hashlib.sha256("\n".join(sorted(excluded)).encode()).hexdigest() if excluded else hashlib.sha256(b"").hexdigest()
+    eligible_n = len(usable_pids - new_train_pids)
+    retained = eligible_n / len(usable_pids) if usable_pids else 0
+
+    if gid_overlap != 0:
+        raise SystemExit(f"PIPELINE_FAILURE: legacy source_game_id overlap {gid_overlap} must be 0")
+    if eligible_n < 500 or retained < 0.95:
+        raise SystemExit(f"PIPELINE_FAILURE: legacy eligible {eligible_n} retained {retained:.3f} below gate 500/0.95")
+
+    # Filter old_holdout to eligible (exclude exact position overlap)
+    eligible_mask = [pid not in new_train_pids for pid in old_holdout_full["pids"]]
+    eligible_split = {k: ([v for v, keep in zip(old_holdout_full[k], eligible_mask) if keep] if isinstance(v, list) else v) for k, v in old_holdout_full.items() if k not in ("white","black","stm_white","target")}
+    # Need to handle tensors separately
+    eligible_split["white"] = [old_holdout_full["white"][i] for i, keep in enumerate(eligible_mask) if keep]
+    eligible_split["black"] = [old_holdout_full["black"][i] for i, keep in enumerate(eligible_mask) if keep]
+    eligible_split["stm_white"] = old_holdout_full["stm_white"][eligible_mask] if len(eligible_mask) else old_holdout_full["stm_white"]
+    eligible_split["target"] = old_holdout_full["target"][eligible_mask] if len(eligible_mask) else old_holdout_full["target"]
+    # Rebuild full dict for eligible
+    eligible_split = {**{k: v for k, v in old_holdout_full.items() if k in ("white","black","stm_white","target","raw_target_cp","fens","pids","source_ids","source_game_ids","phases")}, **eligible_split}
+    # Actually simplest: use slice_rows helper
+    mask = [pid not in new_train_pids for pid in old_holdout_full["pids"]]
+    eligible_split2 = slice_rows(old_holdout_full, mask)
+    old_holdout = eligible_split2
+    
 
     targets_raw = old_holdout["raw_target_cp"]
     zero = clipped_metrics([0.0] * len(targets_raw), targets_raw)
     classical_pred = [float(classical_eval_stm(engine, fen))
                       for fen in old_holdout["fens"]]
     classical = clipped_metrics(classical_pred, targets_raw)
+    # New model on eligible
     pred, _ = evaluate_split(model, old_holdout)
     nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
     nnue = clipped_metrics(nnue_pred_cp, targets_raw)
+    # Old model on same eligible subset
+    import torch as _torch
+    old_ckpt_path = legacy_checkpoint if legacy_checkpoint is not None else Path("data/s6/models/s6-n1-probe.pt")
+    expected_old_sha = "6bfdba6d7d9cc034d55d8bfe433ebb3b0d6f48d78afa2351f3ef465ac9003a66"
+    actual_old_sha = hashlib.sha256(Path(old_ckpt_path).read_bytes()).hexdigest()
+    if actual_old_sha != expected_old_sha:
+        raise SystemExit(f"PIPELINE_FAILURE: legacy checkpoint SHA {actual_old_sha[:16]} != {expected_old_sha[:16]}")
+    old_model = build_model(seed=SEED)
+    ckpt_old = _torch.load(str(old_ckpt_path), map_location="cpu", weights_only=True)
+    old_model.load_state_dict(ckpt_old["state_dict"])
+    pred_old, _ = evaluate_split(old_model, old_holdout)
+    old_pred_cp = [p * TARGET_SCALE for p in pred_old.tolist()]
+    old_nnue = clipped_metrics(old_pred_cp, targets_raw)
     return {
         "dataset_sha256": legacy["dataset_sha"],
         "labels_sha256": legacy["labels_sha"],
         "positions": len(old_holdout["target"]),
+        "eligible_positions": eligible_n,
+        "raw_holdout_positions": len(raw_holdout),
+        "usable_positions": len(usable_all),
         "overlap_audit": {
-            "position_id_overlap": len(pid_overlap),
-            "source_game_id_overlap": len(gid_overlap),
+            "raw_position_id_overlap": raw_overlap,
+            "usable_position_id_overlap": usable_overlap,
+            "source_game_id_overlap": gid_overlap,
+            "excluded_usable_positions": len(excluded),
+            "excluded_ids_sha256": excluded_sha,
+            "eligible_positions": eligible_n,
+            "retained_fraction": round(retained, 4),
+            "policy": "exclude-exact-position-overlap-before-inference",
+            "selection_uses_labels_or_predictions": False,
+            "source_game_overlap_required_zero": True,
         },
         "zero": zero,
         "classical": classical,
+        "old_n1_nnue": old_nnue,
+        "new_n3b_nnue": nnue,
         "nnue": nnue,
-        "signals": measurement_signals("legacy_holdout", zero, classical,
-                                       nnue),
+        "signals": measurement_signals("legacy_holdout", zero, classical, nnue),
+        "new_vs_classical": {"abs": round(nnue["clipped_mae_cp"] - classical["clipped_mae_cp"],3), "pct": round((nnue["clipped_mae_cp"]-classical["clipped_mae_cp"])/classical["clipped_mae_cp"]*100,3) if classical["clipped_mae_cp"] else None},
+        "new_vs_old": {"abs": round(nnue["clipped_mae_cp"] - old_nnue["clipped_mae_cp"],3), "pct": round((nnue["clipped_mae_cp"]-old_nnue["clipped_mae_cp"])/old_nnue["clipped_mae_cp"]*100,3) if old_nnue["clipped_mae_cp"] else None},
     }
 
 
@@ -689,15 +759,46 @@ def measurement_signals(split_name: str, zero: dict, classical: dict,
     }
 
 
+def build_family_map(sources: list[str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Load catalogs and return (source_id->family, manifest_file SHAs)."""
+    import build_dataset as bd
+    if not sources:
+        return {}, {}
+    catalog = bd.load_source_catalog([Path(s) for s in sources])
+    fam_map = {}
+    file_shas = {}
+    for entry in catalog.values():
+        sid = entry["source_id"]
+        fam = entry.get("source_family")
+        if not fam:
+            raise SystemExit(f"PIPELINE_FAILURE: source {sid} has no source_family")
+        if sid in fam_map and fam_map[sid] != fam:
+            raise SystemExit(f"PIPELINE_FAILURE: duplicate source_id {sid} with different family")
+        fam_map[sid] = fam
+    # record manifest SHAs for provenance
+    for src_dir in sources:
+        sp = Path(src_dir)
+        for name in ["source_manifest.json", "source-manifest.json"]:
+            cand = sp / name
+            if cand.is_file():
+                file_shas[str(cand)] = hashlib.sha256(cand.read_bytes()).hexdigest()
+    return fam_map, file_shas
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", type=Path, required=True)
     ap.add_argument("--dataset", type=Path, required=True)
+    ap.add_argument("--sources", nargs="+", required=True,
+                    help="source dirs for family mapping (repeatable, verified)")
     ap.add_argument("--checkpoint", type=Path,
                     default=Path("data/s6/models/s6-n3b-multisource-probe.pt"))
     ap.add_argument("--legacy-dataset", type=Path, required=True,
                     help="old frozen N1 dataset (s6-eval-v1-core-shard01); "
                          "holdout used ONLY for cross-eval")
+    ap.add_argument("--legacy-checkpoint", type=Path,
+                    default=Path("data/s6/models/s6-n1-probe.pt"),
+                    help="old N1 checkpoint bound to frozen SHA")
     ap.add_argument("--out", type=Path,
                     default=Path("results/s6/s6-n3b-multisource-probe.json"))
     args = ap.parse_args()
@@ -709,6 +810,20 @@ def main() -> int:
     dataset = load_dataset(args.dataset)
     records = dataset["records"]
     labels = dataset["labels"]
+
+    # Verify labeled dataset via subprocess (for provenance); also check family map
+    verify_proc = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "verify_dataset.py"),
+         "--dataset", str(args.dataset)],
+        capture_output=True, text=True)
+    if verify_proc.returncode != 0:
+        raise SystemExit(f"PIPELINE_FAILURE: verify_dataset failed rc={verify_proc.returncode}")
+
+    family_map, manifest_shas = build_family_map(args.sources)
+    for r in records:
+        if r["source_id"] not in family_map:
+            raise SystemExit(f"PIPELINE_FAILURE: unknown source_id {r['source_id']}")
+
     splits: dict[str, list[dict]] = {"train": [], "validation": [], "holdout": []}
     for r in records:
         splits[r["split"]].append(r)
@@ -721,6 +836,13 @@ def main() -> int:
 
     prepared = {name: prepare_split(exported, rows, labels)
                 for name, rows in splits.items()}
+    # Enrich with verified source families
+    for name, split in prepared.items():
+        split["source_families"] = [family_map[sid] for sid in split["source_ids"]]
+        # Validate family keys are exactly the two expected families
+        fams = set(split["source_families"])
+        if fams and not fams <= {"arena", "lichess-standard-rated-v1"}:
+            raise SystemExit(f"PIPELINE_FAILURE: unexpected family {fams}")
     for name, split in prepared.items():
         print(f"split {name}: positions={len(splits[name])} "
               f"cp_rows={len(split['target'])}", flush=True)
@@ -803,9 +925,9 @@ def main() -> int:
             "nnue_prediction_stats": pred_stats(nnue_pred_cp),
             "by_source_family": subgroup_metrics(
                 name, "source_family",
-                {fam: slice_rows(split, [sid == fam
-                                         for sid in split["source_ids"]])
-                 for fam in sorted(set(split["source_ids"]))},
+                {fam: slice_rows(split, [f == fam
+                                         for f in split["source_families"]])
+                 for fam in sorted(set(split["source_families"]))},
                 loaded_model, classical_cache),
             "by_phase": subgroup_metrics(
                 name, "phase",
@@ -817,11 +939,34 @@ def main() -> int:
 
     # Legacy cross-eval: the new model evaluated on the OLD N1 holdout only.
     legacy = legacy_cross_eval(loaded_model, args.engine,
-                               args.legacy_dataset, prepared["train"])
+                               args.legacy_dataset, prepared["train"],
+                               args.legacy_checkpoint, family_map)
+
+    # Teacher provenance
+    teacher_manifest_path = Path(args.dataset) / "teacher_manifest.json"
+    teacher_manifest = json.loads(teacher_manifest_path.read_text())
+    teacher_manifest_sha = hashlib.sha256(teacher_manifest_path.read_bytes()).hexdigest()
+    labels_path = Path(args.dataset) / "labels.jsonl"
+    labels_sha_file = hashlib.sha256(labels_path.read_bytes()).hexdigest()
+    stockfish_sha = teacher_manifest.get("verified_binary_sha256") or teacher_manifest.get("binary_sha256", "")
+    audit = teacher_manifest.get("audit", {})
 
     result = {
         "status": "MEASUREMENT_COMPLETE",
         "verdict": "CLOUD_VERDICT_PENDING",
+        "teacher": {
+            "teacher_manifest_sha256": teacher_manifest_sha,
+            "labels_sha256": labels_sha_file,
+            "stockfish_binary_sha256": stockfish_sha,
+            "uci_name": teacher_manifest.get("uci_id_name") or teacher_manifest.get("engine"),
+            "nodes": teacher_manifest.get("nodes"),
+            "options": teacher_manifest.get("options"),
+            "audit_mode": audit.get("mode"),
+            "audit_checked": audit.get("checked"),
+            "audit_mismatches": len(audit.get("mismatches", [])),
+            "audit_ok": audit.get("ok"),
+        },
+        "source_manifests": manifest_shas,
         "hashes": {
             "dataset_sha256": dataset["dataset_sha"],
             "labels_sha256": dataset["labels_sha"],
