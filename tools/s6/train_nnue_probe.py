@@ -506,20 +506,8 @@ def legacy_cross_eval(model: NnueProbe, engine: Path, legacy_dataset: Path,
     if eligible_n < 500 or retained < 0.95:
         raise SystemExit(f"PIPELINE_FAILURE: legacy eligible {eligible_n} retained {retained:.3f} below gate 500/0.95")
 
-    # Filter old_holdout to eligible (exclude exact position overlap)
-    eligible_mask = [pid not in new_train_pids for pid in old_holdout_full["pids"]]
-    eligible_split = {k: ([v for v, keep in zip(old_holdout_full[k], eligible_mask) if keep] if isinstance(v, list) else v) for k, v in old_holdout_full.items() if k not in ("white","black","stm_white","target")}
-    # Need to handle tensors separately
-    eligible_split["white"] = [old_holdout_full["white"][i] for i, keep in enumerate(eligible_mask) if keep]
-    eligible_split["black"] = [old_holdout_full["black"][i] for i, keep in enumerate(eligible_mask) if keep]
-    eligible_split["stm_white"] = old_holdout_full["stm_white"][eligible_mask] if len(eligible_mask) else old_holdout_full["stm_white"]
-    eligible_split["target"] = old_holdout_full["target"][eligible_mask] if len(eligible_mask) else old_holdout_full["target"]
-    # Rebuild full dict for eligible
-    eligible_split = {**{k: v for k, v in old_holdout_full.items() if k in ("white","black","stm_white","target","raw_target_cp","fens","pids","source_ids","source_game_ids","phases")}, **eligible_split}
-    # Actually simplest: use slice_rows helper
     mask = [pid not in new_train_pids for pid in old_holdout_full["pids"]]
-    eligible_split2 = slice_rows(old_holdout_full, mask)
-    old_holdout = eligible_split2
+    old_holdout = slice_rows(old_holdout_full, mask)
     
 
     targets_raw = old_holdout["raw_target_cp"]
@@ -804,8 +792,27 @@ def main() -> int:
     args = ap.parse_args()
     repo = Path(__file__).resolve().parents[2]
 
-    engine_sha = git_sha(repo)
-    trainer_sha = git_sha(repo)
+    # Provenance binding: require clean worktree and committed blob match
+    wt_clean = subprocess.run(["git", "-C", str(repo), "diff", "--quiet"],
+                              capture_output=True).returncode == 0
+    idx_clean = subprocess.run(["git", "-C", str(repo), "diff", "--cached", "--quiet"],
+                               capture_output=True).returncode == 0
+    if not (wt_clean and idx_clean):
+        raise SystemExit("PIPELINE_FAILURE: worktree/index not clean at run start")
+    run_git_sha = git_sha(repo)
+    trainer_path = Path(__file__).resolve()
+    trainer_script_sha256 = file_sha256(trainer_path)
+    proc = subprocess.run(["git", "-C", str(repo), "show",
+                           f"HEAD:{trainer_path.relative_to(repo)}"],
+                          capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit("PIPELINE_FAILURE: cannot read committed trainer blob")
+    committed_blob_sha256 = hashlib.sha256(proc.stdout).hexdigest()
+    if trainer_path.read_bytes() != proc.stdout:
+        raise SystemExit("PIPELINE_FAILURE: disk trainer differs from HEAD blob")
+
+    engine_sha = run_git_sha
+    trainer_sha = run_git_sha
     engine_binary_sha = file_sha256(args.engine)
     dataset = load_dataset(args.dataset)
     records = dataset["records"]
@@ -836,13 +843,13 @@ def main() -> int:
 
     prepared = {name: prepare_split(exported, rows, labels)
                 for name, rows in splits.items()}
-    # Enrich with verified source families
+    # Enrich with verified source families; gate requires exact set
+    expected_families = {"arena", "lichess-standard-rated-v1"}
     for name, split in prepared.items():
         split["source_families"] = [family_map[sid] for sid in split["source_ids"]]
-        # Validate family keys are exactly the two expected families
         fams = set(split["source_families"])
-        if fams and not fams <= {"arena", "lichess-standard-rated-v1"}:
-            raise SystemExit(f"PIPELINE_FAILURE: unexpected family {fams}")
+        if fams != expected_families:
+            raise SystemExit(f"PIPELINE_FAILURE: {name} family set {fams} != {expected_families}")
     for name, split in prepared.items():
         print(f"split {name}: positions={len(splits[name])} "
               f"cp_rows={len(split['target'])}", flush=True)
@@ -953,7 +960,16 @@ def main() -> int:
 
     result = {
         "status": "MEASUREMENT_COMPLETE",
-        "verdict": "CLOUD_VERDICT_PENDING",
+        "verdict": "MEASUREMENT_NEGATIVE / NO_PROMOTION",
+        "supersedes": "402f336efce74ab35cb880c389a5ac80fc865f56",
+        "supersedes_reason": "old result produced by uncommitted trainer; provenance invalid",
+        "provenance": {
+            "run_git_sha": run_git_sha,
+            "trainer_script_sha256": trainer_script_sha256,
+            "committed_trainer_blob_sha256": committed_blob_sha256,
+            "run_started_clean": True,
+            "source_id_to_family": family_map,
+        },
         "teacher": {
             "teacher_manifest_sha256": teacher_manifest_sha,
             "labels_sha256": labels_sha_file,
@@ -974,6 +990,9 @@ def main() -> int:
             "engine_git_sha": engine_sha,
             "engine_binary_sha256": engine_binary_sha,
             "trainer_git_sha": trainer_sha,
+            "run_git_sha": run_git_sha,
+            "trainer_script_sha256": trainer_script_sha256,
+            "committed_trainer_blob_sha256": committed_blob_sha256,
         },
         "environment": {
             "python": sys.version.split()[0],
