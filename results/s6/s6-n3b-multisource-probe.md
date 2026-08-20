@@ -1,6 +1,6 @@
 # S6-N3B — Multisource NNUE Learnability Probe
 
-STATUS: **MEASUREMENT_COMPLETE / CLOUD_VERDICT_PENDING**
+STATUS: **MEASUREMENT_COMPLETE / MEASUREMENT_NEGATIVE / NO_PROMOTION**
 
 ## Provenance
 
@@ -9,9 +9,9 @@ dataset: s6-eval-v1-multisource-pilot01  sha 5501240e9fd30414
 labels sha e6f036f426db8a5f
 teacher: Stockfish 18  nodes 16384  sha 6b087694916228c9
 audit: fresh-second-pass  checked 1000  mismatches 0
-checkpoint sha 66f03a5ef0c26df3  epoch 3
-legacy checkpoint sha 6bfdba6d7d9cc034 (old, bound) vs new 66f03a5e (n3b)
-engine sha 05b822b49940a740  git 9320cbc3c658
+checkpoint sha b56e0c336bfc761c  epoch 3
+legacy checkpoint sha 6bfdba6d7d9cc034 (old, bound) vs new b56e0c336bfc761c (n3b)
+engine sha 05b822b49940a740  git 77353cfb3a9e
 ```
 
 ## Overall Metrics (clipped ±2000 MAE)
@@ -134,4 +134,3 @@ engine sha 05b822b49940a740  git 9320cbc3c658
   "source_game_overlap_required_zero": true
 }
 ```
-

@@ -1,6 +1,37 @@
 {
   "status": "MEASUREMENT_COMPLETE",
-  "verdict": "CLOUD_VERDICT_PENDING",
+  "verdict": "MEASUREMENT_NEGATIVE / NO_PROMOTION",
+  "supersedes": "402f336efce74ab35cb880c389a5ac80fc865f56",
+  "supersedes_reason": "old result produced by uncommitted trainer; provenance invalid",
+  "provenance": {
+    "run_git_sha": "77353cfb3a9e6ef619fc0c5a53b9757163497aa5",
+    "trainer_git_sha": "77353cfb3a9e6ef619fc0c5a53b9757163497aa5",
+    "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+    "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+    "run_started_clean": true,
+    "source_id_to_family": {
+      "arena-smoke-normal-complete": "arena",
+      "arena-smoke-restart-recovery": "arena",
+      "arena-smoke-blitz": "arena",
+      "arena-smoke-rapid_5_3": "arena",
+      "arena-sf-smoke3-1800": "arena",
+      "arena-sf-smoke3-2000": "arena",
+      "arena-sf-smoke3-2200": "arena",
+      "arena-sf-smoke3-2400": "arena",
+      "arena-smoke-foundation-prod-8moves-v2": "arena",
+      "arena-s43b-legality-fast-screen": "arena",
+      "arena-s43c-legality-fast-200pairs": "arena",
+      "arena-smoke-live-1pair": "arena",
+      "arena-smoke-c3-live": "arena",
+      "arena-s43d-formal-sprt": "arena",
+      "arena-smoke-sprt-terminal": "arena",
+      "arena-smoke-p412-live": "arena",
+      "arena-smoke-p412-rated": "arena",
+      "arena-08110310": "arena",
+      "arena-s44c-single-buffer-200pairs": "arena",
+      "lichess-standard-rated-v1": "lichess-standard-rated-v1"
+    }
+  },
   "teacher": {
     "teacher_manifest_sha256": "8a0cd4d6113063122d42251f647d3f60d8ab33c9b1bdd57e8815abea80155e2b",
     "labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
@@ -25,10 +56,13 @@
   "hashes": {
     "dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
     "labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
-    "checkpoint_sha256": "66f03a5ef0c26df39b1906231fb0e3b18ea247f6b3b69aae8aa443a4d1264ec8",
-    "engine_git_sha": "9320cbc3c658bbf076b326f8e852dd9364e2b752",
+    "checkpoint_sha256": "b56e0c336bfc761cddd5dccffd4636a4fdaf3ea10f668029073294436b62a7db",
+    "engine_git_sha": "77353cfb3a9e6ef619fc0c5a53b9757163497aa5",
     "engine_binary_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
-    "trainer_git_sha": "9320cbc3c658bbf076b326f8e852dd9364e2b752"
+    "trainer_git_sha": "77353cfb3a9e6ef619fc0c5a53b9757163497aa5",
+    "run_git_sha": "77353cfb3a9e6ef619fc0c5a53b9757163497aa5",
+    "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+    "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb"
   },
   "environment": {
     "python": "3.12.13",
@@ -143,7 +177,7 @@
     "final_train_loss": 0.018909,
     "overfit_gap": 0.086336,
     "early_stopped": true,
-    "elapsed_seconds": 12.5
+    "elapsed_seconds": 25.1
   },
   "checkpoint_epoch": 3,
   "checkpoint_roundtrip_validation_loss": 0.202828,
