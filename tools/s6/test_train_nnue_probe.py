@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 import torch
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -373,3 +374,61 @@ class BestStateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class N3BGateTests(unittest.TestCase):
+    def make_split(self, n=8):
+        rng = torch.Generator().manual_seed(7)
+        indices = torch.randint(0, 1000, (n * 20,), generator=rng).tolist()
+        return {
+            "white": [torch.tensor(indices[i * 20:(i + 1) * 20], dtype=torch.long)
+                      for i in range(n)],
+            "black": [torch.tensor([0, 1], dtype=torch.long)] * n,
+            "stm_white": torch.tensor([i % 2 == 0 for i in range(n)]),
+            "target": torch.randn(n, generator=rng) * 0.5,
+            "raw_target_cp": [0.0] * n,
+            "fens": ["x"] * n, "pids": [f"p{i}" for i in range(n)],
+            "source_ids": ["a"] * (n // 2) + ["b"] * (n - n // 2),
+            "source_game_ids": [f"g{i}" for i in range(n)],
+            "phases": [18] * n,
+        }
+
+    def test_slice_rows_keeps_metadata(self):
+        split = self.make_split()
+        sub = probe.slice_rows(split, [i % 2 == 0 for i in range(len(split["target"]))])
+        self.assertEqual(len(sub["target"]), len(split["target"]) // 2)
+        self.assertEqual(sub["source_ids"],
+                         [s for i, s in enumerate(split["source_ids"])
+                          if i % 2 == 0])
+        self.assertEqual(sub["phases"], [18] * (len(split["target"]) // 2))
+
+    def test_subgroup_metrics_empty_group_fails_closed(self):
+        split = self.make_split()
+        model = probe.build_model(seed=probe.SEED)
+        with self.assertRaises(SystemExit) as cm:
+            probe.subgroup_metrics(
+                "validation", "phase",
+                {"high": probe.slice_rows(
+                    split, [True] * len(split["target"])),
+                 "mid": probe.slice_rows(
+                     split, [False] * len(split["target"]))},
+                model, {f"p{i}": 0.0 for i in range(len(split["target"]))})
+        self.assertIn("empty", str(cm.exception))
+
+    def test_legacy_cross_eval_overlap_fails_closed(self):
+        train = self.make_split()
+        # force position_id overlap by reusing the same pids
+        with mock.patch.object(probe, "load_dataset") as ld, \
+             mock.patch.object(probe, "export_all_features") as ex, \
+             mock.patch.object(probe, "prepare_split") as ps:
+            ld.return_value = {"records": [], "labels": {},
+                               "dataset_sha": "d" * 64,
+                               "labels_sha": "l" * 64}
+            ex.return_value = {}
+            ps.return_value = train  # old holdout == new train pids
+            model = probe.build_model(seed=probe.SEED)
+            with self.assertRaises(SystemExit) as cm:
+                probe.legacy_cross_eval(
+                    model, __import__("pathlib").Path("engine"),
+                    __import__("pathlib").Path("legacy"), train)
+            self.assertIn("legacy overlap", str(cm.exception))

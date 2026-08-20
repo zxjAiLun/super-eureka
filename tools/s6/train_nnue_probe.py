@@ -392,6 +392,109 @@ def pred_stats(values: list[float]) -> dict:
     }
 
 
+def slice_rows(split: dict, mask: list[bool]) -> dict:
+    """Build a sub-split from a per-row boolean mask (indices/targets/fens
+    and the new source_ids/phases metadata)."""
+    idx = [i for i, keep in enumerate(mask) if keep]
+    sub = {
+        "white": [split["white"][i] for i in idx],
+        "black": [split["black"][i] for i in idx],
+        "stm_white": split["stm_white"][idx],
+        "target": split["target"][idx],
+        "raw_target_cp": [split["raw_target_cp"][i] for i in idx],
+        "fens": [split["fens"][i] for i in idx],
+        "pids": [split["pids"][i] for i in idx],
+    }
+    if "source_ids" in split:
+        sub["source_ids"] = [split["source_ids"][i] for i in idx]
+    if "source_game_ids" in split:
+        sub["source_game_ids"] = [split["source_game_ids"][i] for i in idx]
+    if "phases" in split:
+        sub["phases"] = [split["phases"][i] for i in idx]
+    return sub
+
+
+def subgroup_metrics(name: str, key: str, groups: dict[str, dict],
+                     model: NnueProbe, classical_cache: dict[str, float]) -> dict:
+    """Per-group zero/classical/NNUE clipped metrics + signals.
+
+    classical_cache maps position_id -> classical cp (computed ONCE per
+    split); each group is NON-EMPTY and every metric FINITE, else fail
+    closed."""
+    out: dict[str, dict] = {}
+    for label, sub in groups.items():
+        if len(sub["target"]) == 0:
+            raise SystemExit(
+                f"PIPELINE_FAILURE: {name}/{key} group '{label}' is empty")
+        targets_raw = sub["raw_target_cp"]
+        zero = clipped_metrics([0.0] * len(targets_raw), targets_raw)
+        classical_pred = [classical_cache[pid] for pid in sub["pids"]]
+        classical = clipped_metrics(classical_pred, targets_raw)
+        pred, _ = evaluate_split(model, sub)
+        nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
+        nnue = clipped_metrics(nnue_pred_cp, targets_raw)
+        signals = measurement_signals(name, zero, classical, nnue)
+        for m in (zero, classical, nnue):
+            for k, v in m.items():
+                if isinstance(v, float) and not math.isfinite(v):
+                    raise SystemExit(
+                        f"PIPELINE_FAILURE: non-finite metric {name}/{key}/"
+                        f"{label}/{k}")
+        out[label] = {
+            "n": len(targets_raw),
+            "zero": zero,
+            "classical": classical,
+            "nnue": nnue,
+            "signals": signals,
+        }
+    return out
+
+
+def legacy_cross_eval(model: NnueProbe, engine: Path, legacy_dataset: Path,
+                      current_train: dict) -> dict:
+    """Evaluate the new model on the OLD frozen N1 holdout (never used for
+    training or early stopping). Proves zero overlap first and fails closed
+    on any intersection."""
+    legacy = load_dataset(legacy_dataset)
+    old_records = [r for r in legacy["records"] if r["split"] == "holdout"]
+    exported = export_all_features(engine, old_records)
+    old_holdout = prepare_split(exported, old_records, legacy["labels"])
+
+    new_train_pids = set(current_train["pids"])
+    new_train_gids = set(current_train.get("source_game_ids", []))
+    old_holdout_pids = set(old_holdout["pids"])
+    old_holdout_gids = set(old_holdout.get("source_game_ids", []))
+    pid_overlap = sorted(new_train_pids & old_holdout_pids)
+    gid_overlap = sorted(new_train_gids & old_holdout_gids)
+    if pid_overlap or gid_overlap:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: legacy overlap - position_id "
+            f"{len(pid_overlap)}, source_game_id {len(gid_overlap)}")
+
+    targets_raw = old_holdout["raw_target_cp"]
+    zero = clipped_metrics([0.0] * len(targets_raw), targets_raw)
+    classical_pred = [float(classical_eval_stm(engine, fen))
+                      for fen in old_holdout["fens"]]
+    classical = clipped_metrics(classical_pred, targets_raw)
+    pred, _ = evaluate_split(model, old_holdout)
+    nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
+    nnue = clipped_metrics(nnue_pred_cp, targets_raw)
+    return {
+        "dataset_sha256": legacy["dataset_sha"],
+        "labels_sha256": legacy["labels_sha"],
+        "positions": len(old_holdout["target"]),
+        "overlap_audit": {
+            "position_id_overlap": len(pid_overlap),
+            "source_game_id_overlap": len(gid_overlap),
+        },
+        "zero": zero,
+        "classical": classical,
+        "nnue": nnue,
+        "signals": measurement_signals("legacy_holdout", zero, classical,
+                                       nnue),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Data preparation
 # ---------------------------------------------------------------------------
@@ -414,6 +517,9 @@ def prepare_split(exported: dict[str, dict], records: list[dict],
     stm_white: list[bool] = []
     fens: list[str] = []
     pids: list[str] = []
+    source_ids: list[str] = []
+    source_game_ids: list[str] = []
+    phases: list[int] = []
     for r in records:
         lbl = labels[r["position_id"]]
         cp = lbl.get("teacher_cp_stm")
@@ -428,12 +534,18 @@ def prepare_split(exported: dict[str, dict], records: list[dict],
         stm_white.append(r["fen"].split()[1] == "w")
         fens.append(r["fen"])
         pids.append(r["position_id"])
+        source_ids.append(r.get("source_id", "unknown"))
+        source_game_ids.append(r.get("source_game_id", "unknown"))
+        phases.append(r.get("phase", 0))
     return {
         "white": white, "black": black,
         "target": torch.tensor(target, dtype=torch.float32),
         "raw_target_cp": raw_target_cp,
         "stm_white": torch.tensor(stm_white, dtype=torch.bool),
         "fens": fens, "pids": pids,
+        "source_ids": source_ids,
+        "source_game_ids": source_game_ids,
+        "phases": phases,
     }
 
 
@@ -573,8 +685,12 @@ def main() -> int:
     ap.add_argument("--engine", type=Path, required=True)
     ap.add_argument("--dataset", type=Path, required=True)
     ap.add_argument("--checkpoint", type=Path,
-                    default=Path("data/s6/models/s6-n1-probe.pt"))
-    ap.add_argument("--out", type=Path, default=Path("results/s6/s6-n1-probe.json"))
+                    default=Path("data/s6/models/s6-n3b-multisource-probe.pt"))
+    ap.add_argument("--legacy-dataset", type=Path, required=True,
+                    help="old frozen N1 dataset (s6-eval-v1-core-shard01); "
+                         "holdout used ONLY for cross-eval")
+    ap.add_argument("--out", type=Path,
+                    default=Path("results/s6/s6-n3b-multisource-probe.json"))
     args = ap.parse_args()
     repo = Path(__file__).resolve().parents[2]
 
@@ -662,9 +778,10 @@ def main() -> int:
         split = prepared[name]
         targets_raw = split["raw_target_cp"]
         zero = clipped_metrics([0.0] * len(targets_raw), targets_raw)
-        classical_pred: list[float] = []
-        for fen in split["fens"]:
-            classical_pred.append(float(classical_eval_stm(args.engine, fen)))
+        # classical evaluated ONCE per position, then cached for subgroups
+        classical_cache = {pid: float(classical_eval_stm(args.engine, fen))
+                          for pid, fen in zip(split["pids"], split["fens"])}
+        classical_pred = [classical_cache[pid] for pid in split["pids"]]
         classical = clipped_metrics(classical_pred, targets_raw)
         pred, _ = evaluate_split(loaded_model, split)
         nnue_pred_cp = [p * TARGET_SCALE for p in pred.tolist()]
@@ -675,14 +792,26 @@ def main() -> int:
             "nnue": nnue,
             "signals": measurement_signals(name, zero, classical, nnue),
             "nnue_prediction_stats": pred_stats(nnue_pred_cp),
+            "by_source_family": subgroup_metrics(
+                name, "source_family",
+                {fam: slice_rows(split, [sid == fam
+                                         for sid in split["source_ids"]])
+                 for fam in sorted(set(split["source_ids"]))},
+                loaded_model, classical_cache),
+            "by_phase": subgroup_metrics(
+                name, "phase",
+                {ph: slice_rows(split, [p == ph for p in split["phases"]])
+                 for ph in ("high", "mid", "low", "zero")},
+                loaded_model, classical_cache),
         }
+
+    # Legacy cross-eval: the new model evaluated on the OLD N1 holdout only.
+    legacy = legacy_cross_eval(loaded_model, args.engine,
+                               args.legacy_dataset, prepared["train"])
 
     result = {
         "status": "MEASUREMENT_COMPLETE",
-        "supersedes": "98bcdf01a7080325beb655c6f33b57f99806619f",
-        "supersedes_reason": (
-            "invalid measurement: evaluated the final epoch state instead of "
-            "the best-epoch state"),
+        "verdict": "CLOUD_VERDICT_PENDING",
         "hashes": {
             "dataset_sha256": dataset["dataset_sha"],
             "labels_sha256": dataset["labels_sha"],
@@ -722,7 +851,7 @@ def main() -> int:
         "checkpoint_epoch": training["best_epoch"],
         "checkpoint_roundtrip_validation_loss": round(roundtrip_val_loss, 6),
         "metrics": metrics,
-        "verdict": "CLOUD_VERDICT_PENDING",
+        "legacy_cross_eval": legacy,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
