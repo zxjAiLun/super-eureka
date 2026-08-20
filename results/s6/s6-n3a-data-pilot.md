@@ -54,3 +54,282 @@ verify --allow-unlabeled rc: 0
 
 **DATA_PILOT_PASS**
 
+## Provenance Closure (re-verified by verify_n3a_data_pilot.py)
+
+STATUS: **DATA_PILOT_PASS**
+
+```text
+{
+ "archive": {
+  "month": "2026-07",
+  "url": "https://database.lichess.org/standard/lichess_db_standard_rated_2026-07.pgn.zst",
+  "expected_sha256": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7",
+  "actual_sha256": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7",
+  "bytes": 29051046504
+ },
+ "lichess_selection": {
+  "source_id": "lichess-standard-rated-v1",
+  "source_family": "lichess-standard-rated-v1",
+  "pgn_sha256": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf",
+  "pgn_bytes": 5292475,
+  "manifest_sha256": "54586a6cdfa712fc416cb7c10ea42dbb042da69a1c1ef5ca15c493789630bbf8",
+  "selection_seed": 20260812,
+  "games_selected": 2000,
+  "script_sha256": "3b8fc41a78c5c8d34984ec602faa7984d1ec8503439911888cde95e80969d440",
+  "official_sha256": {
+   "2026-07": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
+  }
+ },
+ "arena_sources": {
+  "aggregate_manifest_sha256": "d03c8664515112aba2217d3b0709271122851c673fc15753caa38a9964e5aabf",
+  "source_count": 19,
+  "sources": [
+   {
+    "source_key": "smoke-normal-complete",
+    "source_id": "arena-smoke-normal-complete",
+    "source_family": "arena",
+    "pgn_sha256": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
+    "actual_pgn_sha256": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
+    "pgn_bytes": 29563
+   },
+   {
+    "source_key": "smoke-restart-recovery",
+    "source_id": "arena-smoke-restart-recovery",
+    "source_family": "arena",
+    "pgn_sha256": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
+    "actual_pgn_sha256": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
+    "pgn_bytes": 17457
+   },
+   {
+    "source_key": "smoke-blitz",
+    "source_id": "arena-smoke-blitz",
+    "source_family": "arena",
+    "pgn_sha256": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
+    "actual_pgn_sha256": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
+    "pgn_bytes": 13849
+   },
+   {
+    "source_key": "smoke-rapid_5_3",
+    "source_id": "arena-smoke-rapid_5_3",
+    "source_family": "arena",
+    "pgn_sha256": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
+    "actual_pgn_sha256": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
+    "pgn_bytes": 11973
+   },
+   {
+    "source_key": "sf-smoke3-1800",
+    "source_id": "arena-sf-smoke3-1800",
+    "source_family": "arena",
+    "pgn_sha256": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
+    "actual_pgn_sha256": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
+    "pgn_bytes": 10222
+   },
+   {
+    "source_key": "sf-smoke3-2000",
+    "source_id": "arena-sf-smoke3-2000",
+    "source_family": "arena",
+    "pgn_sha256": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
+    "actual_pgn_sha256": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
+    "pgn_bytes": 12833
+   },
+   {
+    "source_key": "sf-smoke3-2200",
+    "source_id": "arena-sf-smoke3-2200",
+    "source_family": "arena",
+    "pgn_sha256": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
+    "actual_pgn_sha256": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
+    "pgn_bytes": 11373
+   },
+   {
+    "source_key": "sf-smoke3-2400",
+    "source_id": "arena-sf-smoke3-2400",
+    "source_family": "arena",
+    "pgn_sha256": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
+    "actual_pgn_sha256": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
+    "pgn_bytes": 11273
+   },
+   {
+    "source_key": "smoke-foundation-prod-8moves-v2",
+    "source_id": "arena-smoke-foundation-prod-8moves-v2",
+    "source_family": "arena",
+    "pgn_sha256": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
+    "actual_pgn_sha256": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
+    "pgn_bytes": 9752
+   },
+   {
+    "source_key": "s43b-legality-fast-screen",
+    "source_id": "arena-s43b-legality-fast-screen",
+    "source_family": "arena",
+    "pgn_sha256": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
+    "actual_pgn_sha256": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
+    "pgn_bytes": 360129
+   },
+   {
+    "source_key": "s43c-legality-fast-200pairs",
+    "source_id": "arena-s43c-legality-fast-200pairs",
+    "source_family": "arena",
+    "pgn_sha256": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
+    "actual_pgn_sha256": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
+    "pgn_bytes": 1376835
+   },
+   {
+    "source_key": "smoke-live-1pair",
+    "source_id": "arena-smoke-live-1pair",
+    "source_family": "arena",
+    "pgn_sha256": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
+    "actual_pgn_sha256": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
+    "pgn_bytes": 6471
+   },
+   {
+    "source_key": "smoke-c3-live",
+    "source_id": "arena-smoke-c3-live",
+    "source_family": "arena",
+    "pgn_sha256": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
+    "actual_pgn_sha256": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
+    "pgn_bytes": 5670
+   },
+   {
+    "source_key": "s43d-formal-sprt",
+    "source_id": "arena-s43d-formal-sprt",
+    "source_family": "arena",
+    "pgn_sha256": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
+    "actual_pgn_sha256": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
+    "pgn_bytes": 1787832
+   },
+   {
+    "source_key": "smoke-sprt-terminal",
+    "source_id": "arena-smoke-sprt-terminal",
+    "source_family": "arena",
+    "pgn_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "actual_pgn_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pgn_bytes": 0
+   },
+   {
+    "source_key": "smoke-p412-live",
+    "source_id": "arena-smoke-p412-live",
+    "source_family": "arena",
+    "pgn_sha256": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
+    "actual_pgn_sha256": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
+    "pgn_bytes": 12747
+   },
+   {
+    "source_key": "smoke-p412-rated",
+    "source_id": "arena-smoke-p412-rated",
+    "source_family": "arena",
+    "pgn_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "actual_pgn_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pgn_bytes": 0
+   },
+   {
+    "source_key": "08110310",
+    "source_id": "arena-08110310",
+    "source_family": "arena",
+    "pgn_sha256": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
+    "actual_pgn_sha256": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
+    "pgn_bytes": 244395
+   },
+   {
+    "source_key": "s44c-single-buffer-200pairs",
+    "source_id": "arena-s44c-single-buffer-200pairs",
+    "source_family": "arena",
+    "pgn_sha256": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea",
+    "actual_pgn_sha256": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea",
+    "pgn_bytes": 1284734
+   }
+  ]
+ },
+ "dataset": {
+  "pilot": {
+   "dataset_id": "s6-eval-v1-multisource-pilot01",
+   "records": 21531,
+   "canonical_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+   "manifest_file_sha256": "ca0f704030117d982025708bb98eb8b46ef1677b42199c5e5abc1bd18c8df1ba",
+   "sampling_version": 2,
+   "source_families": {
+    "lichess-standard-rated-v1": 11214,
+    "arena": 10317
+   },
+   "sources": {
+    "smoke-normal-complete": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
+    "smoke-restart-recovery": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
+    "smoke-blitz": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
+    "smoke-rapid_5_3": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
+    "sf-smoke3-1800": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
+    "sf-smoke3-2000": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
+    "sf-smoke3-2200": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
+    "sf-smoke3-2400": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
+    "smoke-foundation-prod-8moves-v2": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
+    "s43b-legality-fast-screen": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
+    "s43c-legality-fast-200pairs": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
+    "smoke-live-1pair": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
+    "smoke-c3-live": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
+    "s43d-formal-sprt": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
+    "smoke-sprt-terminal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "smoke-p412-live": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
+    "smoke-p412-rated": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "08110310": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
+    "s44c-single-buffer-200pairs": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea",
+    "lichess-standard-rated-v1": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf"
+   }
+  },
+  "rebuild": {
+   "dataset_id": "s6-eval-v1-multisource-pilot01",
+   "records": 21531,
+   "canonical_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+   "manifest_file_sha256": "ca0f704030117d982025708bb98eb8b46ef1677b42199c5e5abc1bd18c8df1ba",
+   "sampling_version": 2,
+   "source_families": {
+    "lichess-standard-rated-v1": 11214,
+    "arena": 10317
+   },
+   "sources": {
+    "smoke-normal-complete": "8419358b1452181fabea1e3e145ca63e6eba0429779777eb792fa1a15cacd454",
+    "smoke-restart-recovery": "9ecb9087b0d1ef7539ecf5fe6d6c575cbdf5e25ab609445886b12508369fa3fa",
+    "smoke-blitz": "d6afaaf8e0b6e6529d14b3d46e1eed2cf83def183698b552d9747ec19a143e82",
+    "smoke-rapid_5_3": "120562d27e313aa6e3500fae648e20d5f3c039443959b965b3dff9940d8424f6",
+    "sf-smoke3-1800": "0013a61f6b05324287985f78181eb9b0a510728b39a3b792a7b5b7cf0eb3608e",
+    "sf-smoke3-2000": "bc8424aac017019d15b41c2d9ec7beaf9c3171dae6517a365adb69c509a01895",
+    "sf-smoke3-2200": "2c07175adc2d71055878ab7b32d43c5e6f1f1d25f7fe431e8db554835965ef7b",
+    "sf-smoke3-2400": "d2a63c329a91661e1ef0a47608055032ae10a046610947c8c8af98c677c7cf4a",
+    "smoke-foundation-prod-8moves-v2": "3b715c041a210f8104e0666668f15cd3d881cc6e0b55346a272a9fbe725e9b15",
+    "s43b-legality-fast-screen": "10c4c3b1943b884b056f10e661f09cf2bc6d915bc8c65ad180be71b7daffafca",
+    "s43c-legality-fast-200pairs": "6104d658e9b3f0c2eb6f438f7bf8906eee6b0b3e1644cb44be3bb5e23f27c2ed",
+    "smoke-live-1pair": "3c3eb3ad9824827856fd8ddee412fa9f54b81401f7377536f372143bdefeeca5",
+    "smoke-c3-live": "621b99f948acf1831f2e8e51cee53040075003356b5374713389a3fcd0f93b0c",
+    "s43d-formal-sprt": "dd2969485ace04f94ece5727d48bf67597e6e1cee6d921b18d3757194ae4cd6d",
+    "smoke-sprt-terminal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "smoke-p412-live": "f7e7bdfe8e285877835f0b1beae3fc568caf7e4a58da83f9f591ea03d67da5e2",
+    "smoke-p412-rated": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "08110310": "889917b43d8e5b692d7a50ca672821e01b713e91ee150d91aae44e520e542ae0",
+    "s44c-single-buffer-200pairs": "09f47850be092fb7f47120a3c22a57305408eb9cb523884922a770018aa75cea",
+    "lichess-standard-rated-v1": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf"
+   }
+  },
+  "rebuild_sha_identical": true,
+  "frozen_sha": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af"
+ },
+ "encoder": {
+  "engine_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
+  "git_head": "48a916cfcf7ac57be65c0acf3190ad92bc6e9f8c",
+  "cargo_version": "0.1.0",
+  "verify_rc": 0,
+  "coverage": {
+   "rc": 0,
+   "status": "DATA_PILOT_PASS"
+  }
+ },
+ "tools": {
+  "run_n3a_data_pilot.py": "1fcf5099945fdd137fb04d034e45cf4c63fdf699fae52d4defacc6dfee00aa14",
+  "analyze_nnue_coverage.py": "9b68f967e1dbdafaf6ad6309322b2fa1d07faf224980ec599f7860abb3ffff40",
+  "build_dataset.py": "378b3f6588543ba1eb6de6d3347bcbff16516f003c308a0f3f51c9b6f17c34f9",
+  "verify_dataset.py": "6142ff78772735b12b703f5f74d5fa27abcc1cf7ecce1dd1c39f986c9646f57c",
+  "lichess_select.py": "3b8fc41a78c5c8d34984ec602faa7984d1ec8503439911888cde95e80969d440"
+ },
+ "environment": {
+  "python": "3.12.13",
+  "python_chess": "1.11.2",
+  "zstandard": "0.25.0"
+ },
+ "worktree_clean": true
+}
+```
