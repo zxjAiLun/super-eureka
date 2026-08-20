@@ -372,10 +372,6 @@ class BestStateTests(unittest.TestCase):
             path.unlink(missing_ok=True)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class N3BGateTests(unittest.TestCase):
     def make_split(self, n=8):
         rng = torch.Generator().manual_seed(7)
@@ -433,53 +429,74 @@ class N3BGateTests(unittest.TestCase):
                     __import__("pathlib").Path("legacy"), train)
             self.assertIn("PIPELINE_FAILURE", str(cm.exception))
 
+
 class Part1ProvenanceTests(unittest.TestCase):
     def test_dirty_trainer_rejected(self):
-        # Simulate worktree dirty by patching subprocess.run for git diff
-        with mock.patch("train_nnue_probe.subprocess.run") as m:
+        repo = Path(probe.__file__).resolve().parents[2]
+        with mock.patch.object(probe.subprocess, "run") as m:
             def side_effect(cmd, **kw):
                 if "diff" in cmd:
-                    mp = mock.MagicMock(); mp.returncode = 1; return mp
-                mp = mock.MagicMock(); mp.returncode = 0; mp.stdout = "abc\n"; return mp
+                    return mock.MagicMock(returncode=1)
+                return mock.MagicMock(returncode=0, stdout="abc\n")
             m.side_effect = side_effect
-            # Directly test the check logic: worktree clean should fail
-            import subprocess as _sp
-            wt_clean = _sp.run(["git", "diff", "--quiet"], capture_output=True).returncode == 0
-            # Our mock says diff returns 1 -> not clean
-            self.assertFalse(True and False)  # placeholder to show test runs
-            # Actually test the helper: build a small check
-            self.assertEqual(1, 1)  # dirty detection works via mock
+            with self.assertRaises(SystemExit) as cm:
+                probe.bind_run_provenance(repo)
+            self.assertIn("worktree/index", str(cm.exception))
 
     def test_head_blob_mismatch_rejected(self):
-        import hashlib
-        disk = b"disk bytes"
-        blob = b"different blob"
-        self.assertNotEqual(hashlib.sha256(disk).hexdigest(),
-                            hashlib.sha256(blob).hexdigest())
+        repo = Path(probe.__file__).resolve().parents[2]
+        def side_effect(cmd, **kw):
+            if "diff" in cmd:
+                return mock.MagicMock(returncode=0)
+            if "rev-parse" in cmd:
+                return mock.MagicMock(returncode=0, stdout="abc\n")
+            if "show" in cmd:
+                return mock.MagicMock(returncode=0, stdout=b"different blob")
+            raise AssertionError(cmd)
+        with mock.patch.object(probe.subprocess, "run", side_effect=side_effect):
+            with self.assertRaises(SystemExit) as cm:
+                probe.bind_run_provenance(repo)
+            self.assertIn("HEAD blob", str(cm.exception))
 
     def test_missing_family_rejected(self):
-        fams = {"arena"}
-        self.assertNotEqual(fams, {"arena", "lichess-standard-rated-v1"})
+        prepared = {"train": {"source_ids": ["arena"]}}
+        with self.assertRaises(SystemExit) as cm:
+            probe.attach_source_families(prepared, {"arena": "arena"})
+        self.assertIn("family set", str(cm.exception))
 
     def test_two_families_exact_pass(self):
-        fams = {"arena", "lichess-standard-rated-v1"}
-        self.assertEqual(fams, {"arena", "lichess-standard-rated-v1"})
+        prepared = {"train": {"source_ids": ["a", "b"]}}
+        probe.attach_source_families(
+            prepared, {"a": "arena", "b": "lichess-standard-rated-v1"})
+        self.assertEqual(set(prepared["train"]["source_families"]),
+                         probe.EXPECTED_SOURCE_FAMILIES)
 
     def test_legacy_slice_only_once(self):
-        import torch
-        split = {
-            "white": [torch.tensor([1]), torch.tensor([2])],
-            "black": [torch.tensor([3]), torch.tensor([4])],
-            "stm_white": torch.tensor([True, False]),
-            "target": torch.tensor([0.1, 0.2]),
-            "raw_target_cp": [100.0, 200.0],
-            "fens": ["x", "y"], "pids": ["p0", "p1"],
-            "source_ids": ["a", "b"], "source_game_ids": ["g0", "g1"], "phases": [18, 18],
-            "source_families": ["arena", "lichess-standard-rated-v1"],
-        }
-        with mock.patch.object(probe, "slice_rows", wraps=probe.slice_rows) as sp:
-            mask = [True, False]
-            probe.slice_rows(split, mask)
+        train = N3BGateTests().make_split(8)
+        records = []
+        labels = {}
+        exported = {}
+        for i in range(500):
+            pid = f"old-{i}"
+            fen = START_FEN
+            records.append({"position_id": pid, "fen": fen,
+                            "split": "holdout", "source_id": "old",
+                            "source_game_id": f"old-game-{i}", "phase": 18})
+            labels[pid] = {"position_id": pid, "teacher_cp_stm": 100}
+            exported[pid] = {"position_id": pid, "fen": fen,
+                             "white": [1], "black": [2]}
+        loaded = {"records": records, "labels": labels,
+                  "dataset_sha": "d" * 64, "labels_sha": "l" * 64}
+        def eval_stub(model, split):
+            return torch.zeros(len(split["target"])), 0.0
+        with mock.patch.object(probe, "load_dataset", return_value=loaded), \
+             mock.patch.object(probe, "export_all_features", return_value=exported), \
+             mock.patch.object(probe, "classical_eval_stm", return_value=0), \
+             mock.patch.object(probe, "evaluate_split", side_effect=eval_stub), \
+             mock.patch.object(probe, "slice_rows", wraps=probe.slice_rows) as sp:
+            probe.legacy_cross_eval(
+                probe.build_model(seed=probe.SEED), Path("engine"), Path("legacy"),
+                train, Path("data/s6/models/s6-n1-probe.pt"))
             self.assertEqual(sp.call_count, 1)
 
     def test_phase_bucket_out_of_range_fails(self):
@@ -488,3 +505,6 @@ class Part1ProvenanceTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             probe.phase_bucket(-1)
 
+
+if __name__ == "__main__":
+    unittest.main()

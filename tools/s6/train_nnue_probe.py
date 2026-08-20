@@ -51,6 +51,7 @@ PATIENCE = 15
 CP_BUCKETS = [(0, 100), (100, 300), (300, 1000), (1000, None)]
 PHASE_BUCKETS = {"high": (18, 24), "mid": (8, 17),
                  "low": (1, 7), "zero": (0, 0)}
+EXPECTED_SOURCE_FAMILIES = {"arena", "lichess-standard-rated-v1"}
 
 
 def phase_bucket(phase: int) -> str:
@@ -467,8 +468,7 @@ def subgroup_metrics(name: str, key: str, groups: dict[str, dict],
 
 
 def legacy_cross_eval(model: NnueProbe, engine: Path, legacy_dataset: Path,
-                      current_train: dict, legacy_checkpoint: Path | None = None,
-                      family_map: dict | None = None) -> dict:
+                      current_train: dict, legacy_checkpoint: Path | None = None) -> dict:
     """Evaluate on OLD N1 holdout with detailed overlap audit and dual-model comparison.
 
     Steps:
@@ -730,6 +730,38 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def bind_run_provenance(repo: Path) -> dict:
+    """Require a clean tracked tree and bind the run to the committed trainer."""
+    wt_clean = subprocess.run(
+        ["git", "-C", str(repo), "diff", "--quiet"],
+        capture_output=True).returncode == 0
+    idx_clean = subprocess.run(
+        ["git", "-C", str(repo), "diff", "--cached", "--quiet"],
+        capture_output=True).returncode == 0
+    if not (wt_clean and idx_clean):
+        raise SystemExit("PIPELINE_FAILURE: worktree/index not clean at run start")
+
+    run_git_sha = git_sha(repo)
+    trainer_path = Path(__file__).resolve()
+    trainer_script_sha256 = file_sha256(trainer_path)
+    proc = subprocess.run(
+        ["git", "-C", str(repo), "show",
+         f"HEAD:{trainer_path.relative_to(repo)}"],
+        capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit("PIPELINE_FAILURE: cannot read committed trainer blob")
+    committed_blob_sha256 = hashlib.sha256(proc.stdout).hexdigest()
+    if trainer_path.read_bytes() != proc.stdout:
+        raise SystemExit("PIPELINE_FAILURE: disk trainer differs from HEAD blob")
+    return {
+        "run_git_sha": run_git_sha,
+        "trainer_git_sha": run_git_sha,
+        "trainer_script_sha256": trainer_script_sha256,
+        "committed_trainer_blob_sha256": committed_blob_sha256,
+        "run_started_clean": True,
+    }
+
+
 def measurement_signals(split_name: str, zero: dict, classical: dict,
                         nnue: dict) -> dict:
     """Measurement-only signals; the verdict is left to review."""
@@ -773,6 +805,23 @@ def build_family_map(sources: list[str]) -> tuple[dict[str, str], dict[str, str]
     return fam_map, file_shas
 
 
+def attach_source_families(prepared: dict[str, dict],
+                           family_map: dict[str, str]) -> None:
+    """Attach and gate source families for every prepared split."""
+    for name, split in prepared.items():
+        try:
+            split["source_families"] = [family_map[sid]
+                                         for sid in split["source_ids"]]
+        except KeyError as exc:
+            raise SystemExit(
+                f"PIPELINE_FAILURE: unknown source_id {exc.args[0]}") from exc
+        fams = set(split["source_families"])
+        if fams != EXPECTED_SOURCE_FAMILIES:
+            raise SystemExit(
+                f"PIPELINE_FAILURE: {name} family set {fams} != "
+                f"{EXPECTED_SOURCE_FAMILIES}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", type=Path, required=True)
@@ -792,27 +841,9 @@ def main() -> int:
     args = ap.parse_args()
     repo = Path(__file__).resolve().parents[2]
 
-    # Provenance binding: require clean worktree and committed blob match
-    wt_clean = subprocess.run(["git", "-C", str(repo), "diff", "--quiet"],
-                              capture_output=True).returncode == 0
-    idx_clean = subprocess.run(["git", "-C", str(repo), "diff", "--cached", "--quiet"],
-                               capture_output=True).returncode == 0
-    if not (wt_clean and idx_clean):
-        raise SystemExit("PIPELINE_FAILURE: worktree/index not clean at run start")
-    run_git_sha = git_sha(repo)
-    trainer_path = Path(__file__).resolve()
-    trainer_script_sha256 = file_sha256(trainer_path)
-    proc = subprocess.run(["git", "-C", str(repo), "show",
-                           f"HEAD:{trainer_path.relative_to(repo)}"],
-                          capture_output=True)
-    if proc.returncode != 0:
-        raise SystemExit("PIPELINE_FAILURE: cannot read committed trainer blob")
-    committed_blob_sha256 = hashlib.sha256(proc.stdout).hexdigest()
-    if trainer_path.read_bytes() != proc.stdout:
-        raise SystemExit("PIPELINE_FAILURE: disk trainer differs from HEAD blob")
-
-    engine_sha = run_git_sha
-    trainer_sha = run_git_sha
+    provenance = bind_run_provenance(repo)
+    engine_sha = provenance["run_git_sha"]
+    trainer_sha = provenance["trainer_git_sha"]
     engine_binary_sha = file_sha256(args.engine)
     dataset = load_dataset(args.dataset)
     records = dataset["records"]
@@ -843,13 +874,8 @@ def main() -> int:
 
     prepared = {name: prepare_split(exported, rows, labels)
                 for name, rows in splits.items()}
-    # Enrich with verified source families; gate requires exact set
-    expected_families = {"arena", "lichess-standard-rated-v1"}
-    for name, split in prepared.items():
-        split["source_families"] = [family_map[sid] for sid in split["source_ids"]]
-        fams = set(split["source_families"])
-        if fams != expected_families:
-            raise SystemExit(f"PIPELINE_FAILURE: {name} family set {fams} != {expected_families}")
+    # Enrich with verified source families; gate requires exact set.
+    attach_source_families(prepared, family_map)
     for name, split in prepared.items():
         print(f"split {name}: positions={len(splits[name])} "
               f"cp_rows={len(split['target'])}", flush=True)
@@ -947,7 +973,7 @@ def main() -> int:
     # Legacy cross-eval: the new model evaluated on the OLD N1 holdout only.
     legacy = legacy_cross_eval(loaded_model, args.engine,
                                args.legacy_dataset, prepared["train"],
-                               args.legacy_checkpoint, family_map)
+                               args.legacy_checkpoint)
 
     # Teacher provenance
     teacher_manifest_path = Path(args.dataset) / "teacher_manifest.json"
@@ -964,10 +990,7 @@ def main() -> int:
         "supersedes": "402f336efce74ab35cb880c389a5ac80fc865f56",
         "supersedes_reason": "old result produced by uncommitted trainer; provenance invalid",
         "provenance": {
-            "run_git_sha": run_git_sha,
-            "trainer_script_sha256": trainer_script_sha256,
-            "committed_trainer_blob_sha256": committed_blob_sha256,
-            "run_started_clean": True,
+            **provenance,
             "source_id_to_family": family_map,
         },
         "teacher": {
@@ -990,9 +1013,9 @@ def main() -> int:
             "engine_git_sha": engine_sha,
             "engine_binary_sha256": engine_binary_sha,
             "trainer_git_sha": trainer_sha,
-            "run_git_sha": run_git_sha,
-            "trainer_script_sha256": trainer_script_sha256,
-            "committed_trainer_blob_sha256": committed_blob_sha256,
+            "run_git_sha": provenance["run_git_sha"],
+            "trainer_script_sha256": provenance["trainer_script_sha256"],
+            "committed_trainer_blob_sha256": provenance["committed_trainer_blob_sha256"],
         },
         "environment": {
             "python": sys.version.split()[0],
@@ -1030,7 +1053,7 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"results written to {args.out}", flush=True)
-    print("verdict: CLOUD_VERDICT_PENDING (measurement only)", flush=True)
+    print("verdict: MEASUREMENT_NEGATIVE / NO_PROMOTION", flush=True)
     return 0
 
 
