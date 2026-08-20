@@ -113,9 +113,12 @@ def evaluate_gates(analysis: dict, rebuilt_sha: str | None,
                    verify_rc: int | None) -> dict:
     total = analysis["records_total"]
     families = analysis["per_family"]
+    phases = analysis["per_phase"]
     n_fam = total or 1
     shares = {f: c / n_fam for f, c in families.items()}
-    low_zero = (families.get("low", 0) + families.get("zero", 0)) / n_fam
+    # low+zero comes from the PHASE distribution (per_phase), never from the
+    # family counts.
+    low_zero = (phases.get("low", 0) + phases.get("zero", 0)) / n_fam
     train_union = analysis["coverage"]["train"]["union_unique"]
     checks = {
         "records_total >= 10000": total >= PILOT_MIN_RECORDS,
@@ -173,6 +176,10 @@ def main() -> int:
         args.out.write_text(json.dumps(result, indent=2) + "\n",
                             encoding="utf-8")
         print(json.dumps(result, indent=2), flush=True)
+        if not gates["pass"]:
+            # Fail-closed: DATA_PILOT_FAIL must write the record AND exit
+            # nonzero; no auto-tuning or retry.
+            return 2
     else:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(result, indent=2) + "\n",

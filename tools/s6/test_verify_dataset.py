@@ -128,6 +128,37 @@ class VerifyAllowUnlabeledTests(unittest.TestCase):
             rc = vd.verify(argparse.Namespace(dataset=str(d)))
             self.assertNotEqual(rc, 0)
 
+    def test_allow_unlabeled_still_checks_when_labels_present(self):
+        # --allow-unlabeled must NOT weaken validation once labels exist:
+        # a record missing its label is still rejected.
+        with tempfile.TemporaryDirectory(prefix="s6-n3a-") as tmp:
+            d = make_dataset_dir(Path(tmp), with_labels=True)
+            labels_path = d / "labels.jsonl"
+            lines = labels_path.read_text(encoding="utf-8").splitlines()
+            labels_path.write_text(lines[0] + "\n", encoding="utf-8")  # drop one
+            rc = vd.verify(argparse.Namespace(dataset=str(d),
+                                              allow_unlabeled=True))
+            self.assertNotEqual(rc, 0)
+
+    def test_labels_present_but_teacher_missing_fails_even_with_flag(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3a-") as tmp:
+            d = make_dataset_dir(Path(tmp), with_labels=True)
+            (d / "teacher_manifest.json").unlink()
+            rc = vd.verify(argparse.Namespace(dataset=str(d),
+                                              allow_unlabeled=True))
+            self.assertNotEqual(rc, 0)
+
+    def test_duplicate_label_position_id_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3a-") as tmp:
+            d = make_dataset_dir(Path(tmp), with_labels=True)
+            labels_path = d / "labels.jsonl"
+            lines = labels_path.read_text(encoding="utf-8").splitlines()
+            labels_path.write_text(lines[0] + "\n" + lines[0] + "\n",
+                                   encoding="utf-8")
+            rc = vd.verify(argparse.Namespace(dataset=str(d),
+                                              allow_unlabeled=False))
+            self.assertNotEqual(rc, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

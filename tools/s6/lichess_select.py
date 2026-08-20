@@ -96,17 +96,29 @@ def select_key(game: chess.pgn.Game) -> str:
 
 
 class HashingReader:
-    """File-like wrapper that feeds every read into a live SHA-256."""
+    """File-like wrapper that feeds every read into a live SHA-256.
+
+    `read(0)` returns b"" without consuming (probe semantics); `read()` and
+    `read(-1)` read one bounded chunk so a slow/high-latency source can never
+    stall the caller, and every byte served is hashed exactly once.
+    """
 
     def __init__(self, resp, hasher):
         self._resp = resp
         self._hasher = hasher
 
     def read(self, size: int = -1) -> bytes:
-        data = self._resp.read(size if size and size > 0 else 1 << 20)
+        if size == 0:
+            return b""
+        if size is None or size < 0:
+            size = 1 << 20
+        data = self._resp.read(size)
         if data:
             self._hasher.update(data)
         return data
+
+    def hexdigest(self) -> str:
+        return self._hasher.hexdigest()
 
 
 def fetch_official_sha256(month: str) -> str:
@@ -127,11 +139,12 @@ def fetch_official_sha256(month: str) -> str:
 
 
 def open_month_stream(month: str, local: Path | None):
-    """Return (decompressed_reader, hasher, raw_source, official_sha, url).
+    """Return (reader, hashing_reader, raw, official, display).
 
-    Every compressed byte is fed into `hasher` exactly once as it is read
-    (by the decompressor or by the caller's final drain); the caller must
-    drain `raw_source` to EOF after selection and compare the digest.
+    `hashing_reader` is THE object the caller must drain to EOF after
+    selection: it is the single point through which every compressed byte is
+    hashed exactly once (by the decompressor and by the final drain). The
+    caller must close text/reader/raw explicitly.
     """
     url = f"{BASE}lichess_db_standard_rated_{month}.pgn.zst"
     official = fetch_official_sha256(month)
@@ -145,9 +158,10 @@ def open_month_stream(month: str, local: Path | None):
             raise SystemExit(f"FAIL CLOSED: cannot open {url}: {exc}") from exc
         display = url
     hasher = hashlib.sha256()
+    hashing_reader = HashingReader(raw, hasher)
     dctx = zstandard.ZstdDecompressor()
-    reader = dctx.stream_reader(HashingReader(raw, hasher))
-    return reader, hasher, raw, official, display
+    reader = dctx.stream_reader(hashing_reader)
+    return reader, hashing_reader, raw, official, display
 
 
 def main() -> int:
@@ -185,7 +199,8 @@ def main() -> int:
 
     with open(pgn_path, "w", encoding="utf-8") as fh:
         for month in months:
-            reader, hasher, raw, official, display = open_month_stream(month, args.local)
+            reader, hashing_reader, raw, official, display = \
+                open_month_stream(month, args.local)
             official_sha256[month] = official
             print(f"streaming {display} (official sha {official[:16]}...)",
                   flush=True)
@@ -193,45 +208,51 @@ def main() -> int:
             month_long = 0
             seen = 0
             text = io.TextIOWrapper(reader, encoding="utf-8", errors="replace")
-            while month_selected < args.games_per_month:
-                game = chess.pgn.read_game(text)
-                if game is None:
-                    break
-                seen += 1
-                if not passes(game):
-                    continue
-                key = select_key(game)
-                h = hashlib.sha256(
-                    f"{key}:{args.seed}".encode("utf-8")).digest()
-                if h[0] >= ACCEPT_BYTE:
-                    continue
-                is_long = len(list(game.mainline_moves())) >= 80
-                if is_long:
-                    if month_long >= long_target:
+            try:
+                while month_selected < args.games_per_month:
+                    game = chess.pgn.read_game(text)
+                    if game is None:
+                        break
+                    seen += 1
+                    if not passes(game):
                         continue
-                    month_long += 1
-                elif month_selected - month_long >= \
-                        args.games_per_month - long_target:
-                    continue
-                month_selected += 1
-                print(game, file=fh)
-                print(file=fh)
-            # Consume the ENTIRE compressed stream so the in-flight SHA-256
-            # covers every byte, then fail closed on any mismatch.
-            while raw.read(1 << 20):
-                pass
-            actual = hasher.hexdigest()
-            if actual != official:
-                print(
-                    f"FAIL CLOSED: stream SHA mismatch for {month}: "
-                    f"{actual[:12]} != {official[:12]}", flush=True)
-                return 5
-            if month_selected < args.games_per_month:
-                print(
-                    f"FAIL CLOSED: {month} selected only {month_selected} "
-                    f"games (< {args.games_per_month}); staging NOT published",
-                    flush=True)
-                return 4
+                    key = select_key(game)
+                    h = hashlib.sha256(
+                        f"{key}:{args.seed}".encode("utf-8")).digest()
+                    if h[0] >= ACCEPT_BYTE:
+                        continue
+                    is_long = len(list(game.mainline_moves())) >= 80
+                    if is_long:
+                        if month_long >= long_target:
+                            continue
+                        month_long += 1
+                    elif month_selected - month_long >= \
+                            args.games_per_month - long_target:
+                        continue
+                    month_selected += 1
+                    print(game, file=fh)
+                    print(file=fh)
+                # Consume the ENTIRE compressed stream THROUGH the hashing
+                # reader so every byte is hashed exactly once, then fail
+                # closed on any mismatch.
+                while hashing_reader.read(1 << 20):
+                    pass
+                actual = hashing_reader.hexdigest()
+                if actual != official:
+                    print(
+                        f"FAIL CLOSED: stream SHA mismatch for {month}: "
+                        f"{actual[:12]} != {official[:12]}", flush=True)
+                    return 5
+                if month_selected < args.games_per_month:
+                    print(
+                        f"FAIL CLOSED: {month} selected only {month_selected} "
+                        f"games (< {args.games_per_month}); staging NOT "
+                        f"published", flush=True)
+                    return 4
+            finally:
+                text.close()
+                reader.close()
+                raw.close()
             total += month_selected
             elapsed = time.time() - t0
             print(f"{month}: {month_selected} selected ({month_long} long) "

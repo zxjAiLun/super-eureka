@@ -116,17 +116,28 @@ def verify(args) -> int:
     if buckets != manifest_buckets:
         failures.append(f"phase buckets {buckets} != manifest {manifest_buckets}")
 
-    # 7. labels + teacher manifest provenance (skipped ONLY under
-    # --allow-unlabeled; every other integrity check is never degraded)
-    if getattr(args, "allow_unlabeled", False):
-        print("labels/teacher checks skipped: --allow-unlabeled")
+    # 7. labels + teacher manifest provenance
+    # --allow-unlabeled skips the teacher checks ONLY when NEITHER labels nor
+    # teacher_manifest exists. If either exists, the full validation runs
+    # (missing/duplicate/mismatched records are still rejected).
+    labels_path = dataset_dir / "labels.jsonl"
+    teacher_path = dataset_dir / "teacher_manifest.json"
+    labels_present = labels_path.is_file()
+    teacher_present = teacher_path.is_file()
+    if getattr(args, "allow_unlabeled", False) and not labels_present \
+            and not teacher_present:
+        print("labels/teacher checks skipped: --allow-unlabeled "
+              "(no labels or teacher manifest present)")
     else:
-        labels_path = dataset_dir / "labels.jsonl"
-        if labels_path.is_file():
+        if labels_present:
             labels = {}
             for line in labels_path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     rec = json.loads(line)
+                    if rec["position_id"] in labels:
+                        failures.append(
+                            f"duplicate position_id in labels "
+                            f"{rec['position_id'][:16]}")
                     labels[rec["position_id"]] = rec
             missing = set(ids) - set(labels)
             extra = set(labels) - set(ids)
@@ -136,18 +147,20 @@ def verify(args) -> int:
                 failures.append(f"{len(extra)} labels without records")
             labels_text = labels_path.read_text(encoding="utf-8")
             labels_sha = hashlib.sha256(labels_text.encode("utf-8")).hexdigest()
-            tm = json.loads(
-                (dataset_dir / "teacher_manifest.json").read_text(encoding="utf-8"))
-            if tm.get("engine") == "unknown":
-                failures.append("teacher_manifest engine == 'unknown'")
-            if not tm.get("binary_sha256"):
-                failures.append("teacher_manifest binary_sha256 missing")
-            if not tm.get("audit", {}).get("ok"):
-                failures.append("teacher determinism audit not ok")
-            if tm.get("audit", {}).get("checked", 0) < 1000:
-                failures.append("teacher audit checked < 1000")
-            if tm.get("labels_sha256") != labels_sha:
-                failures.append(f"labels_sha256 mismatch: {labels_sha[:16]}")
+            if teacher_present:
+                tm = json.loads(teacher_path.read_text(encoding="utf-8"))
+                if tm.get("engine") == "unknown":
+                    failures.append("teacher_manifest engine == 'unknown'")
+                if not tm.get("binary_sha256"):
+                    failures.append("teacher_manifest binary_sha256 missing")
+                if not tm.get("audit", {}).get("ok"):
+                    failures.append("teacher determinism audit not ok")
+                if tm.get("audit", {}).get("checked", 0) < 1000:
+                    failures.append("teacher audit checked < 1000")
+                if tm.get("labels_sha256") != labels_sha:
+                    failures.append(f"labels_sha256 mismatch: {labels_sha[:16]}")
+            else:
+                failures.append("labels present but teacher_manifest missing")
         else:
             failures.append("labels.jsonl missing")
 

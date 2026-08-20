@@ -492,7 +492,8 @@ def build(args) -> int:
 
     # --- FINAL mode: exact split + phase targeting (deterministic) ---
     if args.final_mode:
-        err = _final_target_and_write(records, stats, args, out_dir, shard_size)
+        err = _final_target_and_write(records, stats, args, out_dir,
+                                      shard_size, catalog)
         return 0 if err is None else err
 
     # --- non-final: build in staging, publish atomically after the gate ---
@@ -508,7 +509,21 @@ def build(args) -> int:
     return 0
 
 
-def _final_target_and_write(records, stats, args, out_dir, shard_size) -> int | None:
+def _verify_staged(staging: Path) -> int:
+    """Full integrity verification of a staged FINAL dataset. At this point
+    the dataset has NO labels yet, so the teacher/label checks are explicitly
+    skipped (allow_unlabeled=True); every other integrity check runs."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "verify_dataset", str(Path(__file__).parent / "verify_dataset.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.verify(argparse.Namespace(dataset=str(staging),
+                                         allow_unlabeled=True))
+
+
+def _final_target_and_write(records, stats, args, out_dir, shard_size,
+                            catalog) -> int | None:
     """FINAL 300k: exact per-split phase targets, gates, staging + atomic move."""
     err = _final_gates_pre(stats, args)
     if err:
@@ -557,12 +572,8 @@ def _final_target_and_write(records, stats, args, out_dir, shard_size) -> int | 
     _write_dataset(selected, stats, staging, shard_size)
 
     # full verify of the staged dataset before the atomic move
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "verify_dataset", str(Path(__file__).parent / "verify_dataset.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    rc = mod.verify(argparse.Namespace(dataset=str(staging)))
+    # (allow_unlabeled=True: no labels exist yet at this point)
+    rc = _verify_staged(staging)
     if rc != 0:
         print("FAIL CLOSED: staged dataset failed verification")
         return 5
