@@ -49,6 +49,15 @@ BATCH_SIZE = 256
 MAX_EPOCHS = 100
 PATIENCE = 15
 CP_BUCKETS = [(0, 100), (100, 300), (300, 1000), (1000, None)]
+PHASE_BUCKETS = {"high": (18, 24), "mid": (8, 17),
+                 "low": (1, 7), "zero": (0, 0)}
+
+
+def phase_bucket(phase: int) -> str:
+    for name, (lo, hi) in PHASE_BUCKETS.items():
+        if lo <= phase <= hi:
+            return name
+    return "mid"
 
 
 # ---------------------------------------------------------------------------
