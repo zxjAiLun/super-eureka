@@ -809,7 +809,8 @@ def main() -> int:
                 loaded_model, classical_cache),
             "by_phase": subgroup_metrics(
                 name, "phase",
-                {ph: slice_rows(split, [p == ph for p in split["phases"]])
+                {ph: slice_rows(split, [phase_bucket(p) == ph
+                                        for p in split["phases"]])
                  for ph in ("high", "mid", "low", "zero")},
                 loaded_model, classical_cache),
         }
