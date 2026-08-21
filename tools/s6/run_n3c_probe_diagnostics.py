@@ -695,6 +695,10 @@ def control_d(current: dict, n1: dict, checkpoint_dir: Path,
 
 def build_classical_cache(dataset: dict, engine: Path, cache_path: Path,
                           engine_sha: str) -> dict:
+    if cache_path.is_file():
+        # Reuse only an exact, fully validated cache.  A stale or partial cache
+        # fails closed rather than being silently recomputed or supplemented.
+        return validate_classical_cache(cache_path, dataset, engine_sha)
     usable = [row for row in dataset["records"]
               if dataset["data"]["labels"][row["position_id"]]
               .get("teacher_cp_stm") is not None]
