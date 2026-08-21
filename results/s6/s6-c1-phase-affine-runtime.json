@@ -1,0 +1,146 @@
+{
+  "bindings": {
+    "baseline_profile": "current-final",
+    "candidate_profile": "current-final-phase-affine",
+    "confirmation_cache_sha256": "126f7c82a5dfb29dbb4750b6a979da16652dca2bd850d1b8551c9361b3e5b169",
+    "confirmation_dataset_sha256": "3deff6a4a5cbafcdceb02b2b2c3d06ea0cd061e127cb66f24be4d2bc81d2c43d",
+    "confirmation_labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+    "engine_binary_sha256": "7535ec09414eed2ae3fab230cf8f111d25667921a80ebcc4f7a08a38311fc4ad",
+    "label_binding": {
+      "aligned_with_n3e_result": true,
+      "confirmation_eligible_positions": 6979,
+      "confirmation_labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+      "n3b_labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9"
+    },
+    "n3b_dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+    "n3b_labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
+    "n3c_cache_sha256": "c40a38ab4796e0aca68131c17a713a3a31ab9834c741c9221a7a8d1317cf5727",
+    "n3e_result_sha256": "4a1fb32d76cbd69d0cee5be02ed6f4cfd5177020b172ba8a08ecce84e982f627"
+  },
+  "commands": {
+    "batch": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/target/release/eureka bench phase-affine-batch --batch <file>",
+    "microbench": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/target/release/eureka bench phase-affine-microbench --batch <file> --iterations 200 --rounds 5"
+  },
+  "constants": {
+    "bias_scaled_cp": [
+      36717418,
+      50374720,
+      21702803,
+      -464891
+    ],
+    "derived_from_result": true,
+    "factor": [
+      738618,
+      893806,
+      988214,
+      2510204
+    ],
+    "fitted_biases_b": [
+      0.036717418,
+      0.0503747198,
+      0.0217028031,
+      -0.000464891
+    ],
+    "fitted_slopes_u": [
+      -0.2613823636,
+      -0.1061941736,
+      -0.0117859984,
+      1.5102040829
+    ],
+    "phase_order": [
+      "high",
+      "mid",
+      "low",
+      "zero"
+    ],
+    "scale": 1000000,
+    "selected_calibrator": "phase_affine"
+  },
+  "contract": "docs/s6/s6-n3e-closure-and-c1-authorization.md",
+  "gates": {
+    "base_cp_unchanged_vs_committed_caches": true,
+    "constants_derived_from_n3e_result": true,
+    "labels_aligned_with_n3e_result": true,
+    "microbench_feasible": true,
+    "n3b_exact_fixed_point_parity": true,
+    "n3b_quantization_within_budget": true,
+    "n3d_exact_fixed_point_parity": true,
+    "n3d_quantization_within_budget": true,
+    "static_metrics_reproduced": true
+  },
+  "metric_reproduction": {
+    "budget_cp": 0.05,
+    "mae_drift_cp": 0.002,
+    "mae_ok": true,
+    "n3e_clipped_mae_cp": 155.103,
+    "n3e_clipped_rmse_cp": 215.082,
+    "rmse_drift_cp": 0.007,
+    "rmse_ok": true,
+    "runtime_clipped_mae_cp": 155.105,
+    "runtime_clipped_rmse_cp": 215.089
+  },
+  "microbench": {
+    "base_median_ns": 29240451,
+    "base_ns_per_eval": 285.5513,
+    "candidate_median_ns": 29538616,
+    "candidate_ns_per_eval": 288.463,
+    "feasible": true,
+    "iterations": 200,
+    "max_ratio": 1.1,
+    "order_alternated": true,
+    "positions": 512,
+    "ratio": 1.010197,
+    "round_order": [
+      "base_first",
+      "candidate_first",
+      "base_first",
+      "candidate_first",
+      "base_first"
+    ],
+    "rounds": 5,
+    "warmup_per_round": true
+  },
+  "parity": {
+    "n3b_usable": {
+      "base_cp_matches_committed_cache": true,
+      "clipped_mae_cp": 160.796,
+      "clipped_rmse_cp": 224.266,
+      "exact_fixed_point_match": true,
+      "positions": 20542,
+      "quantization": {
+        "max_abs_budget_cp": 0.51,
+        "max_abs_cp": 0.499917,
+        "max_abs_ok": true,
+        "mean_abs_budget_cp": 0.26,
+        "mean_abs_cp": 0.250518,
+        "mean_abs_ok": true
+      }
+    },
+    "n3d_eligible": {
+      "base_cp_matches_committed_cache": true,
+      "clipped_mae_cp": 155.105,
+      "clipped_rmse_cp": 215.089,
+      "exact_fixed_point_match": true,
+      "positions": 6979,
+      "quantization": {
+        "max_abs_budget_cp": 0.51,
+        "max_abs_cp": 0.499917,
+        "max_abs_ok": true,
+        "mean_abs_budget_cp": 0.26,
+        "mean_abs_cp": 0.248209,
+        "mean_abs_ok": true
+      }
+    }
+  },
+  "provenance": {
+    "committed_script_blob_sha256": "8183670a4122329875f7b2f989bf53b3c74e13ca201af3d6e2ce8c29aae2b842",
+    "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+    "run_git_sha": "91ca15cdeb0ac5696f71be44dc58c63af0f5abfe",
+    "run_started_clean": true,
+    "script_relpath": "tools/s6/verify_phase_affine_runtime.py",
+    "script_sha256": "8183670a4122329875f7b2f989bf53b3c74e13ca201af3d6e2ce8c29aae2b842",
+    "trainer_git_sha": "91ca15cdeb0ac5696f71be44dc58c63af0f5abfe",
+    "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb"
+  },
+  "status": "PHASE_AFFINE_RUNTIME_PARITY_PASS"
+}

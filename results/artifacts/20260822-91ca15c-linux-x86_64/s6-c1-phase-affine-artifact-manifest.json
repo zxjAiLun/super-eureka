@@ -1,0 +1,178 @@
+{
+  "arena_handoff": {
+    "baseline_profile_arg": "--profile current-final",
+    "candidate_profile_arg": "--profile current-final-phase-affine",
+    "engine_repo_must_not_claim_promotion": true,
+    "identical_binary_required": true,
+    "promotion_contract": "reuse the Arena repository's frozen CurrentFinal promotion contract unchanged (openings, TC, threads, hash, concurrency, colour swap, adjudication)"
+  },
+  "artifact_id": "20260822-91ca15c-linux-x86_64",
+  "binary": {
+    "path": "target/release/eureka",
+    "sha256": "7535ec09414eed2ae3fab230cf8f111d25667921a80ebcc4f7a08a38311fc4ad",
+    "size_bytes": 947928
+  },
+  "commit": "91ca15cdeb0ac5696f71be44dc58c63af0f5abfe",
+  "commit_short": "91ca15c",
+  "contract": "docs/s6/s6-n3e-closure-and-c1-authorization.md",
+  "current_final_replay": {
+    "baseline_binary_sha256": "0c1119db6f92301a18c826a64ac9c8e8d2a0ebe44009da8cbdc4a3bc90f66fdb",
+    "baseline_source_commit": "a49b3924ac27bd8086e89120d87ee9819420053a",
+    "compared_fields": [
+      "score",
+      "bestmove",
+      "completed_depth",
+      "stopped",
+      "nodes",
+      "pv",
+      "target_root_rank"
+    ],
+    "differing": 0,
+    "identical": true,
+    "modes": [
+      "disabled",
+      "cold",
+      "warm",
+      "all"
+    ],
+    "normalized_away": [
+      "time",
+      "nps",
+      "elapsed_us",
+      "median_elapsed_us",
+      "median_nps"
+    ],
+    "semantic_lines_compared": 464,
+    "suites": [
+      "smoke",
+      "standard"
+    ],
+    "throughput_node_counts_identical": true
+  },
+  "fixed_point_constants": {
+    "bias_scaled_cp": [
+      36717418,
+      50374720,
+      21702803,
+      -464891
+    ],
+    "derived_from_result": true,
+    "factor": [
+      738618,
+      893806,
+      988214,
+      2510204
+    ],
+    "floating_point_used": false,
+    "formula": "round_symmetric((base_cp * factor + bias_scaled_cp) / 1_000_000)",
+    "intermediate_type": "i64",
+    "scale": 1000000
+  },
+  "frozen_inputs": {
+    "confirmation_cache_sha256": "126f7c82a5dfb29dbb4750b6a979da16652dca2bd850d1b8551c9361b3e5b169",
+    "confirmation_dataset_sha256": "3deff6a4a5cbafcdceb02b2b2c3d06ea0cd061e127cb66f24be4d2bc81d2c43d",
+    "confirmation_labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+    "n3b_dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+    "n3b_labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
+    "n3c_cache_sha256": "c40a38ab4796e0aca68131c17a713a3a31ab9834c741c9221a7a8d1317cf5727"
+  },
+  "microbench": {
+    "base_median_ns": 29240451,
+    "base_ns_per_eval": 285.5513,
+    "candidate_median_ns": 29538616,
+    "candidate_ns_per_eval": 288.463,
+    "feasible": true,
+    "iterations": 200,
+    "max_ratio": 1.1,
+    "order_alternated": true,
+    "positions": 512,
+    "ratio": 1.010197,
+    "round_order": [
+      "base_first",
+      "candidate_first",
+      "base_first",
+      "candidate_first",
+      "base_first"
+    ],
+    "rounds": 5,
+    "warmup_per_round": true
+  },
+  "n3e_source": {
+    "phase_order": [
+      "high",
+      "mid",
+      "low",
+      "zero"
+    ],
+    "raw_parameters": {
+      "b_biases": [
+        0.036717418,
+        0.0503747198,
+        0.0217028031,
+        -0.000464891
+      ],
+      "u_slopes": [
+        -0.2613823636,
+        -0.1061941736,
+        -0.0117859984,
+        1.5102040829
+      ]
+    },
+    "result_path": "results/s6/s6-n3e-residual-specificity.json",
+    "result_sha256": "4a1fb32d76cbd69d0cee5be02ed6f4cfd5177020b172ba8a08ecce84e982f627",
+    "selected_calibrator": "phase_affine"
+  },
+  "notes": [
+    "Teacher imitation is not Elo; calibration shifts the score scale seen by pruning, aspiration, null-move, qsearch and TT.",
+    "The zero-phase slope 2.510204 is aggressive and deliberately kept unmodified; it was fitted on 538 N3B zero-phase records and is the most likely source of Arena regression.",
+    "Production baseline bde9085 is untouched."
+  ],
+  "parity": {
+    "base_cp_matches_committed_caches": true,
+    "exact_fixed_point_both_splits": true,
+    "gates": {
+      "base_cp_unchanged_vs_committed_caches": true,
+      "constants_derived_from_n3e_result": true,
+      "labels_aligned_with_n3e_result": true,
+      "microbench_feasible": true,
+      "n3b_exact_fixed_point_parity": true,
+      "n3b_quantization_within_budget": true,
+      "n3d_exact_fixed_point_parity": true,
+      "n3d_quantization_within_budget": true,
+      "static_metrics_reproduced": true
+    },
+    "max_quantization_cp": 0.499917,
+    "mean_quantization_cp": 0.250518,
+    "metric_reproduction": {
+      "budget_cp": 0.05,
+      "mae_drift_cp": 0.002,
+      "mae_ok": true,
+      "n3e_clipped_mae_cp": 155.103,
+      "n3e_clipped_rmse_cp": 215.082,
+      "rmse_drift_cp": 0.007,
+      "rmse_ok": true,
+      "runtime_clipped_mae_cp": 155.105,
+      "runtime_clipped_rmse_cp": 215.089
+    },
+    "n3b_usable_positions": 20542,
+    "n3d_eligible_positions": 6979,
+    "result_path": "results/s6/s6-c1-phase-affine-runtime.json",
+    "result_sha256": "d22484e4af8475746d2a0d81b9051b09fd171e93915b21963bbe345492e7af0c",
+    "status": "PHASE_AFFINE_RUNTIME_PARITY_PASS"
+  },
+  "profiles": {
+    "baseline": "current-final",
+    "candidate": "current-final-phase-affine",
+    "candidate_is_default": false,
+    "difference": "evaluator dispatch only; all search policy bits inherited",
+    "production_default_unchanged": "current-final",
+    "same_binary": true
+  },
+  "purpose": "S6-C1 phase-affine classical calibration candidate, for Arena testing only; NOT a promotion and NOT a default",
+  "toolchain": {
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "profile": "release",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "target": "x86_64-unknown-linux-gnu"
+  }
+}
