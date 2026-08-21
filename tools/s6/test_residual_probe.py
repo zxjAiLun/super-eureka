@@ -226,7 +226,131 @@ class CanonicalCheckpointTests(unittest.TestCase):
             torch.save(self._payload(seed=20260819), path)
             with self.assertRaises(SystemExit) as cm:
                 residual.load_canonical_checkpoint(path)
-            self.assertIn("seed mismatch", str(cm.exception))
+            self.assertIn("checkpoint seed 20260819", str(cm.exception))
+
+    def test_expected_sha256_mismatch_fails_before_deserialization(self):
+        """A substituted file must be rejected without ever being unpickled."""
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(), path)
+            with mock.patch.object(residual.torch, "load") as loader:
+                with self.assertRaises(SystemExit) as cm:
+                    residual.load_canonical_checkpoint(
+                        path, expected_sha256="0" * 64)
+            loader.assert_not_called()
+            self.assertIn("checkpoint sha256", str(cm.exception))
+
+    def test_expected_sha256_match_is_accepted_and_recorded(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(), path)
+            actual = residual.sha256_file(path)
+            _, metadata = residual.load_canonical_checkpoint(
+                path, expected_sha256=actual)
+            self.assertEqual(metadata["checkpoint_sha256"], actual)
+
+    def test_missing_file_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(Path(tmp) / "nope.pt")
+            self.assertIn("checkpoint missing", str(cm.exception))
+
+    def test_wrong_target_formula_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(
+                target_formula="teacher_cp_stm / 1000"), path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("target_formula", str(cm.exception))
+
+    def test_wrong_inference_formula_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(
+                inference_formula="residual * 1000"), path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("inference_formula", str(cm.exception))
+
+    def test_wrong_target_scale_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(target_scale=100.0), path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("target_scale", str(cm.exception))
+
+    def test_wrong_clip_cp_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(clip_cp=600.0), path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("clip_cp", str(cm.exception))
+
+    def test_wrong_activation_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            payload = self._payload()
+            payload["architecture"] = dict(payload["architecture"],
+                                           activation="tanh")
+            torch.save(payload, path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("architecture", str(cm.exception))
+
+    def test_wrong_head_wiring_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            payload = self._payload()
+            payload["architecture"] = dict(payload["architecture"],
+                                           head="width->1 linear")
+            torch.save(payload, path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("architecture", str(cm.exception))
+
+    def test_wrong_inputs_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            payload = self._payload()
+            payload["architecture"] = dict(payload["architecture"],
+                                           inputs=20480)
+            torch.save(payload, path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("architecture", str(cm.exception))
+
+    def test_extra_architecture_field_fails_closed(self):
+        """Exact-equality means a smuggled extra field is also rejected."""
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            payload = self._payload()
+            payload["architecture"] = dict(payload["architecture"],
+                                           quantized=True)
+            torch.save(payload, path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("architecture", str(cm.exception))
+
+    def test_non_dict_architecture_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
+            path = Path(tmp) / "canonical.pt"
+            torch.save(self._payload(architecture="40960x16"), path)
+            with self.assertRaises(SystemExit) as cm:
+                residual.load_canonical_checkpoint(path)
+            self.assertIn("architecture not a dict", str(cm.exception))
+
+    def test_expected_architecture_matches_the_frozen_contract(self):
+        self.assertEqual(residual.EXPECTED_ARCHITECTURE, {
+            "inputs": 40960, "width": 16, "activation": "relu",
+            "head": "concat(own,opp) width*2->1 linear"})
+
+    def test_required_keys_cover_the_contract_fields(self):
+        for key in ("target_formula", "inference_formula", "clip_cp",
+                    "target_scale"):
+            self.assertIn(key, residual.REQUIRED_CHECKPOINT_KEYS)
 
     def test_width_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="s6-n3d-ckpt-") as tmp:
@@ -236,7 +360,9 @@ class CanonicalCheckpointTests(unittest.TestCase):
             torch.save(payload, path)
             with self.assertRaises(SystemExit) as cm:
                 residual.load_canonical_checkpoint(path)
-            self.assertIn("width mismatch", str(cm.exception))
+            # width now fails via exact architecture comparison
+            self.assertIn("architecture", str(cm.exception))
+            self.assertIn("'width': 8", str(cm.exception))
 
 
 class ProvenanceTests(unittest.TestCase):

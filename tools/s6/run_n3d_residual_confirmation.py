@@ -87,6 +87,8 @@ EXPECTED_TEACHER_OPTIONS = {"Threads": "1", "Hash": "64", "MultiPV": "1",
                             "UCI_ShowWDL": "true"}
 EXPECTED_N3B_DATASET_SHA256 = (
     "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af")
+EXPECTED_CANONICAL_CHECKPOINT_SHA256 = (
+    "5033d47cb101d96057e13aae9d3819d48fa8079e90bda8eae8cd935ac1006c55")
 EXPECTED_N3C_CLASSICAL_CACHE_SHA256 = (
     "c40a38ab4796e0aca68131c17a713a3a31ab9834c741c9221a7a8d1317cf5727")
 
@@ -353,16 +355,27 @@ def verify_teacher(teacher_manifest: dict) -> dict:
     }
 
 
+VERIFY_PASS_MARKER = "VERIFY_PASS"
+
+
 def verify_labeled_dataset(dataset_dir: Path) -> dict:
+    """Labeled verify_dataset must exit 0 AND print the literal pass marker.
+
+    A zero exit code alone is not evidence: an interpreter that dies before
+    reaching the verdict, a truncated run, or a future refactor that stops
+    printing the marker would all have satisfied the old rc-only check.
+    """
     proc = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "verify_dataset.py"),
          "--dataset", str(dataset_dir)],
         capture_output=True, text=True)
     if proc.returncode != 0:
         fail(f"verify_dataset rc={proc.returncode}: {proc.stdout[-400:]}")
-    return {"returncode": proc.returncode,
-            "verdict": "VERIFY_PASS" if "VERIFY_PASS" in proc.stdout
-            else "UNKNOWN"}
+    if VERIFY_PASS_MARKER not in proc.stdout:
+        fail(f"verify_dataset rc=0 but stdout lacks {VERIFY_PASS_MARKER!r}: "
+             f"{proc.stdout[-400:]}")
+    return {"returncode": proc.returncode, "verdict": VERIFY_PASS_MARKER,
+            "marker_present": True}
 
 
 def identity_audit(confirm: dict, n3b_records: list[dict],
@@ -776,7 +789,8 @@ def main() -> int:
            "confirmation cache dataset sha")
     classical = cache["values"]
 
-    model, metadata = residual.load_canonical_checkpoint(args.checkpoint)
+    model, metadata = residual.load_canonical_checkpoint(
+        args.checkpoint, expected_sha256=EXPECTED_CANONICAL_CHECKPOINT_SHA256)
     expect(metadata["dataset_sha256"], EXPECTED_N3B_DATASET_SHA256,
            "checkpoint training dataset sha")
     expect(metadata["classical_cache_sha256"],

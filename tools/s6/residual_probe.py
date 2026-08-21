@@ -315,38 +315,75 @@ def canonical_checkpoint_payload(model: probe.NnueProbe, *, width: int,
 
 
 REQUIRED_CHECKPOINT_KEYS = (
-    "state_dict", "target_mode", "architecture", "width", "seed",
+    "state_dict", "target_mode", "target_formula", "inference_formula",
+    "architecture", "width", "seed", "clip_cp", "target_scale",
     "dataset_sha256", "labels_sha256", "classical_cache_sha256",
     "engine_binary_sha256", "best_epoch", "best_val_loss",
     "trainer_git_sha", "trainer_blob_sha256",
 )
 
+# The architecture block is compared field-by-field, not just on width: a
+# checkpoint that silently changed activation or head wiring would otherwise
+# load and score, producing numbers that no longer describe the frozen probe.
+EXPECTED_ARCHITECTURE = {
+    "inputs": probe.NNUE_INPUTS,
+    "width": RESIDUAL_WIDTH,
+    "activation": "relu",
+    "head": "concat(own,opp) width*2->1 linear",
+}
+
 
 def load_canonical_checkpoint(path: Path, *, width: int = RESIDUAL_WIDTH,
-                              seed: int = RESIDUAL_SEED
+                              seed: int = RESIDUAL_SEED,
+                              expected_sha256: str | None = None
                               ) -> tuple[probe.NnueProbe, dict]:
-    """Load and structurally validate a canonical residual checkpoint."""
-    checkpoint = torch.load(Path(path), map_location="cpu", weights_only=True)
+    """Load and fully validate a canonical residual checkpoint.
+
+    `expected_sha256` is checked BEFORE the torch payload is deserialized, so a
+    substituted or corrupted file is rejected without ever being unpickled.
+    Every frozen contract field is then verified exactly - target mode and both
+    formulas, clip/scale, and the whole architecture block - because a
+    checkpoint that merely has the right width can still describe a different
+    model.
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise SystemExit(f"PIPELINE_FAILURE: checkpoint missing {path}")
+    actual_sha256 = sha256_file(path)
+    if expected_sha256 is not None and actual_sha256 != expected_sha256:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: checkpoint sha256 {actual_sha256} != expected "
+            f"{expected_sha256}")
+    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
     missing = [key for key in REQUIRED_CHECKPOINT_KEYS
                if key not in checkpoint]
     if missing:
         raise SystemExit(
             f"PIPELINE_FAILURE: checkpoint {path} missing metadata {missing}")
-    if checkpoint["target_mode"] != TARGET_MODE:
+    for key, expected in (("target_mode", TARGET_MODE),
+                          ("target_formula", RESIDUAL_TARGET_FORMULA),
+                          ("inference_formula", RESIDUAL_INFERENCE_FORMULA),
+                          ("clip_cp", probe.CLIP_CP),
+                          ("target_scale", probe.TARGET_SCALE),
+                          ("seed", seed),
+                          ("width", width)):
+        if checkpoint[key] != expected:
+            raise SystemExit(
+                f"PIPELINE_FAILURE: checkpoint {key} {checkpoint[key]!r} != "
+                f"expected {expected!r}")
+    architecture = checkpoint["architecture"]
+    if not isinstance(architecture, dict):
+        raise SystemExit("PIPELINE_FAILURE: checkpoint architecture not a dict")
+    expected_architecture = {**EXPECTED_ARCHITECTURE, "width": width}
+    if architecture != expected_architecture:
         raise SystemExit(
-            f"PIPELINE_FAILURE: checkpoint target_mode "
-            f"{checkpoint['target_mode']} != {TARGET_MODE}")
-    if checkpoint["architecture"].get("inputs") != probe.NNUE_INPUTS:
-        raise SystemExit(f"PIPELINE_FAILURE: checkpoint inputs mismatch {path}")
-    if checkpoint["architecture"].get("width") != width \
-            or checkpoint["width"] != width:
-        raise SystemExit(f"PIPELINE_FAILURE: checkpoint width mismatch {path}")
-    if checkpoint["seed"] != seed:
-        raise SystemExit(f"PIPELINE_FAILURE: checkpoint seed mismatch {path}")
+            f"PIPELINE_FAILURE: checkpoint architecture {architecture!r} != "
+            f"expected {expected_architecture!r}")
     model = build_residual_model(width, seed)
     model.load_state_dict(checkpoint["state_dict"])
     metadata = {key: value for key, value in checkpoint.items()
                 if key != "state_dict"}
+    metadata["checkpoint_sha256"] = actual_sha256
     return model, metadata
 
 

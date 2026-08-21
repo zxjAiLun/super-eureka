@@ -314,6 +314,52 @@ class TeacherGateTests(unittest.TestCase):
         self.assertIn("mismatches", str(cm.exception))
 
 
+class VerifyLabeledDatasetTests(unittest.TestCase):
+    """rc==0 is not evidence on its own; the literal marker must be present."""
+
+    def _run(self, returncode: int, stdout: str):
+        with mock.patch.object(
+                n3d.subprocess, "run",
+                return_value=mock.Mock(returncode=returncode, stdout=stdout)):
+            return n3d.verify_labeled_dataset(Path("dataset"))
+
+    def test_rc0_with_marker_passes(self):
+        report = self._run(0, "records: 7156\nVERIFY_PASS\n")
+        self.assertEqual(report["returncode"], 0)
+        self.assertEqual(report["verdict"], "VERIFY_PASS")
+        self.assertTrue(report["marker_present"])
+
+    def test_rc0_without_marker_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            self._run(0, "records: 7156\nphase buckets: {...}\n")
+        self.assertIn("rc=0 but stdout lacks", str(cm.exception))
+
+    def test_rc0_with_empty_stdout_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            self._run(0, "")
+        self.assertIn("rc=0 but stdout lacks", str(cm.exception))
+
+    def test_rc0_with_failure_text_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            self._run(0, "FAILURES:\n  - duplicate position_id\n")
+        self.assertIn("rc=0 but stdout lacks", str(cm.exception))
+
+    def test_nonzero_rc_fails_closed_even_with_marker(self):
+        with self.assertRaises(SystemExit) as cm:
+            self._run(1, "VERIFY_PASS\n")
+        self.assertIn("verify_dataset rc=1", str(cm.exception))
+
+    def test_marker_constant_is_the_literal_string(self):
+        self.assertEqual(n3d.VERIFY_PASS_MARKER, "VERIFY_PASS")
+
+
+class CanonicalCheckpointBindingTests(unittest.TestCase):
+    def test_runner_pins_the_canonical_checkpoint_sha(self):
+        self.assertEqual(
+            n3d.EXPECTED_CANONICAL_CHECKPOINT_SHA256,
+            "5033d47cb101d96057e13aae9d3819d48fa8079e90bda8eae8cd935ac1006c55")
+
+
 class ConfirmSourceGateTests(unittest.TestCase):
     def _write(self, tmp: Path, **overrides) -> Path:
         import json
