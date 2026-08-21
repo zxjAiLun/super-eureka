@@ -1,0 +1,1209 @@
+{
+  "authorization": "docs/s6/s6-n3c-closure-and-n3d-authorization.md",
+  "bindings": {
+    "archive_official_sha256": {
+      "2026-07": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
+    },
+    "archive_sha256": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7",
+    "confirmation_cache_header": {
+      "dataset_sha256": "3deff6a4a5cbafcdceb02b2b2c3d06ea0cd061e127cb66f24be4d2bc81d2c43d",
+      "engine_binary_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
+      "schema": 1,
+      "target": "base_eval_stm",
+      "usable_position_count": 6983
+    },
+    "confirmation_cache_path": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/results/s6/s6-n3d-classical-cache-confirm01.json",
+    "confirmation_cache_sha256": "126f7c82a5dfb29dbb4750b6a979da16652dca2bd850d1b8551c9361b3e5b169",
+    "confirmation_dataset_id": "s6-eval-v1-residual-confirm01-g1400",
+    "confirmation_dataset_sha256": "3deff6a4a5cbafcdceb02b2b2c3d06ea0cd061e127cb66f24be4d2bc81d2c43d",
+    "confirmation_labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+    "confirmation_pgn_sha256": "50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7",
+    "confirmation_selection_seed": 20260821,
+    "confirmation_source_family": "lichess-standard-rated-v1",
+    "confirmation_source_id": "lichess-standard-rated-confirm-v1-g1400",
+    "confirmation_source_manifest_sha256": "5fa4e2588609a4dd63e05b0007546b72d4cf79dd519209bb864897c6ab7e21fd",
+    "engine_binary_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
+    "exclude_fingerprints_sha256": "5e9616dfd3f7c122be0b884a24683525e0a66cec81476ce1d2d188aec3a60b59",
+    "n3b_dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+    "n3b_labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
+    "selected_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+    "selector_script_sha256": "1d0761f8c01a90298ac303ff7aa897dd80f2c8ab26500432cd2ef18b5ad08110",
+    "source_id_to_family": {
+      "lichess-standard-rated-confirm-v1-g1400": "lichess-standard-rated-v1"
+    },
+    "source_manifests": {
+      "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/source-manifest.json": "5fa4e2588609a4dd63e05b0007546b72d4cf79dd519209bb864897c6ab7e21fd"
+    },
+    "teacher_binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9"
+  },
+  "checkpoint": {
+    "loaded_from_disk": true,
+    "metadata": {
+      "architecture": {
+        "activation": "relu",
+        "head": "concat(own,opp) width*2->1 linear",
+        "inputs": 40960,
+        "width": 16
+      },
+      "best_epoch": 1,
+      "best_val_loss": 0.117962,
+      "classical_cache_sha256": "c40a38ab4796e0aca68131c17a713a3a31ab9834c741c9221a7a8d1317cf5727",
+      "clip_cp": 2000.0,
+      "dataset_id": "s6-eval-v1-multisource-pilot01",
+      "dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+      "engine_binary_sha256": "05b822b49940a74019b497c123c9085f27a1bf4cf472e05dabf22a5d533d8c66",
+      "inference_formula": "base_eval_stm + residual * 1000",
+      "labels_sha256": "e6f036f426db8a5fffc6c28baa6ae5333b0fe441bd9eec13f56d4dda989896d9",
+      "seed": 20260818,
+      "target_formula": "clamp(teacher_cp_stm - base_eval_stm, -2000, 2000) / 1000",
+      "target_mode": "classical_residual",
+      "target_scale": 1000.0,
+      "trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+      "trainer_git_sha": "ab6aef921a838594616d0d8099e5453b2a26a70a",
+      "width": 16
+    },
+    "path": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/data/s6/models/s6-n3d-residual-w16-s20260818.pt",
+    "roundtrip": {
+      "loss_abs_delta": 0.0,
+      "loss_after": 0.11279728,
+      "loss_before": 0.11279728,
+      "passed": true,
+      "prediction_max_abs_delta_scaled": 0.0,
+      "state_exact_equal": true,
+      "state_max_abs_delta": 0.0
+    },
+    "sha256": "5033d47cb101d96057e13aae9d3819d48fa8079e90bda8eae8cd935ac1006c55",
+    "trained_in_this_run": false
+  },
+  "config": {
+    "clip_cp": 2000.0,
+    "cpu_only": true,
+    "cuda_used": false,
+    "inference_formula": "base_eval_stm + residual * 1000",
+    "seed": 20260818,
+    "target_formula": "clamp(teacher_cp_stm - base_eval_stm, -2000, 2000) / 1000",
+    "target_mode": "classical_residual",
+    "target_scale": 1000.0,
+    "torch_num_threads": 1,
+    "width": 16
+  },
+  "confirmation": {
+    "by_group": {
+      "abs_cp": {
+        "0-100": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 89.346,
+                "n": 2507
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 89.346,
+            "clipped_rmse_cp": 145.932,
+            "n": 2507,
+            "raw_mae_cp": 89.346
+          },
+          "mae_delta_cp": -2.6,
+          "mae_improvement_fraction": 0.0291,
+          "n": 2507,
+          "paired_delta": {
+            "mean_delta_cp": -2.600225,
+            "median_delta_cp": -3.011194,
+            "n": 2507
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 86.746,
+                "n": 2507
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 86.746,
+            "clipped_rmse_cp": 137.016,
+            "n": 2507,
+            "raw_mae_cp": 86.746
+          },
+          "rmse_delta_cp": -8.916
+        },
+        "100-300": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": 149.539,
+                "n": 2020
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 149.539,
+            "clipped_rmse_cp": 198.692,
+            "n": 2020,
+            "raw_mae_cp": 149.539
+          },
+          "mae_delta_cp": -9.439,
+          "mae_improvement_fraction": 0.063121,
+          "n": 2020,
+          "paired_delta": {
+            "mean_delta_cp": -9.43893,
+            "median_delta_cp": -10.924556,
+            "n": 2020
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": 140.1,
+                "n": 2020
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 140.1,
+            "clipped_rmse_cp": 187.652,
+            "n": 2020,
+            "raw_mae_cp": 140.1
+          },
+          "rmse_delta_cp": -11.04
+        },
+        "1000-inf": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": 444.667,
+                "n": 9
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 444.667,
+            "clipped_rmse_cp": 560.587,
+            "n": 9,
+            "raw_mae_cp": 981.667
+          },
+          "mae_delta_cp": -10.215,
+          "mae_improvement_fraction": 0.022972,
+          "n": 9,
+          "paired_delta": {
+            "mean_delta_cp": -10.214197,
+            "median_delta_cp": 14.836535,
+            "n": 9
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": 434.452,
+                "n": 9
+              },
+              "300-1000": {
+                "mae": null,
+                "n": 0
+              }
+            },
+            "clipped_mae_cp": 434.452,
+            "clipped_rmse_cp": 564.987,
+            "n": 9,
+            "raw_mae_cp": 971.452
+          },
+          "rmse_delta_cp": 4.4
+        },
+        "300-1000": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 246.227,
+                "n": 2443
+              }
+            },
+            "clipped_mae_cp": 246.227,
+            "clipped_rmse_cp": 312.08,
+            "n": 2443,
+            "raw_mae_cp": 246.227
+          },
+          "mae_delta_cp": -13.052,
+          "mae_improvement_fraction": 0.053008,
+          "n": 2443,
+          "paired_delta": {
+            "mean_delta_cp": -13.051273,
+            "median_delta_cp": -12.985469,
+            "n": 2443
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": null,
+                "n": 0
+              },
+              "100-300": {
+                "mae": null,
+                "n": 0
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 233.175,
+                "n": 2443
+              }
+            },
+            "clipped_mae_cp": 233.175,
+            "clipped_rmse_cp": 294.611,
+            "n": 2443,
+            "raw_mae_cp": 233.175
+          },
+          "rmse_delta_cp": -17.469
+        }
+      },
+      "family": {
+        "lichess-standard-rated-v1": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 89.346,
+                "n": 2507
+              },
+              "100-300": {
+                "mae": 149.539,
+                "n": 2020
+              },
+              "1000-inf": {
+                "mae": 444.667,
+                "n": 9
+              },
+              "300-1000": {
+                "mae": 246.227,
+                "n": 2443
+              }
+            },
+            "clipped_mae_cp": 162.142,
+            "clipped_rmse_cp": 231.462,
+            "n": 6979,
+            "raw_mae_cp": 162.835
+          },
+          "mae_delta_cp": -8.247,
+          "mae_improvement_fraction": 0.050863,
+          "n": 6979,
+          "paired_delta": {
+            "mean_delta_cp": -8.247828,
+            "median_delta_cp": -8.303619,
+            "n": 6979
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 86.746,
+                "n": 2507
+              },
+              "100-300": {
+                "mae": 140.1,
+                "n": 2020
+              },
+              "1000-inf": {
+                "mae": 434.452,
+                "n": 9
+              },
+              "300-1000": {
+                "mae": 233.175,
+                "n": 2443
+              }
+            },
+            "clipped_mae_cp": 153.895,
+            "clipped_rmse_cp": 218.473,
+            "n": 6979,
+            "raw_mae_cp": 154.587
+          },
+          "rmse_delta_cp": -12.989
+        }
+      },
+      "phase": {
+        "high": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 78.101,
+                "n": 1392
+              },
+              "100-300": {
+                "mae": 145.001,
+                "n": 952
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 268.825,
+                "n": 440
+              }
+            },
+            "clipped_mae_cp": 131.121,
+            "clipped_rmse_cp": 188.837,
+            "n": 2784,
+            "raw_mae_cp": 131.121
+          },
+          "mae_delta_cp": -8.188,
+          "mae_improvement_fraction": 0.062446,
+          "n": 2784,
+          "paired_delta": {
+            "mean_delta_cp": -8.187605,
+            "median_delta_cp": -7.939799,
+            "n": 2784
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 73.081,
+                "n": 1392
+              },
+              "100-300": {
+                "mae": 135.704,
+                "n": 952
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 253.016,
+                "n": 440
+              }
+            },
+            "clipped_mae_cp": 122.933,
+            "clipped_rmse_cp": 176.442,
+            "n": 2784,
+            "raw_mae_cp": 122.933
+          },
+          "rmse_delta_cp": -12.395
+        },
+        "low": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 85.155,
+                "n": 316
+              },
+              "100-300": {
+                "mae": 129.474,
+                "n": 266
+              },
+              "1000-inf": {
+                "mae": 335.143,
+                "n": 7
+              },
+              "300-1000": {
+                "mae": 223.216,
+                "n": 656
+              }
+            },
+            "clipped_mae_cp": 168.775,
+            "clipped_rmse_cp": 225.845,
+            "n": 1245,
+            "raw_mae_cp": 168.775
+          },
+          "mae_delta_cp": -3.627,
+          "mae_improvement_fraction": 0.02149,
+          "n": 1245,
+          "paired_delta": {
+            "mean_delta_cp": -3.627582,
+            "median_delta_cp": -4.379641,
+            "n": 1245
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 87.369,
+                "n": 316
+              },
+              "100-300": {
+                "mae": 126.942,
+                "n": 266
+              },
+              "1000-inf": {
+                "mae": 338.127,
+                "n": 7
+              },
+              "300-1000": {
+                "mae": 216.26,
+                "n": 656
+              }
+            },
+            "clipped_mae_cp": 165.148,
+            "clipped_rmse_cp": 220.382,
+            "n": 1245,
+            "raw_mae_cp": 165.148
+          },
+          "rmse_delta_cp": -5.463
+        },
+        "mid": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 111.499,
+                "n": 784
+              },
+              "100-300": {
+                "mae": 161.597,
+                "n": 796
+              },
+              "1000-inf": {
+                "mae": 828.0,
+                "n": 2
+              },
+              "300-1000": {
+                "mae": 241.732,
+                "n": 1290
+              }
+            },
+            "clipped_mae_cp": 184.379,
+            "clipped_rmse_cp": 263.261,
+            "n": 2872,
+            "raw_mae_cp": 186.062
+          },
+          "mae_delta_cp": -10.335,
+          "mae_improvement_fraction": 0.056053,
+          "n": 2872,
+          "paired_delta": {
+            "mean_delta_cp": -10.335201,
+            "median_delta_cp": -11.736006,
+            "n": 2872
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 110.783,
+                "n": 784
+              },
+              "100-300": {
+                "mae": 149.655,
+                "n": 796
+              },
+              "1000-inf": {
+                "mae": 771.591,
+                "n": 2
+              },
+              "300-1000": {
+                "mae": 226.613,
+                "n": 1290
+              }
+            },
+            "clipped_mae_cp": 174.044,
+            "clipped_rmse_cp": 246.512,
+            "n": 2872,
+            "raw_mae_cp": 175.726
+          },
+          "rmse_delta_cp": -16.749
+        },
+        "zero": {
+          "classical": {
+            "buckets": {
+              "0-100": {
+                "mae": 63.267,
+                "n": 15
+              },
+              "100-300": {
+                "mae": 159.333,
+                "n": 6
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 438.333,
+                "n": 57
+              }
+            },
+            "clipped_mae_cp": 344.744,
+            "clipped_rmse_cp": 393.39,
+            "n": 78,
+            "raw_mae_cp": 344.744
+          },
+          "mae_delta_cp": -7.286,
+          "mae_improvement_fraction": 0.021135,
+          "n": 78,
+          "paired_delta": {
+            "mean_delta_cp": -7.2854,
+            "median_delta_cp": -11.265787,
+            "n": 78
+          },
+          "residual": {
+            "buckets": {
+              "0-100": {
+                "mae": 85.265,
+                "n": 15
+              },
+              "100-300": {
+                "mae": 153.127,
+                "n": 6
+              },
+              "1000-inf": {
+                "mae": null,
+                "n": 0
+              },
+              "300-1000": {
+                "mae": 423.228,
+                "n": 57
+              }
+            },
+            "clipped_mae_cp": 337.458,
+            "clipped_rmse_cp": 383.079,
+            "n": 78,
+            "raw_mae_cp": 337.458
+          },
+          "rmse_delta_cp": -10.311
+        }
+      }
+    },
+    "classical_prediction_stats": {
+      "max": 1695.0,
+      "mean": -36.915,
+      "min": -1540.0,
+      "std": 281.1628
+    },
+    "evaluation_positions": 6979,
+    "overall": {
+      "classical": {
+        "buckets": {
+          "0-100": {
+            "mae": 89.346,
+            "n": 2507
+          },
+          "100-300": {
+            "mae": 149.539,
+            "n": 2020
+          },
+          "1000-inf": {
+            "mae": 444.667,
+            "n": 9
+          },
+          "300-1000": {
+            "mae": 246.227,
+            "n": 2443
+          }
+        },
+        "clipped_mae_cp": 162.142,
+        "clipped_rmse_cp": 231.462,
+        "n": 6979,
+        "raw_mae_cp": 162.835
+      },
+      "mae_delta_cp": -8.247,
+      "mae_improvement_fraction": 0.050863,
+      "n": 6979,
+      "paired_delta": {
+        "mean_delta_cp": -8.247828,
+        "median_delta_cp": -8.303619,
+        "n": 6979
+      },
+      "residual": {
+        "buckets": {
+          "0-100": {
+            "mae": 86.746,
+            "n": 2507
+          },
+          "100-300": {
+            "mae": 140.1,
+            "n": 2020
+          },
+          "1000-inf": {
+            "mae": 434.452,
+            "n": 9
+          },
+          "300-1000": {
+            "mae": 233.175,
+            "n": 2443
+          }
+        },
+        "clipped_mae_cp": 153.895,
+        "clipped_rmse_cp": 218.473,
+        "n": 6979,
+        "raw_mae_cp": 154.587
+      },
+      "rmse_delta_cp": -12.989
+    },
+    "paired_bootstrap": {
+      "bootstrap_resamples": 10000,
+      "bootstrap_rng": "numpy.random.default_rng",
+      "bootstrap_seed": 20260821,
+      "ci_lower_cp": -9.564065,
+      "ci_percentiles": [
+        2.5,
+        97.5
+      ],
+      "ci_upper_cp": -6.935074,
+      "mean_delta_cp": -8.247828,
+      "median_delta_cp": -8.303619,
+      "n": 6979,
+      "positions_improved": 3918,
+      "positions_unchanged": 0,
+      "positions_worsened": 3061
+    },
+    "residual_loss_on_residual_target": 0.112797,
+    "residual_prediction_stats": {
+      "max": 1716.9664,
+      "mean": 4.4677,
+      "min": -1577.2446,
+      "std": 282.8293
+    },
+    "role": "evaluation only; no confirmation record entered training or early stopping",
+    "splits_pooled": [
+      "train",
+      "validation",
+      "holdout"
+    ],
+    "trained_here": false
+  },
+  "confirmation_source": {
+    "archive_official_sha256": {
+      "2026-07": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
+    },
+    "duplicate_candidates_rejected": 0,
+    "exclude_fingerprint_count": 2000,
+    "exclude_fingerprints_sha256": "5e9616dfd3f7c122be0b884a24683525e0a66cec81476ce1d2d188aec3a60b59",
+    "exclude_sources": [
+      {
+        "games": 2000,
+        "path": "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn",
+        "sha256": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf"
+      }
+    ],
+    "excluded_candidates_skipped": 31,
+    "fingerprint_definition": {
+      "definition": "sha256(canonical JSON with sorted keys and no whitespace)",
+      "fields": [
+        "initial_fen",
+        "result",
+        "moves"
+      ],
+      "initial_fen_default": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "moves_encoding": "mainline UCI"
+    },
+    "fingerprint_intersection": 0,
+    "games_selected": 1400,
+    "manifest_path": "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/source-manifest.json",
+    "manifest_sha256": "5fa4e2588609a4dd63e05b0007546b72d4cf79dd519209bb864897c6ab7e21fd",
+    "pgn_path": "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/lichess-standard-rated-confirm-v1-g1400.pgn",
+    "pgn_sha256": "50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7",
+    "selected_fingerprint_count": 1400,
+    "selected_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+    "selection_seed": 20260821,
+    "selector_script_sha256": "1d0761f8c01a90298ac303ff7aa897dd80f2c8ab26500432cd2ef18b5ad08110"
+  },
+  "construction_attempts": [
+    {
+      "attempt_label": "g1000",
+      "confirmation_metrics_observed": false,
+      "game_fingerprints_sha256": "5ba864c23d23fcbbe4ff8614f58c1c393d298ecba9cf72e31d95c91d00e6bb14",
+      "hashes": {
+        "dataset_id": "s6-eval-v1-residual-confirm01",
+        "dataset_manifest_sha256": "6c3dbf9eef23e52dffb727b8d77dba26d95b11e6a6d72d90a20b45c357be9cfe",
+        "dataset_sha256": "937ab1d7399e1a54e1fd03a15ec64e5a87abeec9a85e9013c1c1428ff454ce02",
+        "labels_file_sha256": "289ea591f332e1a0787c95ea34073b4fba1f1fbc375078510234e7edb7879fc4",
+        "labels_sha256": "289ea591f332e1a0787c95ea34073b4fba1f1fbc375078510234e7edb7879fc4",
+        "n3b_dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+        "pgn_sha256": "c94c48813d4d90a8cc1fd0c13f4b34a297a446b11393ca620de049f5daa12960",
+        "source_manifest_sha256": "418407e82e12c0abac8d484a8f77fe74db0dfb745f27963dc3c5092041deb79c",
+        "teacher_binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "teacher_manifest_sha256": "d521fa1ad39f80cf43df3716d165c6dba05605ba5a1f5bf4d952b4bde4ad8d64"
+      },
+      "ordered_game_fingerprint_count": 1000,
+      "part5_evaluation_run": false,
+      "positions": {
+        "eligible_usable": 4976,
+        "excluded_ids_sha256": "9b3c60159e4ef635598d96e4aac644ca3c2dceb6b1c42b03253503ff66fc436f",
+        "n3b_position_ids": 21531,
+        "null_cp_rate": 0.02373,
+        "null_cp_records": 121,
+        "position_overlap_excluded": 2,
+        "raw_records": 5099,
+        "retained_fraction": 0.999598,
+        "usable_records": 4978
+      },
+      "preregistered_minimums": {
+        "eligible_usable_positions": 5000,
+        "retained_fraction": 0.9
+      },
+      "provenance": {
+        "committed_script_blob_sha256": "4097e62e6ec0eac242e706699237c4714b3b750ba859348fde9e55cb57a7fa19",
+        "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+        "run_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+        "run_started_clean": true,
+        "script_relpath": "tools/s6/record_confirm_construction.py",
+        "script_sha256": "4097e62e6ec0eac242e706699237c4714b3b750ba859348fde9e55cb57a7fa19",
+        "trainer_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+        "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb"
+      },
+      "reason": "eligible usable positions 4976 < preregistered minimum 5000",
+      "record_path": "results/s6/s6-n3d-construction-attempt-g1000.json",
+      "record_sha256": "6454cfd11ea43ccfabafbb57c87d1cb0be9a8339d2251fdae0345e87fdc3ace1",
+      "selection": {
+        "archive_official_sha256": {
+          "2026-07": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
+        },
+        "duplicate_candidates_rejected": 0,
+        "exclude_fingerprint_count": 2000,
+        "exclude_fingerprints_sha256": "5e9616dfd3f7c122be0b884a24683525e0a66cec81476ce1d2d188aec3a60b59",
+        "exclude_sources": [
+          {
+            "games": 2000,
+            "path": "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn",
+            "sha256": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf"
+          }
+        ],
+        "excluded_candidates_skipped": 26,
+        "fingerprint_definition": {
+          "definition": "sha256(canonical JSON with sorted keys and no whitespace)",
+          "fields": [
+            "initial_fen",
+            "result",
+            "moves"
+          ],
+          "initial_fen_default": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          "moves_encoding": "mainline UCI"
+        },
+        "fingerprint_intersection": 0,
+        "selected_fingerprints_sha256": "5ba864c23d23fcbbe4ff8614f58c1c393d298ecba9cf72e31d95c91d00e6bb14",
+        "selected_games": 1000,
+        "selection_seed": 20260821,
+        "selector_script_sha256": "a91d0f4bc0d0e9470cb558b8ebf308c5e551be334919e411be385ed4730d14dc",
+        "source_family": "lichess-standard-rated-v1",
+        "source_id": "lichess-standard-rated-confirm-v1"
+      },
+      "status": "CONSTRUCTION_INSUFFICIENT",
+      "teacher_audit": {
+        "checked": 1000,
+        "mismatches": [],
+        "mode": "fresh-second-pass",
+        "ok": true,
+        "sample_count": 1000,
+        "sample_position_id_sha256": "fe92847c551f95badbc03b9210542e8a488d8443d5a302a8bfd37119b63c8d2e"
+      }
+    },
+    {
+      "attempt_label": "g1400",
+      "confirmation_metrics_observed": false,
+      "game_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+      "hashes": {
+        "dataset_id": "s6-eval-v1-residual-confirm01-g1400",
+        "dataset_manifest_sha256": "a651be60a3899e46f5354c2f11017a5d2c5827565596f9499f856f084baf8865",
+        "dataset_sha256": "3deff6a4a5cbafcdceb02b2b2c3d06ea0cd061e127cb66f24be4d2bc81d2c43d",
+        "labels_file_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+        "labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+        "n3b_dataset_sha256": "5501240e9fd30414cde204038ea0b1e94d20f0029cbeb796d69885375a0683af",
+        "pgn_sha256": "50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7",
+        "source_manifest_sha256": "5fa4e2588609a4dd63e05b0007546b72d4cf79dd519209bb864897c6ab7e21fd",
+        "teacher_binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+        "teacher_manifest_sha256": "7140b4b7c36847bb2edf409ffe7ba1e951176ef4c0d57fa2affbc10c8d331b7d"
+      },
+      "ordered_game_fingerprint_count": 1400,
+      "part5_evaluation_run": false,
+      "positions": {
+        "eligible_usable": 6979,
+        "excluded_ids_sha256": "8a7291e8849b7be6d03398fe2138ca6582ae1bfad1f45d4927ccfef314d7cd76",
+        "n3b_position_ids": 21531,
+        "null_cp_rate": 0.024176,
+        "null_cp_records": 173,
+        "position_overlap_excluded": 4,
+        "raw_records": 7156,
+        "retained_fraction": 0.999427,
+        "usable_records": 6983
+      },
+      "preregistered_minimums": {
+        "eligible_usable_positions": 5000,
+        "retained_fraction": 0.9
+      },
+      "provenance": {
+        "committed_script_blob_sha256": "4097e62e6ec0eac242e706699237c4714b3b750ba859348fde9e55cb57a7fa19",
+        "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+        "run_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+        "run_started_clean": true,
+        "script_relpath": "tools/s6/record_confirm_construction.py",
+        "script_sha256": "4097e62e6ec0eac242e706699237c4714b3b750ba859348fde9e55cb57a7fa19",
+        "trainer_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+        "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb"
+      },
+      "reason": "both preregistered construction preconditions satisfied",
+      "record_path": "results/s6/s6-n3d-construction-attempt-g1400.json",
+      "record_sha256": "6ff12071c5342c6cf87a581d4334ba585446be33083b987d816dfe04116d5c34",
+      "selection": {
+        "archive_official_sha256": {
+          "2026-07": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
+        },
+        "duplicate_candidates_rejected": 0,
+        "exclude_fingerprint_count": 2000,
+        "exclude_fingerprints_sha256": "5e9616dfd3f7c122be0b884a24683525e0a66cec81476ce1d2d188aec3a60b59",
+        "exclude_sources": [
+          {
+            "games": 2000,
+            "path": "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn",
+            "sha256": "d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf"
+          }
+        ],
+        "excluded_candidates_skipped": 31,
+        "fingerprint_definition": {
+          "definition": "sha256(canonical JSON with sorted keys and no whitespace)",
+          "fields": [
+            "initial_fen",
+            "result",
+            "moves"
+          ],
+          "initial_fen_default": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          "moves_encoding": "mainline UCI"
+        },
+        "fingerprint_intersection": 0,
+        "selected_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+        "selected_games": 1400,
+        "selection_seed": 20260821,
+        "selector_script_sha256": "1d0761f8c01a90298ac303ff7aa897dd80f2c8ab26500432cd2ef18b5ad08110",
+        "source_family": "lichess-standard-rated-v1",
+        "source_id": "lichess-standard-rated-confirm-v1-g1400"
+      },
+      "status": "CONSTRUCTION_SUFFICIENT",
+      "teacher_audit": {
+        "checked": 1000,
+        "mismatches": [],
+        "mode": "fresh-second-pass",
+        "ok": true,
+        "sample_count": 1000,
+        "sample_position_id_sha256": "9176bffefa20887c56cf87af4a4c5bf1ff3e415258f28506ffc949bfbefe48cf"
+      }
+    }
+  ],
+  "dataset_verification": {
+    "returncode": 0,
+    "verdict": "VERIFY_PASS"
+  },
+  "enlargement_verification": {
+    "added_fingerprints_sha256": "ef23e6cb35d261ba8450669809de5dcf8f527eab2b940a927f921c05b728e5cf",
+    "added_games": 400,
+    "authorized_adjustment": "1000 -> 1400 games, one fixed enlargement, all scientific parameters frozen",
+    "checks": {
+      "added_disjoint_from_retained": true,
+      "added_game_count_exact": true,
+      "all_superseded_games_retained": true,
+      "no_duplicate_fingerprints": true,
+      "superseded_is_ordered_subsequence": true
+    },
+    "confirmation_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+    "confirmation_games": 1400,
+    "contiguous_prefix_identity_expected": false,
+    "contiguous_prefix_note": "long-stratum cap int(N/3) scales with games-per-month, so the 1000-game run saturated its long stratum at selection index 747 and dropped long candidates the 1400-game run retains; order-preserving subsequence containment is the provable form",
+    "metrics_observed_before_adjustment": false,
+    "passed": true,
+    "reason": "pre-metric construction precondition shortfall",
+    "retained_games": 1000,
+    "superseded_fingerprints_sha256": "5ba864c23d23fcbbe4ff8614f58c1c393d298ecba9cf72e31d95c91d00e6bb14",
+    "superseded_games": 1000
+  },
+  "gate_evaluation": {
+    "all_passed": true,
+    "frozen_thresholds": {
+      "bootstrap_resamples": 10000,
+      "bootstrap_seed": 20260821,
+      "ci_upper_must_be_below_cp": 0.0,
+      "max_group_regression_fraction": 0.02,
+      "min_eligible_usable_positions": 5000,
+      "min_group_n": 200,
+      "min_mae_improvement_fraction": 0.02,
+      "min_retained_fraction": 0.9
+    },
+    "gates": [
+      {
+        "classical_clipped_mae_cp": 162.142,
+        "id": 1,
+        "name": "overall_clipped_mae_improvement",
+        "observed_improvement_fraction": 0.050863,
+        "passed": true,
+        "residual_clipped_mae_cp": 153.895,
+        "threshold": ">= 0.02"
+      },
+      {
+        "bootstrap_resamples": 10000,
+        "bootstrap_seed": 20260821,
+        "ci_lower_cp": -9.564065,
+        "ci_upper_cp": -6.935074,
+        "id": 2,
+        "mean_delta_cp": -8.247828,
+        "median_delta_cp": -8.303619,
+        "name": "paired_abs_error_delta_bootstrap_ci_upper_below_zero",
+        "passed": true,
+        "threshold": "< 0.0 cp"
+      },
+      {
+        "classical_clipped_rmse_cp": 231.462,
+        "id": 3,
+        "name": "residual_clipped_rmse_not_worse",
+        "passed": true,
+        "residual_clipped_rmse_cp": 218.473,
+        "threshold": "residual <= classical"
+      },
+      {
+        "evaluated_groups": 3,
+        "groups": {
+          "high": {
+            "classical_clipped_mae_cp": 131.121,
+            "evaluated": true,
+            "n": 2784,
+            "passed": true,
+            "regression_fraction": -0.062446,
+            "residual_clipped_mae_cp": 122.933
+          },
+          "low": {
+            "classical_clipped_mae_cp": 168.775,
+            "evaluated": true,
+            "n": 1245,
+            "passed": true,
+            "regression_fraction": -0.02149,
+            "residual_clipped_mae_cp": 165.148
+          },
+          "mid": {
+            "classical_clipped_mae_cp": 184.379,
+            "evaluated": true,
+            "n": 2872,
+            "passed": true,
+            "regression_fraction": -0.056053,
+            "residual_clipped_mae_cp": 174.044
+          },
+          "zero": {
+            "evaluated": false,
+            "n": 78,
+            "reason": "n < 200"
+          }
+        },
+        "id": 4,
+        "max_regression_fraction": 0.02,
+        "min_group_n": 200,
+        "name": "phase_bucket_no_regression",
+        "passed": true
+      },
+      {
+        "evaluated_groups": 3,
+        "groups": {
+          "0-100": {
+            "classical_clipped_mae_cp": 89.346,
+            "evaluated": true,
+            "n": 2507,
+            "passed": true,
+            "regression_fraction": -0.0291,
+            "residual_clipped_mae_cp": 86.746
+          },
+          "100-300": {
+            "classical_clipped_mae_cp": 149.539,
+            "evaluated": true,
+            "n": 2020,
+            "passed": true,
+            "regression_fraction": -0.063121,
+            "residual_clipped_mae_cp": 140.1
+          },
+          "1000-inf": {
+            "evaluated": false,
+            "n": 9,
+            "reason": "n < 200"
+          },
+          "300-1000": {
+            "classical_clipped_mae_cp": 246.227,
+            "evaluated": true,
+            "n": 2443,
+            "passed": true,
+            "regression_fraction": -0.053008,
+            "residual_clipped_mae_cp": 233.175
+          }
+        },
+        "id": 5,
+        "max_regression_fraction": 0.02,
+        "min_group_n": 200,
+        "name": "abs_teacher_cp_bucket_no_regression",
+        "passed": true
+      },
+      {
+        "all_metrics_finite": true,
+        "checkpoint_roundtrip": {
+          "loss_abs_delta": 0.0,
+          "loss_after": 0.11279728,
+          "loss_before": 0.11279728,
+          "passed": true,
+          "prediction_max_abs_delta_scaled": 0.0,
+          "state_exact_equal": true,
+          "state_max_abs_delta": 0.0
+        },
+        "classical_cache_validated": true,
+        "id": 6,
+        "identity_gates": {
+          "eligible_usable_at_least_5000": true,
+          "game_fingerprint_intersection_zero": true,
+          "retained_fraction_at_least_0.90": true
+        },
+        "name": "integrity",
+        "non_finite_paths": [],
+        "passed": true
+      }
+    ]
+  },
+  "identity_audit": {
+    "compared_against": "FULL N3B dataset (all splits) and all N3B source game fingerprints",
+    "confirmation_used_for_training_or_early_stopping": false,
+    "game_fingerprints": {
+      "confirmation_fingerprints_sha256": "da296dc88dfc77f74b4018428d7fb4b70f570f73ca331c8ffb86cab6dfae03a4",
+      "confirmation_games": 1400,
+      "confirmation_unique_fingerprints": 1400,
+      "intersection": 0,
+      "intersection_examples": [],
+      "n3b_fingerprints_sha256": "cc6d54e52ed3861b53ec93eb43122edf04586f68b9d00e4551a9300842be8481",
+      "per_source_games": {
+        "08110310": 100,
+        "lichess-standard-rated-v1": 2000,
+        "s43b-legality-fast-screen": 100,
+        "s43c-legality-fast-200pairs": 400,
+        "s43d-formal-sprt": 526,
+        "s44c-single-buffer-200pairs": 400,
+        "sf-smoke3-1800": 4,
+        "sf-smoke3-2000": 4,
+        "sf-smoke3-2200": 4,
+        "sf-smoke3-2400": 4,
+        "smoke-blitz": 4,
+        "smoke-c3-live": 2,
+        "smoke-foundation-prod-8moves-v2": 4,
+        "smoke-live-1pair": 2,
+        "smoke-normal-complete": 8,
+        "smoke-p412-live": 2,
+        "smoke-p412-rated": 0,
+        "smoke-rapid_5_3": 4,
+        "smoke-restart-recovery": 4,
+        "smoke-sprt-terminal": 0
+      },
+      "total_games": 3572,
+      "unique_fingerprints": 3526
+    },
+    "gates": {
+      "eligible_usable_at_least_5000": true,
+      "game_fingerprint_intersection_zero": true,
+      "retained_fraction_at_least_0.90": true
+    },
+    "passed": true,
+    "policy": "exclude-exact-position-id-overlap-before-inference",
+    "positions": {
+      "eligible_positions": 6979,
+      "excluded_ids_sha256": "8a7291e8849b7be6d03398fe2138ca6582ae1bfad1f45d4927ccfef314d7cd76",
+      "excluded_positions": 4,
+      "n3b_position_ids": 21531,
+      "null_cp_records": 173,
+      "raw_records": 7156,
+      "retained_fraction": 0.999427,
+      "usable_records": 6983
+    },
+    "selection_uses_labels_or_predictions": false
+  },
+  "metrics_observed_before_adjustment": false,
+  "outcome": {
+    "existing_splits_used_as_gate": false,
+    "games_reselected": false,
+    "n3b_dataset_relabeled": false,
+    "next_step": "bench-only residual artifact parity/cost may begin in the NEXT round; no runtime, search, exporter or Arena work",
+    "single_evaluation_run": true,
+    "thresholds_changed": false,
+    "trained_in_this_run": false,
+    "width_or_seed_reselected": false
+  },
+  "provenance": {
+    "committed_script_blob_sha256": "8b1b698ddb3b4fa64ad31ed97734c38eb3d124db7a7f7e49b6238c7eab2a8079",
+    "committed_trainer_blob_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb",
+    "run_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+    "run_started_clean": true,
+    "script_relpath": "tools/s6/run_n3d_residual_confirmation.py",
+    "script_sha256": "8b1b698ddb3b4fa64ad31ed97734c38eb3d124db7a7f7e49b6238c7eab2a8079",
+    "trainer_git_sha": "54e5d908f2e2c917cc04e30573b4c9ca6ae34db0",
+    "trainer_script_sha256": "2a7f5a31814e53df90cde61585af90c3c411e9e743ceefee149d3b43ce04accb"
+  },
+  "sample_size_adjustment_reason": "pre-metric construction precondition shortfall",
+  "status": "RESIDUAL_CONFIRMATION_PASS",
+  "teacher": {
+    "audit_checked": 1000,
+    "audit_mismatches": 0,
+    "audit_mode": "fresh-second-pass",
+    "audit_sample_position_id_sha256": "9176bffefa20887c56cf87af4a4c5bf1ff3e415258f28506ffc949bfbefe48cf",
+    "binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+    "labeled_positions": 7156,
+    "labels_sha256": "e1c25844fd785d46625f6a2a24edaa1a2e8fbd2863f57edfc3f3769723e8edfb",
+    "nodes": 16384,
+    "options": {
+      "Hash": "64",
+      "MultiPV": "1",
+      "Threads": "1",
+      "UCI_ShowWDL": "true"
+    },
+    "uci_id_name": "Stockfish 18"
+  },
+  "verdict": "RESIDUAL_CONFIRMED_AWAITING_RUNTIME_REVIEW"
+}
