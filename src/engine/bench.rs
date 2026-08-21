@@ -2542,27 +2542,51 @@ fn run_phase_affine_microbench(args: &[String]) -> Result<(), String> {
     if positions.is_empty() {
         return Err("phase-affine-microbench: batch has no positions".to_string());
     }
+    // Every call black-boxes BOTH its input and its result, so the optimizer
+    // cannot hoist, CSE, or delete repeated evaluations of the same position.
+    let time_base = |positions: &[Position], iterations: usize| -> u128 {
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            for pos in positions {
+                std::hint::black_box(evaluate(std::hint::black_box(pos)));
+            }
+        }
+        start.elapsed().as_nanos()
+    };
+    let time_candidate = |positions: &[Position], iterations: usize| -> u128 {
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            for pos in positions {
+                std::hint::black_box(evaluate_phase_affine(std::hint::black_box(pos)));
+            }
+        }
+        start.elapsed().as_nanos()
+    };
+
     let mut base_ns = Vec::with_capacity(rounds);
     let mut cand_ns = Vec::with_capacity(rounds);
-    for _ in 0..rounds {
-        let start = std::time::Instant::now();
-        let mut sink: i64 = 0;
-        for _ in 0..iterations {
-            for pos in &positions {
-                sink = sink.wrapping_add(evaluate(pos) as i64);
-            }
-        }
-        let base = start.elapsed().as_nanos();
-        let start = std::time::Instant::now();
-        let mut sink2: i64 = 0;
-        for _ in 0..iterations {
-            for pos in &positions {
-                sink2 = sink2.wrapping_add(evaluate_phase_affine(pos) as i64);
-            }
-        }
-        let cand = start.elapsed().as_nanos();
-        // Keep both accumulators observable so neither loop is optimized away.
-        std::hint::black_box((sink, sink2));
+    let mut order = Vec::with_capacity(rounds);
+    for round in 0..rounds {
+        // Warm up BOTH evaluators outside the timed region so neither pays for
+        // cold caches or first-touch branch prediction.
+        let _ = time_base(&positions, 1);
+        let _ = time_candidate(&positions, 1);
+        // Alternate which evaluator runs first: a fixed order would hand a
+        // systematic advantage to one side and bias the <=1.10 gate.
+        let (base, cand) = if round % 2 == 0 {
+            let base = time_base(&positions, iterations);
+            let cand = time_candidate(&positions, iterations);
+            (base, cand)
+        } else {
+            let cand = time_candidate(&positions, iterations);
+            let base = time_base(&positions, iterations);
+            (base, cand)
+        };
+        order.push(if round % 2 == 0 {
+            "base_first"
+        } else {
+            "candidate_first"
+        });
         base_ns.push(base);
         cand_ns.push(cand);
     }
@@ -2573,11 +2597,13 @@ fn run_phase_affine_microbench(args: &[String]) -> Result<(), String> {
     let evals = (positions.len() * iterations) as f64;
     println!(
         "{{\"positions\":{},\"iterations\":{},\"rounds\":{},\
+\"warmup_per_round\":true,\"order_alternated\":true,\"round_order\":{:?},\
 \"base_median_ns\":{},\"candidate_median_ns\":{},\
 \"base_ns_per_eval\":{:.4},\"candidate_ns_per_eval\":{:.4},\"ratio\":{:.6}}}",
         positions.len(),
         iterations,
         rounds,
+        order,
         base_median,
         cand_median,
         base_median as f64 / evals,

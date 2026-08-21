@@ -137,6 +137,31 @@ def verify_constants(n3e: dict) -> dict:
     }
 
 
+def bind_to_n3e_labels(n3e: dict, n3b: dict, confirm: dict,
+                       confirm_eligible: list[dict]) -> dict:
+    """Align the loaded label sets with the N3E result BEFORE any inference.
+
+    `teacher_cp_stm != null` is what decides the usable and eligible sets, so a
+    different labels file would silently change which positions are compared and
+    what MAE/RMSE come out - while every dataset and cache SHA still matched.
+    The eligible count is checked against the N3E record too, so a divergence in
+    the null-CP pattern cannot slip through even if the file hashes were faked.
+    """
+    expect(n3b["data"]["labels_sha"], n3e["bindings"]["n3b_labels_sha256"],
+           "N3B labels sha")
+    expect(confirm["data"]["labels_sha"],
+           n3e["bindings"]["confirmation_labels_sha256"],
+           "confirmation labels sha")
+    expect(len(confirm_eligible), n3e["splits"]["n3d_confirmation"]["n"],
+           "confirmation eligible positions")
+    return {
+        "n3b_labels_sha256": n3b["data"]["labels_sha"],
+        "confirmation_labels_sha256": confirm["data"]["labels_sha"],
+        "confirmation_eligible_positions": len(confirm_eligible),
+        "aligned_with_n3e_result": True,
+    }
+
+
 def rust_batch(engine: Path, rows: list[dict]) -> dict[str, dict]:
     """One `bench phase-affine-batch` call for every position."""
     with tempfile.TemporaryDirectory(prefix="s6-c1-batch-") as tmp:
@@ -378,6 +403,9 @@ def main() -> int:
         if confirm_labels[row["position_id"]].get("teacher_cp_stm") is not None
         and row["position_id"] not in n3b_pids]
 
+    # Fail closed on any label/count divergence BEFORE the engine is invoked.
+    label_binding = bind_to_n3e_labels(n3e, n3b, confirm, confirm_eligible)
+
     print(f"comparing {len(n3b_usable)} N3B usable and "
           f"{len(confirm_eligible)} N3D eligible positions", flush=True)
     parity = {
@@ -412,6 +440,7 @@ def main() -> int:
 
     gates = {
         "constants_derived_from_n3e_result": True,
+        "labels_aligned_with_n3e_result": label_binding["aligned_with_n3e_result"],
         "n3b_exact_fixed_point_parity":
             parity["n3b_usable"]["exact_fixed_point_match"],
         "n3d_exact_fixed_point_parity":
@@ -441,6 +470,7 @@ def main() -> int:
             "confirmation_dataset_sha256": confirm["data"]["dataset_sha"],
             "confirmation_labels_sha256": confirm["data"]["labels_sha"],
             "n3c_cache_sha256": n3c_cache["sha256"],
+            "label_binding": label_binding,
             "confirmation_cache_sha256": confirm_cache["sha256"],
             "baseline_profile": BASELINE_PROFILE,
             "candidate_profile": CANDIDATE_PROFILE,
