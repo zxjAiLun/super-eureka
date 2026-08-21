@@ -881,7 +881,7 @@ def interpretation(result: dict) -> dict:
             mixed = run.get("mixed_width32_same_seed", {})
             if run.get("status") == "PASS" and mixed:
                 values.append((
-                    run["holdout"]["nnue"]["clipped_mae_cp"],
+                    run["holdout"]["metrics"]["clipped_mae_cp"],
                     mixed["holdout"]["nnue"]["clipped_mae_cp"]))
         family_improvements.append(clear_improvement(values))
     signals["FAMILY_INTERFERENCE"] = any(
