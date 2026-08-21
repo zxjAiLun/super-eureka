@@ -70,6 +70,21 @@ CONFIRM_SOURCE_ID = "lichess-standard-rated-confirm-v1-g1400"
 # The N3D-published global shift this audit exists to rule out.
 CITED_GLOBAL_SHIFT_CP = 41.3827
 
+# Engine invocation semantics, split explicitly.
+#
+# The original N3E result recorded a single `bindings.engine_invoked=false`,
+# which was too broad: `diag.load_prepared()` DOES invoke the engine's
+# `bench nnue-features-batch` to export NNUE feature indices. What is actually
+# true - and what the frozen contract requires - is that the engine is never
+# invoked to RECOMPUTE base evaluations; those come only from the two committed,
+# SHA-validated classical caches. The recorded engine binary SHA binds both
+# uses, so the measurement was never affected, but the field semantics are now
+# stated separately instead of collapsed into one flag.
+ENGINE_INVOCATION = {
+    "nnue_feature_export": True,
+    "base_eval_recomputation": False,
+}
+
 # ---------------------------------------------------------------------------
 # FROZEN gates (contract section 5). Do not retune.
 # ---------------------------------------------------------------------------
@@ -682,7 +697,7 @@ def main() -> int:
         "provenance": provenance,
         "bindings": {
             "engine_binary_sha256": engine_sha,
-            "engine_invoked": False,
+            "engine_invocation": dict(ENGINE_INVOCATION),
             "n3b_dataset_sha256": n3b["data"]["dataset_sha"],
             "n3b_labels_sha256": n3b["data"]["labels_sha"],
             "n3c_classical_cache_sha256": n3c_cache["sha256"],

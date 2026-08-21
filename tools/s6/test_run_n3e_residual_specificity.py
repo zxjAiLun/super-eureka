@@ -122,6 +122,30 @@ class FrozenConstantTests(unittest.TestCase):
         self.assertEqual(n3e.CITED_GLOBAL_SHIFT_CP, 41.3827)
 
 
+class EngineInvocationSemanticsTests(unittest.TestCase):
+    """P2 provenance repair: one boolean was too coarse.
+
+    `load_prepared()` really does invoke `bench nnue-features-batch`; what is
+    true is that base evaluations are never recomputed. The two facts now have
+    separate fields so neither can be read off the other.
+    """
+
+    def test_engine_invocation_splits_feature_export_from_base_eval(self):
+        self.assertEqual(n3e.ENGINE_INVOCATION, {
+            "nnue_feature_export": True,
+            "base_eval_recomputation": False,
+        })
+
+    def test_feature_export_is_admitted_not_denied(self):
+        self.assertTrue(n3e.ENGINE_INVOCATION["nnue_feature_export"])
+
+    def test_base_eval_recomputation_stays_forbidden(self):
+        self.assertFalse(n3e.ENGINE_INVOCATION["base_eval_recomputation"])
+
+    def test_coarse_engine_invoked_flag_is_retired(self):
+        self.assertNotIn("engine_invoked", n3e.ENGINE_INVOCATION)
+
+
 class GateArithmeticTests(unittest.TestCase):
     def test_healthy_position_specific_result_passes_all_seven(self):
         result = gates_for()

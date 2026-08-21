@@ -165,6 +165,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
         search::SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
         search::SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
+        search::SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -207,7 +208,18 @@ fn write_uci_handshake_with_profile<W: Write>(
         crate::version::release_date()
     )?;
     writeln!(out, "info string profile {}", startup_profile_name(profile))?;
-    writeln!(out, "info string eval handcrafted-v1")?;
+    // Baseline and S6-C1 candidate ship in the SAME binary, so the eval line
+    // names the calibration when it is active. Every pre-existing profile keeps
+    // the exact original string.
+    writeln!(
+        out,
+        "info string eval {}",
+        if profile.uses_phase_affine_eval() {
+            "handcrafted-v1+phase-affine-c1"
+        } else {
+            "handcrafted-v1"
+        }
+    )?;
     writeln!(out, "info string network none")?;
     writeln!(out, "info string dirty {}", crate::version::is_dirty())?;
     writeln!(out, "uciok")?;
@@ -473,10 +485,11 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-bounded-check2" => {
                         search::SearchProfile::CurrentFinalBoundedCheck2
                     }
+                    "current-final-phase-affine" => search::SearchProfile::CurrentFinalPhaseAffine,
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine)",
                             other
                         ));
                     }
@@ -987,6 +1000,56 @@ mod tests {
             startup_profile(&["--profile", "current-final-single-buffer"]),
             search::SearchProfile::CurrentFinalSingleBuffer
         );
+        assert_eq!(
+            startup_profile(&["--profile", "current-final-phase-affine"]),
+            search::SearchProfile::CurrentFinalPhaseAffine
+        );
+    }
+
+    /// S6-C1: the candidate must be selectable and round-trip by name, must
+    /// NOT be the default, and must not disturb the production identity.
+    #[test]
+    fn s6c1_phase_affine_profile_is_selectable_but_never_default() {
+        assert_eq!(
+            startup_profile(&["--profile", "current-final-phase-affine"]),
+            search::SearchProfile::CurrentFinalPhaseAffine
+        );
+        assert_eq!(
+            startup_profile_name(search::SearchProfile::CurrentFinalPhaseAffine),
+            "current-final-phase-affine"
+        );
+        assert_ne!(
+            startup_profile(&[]),
+            search::SearchProfile::CurrentFinalPhaseAffine,
+            "the candidate must never be the no-argument default"
+        );
+        assert_ne!(
+            search::PRODUCTION_PROFILE,
+            search::SearchProfile::CurrentFinalPhaseAffine,
+            "the candidate must never be PRODUCTION_PROFILE"
+        );
+        assert_eq!(
+            startup_profile(&["--profile", "current-final"]),
+            search::SearchProfile::CurrentFinal,
+            "baseline selection must be unaffected"
+        );
+    }
+
+    /// The rejection message must advertise the candidate, otherwise an Arena
+    /// operator has no way to discover the name.
+    #[test]
+    fn s6c1_help_text_advertises_the_phase_affine_profile() {
+        let err = parse_startup_profile(&[
+            "--profile".to_string(),
+            "definitely-not-a-profile".to_string(),
+        ])
+        .unwrap_err();
+        assert!(
+            err.contains("current-final-phase-affine"),
+            "help text must list the candidate, got: {}",
+            err
+        );
+        assert!(err.contains("current-final"), "and still list the baseline");
     }
 
     #[test]

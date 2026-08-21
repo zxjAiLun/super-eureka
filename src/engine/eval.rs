@@ -585,6 +585,109 @@ pub fn evaluate(pos: &Position) -> i32 {
     evaluate_breakdown(pos).final_score
 }
 
+/// S6-C1 phase-affine classical calibration: fixed-point scale.
+pub(crate) const PHASE_AFFINE_SCALE: i64 = 1_000_000;
+
+/// S6-C1 slope term as `round((1 + u) * 1e6)`, indexed by phase bucket in the
+/// frozen N3E order `[high, mid, low, zero]`.
+pub(crate) const PHASE_AFFINE_FACTOR: [i64; 4] = [738_618, 893_806, 988_214, 2_510_204];
+
+/// S6-C1 bias term as `round(b * 1000 * 1e6)` cp, same bucket order.
+pub(crate) const PHASE_AFFINE_BIAS_SCALED_CP: [i64; 4] =
+    [36_717_418, 50_374_720, 21_702_803, -464_891];
+
+/// Frozen N3E phase-bucket boundaries, reused verbatim: `high = 18..=24`,
+/// `mid = 8..=17`, `low = 1..=7`, `zero = 0`.
+///
+/// `phase` is clamped into `0..=MAX_PHASE` first so the mapping is total. The
+/// evaluator's own phase is already in range; the clamp exists so a future
+/// caller can never index out of bounds or hit an unreachable arm.
+#[inline]
+pub(crate) const fn phase_affine_bucket(phase: i32) -> usize {
+    let phase = if phase < 0 {
+        0
+    } else if phase > MAX_PHASE {
+        MAX_PHASE
+    } else {
+        phase
+    };
+    match phase {
+        18..=24 => 0,
+        8..=17 => 1,
+        1..=7 => 2,
+        _ => 3,
+    }
+}
+
+/// Symmetric (half-away-from-zero) integer division, so a calibrated score and
+/// its negation round to exact negatives of each other. Plain Rust `/` truncates
+/// toward zero, which would bias magnitudes downward.
+#[inline]
+const fn round_symmetric_div(numerator: i64, denominator: i64) -> i64 {
+    let half = denominator / 2;
+    if numerator >= 0 {
+        (numerator + half) / denominator
+    } else {
+        -((-numerator + half) / denominator)
+    }
+}
+
+/// S6-C1 FROZEN phase-affine calibration of a classical cp score.
+///
+/// Parameters come verbatim from the S6-N3E specificity audit
+/// (`results/s6/s6-n3e-residual-specificity.json`, selected calibrator
+/// `phase_affine`: 8 parameters fitted on the N3B train split, selected on the
+/// N3B validation split). They are NOT retrained, retuned, or trimmed here -
+/// including the aggressive `zero`-bucket slope, which is kept exactly as
+/// fitted per the S6-C1 authorization.
+///
+/// Deterministic integer fixed point only; no floating point on this path:
+///
+/// ```text
+/// calibrated = round_symmetric((base_cp * factor[bucket]
+///                               + bias_scaled_cp[bucket]) / 1_000_000)
+/// ```
+///
+/// Intermediates are `i64`. For any `i32` input the product is bounded by
+/// `2^31 * 2_510_204 < 2^62`, so the arithmetic cannot overflow; the final
+/// narrowing to `i32` is saturating rather than wrapping.
+#[inline]
+pub(crate) fn calibrate_phase_affine_score(base_cp: i32, phase: i32) -> i32 {
+    let bucket = phase_affine_bucket(phase);
+    let scaled = base_cp as i64 * PHASE_AFFINE_FACTOR[bucket] + PHASE_AFFINE_BIAS_SCALED_CP[bucket];
+    let calibrated = round_symmetric_div(scaled, PHASE_AFFINE_SCALE);
+    if calibrated > i32::MAX as i64 {
+        i32::MAX
+    } else if calibrated < i32::MIN as i64 {
+        i32::MIN
+    } else {
+        calibrated as i32
+    }
+}
+
+/// Bench-only accessor: `(phase, base_cp)` from a single `evaluate_breakdown`
+/// call, so diagnostics never rescan the board or re-derive the phase.
+pub fn evaluate_breakdown_public(pos: &Position) -> (i32, i32) {
+    let breakdown = evaluate_breakdown(pos);
+    (breakdown.phase, breakdown.final_score)
+}
+
+/// Bench-only accessor for the frozen bucket mapping.
+pub fn phase_affine_bucket_public(phase: i32) -> usize {
+    phase_affine_bucket(phase)
+}
+
+/// S6-C1 candidate static evaluation: the classical score with the frozen
+/// phase-affine calibration applied.
+///
+/// `evaluate_breakdown` is called EXACTLY once and both the phase and the final
+/// score are reused from it, so this costs one extra multiply-add over
+/// [`evaluate`] and never rescans the board. Read-only - it never mutates `pos`.
+pub fn evaluate_phase_affine(pos: &Position) -> i32 {
+    let breakdown = evaluate_breakdown(pos);
+    calibrate_phase_affine_score(breakdown.final_score, breakdown.phase)
+}
+
 /// Behavior-preserving base evaluation breakdown. It is crate-visible so the
 /// E2 candidate and bench/tests can inspect terms without exposing a GUI or
 /// UCI option.
@@ -1426,15 +1529,193 @@ pub fn evaluate_threat_aware(pos: &Position) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate, evaluate_breakdown, evaluate_integrated_breakdown,
-        evaluate_integrated_positional, evaluate_threat_aware, exact_mop_up, game_phase,
-        interpolate, mobility_for_color, mobility_mask_for_piece, pawn_is_connected,
-        piece_activity_for_color, undeveloped_minor_count, EvalContext, Score, KING_EG_PST,
-        KING_MG_PST, MAX_PHASE,
+        calibrate_phase_affine_score, evaluate, evaluate_breakdown, evaluate_integrated_breakdown,
+        evaluate_integrated_positional, evaluate_phase_affine, evaluate_threat_aware, exact_mop_up,
+        game_phase, interpolate, mobility_for_color, mobility_mask_for_piece, pawn_is_connected,
+        phase_affine_bucket, piece_activity_for_color, round_symmetric_div,
+        undeveloped_minor_count, EvalContext, Score, KING_EG_PST, KING_MG_PST, MAX_PHASE,
+        PHASE_AFFINE_BIAS_SCALED_CP, PHASE_AFFINE_FACTOR, PHASE_AFFINE_SCALE,
     };
     use crate::chess::fen::parse_fen;
     use crate::chess::fen::to_fen;
     use crate::chess::types::{make_square, Color};
+
+    // ---- S6-C1 frozen phase-affine calibration -------------------------
+
+    /// The eight constants are the ONLY thing tying the Rust runtime to the
+    /// S6-N3E audit. If someone retunes the calibrator, this test fails.
+    #[test]
+    fn phase_affine_constants_are_bound_to_the_n3e_result() {
+        assert_eq!(PHASE_AFFINE_SCALE, 1_000_000);
+        assert_eq!(
+            PHASE_AFFINE_FACTOR,
+            [738_618_i64, 893_806, 988_214, 2_510_204]
+        );
+        assert_eq!(
+            PHASE_AFFINE_BIAS_SCALED_CP,
+            [36_717_418_i64, 50_374_720, 21_702_803, -464_891]
+        );
+    }
+
+    /// Bucket boundaries must match N3E exactly: high 18..=24, mid 8..=17,
+    /// low 1..=7, zero 0. Off-by-one here silently mis-calibrates whole phases.
+    #[test]
+    fn phase_affine_bucket_boundaries_match_n3e() {
+        assert_eq!(phase_affine_bucket(0), 3, "zero");
+        assert_eq!(phase_affine_bucket(1), 2, "low lower edge");
+        assert_eq!(phase_affine_bucket(7), 2, "low upper edge");
+        assert_eq!(phase_affine_bucket(8), 1, "mid lower edge");
+        assert_eq!(phase_affine_bucket(17), 1, "mid upper edge");
+        assert_eq!(phase_affine_bucket(18), 0, "high lower edge");
+        assert_eq!(phase_affine_bucket(24), 0, "high upper edge");
+    }
+
+    #[test]
+    fn phase_affine_bucket_clamps_out_of_range_phases() {
+        assert_eq!(phase_affine_bucket(-5), 3);
+        assert_eq!(phase_affine_bucket(i32::MIN), 3);
+        assert_eq!(phase_affine_bucket(25), 0);
+        assert_eq!(phase_affine_bucket(i32::MAX), 0);
+    }
+
+    /// Reference values computed independently from the frozen formula.
+    #[test]
+    fn phase_affine_matches_the_frozen_formula() {
+        // base 0 leaves only the bias, symmetric-rounded.
+        assert_eq!(calibrate_phase_affine_score(0, 24), 37); // 36.717418
+        assert_eq!(calibrate_phase_affine_score(0, 12), 50); // 50.374720
+        assert_eq!(calibrate_phase_affine_score(0, 4), 22); // 21.702803
+        assert_eq!(calibrate_phase_affine_score(0, 0), 0); // -0.464891
+                                                           // 100 cp in the high bucket: 100*0.738618 + 36.717418 = 110.579218
+        assert_eq!(calibrate_phase_affine_score(100, 20), 111);
+        // -100 cp in the high bucket: -73.8618 + 36.717418 = -37.144382
+        assert_eq!(calibrate_phase_affine_score(-100, 20), -37);
+        // zero-phase slope is aggressive and deliberately kept:
+        // 100*2.510204 - 0.464891 = 250.555509
+        assert_eq!(calibrate_phase_affine_score(100, 0), 251);
+    }
+
+    /// Symmetric rounding: a score and its negation must round to exact
+    /// negatives of each other once the bias is removed.
+    #[test]
+    fn phase_affine_rounding_is_symmetric_about_zero() {
+        for bucket_phase in [24, 12, 4, 0] {
+            let index = phase_affine_bucket(bucket_phase);
+            let bias = PHASE_AFFINE_BIAS_SCALED_CP[index];
+            let factor = PHASE_AFFINE_FACTOR[index];
+            for base in [-9999_i32, -1234, -7, -1, 0, 1, 7, 1234, 9999] {
+                let got = calibrate_phase_affine_score(base, bucket_phase);
+                let scaled = base as i64 * factor + bias;
+                let manual = if scaled >= 0 {
+                    (scaled + PHASE_AFFINE_SCALE / 2) / PHASE_AFFINE_SCALE
+                } else {
+                    -((-scaled + PHASE_AFFINE_SCALE / 2) / PHASE_AFFINE_SCALE)
+                };
+                assert_eq!(got as i64, manual, "base {} phase {}", base, bucket_phase);
+            }
+        }
+        // Half-away-from-zero, with the bias cancelled by construction.
+        // 0.5 must go to 1 and -0.5 must go to -1, never both toward zero.
+        assert_eq!(round_symmetric_div(500_000, 1_000_000), 1);
+        assert_eq!(round_symmetric_div(-500_000, 1_000_000), -1);
+        assert_eq!(round_symmetric_div(499_999, 1_000_000), 0);
+        assert_eq!(round_symmetric_div(-499_999, 1_000_000), 0);
+    }
+
+    /// i64 intermediates must not overflow for ANY i32 input, and the narrowing
+    /// back to i32 must saturate rather than wrap.
+    #[test]
+    fn phase_affine_has_no_i64_overflow_and_saturates() {
+        for phase in [24, 12, 4, 0] {
+            for base in [i32::MIN, i32::MIN + 1, -1, 0, 1, i32::MAX - 1, i32::MAX] {
+                let got = calibrate_phase_affine_score(base, phase);
+                // Recompute in i128 to prove the i64 path was exact.
+                let index = phase_affine_bucket(phase);
+                let wide = base as i128 * PHASE_AFFINE_FACTOR[index] as i128
+                    + PHASE_AFFINE_BIAS_SCALED_CP[index] as i128;
+                let rounded = if wide >= 0 {
+                    (wide + 500_000) / 1_000_000
+                } else {
+                    -((-wide + 500_000) / 1_000_000)
+                };
+                let expected = rounded.clamp(i32::MIN as i128, i32::MAX as i128) as i32;
+                assert_eq!(got, expected, "base {} phase {}", base, phase);
+            }
+        }
+    }
+
+    #[test]
+    fn phase_affine_startpos_applies_the_high_bucket() {
+        let pos = parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+            .expect("startpos fen");
+        let breakdown = evaluate_breakdown(&pos);
+        assert_eq!(breakdown.phase, 24, "startpos is full non-pawn material");
+        assert_eq!(
+            evaluate_phase_affine(&pos),
+            calibrate_phase_affine_score(breakdown.final_score, 24)
+        );
+    }
+
+    /// Side-to-move symmetry must survive calibration: a mirrored position
+    /// evaluated from the other side keeps the same relationship the base
+    /// evaluation had, because the same bucket and formula apply.
+    #[test]
+    fn phase_affine_is_consistent_across_stm() {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 b - - 0 1",
+        ] {
+            let pos = parse_fen(fen).expect("fen");
+            let breakdown = evaluate_breakdown(&pos);
+            assert_eq!(
+                evaluate_phase_affine(&pos),
+                calibrate_phase_affine_score(breakdown.final_score, breakdown.phase),
+                "fen {}",
+                fen
+            );
+        }
+    }
+
+    /// Sparse endings land in the zero bucket, where the fitted slope is 2.51.
+    /// These are the positions most exposed to the aggressive slope, so pin
+    /// them explicitly rather than leaving them to a generic sweep.
+    #[test]
+    fn phase_affine_handles_kqk_and_krk_endings() {
+        for (fen, label) in [
+            ("8/8/8/4k3/8/8/8/K6Q w - - 0 1", "KQK"),
+            ("8/8/8/4k3/8/8/8/K6R w - - 0 1", "KRK"),
+        ] {
+            let pos = parse_fen(fen).expect("fen");
+            let breakdown = evaluate_breakdown(&pos);
+            let bucket = phase_affine_bucket(breakdown.phase);
+            assert_eq!(
+                evaluate_phase_affine(&pos),
+                calibrate_phase_affine_score(breakdown.final_score, breakdown.phase),
+                "{} must use bucket {}",
+                label,
+                bucket
+            );
+        }
+    }
+
+    #[test]
+    fn phase_affine_does_not_mutate_the_position() {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/8/8/4k3/8/8/8/K6Q w - - 0 1",
+        ] {
+            let before = parse_fen(fen).expect("fen");
+            let probe = parse_fen(fen).expect("fen");
+            let _ = evaluate_phase_affine(&probe);
+            assert_eq!(to_fen(&probe), to_fen(&before), "fen {}", fen);
+            // and the base evaluator agrees it is untouched
+            let _ = evaluate(&probe);
+            assert_eq!(to_fen(&probe), to_fen(&before));
+        }
+    }
 
     #[test]
     fn phase_counts_non_pawn_material_only() {

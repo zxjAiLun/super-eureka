@@ -41,7 +41,9 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::{evaluate, evaluate_integrated_positional, evaluate_threat_aware};
+use crate::engine::eval::{
+    evaluate, evaluate_integrated_positional, evaluate_phase_affine, evaluate_threat_aware,
+};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
@@ -214,6 +216,12 @@ pub(crate) enum SearchProfile {
     /// S7.5B candidate: exactly CurrentFinal plus one independent bounded
     /// extension when the checking child has exactly two legal evasions.
     CurrentFinalBoundedCheck2,
+    /// S6-C1 candidate: EXACTLY CurrentFinal search policy, with the frozen
+    /// S6-N3E phase-affine calibration applied to the classical evaluation.
+    /// Only the evaluator dispatch differs; every search feature bit is
+    /// inherited from CurrentFinal and a centralized test enforces that.
+    /// Never a production default - Arena decides.
+    CurrentFinalPhaseAffine,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -260,6 +268,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -283,6 +292,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -302,6 +312,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -323,6 +334,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -356,6 +368,7 @@ impl SearchProfile {
                 | Self::CurrentQsearchMovegen
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -376,6 +389,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -407,6 +421,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -473,6 +488,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -497,6 +513,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -521,6 +538,7 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
@@ -553,10 +571,20 @@ impl SearchProfile {
                 | Self::CurrentFinalLmrNullWindow
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalPhaseAffine
         )
     }
 
     /// S7.5B: main-search-only bounded checking extension.
+    /// S6-C1: apply the frozen phase-affine calibration to the classical
+    /// evaluation. This is the ONLY bit on which `CurrentFinalPhaseAffine`
+    /// differs from `CurrentFinal`; it is deliberately NOT part of any
+    /// production policy group.
+    #[inline]
+    pub(crate) const fn uses_phase_affine_eval(self) -> bool {
+        matches!(self, Self::CurrentFinalPhaseAffine)
+    }
+
     #[inline]
     pub(crate) const fn uses_bounded_check2_extension(self) -> bool {
         matches!(self, Self::CurrentFinalBoundedCheck2)
@@ -2372,7 +2400,9 @@ fn has_any_legal_move_profiled(pos: &mut Position, ctx: &SearchContext) -> bool 
 fn evaluate_profiled(pos: &Position, ctx: &SearchContext, profile: SearchProfile) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
     let start = ctx.sample_begin(&ctx.timing_eval);
-    let result = if profile.uses_eval2() {
+    let result = if profile.uses_phase_affine_eval() {
+        evaluate_phase_affine(pos)
+    } else if profile.uses_eval2() {
         evaluate_integrated_positional(pos)
     } else if profile.uses_threat_aware_eval() {
         evaluate_threat_aware(pos)
@@ -9533,6 +9563,193 @@ mod tests {
         assert!(cand.uses_single_evasion_extension());
         assert!(!cand.uses_forcing_search());
         assert_eq!(extension_budget_for_profile(cand), S75A_FORCING_BUDGET);
+    }
+
+    /// S6-C1 anti-drift guard.
+    ///
+    /// `CurrentFinalPhaseAffine` must be EXACTLY `CurrentFinal` apart from the
+    /// evaluator selector. This compares the fully resolved
+    /// `SearchFeaturePolicy` and EVERY `uses_*` selector on the enum, so adding
+    /// a future policy bit to CurrentFinal without adding it to the candidate
+    /// fails here instead of silently diverging in Arena. The candidate is
+    /// deliberately NOT implemented by copying a parameter set.
+    #[test]
+    fn s6c1_phase_affine_profile_is_current_final_except_the_evaluator() {
+        use SearchProfile::{CurrentFinal as Base, CurrentFinalPhaseAffine as Cand};
+
+        // 1. Resolved feature policy must be bit-identical.
+        let base = SearchFeaturePolicy::for_profile(Base, None);
+        let cand = SearchFeaturePolicy::for_profile(Cand, None);
+        assert_eq!(
+            base.to_bits(),
+            cand.to_bits(),
+            "resolved SearchFeaturePolicy must match CurrentFinal exactly"
+        );
+        assert_eq!(base.lmr, cand.lmr);
+        assert_eq!(base.futility, cand.futility);
+        assert_eq!(base.null_move, cand.null_move);
+        assert_eq!(base.qsearch_see, cand.qsearch_see);
+        assert_eq!(base.qsearch_delta, cand.qsearch_delta);
+        assert_eq!(base.lmr_null_window, cand.lmr_null_window);
+        assert_eq!(base.single_evasion_extension, cand.single_evasion_extension);
+        assert_eq!(base.bounded_check2_extension, cand.bounded_check2_extension);
+
+        // 2. Every search-feature selector must agree, EXCEPT the evaluator.
+        /// Named policy selector, aliased so the array type stays readable.
+        type Selector = (&'static str, fn(SearchProfile) -> bool);
+        let selectors: [Selector; 24] = [
+            ("uses_pvs", |p| p.uses_pvs()),
+            ("uses_see", |p| p.uses_see()),
+            ("uses_aspiration", |p| p.uses_aspiration()),
+            ("uses_lmr", |p| p.uses_lmr()),
+            ("uses_null_move", |p| p.uses_null_move()),
+            ("uses_futility", |p| p.uses_futility()),
+            ("uses_qsearch_movegen", |p| p.uses_qsearch_movegen()),
+            ("uses_qsearch_pruning", |p| p.uses_qsearch_pruning()),
+            ("uses_qsearch_fast_pruning", |p| {
+                p.uses_qsearch_fast_pruning()
+            }),
+            ("uses_qsearch_lazy", |p| p.uses_qsearch_lazy()),
+            ("uses_qsearch_delta", |p| p.uses_qsearch_delta()),
+            ("uses_threat_aware_eval", |p| p.uses_threat_aware_eval()),
+            ("uses_threat_aware_qsearch", |p| {
+                p.uses_threat_aware_qsearch()
+            }),
+            ("uses_threat_ordering", |p| p.uses_threat_ordering()),
+            ("uses_eval2", |p| p.uses_eval2()),
+            ("uses_forcing_search", |p| p.uses_forcing_search()),
+            ("uses_legality_fast", |p| p.uses_legality_fast()),
+            ("uses_single_buffer_legal", |p| p.uses_single_buffer_legal()),
+            ("uses_single_generation_probe", |p| {
+                p.uses_single_generation_probe()
+            }),
+            ("uses_root_quiet_history", |p| p.uses_root_quiet_history()),
+            ("uses_root_prev_score", |p| p.uses_root_prev_score()),
+            ("uses_lmr_null_window", |p| p.uses_lmr_null_window()),
+            ("uses_single_evasion_extension", |p| {
+                p.uses_single_evasion_extension()
+            }),
+            ("uses_bounded_check2_extension", |p| {
+                p.uses_bounded_check2_extension()
+            }),
+        ];
+        for (name, selector) in selectors {
+            assert_eq!(
+                selector(Base),
+                selector(Cand),
+                "{} must be inherited from CurrentFinal",
+                name
+            );
+        }
+
+        // 3. The evaluator selector is the ONE intended difference.
+        assert!(
+            !Base.uses_phase_affine_eval(),
+            "production must stay classical"
+        );
+        assert!(Cand.uses_phase_affine_eval(), "candidate must calibrate");
+
+        // 4. The candidate must never be a production default.
+        assert_eq!(PRODUCTION_PROFILE, Base);
+        assert_ne!(PRODUCTION_PROFILE, Cand);
+        assert_ne!(ROLLBACK_PROFILE, Cand);
+    }
+
+    /// The evaluator selectors must stay mutually exclusive: phase-affine must
+    /// not accidentally also claim eval2 or threat-aware dispatch, or
+    /// `evaluate_profiled`'s if/else chain would silently shadow one of them.
+    #[test]
+    fn s6c1_evaluator_selectors_are_mutually_exclusive() {
+        // Compiler-enforced completeness: adding a SearchProfile variant breaks
+        // this match, which forces the list below to be updated as well.
+        fn assert_exhaustive(profile: SearchProfile) {
+            match profile {
+                SearchProfile::M4Reference => (),
+                SearchProfile::M41Reference => (),
+                SearchProfile::PvsReference => (),
+                SearchProfile::SeeCandidate => (),
+                SearchProfile::AspirationCandidate => (),
+                SearchProfile::LmrCandidate => (),
+                SearchProfile::NullMoveCandidate => (),
+                SearchProfile::FutilityCandidate => (),
+                SearchProfile::Current => (),
+                SearchProfile::CurrentLmr => (),
+                SearchProfile::CurrentThreatAware => (),
+                SearchProfile::CurrentThreatAwareNoQchecks => (),
+                SearchProfile::CurrentThreatAwareEvalOrder => (),
+                SearchProfile::CurrentThreatAwareEvalOnly => (),
+                SearchProfile::CurrentThreatAwareOrderOnly => (),
+                SearchProfile::CurrentEval2 => (),
+                SearchProfile::CurrentQsearchMovegen => (),
+                SearchProfile::CurrentQsearchPruning => (),
+                SearchProfile::CurrentQsearchFastPruning => (),
+                SearchProfile::CurrentAspiration => (),
+                SearchProfile::CurrentAspirationLmr => (),
+                SearchProfile::CurrentAspirationLmrFutility => (),
+                SearchProfile::CurrentAspirationLmrFutilitySee => (),
+                SearchProfile::CurrentFinal => (),
+                SearchProfile::CurrentFinalRootHistory => (),
+                SearchProfile::CurrentFinalRootPrevScore => (),
+                SearchProfile::CurrentFinalLegalityFast => (),
+                SearchProfile::CurrentFinalSingleBuffer => (),
+                SearchProfile::CurrentFinalSingleGeneration => (),
+                SearchProfile::CurrentFinalQsearchLazy => (),
+                SearchProfile::CurrentFinalQsearchDelta => (),
+                SearchProfile::CurrentFinalLmrNullWindow => (),
+                SearchProfile::CurrentFinalSingleEvasion => (),
+                SearchProfile::CurrentFinalBoundedCheck2 => (),
+                SearchProfile::CurrentFinalPhaseAffine => (),
+            }
+        }
+        let all: [SearchProfile; 35] = [
+            SearchProfile::M4Reference,
+            SearchProfile::M41Reference,
+            SearchProfile::PvsReference,
+            SearchProfile::SeeCandidate,
+            SearchProfile::AspirationCandidate,
+            SearchProfile::LmrCandidate,
+            SearchProfile::NullMoveCandidate,
+            SearchProfile::FutilityCandidate,
+            SearchProfile::Current,
+            SearchProfile::CurrentLmr,
+            SearchProfile::CurrentThreatAware,
+            SearchProfile::CurrentThreatAwareNoQchecks,
+            SearchProfile::CurrentThreatAwareEvalOrder,
+            SearchProfile::CurrentThreatAwareEvalOnly,
+            SearchProfile::CurrentThreatAwareOrderOnly,
+            SearchProfile::CurrentEval2,
+            SearchProfile::CurrentQsearchMovegen,
+            SearchProfile::CurrentQsearchPruning,
+            SearchProfile::CurrentQsearchFastPruning,
+            SearchProfile::CurrentAspiration,
+            SearchProfile::CurrentAspirationLmr,
+            SearchProfile::CurrentAspirationLmrFutility,
+            SearchProfile::CurrentAspirationLmrFutilitySee,
+            SearchProfile::CurrentFinal,
+            SearchProfile::CurrentFinalRootHistory,
+            SearchProfile::CurrentFinalRootPrevScore,
+            SearchProfile::CurrentFinalLegalityFast,
+            SearchProfile::CurrentFinalSingleBuffer,
+            SearchProfile::CurrentFinalSingleGeneration,
+            SearchProfile::CurrentFinalQsearchLazy,
+            SearchProfile::CurrentFinalQsearchDelta,
+            SearchProfile::CurrentFinalLmrNullWindow,
+            SearchProfile::CurrentFinalSingleEvasion,
+            SearchProfile::CurrentFinalBoundedCheck2,
+            SearchProfile::CurrentFinalPhaseAffine,
+        ];
+        for profile in all {
+            assert_exhaustive(profile);
+            let picked = u8::from(profile.uses_phase_affine_eval())
+                + u8::from(profile.uses_eval2())
+                + u8::from(profile.uses_threat_aware_eval());
+            assert!(
+                picked <= 1,
+                "{:?} selects {} evaluators; at most one is allowed",
+                profile,
+                picked
+            );
+        }
     }
 
     #[test]

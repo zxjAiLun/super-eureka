@@ -195,6 +195,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
         SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
         SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
+        SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
     }
 }
 
@@ -2123,6 +2124,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "eval-features-schema" {
         return run_eval_features_schema(&args[1..]);
     }
+    if args[0] == "phase-affine-batch" {
+        return run_phase_affine_batch(&args[1..]);
+    }
+    if args[0] == "phase-affine-microbench" {
+        return run_phase_affine_microbench(&args[1..]);
+    }
     if args[0] == "nnue-features" {
         return run_nnue_features(&args[1..]);
     }
@@ -2403,6 +2410,180 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
     let text = std::fs::read_to_string(&batch)
         .map_err(|e| format!("nnue-features-batch: cannot read {batch}: {e}"))?;
     print!("{}", nnue_features_batch_from_text(&text)?);
+    Ok(())
+}
+
+/// S6-C1: batch diagnostic for the frozen phase-affine calibration.
+///
+/// Emits base and calibrated cp for each position so the Python verifier can
+/// compare the Rust runtime against the frozen formula without re-implementing
+/// the classical evaluator. `evaluate_breakdown` runs once per position, and
+/// `calibrated_cp` is produced by the SAME function the search dispatch uses.
+fn run_phase_affine_batch(args: &[String]) -> Result<(), String> {
+    let mut batch: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "phase-affine-batch: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "phase-affine-batch: unknown argument '{}' (expected --batch <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let batch = batch.ok_or_else(|| "phase-affine-batch: --batch is required".to_string())?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("phase-affine-batch: cannot read {batch}: {e}"))?;
+    print!("{}", phase_affine_batch_from_text(&text)?);
+    Ok(())
+}
+
+fn phase_affine_batch_from_text(text: &str) -> Result<String, String> {
+    use crate::engine::eval::{evaluate_breakdown_public, phase_affine_bucket_public};
+    let mut out = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (position_id, fen) = match line.split_once('|') {
+            Some((id, fen)) => (id.trim(), fen.trim()),
+            None => ("", line),
+        };
+        let pos = parse_fen(fen).map_err(|e| format!("phase-affine-batch: {e}: '{fen}'"))?;
+        let (phase, base_cp) = evaluate_breakdown_public(&pos);
+        let calibrated_cp = crate::engine::eval::evaluate_phase_affine(&pos);
+        out.push_str(&format!(
+            "{{\"position_id\":\"{}\",\"fen\":\"{}\",\"phase\":{},\"bucket\":{},\
+\"base_cp\":{},\"calibrated_cp\":{},\"correction_cp\":{}}}\n",
+            position_id,
+            fen,
+            phase,
+            phase_affine_bucket_public(phase),
+            base_cp,
+            calibrated_cp,
+            calibrated_cp - base_cp
+        ));
+    }
+    Ok(out)
+}
+
+/// S6-C1: median-of-5 microbench comparing the calibrated evaluator against the
+/// base classical evaluator. Loading and parsing happen OUTSIDE the timed
+/// region; only the evaluation loops are measured.
+fn run_phase_affine_microbench(args: &[String]) -> Result<(), String> {
+    use crate::engine::eval::{evaluate, evaluate_phase_affine};
+    let mut batch: Option<String> = None;
+    let mut iterations: usize = 200;
+    let mut rounds: usize = 5;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--batch" => {
+                batch = Some(
+                    it.next()
+                        .ok_or_else(|| {
+                            "phase-affine-microbench: --batch requires a value".to_string()
+                        })?
+                        .clone(),
+                );
+            }
+            "--iterations" => {
+                iterations = it
+                    .next()
+                    .ok_or_else(|| {
+                        "phase-affine-microbench: --iterations requires a value".to_string()
+                    })?
+                    .parse()
+                    .map_err(|e| format!("phase-affine-microbench: bad --iterations: {e}"))?;
+            }
+            "--rounds" => {
+                rounds = it
+                    .next()
+                    .ok_or_else(|| {
+                        "phase-affine-microbench: --rounds requires a value".to_string()
+                    })?
+                    .parse()
+                    .map_err(|e| format!("phase-affine-microbench: bad --rounds: {e}"))?;
+            }
+            other => {
+                return Err(format!(
+                    "phase-affine-microbench: unknown argument '{}'",
+                    other
+                ));
+            }
+        }
+    }
+    let batch = batch.ok_or_else(|| "phase-affine-microbench: --batch is required".to_string())?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("phase-affine-microbench: cannot read {batch}: {e}"))?;
+    // Parse everything up front: parsing is not part of the measurement.
+    let mut positions = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let fen = match line.split_once('|') {
+            Some((_, fen)) => fen.trim(),
+            None => line,
+        };
+        positions
+            .push(parse_fen(fen).map_err(|e| format!("phase-affine-microbench: {e}: '{fen}'"))?);
+    }
+    if positions.is_empty() {
+        return Err("phase-affine-microbench: batch has no positions".to_string());
+    }
+    let mut base_ns = Vec::with_capacity(rounds);
+    let mut cand_ns = Vec::with_capacity(rounds);
+    for _ in 0..rounds {
+        let start = std::time::Instant::now();
+        let mut sink: i64 = 0;
+        for _ in 0..iterations {
+            for pos in &positions {
+                sink = sink.wrapping_add(evaluate(pos) as i64);
+            }
+        }
+        let base = start.elapsed().as_nanos();
+        let start = std::time::Instant::now();
+        let mut sink2: i64 = 0;
+        for _ in 0..iterations {
+            for pos in &positions {
+                sink2 = sink2.wrapping_add(evaluate_phase_affine(pos) as i64);
+            }
+        }
+        let cand = start.elapsed().as_nanos();
+        // Keep both accumulators observable so neither loop is optimized away.
+        std::hint::black_box((sink, sink2));
+        base_ns.push(base);
+        cand_ns.push(cand);
+    }
+    base_ns.sort_unstable();
+    cand_ns.sort_unstable();
+    let base_median = base_ns[rounds / 2];
+    let cand_median = cand_ns[rounds / 2];
+    let evals = (positions.len() * iterations) as f64;
+    println!(
+        "{{\"positions\":{},\"iterations\":{},\"rounds\":{},\
+\"base_median_ns\":{},\"candidate_median_ns\":{},\
+\"base_ns_per_eval\":{:.4},\"candidate_ns_per_eval\":{:.4},\"ratio\":{:.6}}}",
+        positions.len(),
+        iterations,
+        rounds,
+        base_median,
+        cand_median,
+        base_median as f64 / evals,
+        cand_median as f64 / evals,
+        cand_median as f64 / base_median as f64
+    );
     Ok(())
 }
 
