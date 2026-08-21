@@ -77,3 +77,8 @@ data/s6/s6-eval-v1-core-300k/
 /data/s6/s6-eval-v1-multisource-pilot01/
 /data/s6/rebuild-check/
 /data/s6/sources/lichess-standard-rated-v1/
+
+# S6-N3D residual confirmation data (raw PGN/shards/labels local-only; the
+# classical cache and the result records under results/s6/ ARE committed)
+/data/s6/sources/lichess-standard-rated-confirm-v1/
+/data/s6/s6-eval-v1-residual-confirm01/
