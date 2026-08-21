@@ -125,6 +125,39 @@ def fingerprint_set_sha256(fingerprints: set[str]) -> str:
         "\n".join(sorted(fingerprints)).encode("utf-8")).hexdigest()
 
 
+def ordered_pgn_fingerprints(path: Path) -> list[str]:
+    """Fingerprints of every game in a PGN, in file (selection) order.
+
+    Streamed: one Game object alive at a time, only the fingerprint strings
+    are retained.
+    """
+    fingerprints: list[str] = []
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        while True:
+            game = chess.pgn.read_game(fh)
+            if game is None:
+                break
+            fingerprints.append(game_fingerprint(game))
+    return fingerprints
+
+
+def is_ordered_subsequence(inner: list[str], outer: list[str]) -> bool:
+    """True when `inner` appears inside `outer` in the same relative order.
+
+    This is the exact relationship between a games-per-month N selection and
+    a larger N' > N selection over the SAME archive, seed and exclude set.
+    Both runs see an identical candidate stream; the smaller run's long/short
+    stratum caps (int(N/3) and N - int(N/3)) are strictly tighter, and the two
+    runs' per-stratum counters stay equal until the smaller run first rejects
+    a candidate, so anything the smaller run accepts the larger run accepts
+    too. The smaller selection is therefore a subsequence of the larger one -
+    but NOT a contiguous prefix, because once the smaller run saturates a
+    stratum it drops candidates the larger run still keeps.
+    """
+    iterator = iter(outer)
+    return all(key in iterator for key in inner)
+
+
 def load_exclude_fingerprints(paths: list[Path]) -> tuple[set[str], list[dict]]:
     """Fingerprints of every game in the already-used PGNs.
 

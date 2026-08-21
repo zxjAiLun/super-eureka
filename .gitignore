@@ -82,3 +82,9 @@ data/s6/s6-eval-v1-core-300k/
 # classical cache and the result records under results/s6/ ARE committed)
 /data/s6/sources/lichess-standard-rated-confirm-v1/
 /data/s6/s6-eval-v1-residual-confirm01/
+
+# S6-N3D superseded 1000-game construction attempt (kept locally for audit;
+# its hashes and manifests are recorded in results/s6/)
+/data/s6/construction-attempt-1000/
+/data/s6/sources/lichess-standard-rated-confirm-v1-g1400/
+/data/s6/s6-eval-v1-residual-confirm01-g1400/

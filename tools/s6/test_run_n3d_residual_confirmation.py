@@ -19,9 +19,9 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import lichess_select as ls  # noqa: E402
 import residual_probe as residual  # noqa: E402
 import run_n3d_residual_confirmation as n3d  # noqa: E402
-import train_nnue_probe as probe  # noqa: E402
 
 
 def overall_stub(classical_mae: float, residual_mae: float,
@@ -122,6 +122,20 @@ class FrozenThresholdTests(unittest.TestCase):
         self.assertEqual(n3d.FAIL_STATUS, "CONFIRMATION_FAIL")
         self.assertEqual(n3d.PASS_VERDICT,
                          "RESIDUAL_CONFIRMED_AWAITING_RUNTIME_REVIEW")
+
+    def test_authorized_enlargement_identities_are_fixed(self):
+        self.assertEqual(n3d.CONFIRM_SELECTED_GAMES, 1400)
+        self.assertEqual(n3d.SUPERSEDED_ATTEMPT_GAMES, 1000)
+        self.assertEqual(n3d.CONFIRM_SOURCE_ID,
+                         "lichess-standard-rated-confirm-v1-g1400")
+        self.assertEqual(n3d.CONFIRM_DATASET_ID,
+                         "s6-eval-v1-residual-confirm01-g1400")
+        self.assertEqual(n3d.CONFIRM_SOURCE_FAMILY,
+                         "lichess-standard-rated-v1")
+        self.assertEqual(n3d.SAMPLE_SIZE_ADJUSTMENT_REASON,
+                         "pre-metric construction precondition shortfall")
+        # The enlargement changed data volume only; the seed is untouched.
+        self.assertEqual(n3d.CONFIRM_SEED, 20260821)
 
 
 class GateArithmeticTests(unittest.TestCase):
@@ -316,8 +330,8 @@ class ConfirmSourceGateTests(unittest.TestCase):
             "exclude_fingerprint_count": 2000,
             "exclude_fingerprints_sha256": "e" * 64,
             "selected_fingerprints_sha256": "s" * 64,
-            "selected_fingerprint_count": 1000,
-            "games_selected": 1000,
+            "selected_fingerprint_count": n3d.CONFIRM_SELECTED_GAMES,
+            "games_selected": n3d.CONFIRM_SELECTED_GAMES,
             "script_sha256": "c" * 64,
             "pgn_sha256": residual.sha256_file(pgn),
         }
@@ -331,7 +345,14 @@ class ConfirmSourceGateTests(unittest.TestCase):
             info = n3d.verify_confirm_source(self._write(Path(tmp)))
             self.assertEqual(info["selection_seed"], 20260821)
             self.assertEqual(info["fingerprint_intersection"], 0)
-            self.assertEqual(info["games_selected"], 1000)
+            self.assertEqual(info["games_selected"], 1400)
+
+    def test_superseded_game_count_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-src-") as tmp:
+            source = self._write(Path(tmp), games_selected=1000)
+            with self.assertRaises(SystemExit) as cm:
+                n3d.verify_confirm_source(source)
+            self.assertIn("confirm selected games", str(cm.exception))
 
     def test_wrong_seed_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="s6-n3d-src-") as tmp:
@@ -443,6 +464,218 @@ class IdentityAuditTests(unittest.TestCase):
         self.assertEqual(audit["positions"]["usable_records"], 5500)
         self.assertEqual(audit["positions"]["null_cp_records"], 500)
         self.assertEqual(len(eligible), 5500)
+
+
+class EnlargementVerificationTests(unittest.TestCase):
+    """The authorized 1000 -> 1400 enlargement must be provably the same draw."""
+
+    DATASET_SHA = "d" * 64
+
+    def _attempt(self, label: str, games: int, keys: list[str], status: str,
+                 **overrides) -> dict:
+        record = {
+            "attempt_label": label,
+            "status": status,
+            "confirmation_metrics_observed": False,
+            "part5_evaluation_run": False,
+            "selection": {
+                "selected_games": games,
+                "selection_seed": n3d.CONFIRM_SEED,
+                "exclude_fingerprints_sha256": "e" * 64,
+                "exclude_fingerprint_count": 2000,
+                "archive_official_sha256": {
+                    "2026-07": n3d.EXPECTED_ARCHIVE_SHA256},
+                "fingerprint_definition": {"fields": ["initial_fen", "result",
+                                                      "moves"]},
+            },
+            "hashes": {"dataset_sha256": self.DATASET_SHA},
+            "ordered_game_fingerprints": keys,
+            "ordered_game_fingerprint_count": len(keys),
+            "game_fingerprints_sha256": "f" * 64,
+        }
+        for key, value in overrides.items():
+            if isinstance(value, dict) and isinstance(record.get(key), dict):
+                record[key] = {**record[key], **value}
+            else:
+                record[key] = value
+        return record
+
+    def _pair(self, old_keys=None, new_keys=None, **kwargs):
+        old_keys = old_keys or [f"old{i:04d}" for i in range(1000)]
+        if new_keys is None:
+            # Interleave the 400 additions AFTER index 747, mirroring how the
+            # 1000-game run saturated its long stratum and started dropping
+            # long candidates the 1400-game run keeps.
+            new_keys = (old_keys[:748]
+                        + [f"new{i:04d}" for i in range(400)]
+                        + old_keys[748:])
+        old = self._attempt("g1000", 1000, old_keys,
+                            "CONSTRUCTION_INSUFFICIENT")
+        new = self._attempt("g1400", 1400, new_keys,
+                            "CONSTRUCTION_SUFFICIENT", **kwargs)
+        return [old, new]
+
+    def test_interleaved_superset_passes(self):
+        result = n3d.verify_enlargement(self._pair(), self.DATASET_SHA)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["retained_games"], 1000)
+        self.assertEqual(result["added_games"], 400)
+        self.assertTrue(result["checks"]["superseded_is_ordered_subsequence"])
+        self.assertFalse(result["contiguous_prefix_identity_expected"])
+        self.assertFalse(result["metrics_observed_before_adjustment"])
+        self.assertEqual(result["reason"],
+                         "pre-metric construction precondition shortfall")
+
+    def test_contiguous_prefix_also_passes(self):
+        """A contiguous prefix is a special case of subsequence containment."""
+        old_keys = [f"old{i:04d}" for i in range(1000)]
+        new_keys = old_keys + [f"new{i:04d}" for i in range(400)]
+        result = n3d.verify_enlargement(
+            self._pair(old_keys, new_keys), self.DATASET_SHA)
+        self.assertTrue(result["passed"])
+
+    def test_dropping_a_superseded_game_fails_closed(self):
+        old_keys = [f"old{i:04d}" for i in range(1000)]
+        new_keys = (old_keys[:500] + old_keys[501:]
+                    + [f"new{i:04d}" for i in range(401)])
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(self._pair(old_keys, new_keys),
+                                   self.DATASET_SHA)
+        self.assertIn("enlargement verification failed", str(cm.exception))
+
+    def test_reordering_superseded_games_fails_closed(self):
+        old_keys = [f"old{i:04d}" for i in range(1000)]
+        swapped = list(old_keys)
+        swapped[10], swapped[900] = swapped[900], swapped[10]
+        new_keys = swapped + [f"new{i:04d}" for i in range(400)]
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(self._pair(old_keys, new_keys),
+                                   self.DATASET_SHA)
+        self.assertIn("ordered_subsequence", str(cm.exception))
+
+    def test_changed_exclude_set_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(
+                self._pair(selection={"exclude_fingerprints_sha256": "0" * 64}),
+                self.DATASET_SHA)
+        self.assertIn("exclude fingerprint set sha", str(cm.exception))
+
+    def test_changed_archive_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(
+                self._pair(selection={
+                    "archive_official_sha256": {"2026-08": "0" * 64}}),
+                self.DATASET_SHA)
+        self.assertIn("archive official sha", str(cm.exception))
+
+    def test_changed_fingerprint_definition_fails_closed(self):
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(
+                self._pair(selection={
+                    "fingerprint_definition": {"fields": ["moves"]}}),
+                self.DATASET_SHA)
+        self.assertIn("fingerprint definition", str(cm.exception))
+
+    def test_wrong_game_count_fails_closed(self):
+        attempts = self._pair()
+        attempts[1]["selection"]["selected_games"] = 1600
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(attempts, self.DATASET_SHA)
+        self.assertIn("confirmation attempt selected games",
+                      str(cm.exception))
+
+    def test_dataset_sha_must_match_the_evaluated_dataset(self):
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(self._pair(), "9" * 64)
+        self.assertIn("confirmation attempt dataset sha", str(cm.exception))
+
+    def test_insufficient_final_attempt_fails_closed(self):
+        attempts = self._pair()
+        attempts[1]["status"] = "CONSTRUCTION_INSUFFICIENT"
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(attempts, self.DATASET_SHA)
+        self.assertIn("CONSTRUCTION_SUFFICIENT", str(cm.exception))
+
+    def test_missing_superseded_attempt_fails_closed(self):
+        attempts = self._pair()
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement([attempts[1]], self.DATASET_SHA)
+        self.assertIn("missing superseded attempt", str(cm.exception))
+
+    def test_superseded_attempt_must_not_claim_sufficiency(self):
+        attempts = self._pair()
+        attempts[0]["status"] = "CONSTRUCTION_SUFFICIENT"
+        with self.assertRaises(SystemExit) as cm:
+            n3d.verify_enlargement(attempts, self.DATASET_SHA)
+        self.assertIn("CONSTRUCTION_INSUFFICIENT", str(cm.exception))
+
+
+class ConstructionRecordLoadTests(unittest.TestCase):
+    def _write(self, tmp: Path, name: str, **overrides) -> Path:
+        import json
+        record = {"attempt_label": name,
+                  "confirmation_metrics_observed": False,
+                  "part5_evaluation_run": False}
+        record.update(overrides)
+        path = tmp / f"{name}.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        return path
+
+    def test_records_are_loaded_with_their_own_sha(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-rec-") as tmp:
+            tmp = Path(tmp)
+            paths = [self._write(tmp, "g1000"), self._write(tmp, "g1400")]
+            attempts = n3d.load_construction_attempts(paths)
+            self.assertEqual([a["attempt_label"] for a in attempts],
+                             ["g1000", "g1400"])
+            for attempt, path in zip(attempts, paths):
+                self.assertEqual(attempt["record_sha256"],
+                                 residual.sha256_file(path))
+
+    def test_missing_record_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-rec-") as tmp:
+            with self.assertRaises(SystemExit) as cm:
+                n3d.load_construction_attempts([Path(tmp) / "nope.json"])
+            self.assertIn("construction record missing", str(cm.exception))
+
+    def test_record_claiming_observed_metrics_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-rec-") as tmp:
+            path = self._write(Path(tmp), "g1400",
+                               confirmation_metrics_observed=True)
+            with self.assertRaises(SystemExit) as cm:
+                n3d.load_construction_attempts([path])
+            self.assertIn("metrics were observed", str(cm.exception))
+
+    def test_record_claiming_part5_already_ran_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-rec-") as tmp:
+            path = self._write(Path(tmp), "g1400", part5_evaluation_run=True)
+            with self.assertRaises(SystemExit) as cm:
+                n3d.load_construction_attempts([path])
+            self.assertIn("part 5 already ran", str(cm.exception))
+
+    def test_duplicate_labels_fail_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s6-n3d-rec-") as tmp:
+            tmp = Path(tmp)
+            first = self._write(tmp, "g1400")
+            second = tmp / "copy.json"
+            second.write_text(first.read_text(), encoding="utf-8")
+            with self.assertRaises(SystemExit) as cm:
+                n3d.load_construction_attempts([first, second])
+            self.assertIn("duplicate construction attempt labels",
+                          str(cm.exception))
+
+
+class SubsequenceHelperTests(unittest.TestCase):
+    def test_ordered_subsequence_semantics(self):
+        self.assertTrue(ls.is_ordered_subsequence(["a", "c"],
+                                                  ["a", "b", "c", "d"]))
+        self.assertTrue(ls.is_ordered_subsequence([], ["a"]))
+        self.assertTrue(ls.is_ordered_subsequence(["a", "b"], ["a", "b"]))
+        self.assertFalse(ls.is_ordered_subsequence(["c", "a"],
+                                                   ["a", "b", "c"]))
+        self.assertFalse(ls.is_ordered_subsequence(["a", "a"],
+                                                   ["a", "b", "c"]))
+        self.assertFalse(ls.is_ordered_subsequence(["z"], ["a", "b"]))
 
 
 class RoundtripTests(unittest.TestCase):

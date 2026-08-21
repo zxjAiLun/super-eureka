@@ -58,10 +58,23 @@ REPO = Path(__file__).resolve().parents[2]
 # FROZEN identities and gates. Do not retune; a failure ends the sub-branch.
 # ---------------------------------------------------------------------------
 CONFIRM_SEED = 20260821
-CONFIRM_SOURCE_ID = "lichess-standard-rated-confirm-v1"
+CONFIRM_SOURCE_ID = "lichess-standard-rated-confirm-v1-g1400"
 CONFIRM_SOURCE_FAMILY = "lichess-standard-rated-v1"
-CONFIRM_DATASET_ID = "s6-eval-v1-residual-confirm01"
+CONFIRM_DATASET_ID = "s6-eval-v1-residual-confirm01-g1400"
 EXPECTED_CONFIRM_FAMILIES = {CONFIRM_SOURCE_FAMILY}
+
+# Authorized fixed enlargement. The first attempt selected 1000 games and fell
+# 24 eligible positions short of the pre-registered 5000 minimum; the cloud
+# authorized ONE fixed enlargement to 1400 games with every scientific
+# parameter frozen. The 1000-game attempt is recorded as
+# CONSTRUCTION_INSUFFICIENT, never as CONFIRMATION_FAIL, and no confirmation
+# metric was computed before the adjustment.
+CONFIRM_SELECTED_GAMES = 1400
+SUPERSEDED_ATTEMPT_LABEL = "g1000"
+SUPERSEDED_ATTEMPT_GAMES = 1000
+CONFIRM_ATTEMPT_LABEL = "g1400"
+SAMPLE_SIZE_ADJUSTMENT_REASON = (
+    "pre-metric construction precondition shortfall")
 
 EXPECTED_ARCHIVE_SHA256 = (
     "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7")
@@ -139,6 +152,129 @@ def n3b_source_fingerprints(source_dirs: list[Path]) -> tuple[set[str], dict]:
                   "total_games": sum(per_source.values())}
 
 
+def load_construction_attempts(paths: list[Path]) -> list[dict]:
+    """Load every construction-attempt record, newest last, and gate them.
+
+    Every record must certify that no confirmation metric was observed while
+    it was produced, so the sample-size adjustment provably happened before
+    any residual-vs-classical number existed.
+    """
+    attempts: list[dict] = []
+    for path in paths:
+        if not path.is_file():
+            fail(f"construction record missing {path}")
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if record.get("confirmation_metrics_observed") is not False:
+            fail(f"construction record {path} claims metrics were observed")
+        if record.get("part5_evaluation_run") is not False:
+            fail(f"construction record {path} claims part 5 already ran")
+        record["record_path"] = str(path)
+        record["record_sha256"] = residual.sha256_file(path)
+        attempts.append(record)
+    labels = [record["attempt_label"] for record in attempts]
+    if len(set(labels)) != len(labels):
+        fail(f"duplicate construction attempt labels {labels}")
+    return attempts
+
+
+def verify_enlargement(attempts: list[dict], dataset_sha256: str) -> dict:
+    """Gate the authorized 1000 -> 1400 enlargement, fail closed on any break.
+
+    The literal "first 1000 fingerprints identical item by item" cannot hold
+    and is not what determinism implies here: the long/short stratum caps
+    scale with games-per-month (int(N/3) and N - int(N/3)), so once the
+    1000-game run saturated its long stratum - which it did, at selection
+    index 747 - it dropped long candidates that the 1400-game run keeps. The
+    provable relationship over an identical archive, seed and exclude set is
+    ORDER-PRESERVING SUBSEQUENCE CONTAINMENT: every game the smaller run took,
+    the larger run also took, in the same relative order. That is what is
+    enforced here, together with full set containment, an exact added-game
+    count, and disjointness between the retained and added games.
+    """
+    by_label = {record["attempt_label"]: record for record in attempts}
+    old = by_label.get(SUPERSEDED_ATTEMPT_LABEL)
+    new = by_label.get(CONFIRM_ATTEMPT_LABEL)
+    if old is None:
+        fail(f"missing superseded attempt {SUPERSEDED_ATTEMPT_LABEL} record")
+    if new is None:
+        fail(f"missing confirmation attempt {CONFIRM_ATTEMPT_LABEL} record")
+    if old["status"] != "CONSTRUCTION_INSUFFICIENT":
+        fail(f"attempt {SUPERSEDED_ATTEMPT_LABEL} status {old['status']} != "
+             f"CONSTRUCTION_INSUFFICIENT")
+    if new["status"] != "CONSTRUCTION_SUFFICIENT":
+        fail(f"attempt {CONFIRM_ATTEMPT_LABEL} status {new['status']} != "
+             f"CONSTRUCTION_SUFFICIENT")
+    expect(new["hashes"]["dataset_sha256"], dataset_sha256,
+           "confirmation attempt dataset sha")
+    expect(old["selection"]["selected_games"], SUPERSEDED_ATTEMPT_GAMES,
+           "superseded attempt selected games")
+    expect(new["selection"]["selected_games"], CONFIRM_SELECTED_GAMES,
+           "confirmation attempt selected games")
+    expect(new["selection"]["selection_seed"], CONFIRM_SEED,
+           "confirmation attempt seed")
+    expect(old["selection"]["selection_seed"], CONFIRM_SEED,
+           "superseded attempt seed")
+    # The exclude set and its key SHA must be byte-identical across attempts.
+    expect(new["selection"]["exclude_fingerprints_sha256"],
+           old["selection"]["exclude_fingerprints_sha256"],
+           "exclude fingerprint set sha")
+    expect(new["selection"]["exclude_fingerprint_count"],
+           old["selection"]["exclude_fingerprint_count"],
+           "exclude fingerprint count")
+    expect(new["selection"]["archive_official_sha256"],
+           old["selection"]["archive_official_sha256"],
+           "archive official sha")
+    expect(new["selection"]["fingerprint_definition"],
+           old["selection"]["fingerprint_definition"],
+           "fingerprint definition")
+
+    old_keys = old["ordered_game_fingerprints"]
+    new_keys = new["ordered_game_fingerprints"]
+    if len(old_keys) != SUPERSEDED_ATTEMPT_GAMES:
+        fail(f"superseded attempt has {len(old_keys)} fingerprints")
+    if len(new_keys) != CONFIRM_SELECTED_GAMES:
+        fail(f"confirmation attempt has {len(new_keys)} fingerprints")
+    old_set, new_set = set(old_keys), set(new_keys)
+    if len(new_set) != len(new_keys):
+        fail("duplicate fingerprint inside the confirmation selection")
+    retained = old_set & new_set
+    added = new_set - old_set
+    subsequence = ls.is_ordered_subsequence(old_keys, new_keys)
+    checks = {
+        "all_superseded_games_retained": len(retained) == len(old_set),
+        "superseded_is_ordered_subsequence": subsequence,
+        "added_game_count_exact":
+            len(added) == CONFIRM_SELECTED_GAMES - SUPERSEDED_ATTEMPT_GAMES,
+        "added_disjoint_from_retained": not (added & old_set),
+        "no_duplicate_fingerprints": len(new_set) == len(new_keys),
+    }
+    result = {
+        "authorized_adjustment": (
+            f"{SUPERSEDED_ATTEMPT_GAMES} -> {CONFIRM_SELECTED_GAMES} games, "
+            f"one fixed enlargement, all scientific parameters frozen"),
+        "reason": SAMPLE_SIZE_ADJUSTMENT_REASON,
+        "metrics_observed_before_adjustment": False,
+        "contiguous_prefix_identity_expected": False,
+        "contiguous_prefix_note": (
+            "long-stratum cap int(N/3) scales with games-per-month, so the "
+            "1000-game run saturated its long stratum at selection index 747 "
+            "and dropped long candidates the 1400-game run retains; "
+            "order-preserving subsequence containment is the provable form"),
+        "superseded_games": len(old_keys),
+        "confirmation_games": len(new_keys),
+        "retained_games": len(retained),
+        "added_games": len(added),
+        "superseded_fingerprints_sha256": old["game_fingerprints_sha256"],
+        "confirmation_fingerprints_sha256": new["game_fingerprints_sha256"],
+        "added_fingerprints_sha256": ls.fingerprint_set_sha256(added),
+        "checks": checks,
+    }
+    result["passed"] = all(checks.values())
+    if not result["passed"]:
+        fail(f"enlargement verification failed: {checks}")
+    return result
+
+
 def verify_confirm_source(source_dir: Path) -> dict:
     """Gate the confirmation source manifest against the frozen contract."""
     manifest_path = source_dir / "source-manifest.json"
@@ -149,6 +285,8 @@ def verify_confirm_source(source_dir: Path) -> dict:
     expect(manifest.get("source_family"), CONFIRM_SOURCE_FAMILY,
            "confirm source_family")
     expect(manifest.get("selection_seed"), CONFIRM_SEED, "confirm seed")
+    expect(manifest.get("games_selected"), CONFIRM_SELECTED_GAMES,
+           "confirm selected games")
     expect(manifest.get("fingerprint_intersection"), 0,
            "confirm fingerprint intersection")
     official = manifest.get("official_sha256", {})
@@ -461,6 +599,42 @@ def render_markdown(result: dict) -> str:
         f"| eligible positions | {identity['positions']['eligible_positions']} |",
         f"| retained fraction | {identity['positions']['retained_fraction']} |",
         "",
+        "## Construction attempts and the authorized sample-size adjustment",
+        "",
+        f"Adjustment reason: **{result['sample_size_adjustment_reason']}**. "
+        f"Metrics observed before adjustment: "
+        f"**{result['metrics_observed_before_adjustment']}**.",
+        "",
+        "| attempt | games | raw | usable | excluded | eligible | retained | "
+        "status |",
+        "|---|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for attempt in result["construction_attempts"]:
+        positions = attempt["positions"]
+        lines.append(
+            f"| {attempt['attempt_label']} | "
+            f"{attempt['selection']['selected_games']} | "
+            f"{positions['raw_records']} | {positions['usable_records']} | "
+            f"{positions['position_overlap_excluded']} | "
+            f"{positions['eligible_usable']} | "
+            f"{positions['retained_fraction']} | {attempt['status']} |")
+    enlargement = result["enlargement_verification"]
+    lines += [
+        "",
+        f"Enlargement: {enlargement['authorized_adjustment']}. "
+        f"{enlargement['retained_games']} of "
+        f"{enlargement['superseded_games']} superseded games retained, "
+        f"{enlargement['added_games']} added.",
+        "",
+        "| enlargement check | pass |", "|---|---|",
+    ]
+    for name, value in enlargement["checks"].items():
+        lines.append(f"| {name} | {'PASS' if value else 'FAIL'} |")
+    lines += [
+        "",
+        f"Contiguous-prefix identity is deliberately NOT asserted: "
+        f"{enlargement['contiguous_prefix_note']}.",
+        "",
         "## Confirmation result (single run, disk-loaded checkpoint)", "",
         "| predictor | n | clipped MAE | clipped RMSE |",
         "|---|---:|---:|---:|",
@@ -539,6 +713,12 @@ def main() -> int:
     parser.add_argument("--n3b-dataset", type=Path, required=True)
     parser.add_argument("--confirm-source", type=Path, required=True)
     parser.add_argument("--n3b-sources", nargs="+", required=True)
+    parser.add_argument("--construction-record", type=Path, action="append",
+                        required=True,
+                        help="construction-attempt record(s) from "
+                             "record_confirm_construction.py; must include the "
+                             "superseded g1000 attempt and the g1400 attempt "
+                             "(repeatable)")
     parser.add_argument("--checkpoint", type=Path,
                         default=REPO / "data/s6/models"
                         / "s6-n3d-residual-w16-s20260818.pt")
@@ -574,6 +754,13 @@ def main() -> int:
 
     n3b = probe.load_dataset(args.n3b_dataset)
     expect(n3b["dataset_sha"], EXPECTED_N3B_DATASET_SHA256, "N3B dataset sha")
+
+    construction_attempts = load_construction_attempts(
+        list(args.construction_record))
+    enlargement = verify_enlargement(
+        construction_attempts, confirm["data"]["dataset_sha"])
+    print(f"enlargement verified: {enlargement['retained_games']} retained + "
+          f"{enlargement['added_games']} added", flush=True)
 
     identity, eligible_records = identity_audit(
         confirm, n3b["records"], Path(source_info["pgn_path"]),
@@ -673,6 +860,14 @@ def main() -> int:
             "source_id_to_family": confirm_family_map,
         },
         "confirmation_source": source_info,
+        "construction_attempts": [
+            {key: value for key, value in attempt.items()
+             if key != "ordered_game_fingerprints"}
+            for attempt in construction_attempts
+        ],
+        "sample_size_adjustment_reason": SAMPLE_SIZE_ADJUSTMENT_REASON,
+        "metrics_observed_before_adjustment": False,
+        "enlargement_verification": enlargement,
         "teacher": teacher,
         "dataset_verification": verify_report,
         "checkpoint": {
