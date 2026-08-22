@@ -1,0 +1,65 @@
+{
+  "baseline": {
+    "preset_id": "20260822-91ca15c-linux-x86_64",
+    "profile": "current-final",
+    "side": "engine_b"
+  },
+  "binary_sha256_server_verified": "7535ec09414eed2ae3fab230cf8f111d25667921a80ebcc4f7a08a38311fc4ad",
+  "build_id": "20260822-91ca15c-linux-x86_64",
+  "candidate": {
+    "preset_id": "s6-c1-phase-affine-91ca15c",
+    "profile": "current-final-phase-affine",
+    "side": "engine_a"
+  },
+  "integrity": {
+    "arena_elo_disabled": true,
+    "candidate_is_engine_a": true,
+    "completed_pairs_200": true,
+    "engine_a_profile": true,
+    "engine_b_profile": true,
+    "failure_reason_none": true,
+    "fen_overlap_zero": true,
+    "games_400": true,
+    "no_missing_results": true,
+    "pairwise_alternation": true,
+    "pgn_files_200": true,
+    "status_completed": true,
+    "strict_colour_swap": true,
+    "verified_games_400": true,
+    "wld_sums_to_400": true
+  },
+  "integrity_all_passed": true,
+  "interpretation": "The frozen phase-affine calibration improved teacher-imitation accuracy (N3D confirmation clipped MAE 162.142 -> 155.103, RMSE 231.462 -> 215.082) yet costs about 94 Elo in real play. Teacher imitation is not Elo: rescaling the evaluation perturbs the score scale that pruning, aspiration windows, null-move, qsearch and TT all depend on. The most likely single culprit is the zero-phase slope of 2.51, deliberately kept unmodified per the S6-C1 authorization.",
+  "next_step": "NO_PROMOTION. Formal SPRT NOT started. Production baseline bde9085 and default CurrentFinal unchanged.",
+  "promotion_claimed": false,
+  "reason": "candidate score 36.7500% < required 48.0%; all integrity checks passed, so this is a genuine strength loss and not a harness fault",
+  "recipe": {
+    "arena_elo_enabled": false,
+    "concurrency": 1,
+    "excluded_historical_fens": 3337,
+    "hash_mb": 16,
+    "opening_plies": 16,
+    "opening_seed": 2026082201,
+    "opening_set_id": "stockfish-8moves-v3",
+    "paired_strict_colour_swap": true,
+    "threads": 1,
+    "time_control": "blitz_10_01 (cutechess 10+0.1)"
+  },
+  "result": {
+    "candidate_losses": 213,
+    "candidate_score": 0.3675,
+    "candidate_score_pct": 36.75,
+    "candidate_wins": 107,
+    "draws": 80,
+    "elo_estimate": -94.3,
+    "games": 400,
+    "gate_min_score_pct": 48.0,
+    "gate_passed": false,
+    "pairs": 200
+  },
+  "smoke_tournament_id": "64fd0701-a862-48be-b905-07030f1c4a10",
+  "sprt_started": false,
+  "stage": "screen",
+  "status": "S6_C1_ARENA_SCREEN_FAIL",
+  "tournament_id": "9454a933-ed90-4b4b-8cdd-a3a5f3a2aef1"
+}
