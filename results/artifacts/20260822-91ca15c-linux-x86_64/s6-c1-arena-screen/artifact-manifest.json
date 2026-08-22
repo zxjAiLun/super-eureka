@@ -1,14 +1,15 @@
 {
   "artifact": "s6-c1-arena-screen",
   "binary_sha256": "7535ec09414eed2ae3fab230cf8f111d25667921a80ebcc4f7a08a38311fc4ad",
+  "binary_source_commit": "91ca15cdeb0ac5696f71be44dc58c63af0f5abfe",
   "build_id": "20260822-91ca15c-linux-x86_64",
-  "engine_commit": "89a98cda830c309a50e97da63a054299f354aace",
   "files": {
     "combined.pgn": "c2857a665d79369b9e68ced91741caaa62aa5c70b7aa210c217aeb9a7ad51aca",
     "screen-report.md": "d581f8410556a8c0c7f7e53c99c21c412cecd755ac80fe13fb3de6c1a05523fe",
     "summary.json": "f722bad4156482265dbf58f24a9ccb0c00dc718c173cd185617e75c21a932de9",
     "tournament-snapshot.json": "250f74ba5927b6c01431719ab62400f1513d655f6878b5a52fcc564c27ba44f6"
   },
+  "result_base_commit": "89a98cda830c309a50e97da63a054299f354aace",
   "status": "S6_C1_ARENA_SCREEN_FAIL",
   "tournament_id": "9454a933-ed90-4b4b-8cdd-a3a5f3a2aef1"
 }
