@@ -166,6 +166,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
         search::SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
         search::SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
+        search::SearchProfile::CurrentFinalEval2 => "current-final-eval2",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -216,6 +217,8 @@ fn write_uci_handshake_with_profile<W: Write>(
         "info string eval {}",
         if profile.uses_phase_affine_eval() {
             "handcrafted-v1+phase-affine-c1"
+        } else if profile.uses_eval2() {
+            "handcrafted-v1+integrated-positional"
         } else {
             "handcrafted-v1"
         }
@@ -486,10 +489,11 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                         search::SearchProfile::CurrentFinalBoundedCheck2
                     }
                     "current-final-phase-affine" => search::SearchProfile::CurrentFinalPhaseAffine,
+                    "current-final-eval2" => search::SearchProfile::CurrentFinalEval2,
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2)",
                             other
                         ));
                     }
@@ -1033,6 +1037,43 @@ mod tests {
             search::SearchProfile::CurrentFinal,
             "baseline selection must be unaffected"
         );
+    }
+
+    /// S8.0: the eval2 candidate must be selectable and never the default.
+    #[test]
+    fn s80_eval2_profile_is_selectable_but_never_default() {
+        assert_eq!(
+            startup_profile(&["--profile", "current-final-eval2"]),
+            search::SearchProfile::CurrentFinalEval2
+        );
+        assert_eq!(
+            startup_profile_name(search::SearchProfile::CurrentFinalEval2),
+            "current-final-eval2"
+        );
+        assert_ne!(
+            startup_profile(&[]),
+            search::SearchProfile::CurrentFinalEval2
+        );
+        assert_ne!(
+            search::PRODUCTION_PROFILE,
+            search::SearchProfile::CurrentFinalEval2
+        );
+        // The historical bare-search profile keeps its own distinct name.
+        assert_eq!(
+            startup_profile(&["--profile", "current-eval2"]),
+            search::SearchProfile::CurrentEval2
+        );
+        assert_ne!(
+            search::SearchProfile::CurrentEval2,
+            search::SearchProfile::CurrentFinalEval2
+        );
+    }
+
+    #[test]
+    fn s80_help_text_advertises_the_eval2_candidate() {
+        let err =
+            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
+        assert!(err.contains("current-final-eval2"), "got: {}", err);
     }
 
     /// The rejection message must advertise the candidate, otherwise an Arena

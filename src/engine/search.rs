@@ -222,6 +222,18 @@ pub(crate) enum SearchProfile {
     /// inherited from CurrentFinal and a centralized test enforces that.
     /// Never a production default - Arena decides.
     CurrentFinalPhaseAffine,
+    /// S8.0 candidate: EXACTLY CurrentFinal search policy, with the six
+    /// dormant positional term families (pawn structure, mobility, piece
+    /// activity, rook activity, development/space, king safety) integrated into
+    /// the evaluation via `evaluate_integrated_positional`.
+    ///
+    /// This exists because the pre-existing `CurrentEval2` profile carries NONE
+    /// of the promoted search policy - not aspiration, LMR, null-move or
+    /// futility - so `CurrentEval2` vs `CurrentFinal` would measure a search
+    /// deficit, not the evaluation terms. Only the evaluator dispatch differs
+    /// here, which is what makes the A/B a single-variable test.
+    /// Never a production default - Arena decides.
+    CurrentFinalEval2,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -269,6 +281,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -293,6 +306,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -313,6 +327,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -335,6 +350,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -369,6 +385,7 @@ impl SearchProfile {
                 | Self::CurrentQsearchPruning
                 | Self::CurrentQsearchFastPruning
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -390,6 +407,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -422,6 +440,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -489,6 +508,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -514,6 +534,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -539,12 +560,16 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
     #[inline]
+    /// S2.2 `CurrentEval2` (bare search, historical) and the S8.0
+    /// `CurrentFinalEval2` candidate (full production search) both integrate the
+    /// six positional term families.
     pub(crate) const fn uses_eval2(self) -> bool {
-        matches!(self, Self::CurrentEval2)
+        matches!(self, Self::CurrentEval2 | Self::CurrentFinalEval2)
     }
 
     #[inline]
@@ -572,6 +597,7 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
+                | Self::CurrentFinalEval2
         )
     }
 
@@ -9573,9 +9599,116 @@ mod tests {
     /// a future policy bit to CurrentFinal without adding it to the candidate
     /// fails here instead of silently diverging in Arena. The candidate is
     /// deliberately NOT implemented by copying a parameter set.
+    /// Non-evaluator search-feature selectors. A profile that claims to be
+    /// "CurrentFinal plus a different evaluator" must agree with CurrentFinal on
+    /// every one of these; only the evaluator selectors may differ.
+    /// Named predicate over a profile; factored out for clippy::type_complexity.
+    type ProfileSelector = (&'static str, fn(SearchProfile) -> bool);
+
+    const NON_EVALUATOR_SELECTORS: [ProfileSelector; 21] = [
+        ("uses_pvs", |p| p.uses_pvs()),
+        ("uses_see", |p| p.uses_see()),
+        ("uses_aspiration", |p| p.uses_aspiration()),
+        ("uses_lmr", |p| p.uses_lmr()),
+        ("uses_null_move", |p| p.uses_null_move()),
+        ("uses_futility", |p| p.uses_futility()),
+        ("uses_qsearch_movegen", |p| p.uses_qsearch_movegen()),
+        ("uses_qsearch_pruning", |p| p.uses_qsearch_pruning()),
+        ("uses_qsearch_fast_pruning", |p| {
+            p.uses_qsearch_fast_pruning()
+        }),
+        ("uses_qsearch_lazy", |p| p.uses_qsearch_lazy()),
+        ("uses_qsearch_delta", |p| p.uses_qsearch_delta()),
+        ("uses_threat_aware_qsearch", |p| {
+            p.uses_threat_aware_qsearch()
+        }),
+        ("uses_threat_ordering", |p| p.uses_threat_ordering()),
+        ("uses_forcing_search", |p| p.uses_forcing_search()),
+        ("uses_legality_fast", |p| p.uses_legality_fast()),
+        ("uses_single_buffer_legal", |p| p.uses_single_buffer_legal()),
+        ("uses_single_generation_probe", |p| {
+            p.uses_single_generation_probe()
+        }),
+        ("uses_root_quiet_history", |p| p.uses_root_quiet_history()),
+        ("uses_root_prev_score", |p| p.uses_root_prev_score()),
+        ("uses_lmr_null_window", |p| p.uses_lmr_null_window()),
+        ("uses_single_evasion_extension", |p| {
+            p.uses_single_evasion_extension()
+        }),
+    ];
+
+    /// Shared anti-drift assertion for every "CurrentFinal + different
+    /// evaluator" candidate. Adding a policy bit to CurrentFinal without adding
+    /// it to a candidate fails here rather than silently diverging in Arena.
+    fn assert_inherits_current_final_search_policy(cand: SearchProfile) {
+        use SearchProfile::CurrentFinal as Base;
+        let base_policy = SearchFeaturePolicy::for_profile(Base, None);
+        let cand_policy = SearchFeaturePolicy::for_profile(cand, None);
+        assert_eq!(
+            base_policy.to_bits(),
+            cand_policy.to_bits(),
+            "{:?}: resolved SearchFeaturePolicy must equal CurrentFinal",
+            cand
+        );
+        assert_eq!(
+            base_policy.bounded_check2_extension,
+            cand_policy.bounded_check2_extension
+        );
+        for (name, selector) in NON_EVALUATOR_SELECTORS {
+            assert_eq!(
+                selector(Base),
+                selector(cand),
+                "{:?}: {} must be inherited from CurrentFinal",
+                cand,
+                name
+            );
+        }
+        // Exactly one evaluator must be selected, and it must not be the
+        // production (plain classical) one.
+        let picked = u8::from(cand.uses_phase_affine_eval())
+            + u8::from(cand.uses_eval2())
+            + u8::from(cand.uses_threat_aware_eval());
+        assert_eq!(
+            picked, 1,
+            "{:?} must select exactly one alt evaluator",
+            cand
+        );
+        assert_ne!(PRODUCTION_PROFILE, cand, "{:?} must never be default", cand);
+        assert_ne!(ROLLBACK_PROFILE, cand);
+    }
+
+    /// S8.0: the eval2 candidate must be CurrentFinal + integrated positional
+    /// terms. The pre-existing `CurrentEval2` carries NONE of the promoted
+    /// search policy, so it is explicitly NOT a valid A/B partner - that is the
+    /// whole reason this profile exists, and this test pins the distinction.
+    #[test]
+    fn s80_eval2_candidate_is_current_final_except_the_evaluator() {
+        use SearchProfile::{CurrentEval2, CurrentFinal, CurrentFinalEval2};
+        assert_inherits_current_final_search_policy(CurrentFinalEval2);
+        assert!(CurrentFinalEval2.uses_eval2());
+        assert!(!CurrentFinal.uses_eval2(), "production stays material+PST");
+
+        // The historical profile is a search-deficient baseline, not a partner.
+        assert!(CurrentEval2.uses_eval2());
+        for (name, selector) in NON_EVALUATOR_SELECTORS {
+            if selector(CurrentFinal) && selector(CurrentEval2) {
+                continue;
+            }
+            if selector(CurrentFinal) && !selector(CurrentEval2) {
+                return; // found the search deficit; nothing more to prove
+            }
+            let _ = name;
+        }
+        panic!(
+            "CurrentEval2 unexpectedly matches CurrentFinal search policy; \
+                the S8.0 profile would then be redundant"
+        );
+    }
+
     #[test]
     fn s6c1_phase_affine_profile_is_current_final_except_the_evaluator() {
         use SearchProfile::{CurrentFinal as Base, CurrentFinalPhaseAffine as Cand};
+        assert_inherits_current_final_search_policy(Cand);
 
         // 1. Resolved feature policy must be bit-identical.
         let base = SearchFeaturePolicy::for_profile(Base, None);
@@ -9699,9 +9832,10 @@ mod tests {
                 SearchProfile::CurrentFinalSingleEvasion => (),
                 SearchProfile::CurrentFinalBoundedCheck2 => (),
                 SearchProfile::CurrentFinalPhaseAffine => (),
+                SearchProfile::CurrentFinalEval2 => (),
             }
         }
-        let all: [SearchProfile; 35] = [
+        let all: [SearchProfile; 36] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -9737,6 +9871,7 @@ mod tests {
             SearchProfile::CurrentFinalSingleEvasion,
             SearchProfile::CurrentFinalBoundedCheck2,
             SearchProfile::CurrentFinalPhaseAffine,
+            SearchProfile::CurrentFinalEval2,
         ];
         for profile in all {
             assert_exhaustive(profile);
