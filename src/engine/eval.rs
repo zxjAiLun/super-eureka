@@ -185,9 +185,9 @@ impl Score {
     }
 }
 
-/// All score lanes produced while walking one position. The later E2
-/// candidate fills the positional lanes; the production evaluator currently
-/// leaves them at zero so this refactor is behavior-preserving.
+/// All score lanes produced while walking one position. S8.0 promoted
+/// integrated positional evaluation fills all positional lanes for production;
+/// legacy baseline profiles leave them at zero.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct EvalTerms {
     pub(crate) material_pst: Score,
@@ -265,9 +265,9 @@ impl EvalContext {
         context
     }
 
-    /// Build one shared pseudo-attack map per side for the integrated E2
-    /// candidate. This is deliberately lazy: the approved evaluator never
-    /// asks for it, while all E2 terms reuse the same fixed-storage maps.
+    /// Build one shared pseudo-attack map per side for the integrated
+    /// positional evaluation. This is constructed lazily once and shared across
+    /// all positional terms.
     fn ensure_attack_maps(&mut self, pos: &Position) {
         if self.attack_maps_ready {
             return;
@@ -1336,8 +1336,8 @@ pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
     }
 }
 
-/// Integrated E2 candidate evaluation. `Current` continues to call the
-/// behavior-preserving base evaluator.
+/// Integrated positional evaluation (S8.0 promoted production evaluator).
+/// Legacy baseline profiles continue to call the classical base evaluator.
 pub(crate) fn evaluate_integrated_positional(pos: &Position) -> i32 {
     evaluate_integrated_breakdown(pos).final_score
 }

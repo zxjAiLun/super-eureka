@@ -1039,9 +1039,10 @@ mod tests {
         );
     }
 
-    /// S8.0: the eval2 candidate must be selectable and never the default.
+    /// S8.0: `CurrentFinalEval2` is retained as a compatibility alias for the
+    /// promoted integrated positional evaluator and is selectable via `--profile`.
     #[test]
-    fn s80_eval2_profile_is_selectable_but_never_default() {
+    fn s80_eval2_profile_is_selectable_as_compatibility_alias() {
         assert_eq!(
             startup_profile(&["--profile", "current-final-eval2"]),
             search::SearchProfile::CurrentFinalEval2
@@ -1050,13 +1051,10 @@ mod tests {
             startup_profile_name(search::SearchProfile::CurrentFinalEval2),
             "current-final-eval2"
         );
-        assert_ne!(
-            startup_profile(&[]),
-            search::SearchProfile::CurrentFinalEval2
-        );
-        assert_ne!(
+        assert_eq!(startup_profile(&[]), search::PRODUCTION_PROFILE);
+        assert_eq!(
             search::PRODUCTION_PROFILE,
-            search::SearchProfile::CurrentFinalEval2
+            search::SearchProfile::CurrentFinal
         );
         // The historical bare-search profile keeps its own distinct name.
         assert_eq!(
@@ -1066,6 +1064,21 @@ mod tests {
         assert_ne!(
             search::SearchProfile::CurrentEval2,
             search::SearchProfile::CurrentFinalEval2
+        );
+    }
+
+    #[test]
+    fn s80_production_handshake_reports_integrated_positional() {
+        let mut buf: Vec<u8> = Vec::new();
+        write_uci_handshake(&mut buf, false).unwrap();
+        let text = String::from_utf8(buf).unwrap();
+        assert!(
+            text.contains("info string profile current-final\n"),
+            "handshake must report current-final profile: {text}"
+        );
+        assert!(
+            text.contains("info string eval handcrafted-v1+integrated-positional\n"),
+            "handshake must report promoted integrated-positional evaluator: {text}"
         );
     }
 

@@ -118,11 +118,11 @@ use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, Transpositio
 ///   They preserve the `Current` PVS/ordering path and add only the features
 ///   named by their suffix. None of them is used by the UCI production path.
 /// * `CurrentFinal` is [`PRODUCTION_PROFILE`]: the S3-FINAL candidate plus
-///   the promoted LegalityFast, SingleBuffer, SingleGeneration, and S7.4A
-///   LMR-on-null-window policies. It combines the existing aspiration, LMR,
-///   verified null-probe, shallow futility, and conservative qsearch
-///   SEE-pruning paths without enabling E2/threat evaluation or
-///   forcing-search features.
+///   the promoted LegalityFast, SingleBuffer, SingleGeneration, S7.4A
+///   LMR-on-null-window, and S8.0 integrated positional evaluation policies.
+///   It combines the existing aspiration, LMR, verified null-probe, shallow
+///   futility, conservative qsearch SEE-pruning, and 6-family positional
+///   evaluation without enabling threat-evaluation or forcing-search features.
 ///
 /// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
 /// non-root nodes, NO PVS at either the root or a non-root node), while
@@ -9767,7 +9767,10 @@ mod tests {
         assert!(Base.uses_eval2(), "production uses eval2");
         assert!(!Base.uses_phase_affine_eval());
         assert!(Cand.uses_phase_affine_eval(), "candidate uses phase affine");
-        assert!(!Cand.uses_eval2(), "phase-affine candidate does not use eval2");
+        assert!(
+            !Cand.uses_eval2(),
+            "phase-affine candidate does not use eval2"
+        );
 
         // 4. The candidate must never be a production default.
         assert_eq!(PRODUCTION_PROFILE, Base);
