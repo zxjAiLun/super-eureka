@@ -7,11 +7,15 @@
   "completed_pairs": 299,
   "engine_a": {
     "build_id": "20260823-69d57a2-linux-x86_64",
-    "profile": "current-final-eval2"
+    "profile": "current-final-eval2",
+    "binary_sha256": "6ea680a9375707ec921780354b6e8052d3a3b3cf4ea379b796d2eb2f03b88726",
+    "preset_id": "s80-current-final-eval2-69d57a2"
   },
   "engine_b": {
     "build_id": "20260823-69d57a2-linux-x86_64",
-    "profile": "current-final"
+    "profile": "current-final",
+    "binary_sha256": "6ea680a9375707ec921780354b6e8052d3a3b3cf4ea379b796d2eb2f03b88726",
+    "preset_id": "s80-current-final-69d57a2"
   },
   "candidate_perspective": {
     "wins": 323,

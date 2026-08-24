@@ -565,11 +565,33 @@ impl SearchProfile {
     }
 
     #[inline]
-    /// S2.2 `CurrentEval2` (bare search, historical) and the S8.0
-    /// `CurrentFinalEval2` candidate (full production search) both integrate the
-    /// six positional term families.
+    /// S8.0: `CurrentFinal` and the entire production profile family use the
+    /// integrated positional evaluator (six positional term families).
+    ///
+    /// NOTE: `CurrentFinalPhaseAffine` is an explicitly rejected S6-C1 candidate
+    /// (Arena screen 36.75%, -94 Elo); it retains its dedicated phase-affine
+    /// evaluator and is explicitly excluded here to avoid selecting multiple
+    /// evaluators and to preserve historical benchmark reproducibility.
+    ///
+    /// `CurrentEval2` (bare historical search) and `CurrentFinalEval2` (promoted
+    /// alias) are retained as compatibility identities.
     pub(crate) const fn uses_eval2(self) -> bool {
-        matches!(self, Self::CurrentEval2 | Self::CurrentFinalEval2)
+        matches!(
+            self,
+            Self::CurrentEval2
+                | Self::CurrentFinal
+                | Self::CurrentFinalRootHistory
+                | Self::CurrentFinalRootPrevScore
+                | Self::CurrentFinalLegalityFast
+                | Self::CurrentFinalSingleBuffer
+                | Self::CurrentFinalSingleGeneration
+                | Self::CurrentFinalQsearchLazy
+                | Self::CurrentFinalQsearchDelta
+                | Self::CurrentFinalLmrNullWindow
+                | Self::CurrentFinalSingleEvasion
+                | Self::CurrentFinalBoundedCheck2
+                | Self::CurrentFinalEval2
+        )
     }
 
     #[inline]
@@ -8452,7 +8474,7 @@ mod tests {
         assert!(SearchProfile::CurrentFinal.uses_qsearch_movegen());
         assert!(SearchProfile::CurrentFinal.uses_qsearch_pruning());
         assert!(!SearchProfile::CurrentFinal.uses_qsearch_fast_pruning());
-        assert!(!SearchProfile::CurrentFinal.uses_eval2());
+        assert!(SearchProfile::CurrentFinal.uses_eval2());
         assert!(!SearchProfile::CurrentFinal.uses_threat_aware_eval());
         assert!(!SearchProfile::CurrentFinal.uses_threat_ordering());
         assert!(!SearchProfile::CurrentFinal.uses_forcing_search());
@@ -9638,8 +9660,9 @@ mod tests {
     ];
 
     /// Shared anti-drift assertion for every "CurrentFinal + different
-    /// evaluator" candidate. Adding a policy bit to CurrentFinal without adding
-    /// it to a candidate fails here rather than silently diverging in Arena.
+    /// evaluator" candidate or promoted evaluator alias. Adding a policy bit to
+    /// CurrentFinal without adding it to a candidate fails here rather than
+    /// silently diverging in Arena.
     fn assert_inherits_current_final_search_policy(cand: SearchProfile) {
         use SearchProfile::CurrentFinal as Base;
         let base_policy = SearchFeaturePolicy::for_profile(Base, None);
@@ -9663,8 +9686,7 @@ mod tests {
                 name
             );
         }
-        // Exactly one evaluator must be selected, and it must not be the
-        // production (plain classical) one.
+        // Exactly one evaluator must be selected.
         let picked = u8::from(cand.uses_phase_affine_eval())
             + u8::from(cand.uses_eval2())
             + u8::from(cand.uses_threat_aware_eval());
@@ -9677,16 +9699,18 @@ mod tests {
         assert_ne!(ROLLBACK_PROFILE, cand);
     }
 
-    /// S8.0: the eval2 candidate must be CurrentFinal + integrated positional
-    /// terms. The pre-existing `CurrentEval2` carries NONE of the promoted
+    /// S8.0: `CurrentFinalEval2` is now promoted into `CurrentFinal` and is an
+    /// exact behavioral alias (including the evaluator).
+    /// The pre-existing `CurrentEval2` carries NONE of the promoted
     /// search policy, so it is explicitly NOT a valid A/B partner - that is the
     /// whole reason this profile exists, and this test pins the distinction.
     #[test]
-    fn s80_eval2_candidate_is_current_final_except_the_evaluator() {
+    fn s80_eval2_alias_is_identical_to_production_current_final() {
         use SearchProfile::{CurrentEval2, CurrentFinal, CurrentFinalEval2};
         assert_inherits_current_final_search_policy(CurrentFinalEval2);
-        assert!(CurrentFinalEval2.uses_eval2());
-        assert!(!CurrentFinal.uses_eval2(), "production stays material+PST");
+        assert!(CurrentFinal.uses_eval2(), "production uses eval2");
+        assert!(CurrentFinalEval2.uses_eval2(), "promoted alias uses eval2");
+        assert_eq!(CurrentFinal.uses_eval2(), CurrentFinalEval2.uses_eval2());
 
         // The historical profile is a search-deficient baseline, not a partner.
         assert!(CurrentEval2.uses_eval2());
@@ -9727,46 +9751,8 @@ mod tests {
         assert_eq!(base.single_evasion_extension, cand.single_evasion_extension);
         assert_eq!(base.bounded_check2_extension, cand.bounded_check2_extension);
 
-        // 2. Every search-feature selector must agree, EXCEPT the evaluator.
-        /// Named policy selector, aliased so the array type stays readable.
-        type Selector = (&'static str, fn(SearchProfile) -> bool);
-        let selectors: [Selector; 24] = [
-            ("uses_pvs", |p| p.uses_pvs()),
-            ("uses_see", |p| p.uses_see()),
-            ("uses_aspiration", |p| p.uses_aspiration()),
-            ("uses_lmr", |p| p.uses_lmr()),
-            ("uses_null_move", |p| p.uses_null_move()),
-            ("uses_futility", |p| p.uses_futility()),
-            ("uses_qsearch_movegen", |p| p.uses_qsearch_movegen()),
-            ("uses_qsearch_pruning", |p| p.uses_qsearch_pruning()),
-            ("uses_qsearch_fast_pruning", |p| {
-                p.uses_qsearch_fast_pruning()
-            }),
-            ("uses_qsearch_lazy", |p| p.uses_qsearch_lazy()),
-            ("uses_qsearch_delta", |p| p.uses_qsearch_delta()),
-            ("uses_threat_aware_eval", |p| p.uses_threat_aware_eval()),
-            ("uses_threat_aware_qsearch", |p| {
-                p.uses_threat_aware_qsearch()
-            }),
-            ("uses_threat_ordering", |p| p.uses_threat_ordering()),
-            ("uses_eval2", |p| p.uses_eval2()),
-            ("uses_forcing_search", |p| p.uses_forcing_search()),
-            ("uses_legality_fast", |p| p.uses_legality_fast()),
-            ("uses_single_buffer_legal", |p| p.uses_single_buffer_legal()),
-            ("uses_single_generation_probe", |p| {
-                p.uses_single_generation_probe()
-            }),
-            ("uses_root_quiet_history", |p| p.uses_root_quiet_history()),
-            ("uses_root_prev_score", |p| p.uses_root_prev_score()),
-            ("uses_lmr_null_window", |p| p.uses_lmr_null_window()),
-            ("uses_single_evasion_extension", |p| {
-                p.uses_single_evasion_extension()
-            }),
-            ("uses_bounded_check2_extension", |p| {
-                p.uses_bounded_check2_extension()
-            }),
-        ];
-        for (name, selector) in selectors {
+        // 2. Every non-evaluator search-feature selector must agree.
+        for (name, selector) in NON_EVALUATOR_SELECTORS {
             assert_eq!(
                 selector(Base),
                 selector(Cand),
@@ -9775,12 +9761,13 @@ mod tests {
             );
         }
 
-        // 3. The evaluator selector is the ONE intended difference.
-        assert!(
-            !Base.uses_phase_affine_eval(),
-            "production must stay classical"
-        );
-        assert!(Cand.uses_phase_affine_eval(), "candidate must calibrate");
+        // 3. Evaluator selection:
+        // CurrentFinal uses the promoted S8.0 integrated positional eval (uses_eval2).
+        // CurrentFinalPhaseAffine retains its dedicated phase-affine evaluator.
+        assert!(Base.uses_eval2(), "production uses eval2");
+        assert!(!Base.uses_phase_affine_eval());
+        assert!(Cand.uses_phase_affine_eval(), "candidate uses phase affine");
+        assert!(!Cand.uses_eval2(), "phase-affine candidate does not use eval2");
 
         // 4. The candidate must never be a production default.
         assert_eq!(PRODUCTION_PROFILE, Base);
