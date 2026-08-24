@@ -1,0 +1,4212 @@
+{
+  "tournament_id": "2c9e0d90-effb-4c70-bea5-de151beb3111",
+  "name": "s80-current-final-eval2-formal-sprt",
+  "status": "SPRT_ACCEPT_H1",
+  "time_control": "blitz_10_01",
+  "requested_pairs": 3000,
+  "completed_pairs": 299,
+  "engine_a": {
+    "build_id": "20260823-69d57a2-linux-x86_64",
+    "profile": "current-final-eval2"
+  },
+  "engine_b": {
+    "build_id": "20260823-69d57a2-linux-x86_64",
+    "profile": "current-final"
+  },
+  "candidate_perspective": {
+    "wins": 323,
+    "losses": 202,
+    "draws": 73,
+    "games": 598,
+    "score_percent": 60.12
+  },
+  "games": [
+    {
+      "game_number": 1,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 2,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 3,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 4,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 5,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 6,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 7,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 8,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 9,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 10,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 11,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 12,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 13,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 14,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 15,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 16,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 17,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 18,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 19,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 20,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 21,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 22,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 23,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 24,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 25,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 26,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 27,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 28,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 29,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 30,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 31,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 32,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 33,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 34,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 35,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 36,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 37,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 38,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 39,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 40,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 41,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 42,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 43,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 44,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 45,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 46,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 47,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 48,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 49,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 50,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 51,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 52,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 53,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 54,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 55,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 56,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 57,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 58,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 59,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 60,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 61,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 62,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 63,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 64,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 65,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 66,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 67,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 68,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 69,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 70,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 71,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 72,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 73,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 74,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 75,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 76,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 77,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 78,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 79,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 80,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 81,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 82,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 83,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 84,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 85,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 86,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 87,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 88,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 89,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 90,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 91,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 92,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 93,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 94,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 95,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 96,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 97,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 98,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 99,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 100,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 101,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 102,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 103,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 104,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 105,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 106,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 107,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 108,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 109,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 110,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 111,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 112,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 113,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 114,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 115,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 116,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 117,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 118,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 119,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 120,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 121,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 122,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 123,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 124,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 125,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 126,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 127,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 128,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 129,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 130,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 131,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 132,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 133,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 134,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 135,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 136,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 137,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 138,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 139,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 140,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 141,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 142,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 143,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 144,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 145,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 146,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 147,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 148,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 149,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 150,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 151,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 152,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 153,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 154,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 155,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 156,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 157,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 158,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 159,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 160,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 161,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 162,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 163,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 164,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 165,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 166,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 167,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 168,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 169,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 170,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 171,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 172,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 173,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 174,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 175,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 176,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 177,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 178,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 179,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 180,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 181,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 182,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 183,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 184,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 185,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 186,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 187,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 188,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 189,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 190,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 191,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 192,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 193,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 194,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 195,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 196,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 197,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 198,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 199,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 200,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 201,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 202,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 203,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 204,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 205,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 206,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 207,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 208,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 209,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 210,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 211,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 212,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 213,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 214,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 215,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 216,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 217,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 218,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 219,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 220,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 221,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 222,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 223,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 224,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 225,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 226,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 227,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 228,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 229,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 230,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 231,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 232,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 233,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 234,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 235,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 236,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 237,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 238,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 239,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 240,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 241,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 242,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 243,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 244,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 245,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 246,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 247,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 248,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 249,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 250,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 251,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 252,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 253,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 254,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 255,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 256,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 257,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 258,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 259,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 260,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 261,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 262,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 263,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 264,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 265,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 266,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 267,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 268,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 269,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 270,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 271,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 272,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 273,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 274,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 275,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 276,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 277,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 278,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 279,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 280,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 281,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 282,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 283,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 284,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 285,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 286,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 287,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 288,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 289,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 290,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 291,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 292,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 293,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 294,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 295,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 296,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 297,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 298,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 299,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 300,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 301,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 302,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 303,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 304,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 305,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 306,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 307,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 308,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 309,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 310,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 311,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 312,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 313,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 314,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 315,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 316,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 317,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 318,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 319,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 320,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 321,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 322,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 323,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 324,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 325,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 326,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 327,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 328,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 329,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 330,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 331,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 332,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 333,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 334,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 335,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 336,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 337,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 338,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 339,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 340,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 341,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 342,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 343,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 344,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 345,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 346,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 347,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 348,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 349,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 350,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 351,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 352,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 353,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 354,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 355,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 356,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 357,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 358,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 359,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 360,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 361,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 362,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 363,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 364,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 365,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 366,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 367,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 368,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 369,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 370,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 371,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 372,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 373,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 374,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 375,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 376,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 377,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 378,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 379,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 380,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 381,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 382,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 383,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 384,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 385,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 386,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 387,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 388,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 389,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 390,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 391,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 392,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 393,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 394,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 395,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 396,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 397,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 398,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 399,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 400,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 401,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 402,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 403,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 404,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 405,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 406,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 407,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 408,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 409,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 410,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 411,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 412,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 413,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 414,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 415,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 416,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 417,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 418,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 419,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 420,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 421,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 422,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 423,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 424,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 425,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 426,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 427,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 428,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 429,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 430,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 431,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 432,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 433,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 434,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 435,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 436,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 437,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 438,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 439,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 440,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 441,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 442,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 443,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 444,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 445,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 446,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 447,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 448,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 449,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 450,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 451,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 452,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 453,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 454,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 455,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 456,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 457,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 458,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 459,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 460,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 461,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 462,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 463,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 464,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 465,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 466,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 467,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 468,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 469,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 470,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 471,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 472,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 473,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 474,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 475,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 476,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 477,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 478,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 479,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 480,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 481,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 482,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 483,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 484,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 485,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 486,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 487,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 488,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 489,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 490,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 491,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 492,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 493,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 494,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 495,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 496,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 497,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 498,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 499,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 500,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 501,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 502,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 503,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 504,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 505,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 506,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 507,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 508,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 509,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 510,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 511,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 512,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 513,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 514,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 515,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 516,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 517,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 518,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 519,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 520,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 521,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 522,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 523,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 524,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 525,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 526,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 527,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 528,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 529,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 530,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 531,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 532,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 533,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 534,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 535,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 536,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 537,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 538,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 539,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 540,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 541,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 542,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 543,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 544,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 545,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 546,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 547,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 548,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 549,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 550,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 551,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 552,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 553,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 554,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 555,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 556,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 557,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 558,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 559,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 560,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 561,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 562,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 563,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 564,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 565,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 566,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 567,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 568,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 569,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 570,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 571,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 572,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 573,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 574,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 575,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 576,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 577,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 578,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 579,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 580,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 581,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 582,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 583,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 584,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 585,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 586,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 587,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 588,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 589,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 590,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 591,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1/2-1/2",
+      "termination": null
+    },
+    {
+      "game_number": 592,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 593,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 594,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 595,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 596,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    },
+    {
+      "game_number": 597,
+      "white": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "black": "S8.0 baseline CurrentFinal 69d57a2",
+      "result": "1-0",
+      "termination": null
+    },
+    {
+      "game_number": 598,
+      "white": "S8.0 baseline CurrentFinal 69d57a2",
+      "black": "S8.0 candidate CurrentFinalEval2 69d57a2",
+      "result": "0-1",
+      "termination": null
+    }
+  ],
+  "generated_utc": null
+}
