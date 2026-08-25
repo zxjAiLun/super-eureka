@@ -379,6 +379,8 @@ class EngineSession:
                 self.uci_name = line[8:].strip()
             elif line.startswith("id author "):
                 self.uci_author = line[10:].strip()
+            elif line.startswith("info string profile "):
+                self.uci_search_profile = line[len("info string profile ") :].strip()
             elif line.startswith("info string search profile "):
                 self.uci_search_profile = line[len("info string search profile ") :].strip()
             elif line.startswith("uciok"):

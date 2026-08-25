@@ -8,7 +8,7 @@ The `CurrentFinalEval2` candidate demonstrates that its massive playing strength
 
 * **Requested Pairs**: 100
 * **Completed Pairs**: 64 (128 games, 39.4 wall-clock hours)
-* **Stop Reason**: `STATISTICALLY_SUFFICIENT_EARLY_STOP` — Average game duration was 18.5 minutes (37.0 minutes per pair). At pair 64, with candidate scoring 65.23% (W-L-D 69-30-29, 22 WW vs 7 LL), the pair-level 95% confidence lower bound is +57.02% (+49.12 Elo), rigorously excluding the non-inferiority null hypothesis with $p < 10^{-4}$. Continuing to 100 pairs would incur ~22 additional compute hours without altering the positive qualification outcome.
+* **Stop Reason**: `STATISTICALLY_SUFFICIENT_EARLY_STOP` — Average game duration was 18.5 minutes (37.0 minutes per pair). At pair 64, with candidate scoring 65.23% (W-L-D 69-30-29, 22 WW vs 7 LL), the pair-level 95% confidence lower bound is +57.02% (+49.12 Elo), strictly excluding 50% non-inferiority. Continuing to 100 pairs would incur ~22 additional compute hours without altering the positive qualification outcome.
 
 ## Summary Table
 

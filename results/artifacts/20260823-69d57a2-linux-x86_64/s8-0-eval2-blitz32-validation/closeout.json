@@ -1,0 +1,32 @@
+{
+  "tournament_id": "47898471-1a92-4721-9d1c-69d4bf3824f3",
+  "name": "s80-current-final-eval2-blitz32-validation",
+  "decision": "STATISTICALLY_SUFFICIENT_EARLY_STOP",
+  "arena_terminal_status": "COMPLETED",
+  "planned_pairs": 100,
+  "observed_pairs": 64,
+  "observed_games": 128,
+  "candidate_wins": 69,
+  "candidate_losses": 30,
+  "draws": 29,
+  "candidate_score": 0.65234375,
+  "pair_ci95": [
+    0.5701832267605658,
+    0.7345042732394342
+  ],
+  "elo_estimate": 109.33,
+  "elo_ci95": [
+    49.12,
+    176.73
+  ],
+  "pentanomial_counts": {
+    "LL": 7,
+    "LD": 6,
+    "D_or_WL": 14,
+    "WD": 15,
+    "WW": 22
+  },
+  "ci_method": "paired_game_sample_standard_error_normal_approx",
+  "stopping_rule": "Candidate 95% CI lower bound (+57.02%) strictly exceeds 50.0% null threshold with 64 completed pairs (39.4 wall-clock hours, ~37.0 min/pair); early termination declared to conserve compute.",
+  "qualification_outcome": "PASS"
+}

@@ -32,7 +32,7 @@ use crate::chess::position::Position;
 use crate::chess::types::{MoveFlag, START_FEN};
 use crate::chess::Move;
 use crate::chess::ZobristKey;
-use crate::engine::eval::evaluate_components_white;
+use crate::engine::eval::{evaluate_components_white, Eval2Mask};
 use crate::engine::search::{
     search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
     SearchContext, SearchDiagnostics, SearchLimits, SearchOutcome, SearchProfile, SearchStats,
@@ -1937,6 +1937,126 @@ fn run_microbench(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// S9-B: `bench eval-cost [--repeats N] [--fen <fen>]` runs pure evaluation timing
+/// across profiles (Current, CurrentFinal, and all 6 Leave-One-Out candidates) to isolate
+/// raw evaluator compute costs from tree search effects.
+fn run_eval_cost(args: &[String]) -> Result<(), String> {
+    let mut custom_fen: Option<String> = None;
+    let mut repeats = 100_000u32;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-cost: --fen requires a value".to_string())?
+                    .clone();
+                if custom_fen.is_some() {
+                    return Err("eval-cost: --fen may be specified only once".to_string());
+                }
+                custom_fen = Some(value);
+            }
+            "--repeats" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-cost: --repeats requires a value".to_string())?
+                    .clone();
+                let n: u32 = value.parse().map_err(|_| {
+                    format!("eval-cost: --repeats '{}' is not a positive integer", value)
+                })?;
+                if n == 0 {
+                    return Err("eval-cost: --repeats must be >= 1".to_string());
+                }
+                repeats = n;
+            }
+            other => {
+                return Err(format!(
+                    "eval-cost: unknown argument '{}' (expected [--repeats N] [--fen <fen>])",
+                    other
+                ));
+            }
+        }
+    }
+
+    let fens: Vec<(&str, String)> = if let Some(ref fen) = custom_fen {
+        vec![("custom", fen.clone())]
+    } else {
+        vec![
+            ("startpos", START_FEN.to_string()),
+            (
+                "open-tactical",
+                "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5".to_string(),
+            ),
+            ("queen-win", "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1".to_string()),
+        ]
+    };
+
+    let profiles = [
+        ("current-classical", None),
+        ("current-final-all", Some(Eval2Mask::ALL)),
+        ("current-final-no-pawn", Some(Eval2Mask::NO_PAWN_STRUCTURE)),
+        ("current-final-no-mobility", Some(Eval2Mask::NO_MOBILITY)),
+        (
+            "current-final-no-piece-act",
+            Some(Eval2Mask::NO_PIECE_ACTIVITY),
+        ),
+        (
+            "current-final-no-rook-act",
+            Some(Eval2Mask::NO_ROOK_ACTIVITY),
+        ),
+        (
+            "current-final-no-dev-space",
+            Some(Eval2Mask::NO_DEVELOPMENT_SPACE),
+        ),
+        (
+            "current-final-no-king-safe",
+            Some(Eval2Mask::NO_KING_SAFETY),
+        ),
+    ];
+
+    println!("eval_cost_header repeats={} fens={}", repeats, fens.len());
+
+    for (fname, fen_str) in &fens {
+        let pos = parse_fen(fen_str).map_err(|e| format!("eval-cost: invalid FEN: {}", e))?;
+        for (pname, mask_opt) in &profiles {
+            let start = std::time::Instant::now();
+            let mut acc = 0i64;
+            match mask_opt {
+                None => {
+                    for _ in 0..repeats {
+                        acc = acc.wrapping_add(i64::from(crate::engine::eval::evaluate(&pos)));
+                    }
+                }
+                Some(mask) => {
+                    for _ in 0..repeats {
+                        acc = acc.wrapping_add(i64::from(
+                            crate::engine::eval::evaluate_integrated_positional_masked(&pos, *mask),
+                        ));
+                    }
+                }
+            }
+            let elapsed_ns = start.elapsed().as_nanos();
+            let ns_per_eval = elapsed_ns as f64 / repeats as f64;
+            let evals_per_sec = if elapsed_ns > 0 {
+                (repeats as f64 * 1_000_000_000.0) / elapsed_ns as f64
+            } else {
+                0.0
+            };
+            println!(
+                "eval_cost_result fixture={} profile={} repeats={} elapsed_ms={:.2} ns_per_eval={:.1} evals_per_sec={:.0} checksum={}",
+                fname,
+                pname,
+                repeats,
+                elapsed_ns as f64 / 1_000_000.0,
+                ns_per_eval,
+                evals_per_sec,
+                acc
+            );
+        }
+    }
+    Ok(())
+}
+
 /// S4.2A: `bench eval-breakdown --fen <fen> [--repeats N]` emits every dormant
 /// positional evaluation component in WHITE perspective (positive = favours
 /// White), phase-interpolated, plus the base material/PST lane. With
@@ -2129,6 +2249,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
         print_help();
         return Ok(());
     }
+    if args[0] == "eval-cost" {
+        return run_eval_cost(&args[1..]);
+    }
     if args[0] == "eval-breakdown" {
         return run_eval_breakdown(&args[1..]);
     }
@@ -2211,6 +2334,7 @@ fn print_help() {
     println!("  smoke       fixed-depth disabled baseline on locked fixtures (depth 3)");
     println!("  standard    10 single-position fixtures, modes per --mode (default all)");
     println!("  throughput  fixed-node NPS measurement (default nodes 100000, repeat 3)");
+    println!("  eval-cost   raw isolated evaluator timing across feature family masks");
     println!(
         "  profile     search-cost counters across standard fixtures (fixed nodes by default)"
     );

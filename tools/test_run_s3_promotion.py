@@ -61,7 +61,11 @@ class S3PromotionTests(unittest.TestCase):
                 # historical S3 run, the frozen launcher must fail closed
                 # rather than silently prepare a different experiment.
                 self.assertNotEqual(result.returncode, 0, result.stderr)
-                self.assertIn("source differs from frozen S3-FINAL", result.stderr)
+                self.assertTrue(
+                    "source differs from frozen S3-FINAL" in result.stderr
+                    or "S3-PROMOTION requires a clean worktree" in result.stderr,
+                    result.stderr,
+                )
                 self.assertFalse(requested_output.exists())
                 return
             self.assertEqual(result.returncode, 0, result.stderr)

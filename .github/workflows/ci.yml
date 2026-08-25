@@ -51,8 +51,8 @@ jobs:
       - name: E1 short protocol smoke
         run: |
           python tools/run_protocol_smoke.py \
-            --engine-a target/release/chess-engine-demo \
-            --engine-b target/release/chess-engine-demo \
+            --engine-a target/release/eureka \
+            --engine-b target/release/eureka \
             --profile-b current-final \
             --games 4 --movetime-ms 10 --move-grace-ms 25 \
             --max-plies 40 --hash-mb 16 --seed 0 \

@@ -105,8 +105,8 @@ class FastchessWrapperTests(unittest.TestCase):
             str(engine), "--profile", "current-aspiration"
         ])
         self.assertEqual(identity["reported_search_profile"], "current-aspiration")
-        self.assertEqual(identity["id_name"], "ChessEngineDemo")
-        self.assertEqual(identity["id_author"], "Rust-learner")
+        self.assertTrue(identity["id_name"].startswith("Eureka"))
+        self.assertEqual(identity["id_author"], "zxjAiLun")
 
     def test_classify_sprt_boundaries_without_reimplementing_statistics(self):
         self.assertEqual(

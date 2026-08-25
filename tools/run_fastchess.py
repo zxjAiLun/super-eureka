@@ -277,12 +277,21 @@ def probe_engine_identity(argv: list[str]) -> dict[str, Any]:
     )
     reported_profile = next(
         (
-            line[len("info string search profile ") :].strip()
+            line[len("info string profile ") :].strip()
             for line in lines
-            if line.startswith("info string search profile ")
+            if line.startswith("info string profile ")
         ),
         None,
     )
+    if reported_profile is None:
+        reported_profile = next(
+            (
+                line[len("info string search profile ") :].strip()
+                for line in lines
+                if line.startswith("info string search profile ")
+            ),
+            None,
+        )
     if "uciok" not in lines or not id_name or not id_author or not reported_profile:
         raise FastchessError("engine UCI identity probe returned incomplete handshake")
     return {
