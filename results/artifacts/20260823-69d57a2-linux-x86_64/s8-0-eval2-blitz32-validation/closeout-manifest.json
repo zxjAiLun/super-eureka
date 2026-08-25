@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "kind": "posthoc_closeout_manifest",
+  "source_tournament_id": "47898471-1a92-4721-9d1c-69d4bf3824f3",
+  "source_artifact_manifest_sha256": "e59d7e08d18a7c5fde563fa4b3bcd3585cc70436d4049ad065b2a84201076e31",
+  "files": {
+    "blitz32-report.md": {
+      "sha256": "7b2dbdeeaf4c952bc5582161e614705c442315bce0a59a0e2ef2f9dcedcf5f91",
+      "size": 2117
+    },
+    "closeout.json": {
+      "sha256": "3ec8d56017fa5038c9e4b0ea9bab87d42584dd66ee9d42f3060c988bd750f691",
+      "size": 936
+    },
+    "summary.json": {
+      "sha256": "df44e29787d45e06e5858a1c77c5de9848b2e6b90eb7a8517e9b4ff37e940b7b",
+      "size": 26212
+    },
+    "tournament-snapshot.json": {
+      "sha256": "b8a6be37734300471568730569b02b9d416a093c4d7fc3f11ba2f1361936085c",
+      "size": 4058
+    },
+    "artifact-manifest.json": {
+      "sha256": "e59d7e08d18a7c5fde563fa4b3bcd3585cc70436d4049ad065b2a84201076e31",
+      "size": 70589
+    }
+  }
+}

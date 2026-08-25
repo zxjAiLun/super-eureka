@@ -1937,12 +1937,13 @@ fn run_microbench(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// S9-B: `bench eval-cost [--repeats N] [--fen <fen>]` runs pure evaluation timing
-/// across profiles (Current, CurrentFinal, and all 6 Leave-One-Out candidates) to isolate
+/// S9-B: `bench eval-cost [--repeats N] [--rounds R] [--fen <fen>]` runs hardened pure evaluation
+/// timing across profiles (Current, CurrentFinal, and all 6 Leave-One-Out candidates) to isolate
 /// raw evaluator compute costs from tree search effects.
 fn run_eval_cost(args: &[String]) -> Result<(), String> {
     let mut custom_fen: Option<String> = None;
-    let mut repeats = 100_000u32;
+    let mut repeats = 50_000u32;
+    let mut rounds = 5u32;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
@@ -1969,29 +1970,83 @@ fn run_eval_cost(args: &[String]) -> Result<(), String> {
                 }
                 repeats = n;
             }
+            "--rounds" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "eval-cost: --rounds requires a value".to_string())?
+                    .clone();
+                let r: u32 = value.parse().map_err(|_| {
+                    format!("eval-cost: --rounds '{}' is not a positive integer", value)
+                })?;
+                if r == 0 {
+                    return Err("eval-cost: --rounds must be >= 1".to_string());
+                }
+                rounds = r;
+            }
             other => {
                 return Err(format!(
-                    "eval-cost: unknown argument '{}' (expected [--repeats N] [--fen <fen>])",
+                    "eval-cost: unknown argument '{}' (expected [--repeats N] [--rounds R] [--fen <fen>])",
                     other
                 ));
             }
         }
     }
 
+    // 12-position representative evaluation benchmark corpus (excluding exact mop-up)
     let fens: Vec<(&str, String)> = if let Some(ref fen) = custom_fen {
         vec![("custom", fen.clone())]
     } else {
         vec![
-            ("startpos", START_FEN.to_string()),
+            ("01-startpos", START_FEN.to_string()),
             (
-                "open-tactical",
+                "02-open-italian",
                 "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5".to_string(),
             ),
-            ("queen-win", "7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1".to_string()),
+            (
+                "03-closed-french",
+                "rnbqk2r/ppp2ppp/4pn2/3p4/1bPP4/2N2N2/PP2PPPP/R1BQKB1R w KQkq - 2 5".to_string(),
+            ),
+            (
+                "04-sicilian-dragon",
+                "r1bq1rk1/pp2ppbp/2np1np1/8/3NP3/2N1BP2/PPP3PP/2KR1B1R w - - 0 10".to_string(),
+            ),
+            (
+                "05-queens-gambit",
+                "r1bqk2r/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PPQ2PPP/R1B1KB1R w KQkq - 4 7".to_string(),
+            ),
+            (
+                "06-tactical-complex",
+                "r2q1rk1/1bp1bppp/p1np1n2/1p2p3/4P3/1B1P1NN1/PPP2PPP/R1BQ1RK1 w - - 0 10"
+                    .to_string(),
+            ),
+            (
+                "07-king-attack",
+                "r1b2rk1/pp1n1ppp/2p1p3/3p4/2PP4/2N1PNP1/PP3PBP/R2Q1RK1 b - - 0 10".to_string(),
+            ),
+            (
+                "08-queenless-mid",
+                "r1b2rk1/pp2bppp/2n1pn2/2p5/2B5/2N1PN2/PP3PPP/R1BR2K1 w - - 2 11".to_string(),
+            ),
+            (
+                "09-rook-heavy",
+                "2r2rk1/1p3ppp/p3p3/3p4/8/2PR4/PP3PPP/4R1K1 w - - 0 20".to_string(),
+            ),
+            (
+                "10-minor-piece-end",
+                "8/5pk1/4p1p1/3n3p/3N3P/5PP1/4K3/8 w - - 0 35".to_string(),
+            ),
+            (
+                "11-pawn-endgame",
+                "8/5p2/4p1p1/3k3p/7P/4KPP1/8/8 w - - 0 40".to_string(),
+            ),
+            (
+                "12-asymmetric-imbalance",
+                "r4rk1/1pp1qppp/p1np1n2/4p3/2B1P1b1/2NP1N2/PPP2PPP/R2QR1K1 w - - 0 10".to_string(),
+            ),
         ]
     };
 
-    let profiles = [
+    let base_profiles: [(&str, Option<Eval2Mask>); 8] = [
         ("current-classical", None),
         ("current-final-all", Some(Eval2Mask::ALL)),
         ("current-final-no-pawn", Some(Eval2Mask::NO_PAWN_STRUCTURE)),
@@ -2014,46 +2069,118 @@ fn run_eval_cost(args: &[String]) -> Result<(), String> {
         ),
     ];
 
-    println!("eval_cost_header repeats={} fens={}", repeats, fens.len());
+    println!(
+        "eval_cost_header repeats={} rounds={} fens={}",
+        repeats,
+        rounds,
+        fens.len()
+    );
+
+    let mut aggregate_times_ns: std::collections::HashMap<&'static str, Vec<f64>> =
+        std::collections::HashMap::new();
 
     for (fname, fen_str) in &fens {
         let pos = parse_fen(fen_str).map_err(|e| format!("eval-cost: invalid FEN: {}", e))?;
-        for (pname, mask_opt) in &profiles {
-            let start = std::time::Instant::now();
-            let mut acc = 0i64;
-            match mask_opt {
-                None => {
-                    for _ in 0..repeats {
-                        acc = acc.wrapping_add(i64::from(crate::engine::eval::evaluate(&pos)));
+
+        // 1. Warm-up evaluation loop (10,000 passes to warm icache/dcache)
+        let warm_pos = std::hint::black_box(&pos);
+        for _ in 0..10_000 {
+            std::hint::black_box(crate::engine::eval::evaluate(warm_pos));
+            std::hint::black_box(crate::engine::eval::evaluate_integrated_positional(
+                warm_pos,
+            ));
+        }
+
+        // Store round measurements: profile_name -> Vec<ns_per_eval>
+        let mut profile_round_ns: std::collections::HashMap<&'static str, Vec<f64>> =
+            std::collections::HashMap::new();
+
+        for round in 0..rounds {
+            // Round-rotated execution order to eliminate thermal and drift bias
+            let shift = (round as usize) % base_profiles.len();
+            let mut rotated_profiles = base_profiles;
+            rotated_profiles.rotate_left(shift);
+
+            for (pname, mask_opt) in &rotated_profiles {
+                let start = std::time::Instant::now();
+                let mut acc = 0i64;
+                let b_pos = std::hint::black_box(&pos);
+                match mask_opt {
+                    None => {
+                        for _ in 0..repeats {
+                            let s = crate::engine::eval::evaluate(b_pos);
+                            acc = acc.wrapping_add(i64::from(std::hint::black_box(s)));
+                        }
+                    }
+                    Some(mask) => {
+                        for _ in 0..repeats {
+                            let s = crate::engine::eval::evaluate_integrated_positional_masked(
+                                b_pos, *mask,
+                            );
+                            acc = acc.wrapping_add(i64::from(std::hint::black_box(s)));
+                        }
                     }
                 }
-                Some(mask) => {
-                    for _ in 0..repeats {
-                        acc = acc.wrapping_add(i64::from(
-                            crate::engine::eval::evaluate_integrated_positional_masked(&pos, *mask),
-                        ));
-                    }
-                }
+                std::hint::black_box(acc);
+                let elapsed_ns = start.elapsed().as_nanos();
+                let ns_per_eval = elapsed_ns as f64 / repeats as f64;
+                profile_round_ns.entry(pname).or_default().push(ns_per_eval);
+                aggregate_times_ns
+                    .entry(pname)
+                    .or_default()
+                    .push(ns_per_eval);
             }
-            let elapsed_ns = start.elapsed().as_nanos();
-            let ns_per_eval = elapsed_ns as f64 / repeats as f64;
-            let evals_per_sec = if elapsed_ns > 0 {
-                (repeats as f64 * 1_000_000_000.0) / elapsed_ns as f64
+        }
+
+        for (pname, _) in &base_profiles {
+            let mut samples = profile_round_ns[pname].clone();
+            samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let median_ns = samples[samples.len() / 2];
+            let mut abs_devs: Vec<f64> = samples.iter().map(|s| (s - median_ns).abs()).collect();
+            abs_devs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let mad_ns = abs_devs[abs_devs.len() / 2];
+            let evals_per_sec = if median_ns > 0.0 {
+                1_000_000_000.0 / median_ns
             } else {
                 0.0
             };
             println!(
-                "eval_cost_result fixture={} profile={} repeats={} elapsed_ms={:.2} ns_per_eval={:.1} evals_per_sec={:.0} checksum={}",
+                "eval_cost_fixture fixture={} profile={} median_ns={:.1} mad_ns={:.2} min_ns={:.1} max_ns={:.1} evals_per_sec={:.0}",
                 fname,
                 pname,
-                repeats,
-                elapsed_ns as f64 / 1_000_000.0,
-                ns_per_eval,
-                evals_per_sec,
-                acc
+                median_ns,
+                mad_ns,
+                samples.first().copied().unwrap_or(0.0),
+                samples.last().copied().unwrap_or(0.0),
+                evals_per_sec
             );
         }
     }
+
+    println!("--- AGGREGATE EVALUATION COMPUTE BENCHMARK SUMMARY ---");
+    let full_median_agg = {
+        let mut s = aggregate_times_ns["current-final-all"].clone();
+        s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        s[s.len() / 2]
+    };
+
+    for (pname, _) in &base_profiles {
+        let mut samples = aggregate_times_ns[pname].clone();
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median_ns = samples[samples.len() / 2];
+        let mut abs_devs: Vec<f64> = samples.iter().map(|s| (s - median_ns).abs()).collect();
+        abs_devs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let mad_ns = abs_devs[abs_devs.len() / 2];
+        let marginal_cost_saved_ns = full_median_agg - median_ns;
+        println!(
+            "eval_cost_summary profile={} median_ns={:.1} mad_ns={:.2} marginal_saved_ns={:.1} (relative to full)",
+            pname,
+            median_ns,
+            mad_ns,
+            marginal_cost_saved_ns
+        );
+    }
+
     Ok(())
 }
 
