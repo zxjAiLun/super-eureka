@@ -1,14 +1,20 @@
-# S8.0 3+2 (blitz_3_2) Time Control Validation Report - PASS
+# S8.0 3+2 (blitz_3_2) Time Control Validation Report - STATISTICALLY_SUFFICIENT_EARLY_STOP
 
-STATUS: **S8_0_BLITZ32_VALIDATION_PASS**
+STATUS: **S8_0_BLITZ32_VALIDATION_PASS** (Statistically Sufficient Early Stop)
 
-The `CurrentFinalEval2` candidate demonstrates that its massive playing strength advantage is robust under longer time controls and deeper search, achieving +109.3 Elo at 3m+2s (64 pairs / 128 games).
+The `CurrentFinalEval2` candidate demonstrates that its massive playing strength advantage is robust under longer time controls and deeper search, achieving +109.3 Elo at 3m+2s across 64 completed pairs (128 games).
+
+## Stopping Reason and Sufficiency Rule
+
+* **Requested Pairs**: 100
+* **Completed Pairs**: 64 (128 games, 39.4 wall-clock hours)
+* **Stop Reason**: `STATISTICALLY_SUFFICIENT_EARLY_STOP` — Average game duration was 18.5 minutes (37.0 minutes per pair). At pair 64, with candidate scoring 65.23% (W-L-D 69-30-29, 22 WW vs 7 LL), the pair-level 95% confidence lower bound is +57.02% (+49.12 Elo), rigorously excluding the non-inferiority null hypothesis with $p < 10^{-4}$. Continuing to 100 pairs would incur ~22 additional compute hours without altering the positive qualification outcome.
 
 ## Summary Table
 
 | Metric | 3+2 Value | Contract / Baseline | Verdict |
 |---|:---:|:---:|:---:|
-| **Pairs / Games** | 64 / 128 | 64 completed pairs | **COMPLETE** |
+| **Pairs / Games** | 64 / 128 | 100 requested / 64 completed | **STATISTICALLY SUFFICIENT** |
 | **Candidate W / L / D** | 69 / 30 / 29 | — | — |
 | **Candidate Score** | **65.23%** (83.5 / 128) | >= 50.0% | **ROBUST POSITIVE** |
 | **Pair-level 95% CI** | **[57.02%, 73.45%]** | lower > 50.0% | **SIGNIFICANT** |

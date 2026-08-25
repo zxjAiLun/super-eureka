@@ -167,6 +167,14 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
         search::SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
         search::SearchProfile::CurrentFinalEval2 => "current-final-eval2",
+        search::SearchProfile::CurrentFinalNoPawnStructure => "current-final-no-pawn-structure",
+        search::SearchProfile::CurrentFinalNoMobility => "current-final-no-mobility",
+        search::SearchProfile::CurrentFinalNoPieceActivity => "current-final-no-piece-activity",
+        search::SearchProfile::CurrentFinalNoRookActivity => "current-final-no-rook-activity",
+        search::SearchProfile::CurrentFinalNoDevelopmentSpace => {
+            "current-final-no-development-space"
+        }
+        search::SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -490,10 +498,26 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     "current-final-phase-affine" => search::SearchProfile::CurrentFinalPhaseAffine,
                     "current-final-eval2" => search::SearchProfile::CurrentFinalEval2,
+                    "current-final-no-pawn-structure" => {
+                        search::SearchProfile::CurrentFinalNoPawnStructure
+                    }
+                    "current-final-no-mobility" => search::SearchProfile::CurrentFinalNoMobility,
+                    "current-final-no-piece-activity" => {
+                        search::SearchProfile::CurrentFinalNoPieceActivity
+                    }
+                    "current-final-no-rook-activity" => {
+                        search::SearchProfile::CurrentFinalNoRookActivity
+                    }
+                    "current-final-no-development-space" => {
+                        search::SearchProfile::CurrentFinalNoDevelopmentSpace
+                    }
+                    "current-final-no-king-safety" => {
+                        search::SearchProfile::CurrentFinalNoKingSafety
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2)",
+                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety)",
                             other
                         ));
                     }
@@ -1087,6 +1111,35 @@ mod tests {
         let err =
             parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
         assert!(err.contains("current-final-eval2"), "got: {}", err);
+    }
+
+    /// S9-A: The rejection message must advertise all LOO candidates.
+    #[test]
+    fn s9a_help_text_advertises_loo_candidates() {
+        let err =
+            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
+        assert!(
+            err.contains("current-final-no-pawn-structure"),
+            "got: {}",
+            err
+        );
+        assert!(err.contains("current-final-no-mobility"), "got: {}", err);
+        assert!(
+            err.contains("current-final-no-piece-activity"),
+            "got: {}",
+            err
+        );
+        assert!(
+            err.contains("current-final-no-rook-activity"),
+            "got: {}",
+            err
+        );
+        assert!(
+            err.contains("current-final-no-development-space"),
+            "got: {}",
+            err
+        );
+        assert!(err.contains("current-final-no-king-safety"), "got: {}", err);
     }
 
     /// The rejection message must advertise the candidate, otherwise an Arena

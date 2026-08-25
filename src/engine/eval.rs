@@ -1,12 +1,10 @@
 //! Evaluation.
 //!
 //! Returns the position's value from the side-to-move's perspective
-//! (positive = good for the side to move). EVAL 1A keeps the existing
-//! material and non-king PST values, but evaluates them through separate
-//! middlegame/endgame score lanes and interpolates them by non-pawn phase.
-//! The King now has distinct middlegame safety and endgame-centralisation
-//! PSTs. This module deliberately does not add mobility, pawn structure,
-//! king-safety features, or search pruning.
+//! (positive = good for the side to move). S8.0 integrated positional evaluation
+//! is the production default, evaluating material/PST alongside six positional
+//! feature families (pawn structure, mobility, piece activity, rook activity,
+//! development/space, and king safety) interpolated by game phase.
 //!
 use crate::chess::position::Position;
 use crate::chess::types::{
@@ -201,10 +199,9 @@ pub(crate) struct EvalTerms {
 
 /// Fixed-storage facts collected from a position in one board walk.
 ///
-/// The attack maps are intentionally lazy in this first framework commit:
-/// `Current` does not pay to construct them, while the E2 candidate can build
-/// them once and share them across its terms. No field uses a heap-allocated
-/// collection.
+/// The attack maps are lazy: legacy `Current` does not pay to construct them,
+/// while the integrated positional evaluator builds them once and shares them
+/// across its terms. No field uses a heap-allocated collection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct EvalContext {
     pub(crate) phase: i32,
@@ -215,7 +212,7 @@ pub(crate) struct EvalContext {
     pub(crate) occupancy: u64,
     pub(crate) king_squares: [u8; 2],
     /// Pseudo-attacks for the piece currently occupying each square. The
-    /// fixed array lets all E2 terms share one attack calculation.
+    /// fixed array lets all positional terms share one attack calculation.
     pub(crate) piece_attacks: [u64; 64],
     pub(crate) attack_maps: [u64; 2],
     pub(crate) attack_maps_ready: bool,
@@ -689,7 +686,7 @@ pub fn evaluate_phase_affine(pos: &Position) -> i32 {
 }
 
 /// Behavior-preserving base evaluation breakdown. It is crate-visible so the
-/// E2 candidate and bench/tests can inspect terms without exposing a GUI or
+/// positional evaluator and bench/tests can inspect terms without exposing a GUI or
 /// UCI option.
 pub(crate) fn evaluate_breakdown(pos: &Position) -> EvalBreakdown {
     let context = EvalContext::from_position(pos);
@@ -714,7 +711,7 @@ pub(crate) struct EvalBreakdown {
 }
 
 /// S4.2A: white-perspective, phase-interpolated cp values of the base
-/// material/PST lane and every dormant positional component. Diagnostic only;
+/// material/PST lane and each positional feature family. Diagnostic only;
 /// no production search uses these.
 pub(crate) struct ComponentCps {
     pub(crate) phase: i32,
@@ -734,7 +731,7 @@ pub(crate) fn evaluate_components_white(pos: &Position) -> ComponentCps {
     let mut context = EvalContext::from_position(pos);
     let phase = context.phase;
     let side_material = context.terms.material_pst;
-    let white_terms = integrated_positional_terms(pos, &mut context);
+    let white_terms = integrated_positional_terms(pos, &mut context, Eval2Mask::ALL);
     let to_white = |s: Score| {
         if pos.side == Color::White {
             s
@@ -1247,31 +1244,111 @@ fn king_safety_score(context: &EvalContext, pos: &Position) -> Score {
     }
 }
 
-fn integrated_positional_terms(pos: &Position, context: &mut EvalContext) -> EvalTerms {
-    context.ensure_attack_maps(pos);
+/// S9-A: Feature family mask for Eval2 Leave-One-Out (LOO) and ablation studies.
+/// 6 bits corresponding to the 6 positional feature families.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Eval2Mask(u8);
 
-    let white_pawns = pawn_structure_for_color(context, Color::White);
-    let black_pawns = pawn_structure_for_color(context, Color::Black);
-    let white_mobility = mobility_for_color(pos, context, Color::White);
-    let black_mobility = mobility_for_color(pos, context, Color::Black);
-    let white_activity = piece_activity_for_color(pos, context, Color::White);
-    let black_activity = piece_activity_for_color(pos, context, Color::Black);
-    let white_development = development_space_for_color(pos, context, Color::White);
-    let black_development = development_space_for_color(pos, context, Color::Black);
-    let white_rooks = rook_activity_for_color(pos, context, Color::White);
-    let black_rooks = rook_activity_for_color(pos, context, Color::Black);
+impl Eval2Mask {
+    pub(crate) const PAWN_STRUCTURE: u8 = 1 << 0;
+    pub(crate) const MOBILITY: u8 = 1 << 1;
+    pub(crate) const PIECE_ACTIVITY: u8 = 1 << 2;
+    pub(crate) const ROOK_ACTIVITY: u8 = 1 << 3;
+    pub(crate) const DEVELOPMENT_SPACE: u8 = 1 << 4;
+    pub(crate) const KING_SAFETY: u8 = 1 << 5;
+
+    pub(crate) const ALL: Self = Self(0b0011_1111);
+
+    pub(crate) const NO_PAWN_STRUCTURE: Self = Self(Self::ALL.0 & !Self::PAWN_STRUCTURE);
+    pub(crate) const NO_MOBILITY: Self = Self(Self::ALL.0 & !Self::MOBILITY);
+    pub(crate) const NO_PIECE_ACTIVITY: Self = Self(Self::ALL.0 & !Self::PIECE_ACTIVITY);
+    pub(crate) const NO_ROOK_ACTIVITY: Self = Self(Self::ALL.0 & !Self::ROOK_ACTIVITY);
+    pub(crate) const NO_DEVELOPMENT_SPACE: Self = Self(Self::ALL.0 & !Self::DEVELOPMENT_SPACE);
+    pub(crate) const NO_KING_SAFETY: Self = Self(Self::ALL.0 & !Self::KING_SAFETY);
+
+    #[inline(always)]
+    pub(crate) const fn has(self, flag: u8) -> bool {
+        (self.0 & flag) != 0
+    }
+
+    #[inline(always)]
+    pub(crate) const fn needs_attack_maps(self) -> bool {
+        (self.0
+            & (Self::MOBILITY
+                | Self::PIECE_ACTIVITY
+                | Self::ROOK_ACTIVITY
+                | Self::DEVELOPMENT_SPACE
+                | Self::KING_SAFETY))
+            != 0
+    }
+}
+
+fn integrated_positional_terms(
+    pos: &Position,
+    context: &mut EvalContext,
+    mask: Eval2Mask,
+) -> EvalTerms {
+    if mask.needs_attack_maps() {
+        context.ensure_attack_maps(pos);
+    }
+
+    let pawn_structure = if mask.has(Eval2Mask::PAWN_STRUCTURE) {
+        let white_pawns = pawn_structure_for_color(context, Color::White);
+        let black_pawns = pawn_structure_for_color(context, Color::Black);
+        white_difference(white_pawns, black_pawns)
+    } else {
+        Score::default()
+    };
+
+    let mobility = if mask.has(Eval2Mask::MOBILITY) {
+        let white_mobility = mobility_for_color(pos, context, Color::White);
+        let black_mobility = mobility_for_color(pos, context, Color::Black);
+        Score {
+            mg: (white_mobility - black_mobility) * 2,
+            eg: white_mobility - black_mobility,
+        }
+    } else {
+        Score::default()
+    };
+
+    let piece_activity = if mask.has(Eval2Mask::PIECE_ACTIVITY) {
+        let white_activity = piece_activity_for_color(pos, context, Color::White);
+        let black_activity = piece_activity_for_color(pos, context, Color::Black);
+        white_difference(white_activity, black_activity)
+    } else {
+        Score::default()
+    };
+
+    let development_space = if mask.has(Eval2Mask::DEVELOPMENT_SPACE) {
+        let white_development = development_space_for_color(pos, context, Color::White);
+        let black_development = development_space_for_color(pos, context, Color::Black);
+        white_difference(white_development, black_development)
+    } else {
+        Score::default()
+    };
+
+    let rook_activity = if mask.has(Eval2Mask::ROOK_ACTIVITY) {
+        let white_rooks = rook_activity_for_color(pos, context, Color::White);
+        let black_rooks = rook_activity_for_color(pos, context, Color::Black);
+        white_difference(white_rooks, black_rooks)
+    } else {
+        Score::default()
+    };
+
+    let king_safety = if mask.has(Eval2Mask::KING_SAFETY) {
+        king_safety_score(context, pos)
+    } else {
+        Score::default()
+    };
 
     EvalTerms {
         material_pst: context.terms.material_pst,
-        pawn_structure: white_difference(white_pawns, black_pawns),
-        mobility: Score {
-            mg: (white_mobility - black_mobility) * 2,
-            eg: white_mobility - black_mobility,
-        },
-        piece_activity: white_difference(white_activity, black_activity),
-        rook_activity: white_difference(white_rooks, black_rooks),
-        development_space: white_difference(white_development, black_development),
-        king_safety: king_safety_score(context, pos),
+        pawn_structure,
+        mobility,
+        piece_activity,
+        rook_activity,
+        development_space,
+        king_safety,
     }
 }
 
@@ -1294,15 +1371,15 @@ fn total_terms(terms: EvalTerms) -> (i32, i32) {
     (mg, eg)
 }
 
-/// Full breakdown for the integrated E2 candidate. Every new term is
-/// produced from one shared fixed-storage context and is enabled only for
-/// `current-eval2`; the term lanes use the same side-to-move perspective as
-/// the existing base lane.
-pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
+/// Full breakdown for the integrated positional evaluation with a feature mask.
+pub(crate) fn evaluate_integrated_breakdown_masked(
+    pos: &Position,
+    mask: Eval2Mask,
+) -> EvalBreakdown {
     let mut context = EvalContext::from_position(pos);
     let base = context.terms.material_pst;
 
-    // Preserve the exact KQK/KRK path while the candidate is being evaluated;
+    // Preserve the exact KQK/KRK path;
     // no positional term is allowed to dilute the dedicated mop-up logic.
     if exact_mop_up(pos).is_some() {
         return EvalBreakdown {
@@ -1314,7 +1391,7 @@ pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
         };
     }
 
-    let white_terms = integrated_positional_terms(pos, &mut context);
+    let white_terms = integrated_positional_terms(pos, &mut context, mask);
     let side_terms = EvalTerms {
         material_pst: base,
         pawn_structure: from_white_perspective(white_terms.pawn_structure, pos.side),
@@ -1334,6 +1411,16 @@ pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
         total_eg,
         final_score: finish_evaluation(pos, total_mg, total_eg, context.phase),
     }
+}
+
+/// Full breakdown for the integrated positional evaluation (all terms enabled).
+pub(crate) fn evaluate_integrated_breakdown(pos: &Position) -> EvalBreakdown {
+    evaluate_integrated_breakdown_masked(pos, Eval2Mask::ALL)
+}
+
+/// Integrated positional evaluation with feature mask.
+pub(crate) fn evaluate_integrated_positional_masked(pos: &Position, mask: Eval2Mask) -> i32 {
+    evaluate_integrated_breakdown_masked(pos, mask).final_score
 }
 
 /// Integrated positional evaluation (S8.0 promoted production evaluator).
@@ -1824,7 +1911,7 @@ mod tests {
         assert_eq!(
             evaluate_integrated_positional(&kqk),
             evaluate(&kqk),
-            "E2 must leave the exact KQK mop-up path unchanged"
+            "Integrated positional eval must leave the exact KQK mop-up path unchanged"
         );
     }
 

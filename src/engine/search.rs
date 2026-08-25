@@ -42,7 +42,8 @@ use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
 use crate::engine::eval::{
-    evaluate, evaluate_integrated_positional, evaluate_phase_affine, evaluate_threat_aware,
+    evaluate, evaluate_integrated_positional, evaluate_integrated_positional_masked,
+    evaluate_phase_affine, evaluate_threat_aware, Eval2Mask,
 };
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
@@ -222,18 +223,27 @@ pub(crate) enum SearchProfile {
     /// inherited from CurrentFinal and a centralized test enforces that.
     /// Never a production default - Arena decides.
     CurrentFinalPhaseAffine,
-    /// S8.0 candidate: EXACTLY CurrentFinal search policy, with the six
-    /// dormant positional term families (pawn structure, mobility, piece
-    /// activity, rook activity, development/space, king safety) integrated into
-    /// the evaluation via `evaluate_integrated_positional`.
-    ///
-    /// This exists because the pre-existing `CurrentEval2` profile carries NONE
-    /// of the promoted search policy - not aspiration, LMR, null-move or
-    /// futility - so `CurrentEval2` vs `CurrentFinal` would measure a search
-    /// deficit, not the evaluation terms. Only the evaluator dispatch differs
-    /// here, which is what makes the A/B a single-variable test.
-    /// Never a production default - Arena decides.
+    /// S8.0 candidate / compatibility alias: EXACTLY CurrentFinal search policy,
+    /// with the six positional term families integrated into the evaluation.
     CurrentFinalEval2,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT pawn structure.
+    CurrentFinalNoPawnStructure,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT mobility.
+    CurrentFinalNoMobility,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT piece activity.
+    CurrentFinalNoPieceActivity,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT rook activity.
+    CurrentFinalNoRookActivity,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT development/space.
+    CurrentFinalNoDevelopmentSpace,
+    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
+    /// with all positional term families EXCEPT king safety.
+    CurrentFinalNoKingSafety,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -282,6 +292,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -307,6 +323,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -328,6 +350,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -351,6 +379,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -386,6 +420,12 @@ impl SearchProfile {
                 | Self::CurrentQsearchFastPruning
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -408,6 +448,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -441,6 +487,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -509,6 +561,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -535,6 +593,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -561,7 +625,28 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
+    }
+
+    #[inline]
+    /// S9-A: Returns the `Eval2Mask` for profiles that customize the integrated
+    /// positional evaluator terms, or `None` if the profile is not an Eval2 ablation.
+    pub(crate) const fn eval2_mask(self) -> Option<Eval2Mask> {
+        match self {
+            Self::CurrentFinalNoPawnStructure => Some(Eval2Mask::NO_PAWN_STRUCTURE),
+            Self::CurrentFinalNoMobility => Some(Eval2Mask::NO_MOBILITY),
+            Self::CurrentFinalNoPieceActivity => Some(Eval2Mask::NO_PIECE_ACTIVITY),
+            Self::CurrentFinalNoRookActivity => Some(Eval2Mask::NO_ROOK_ACTIVITY),
+            Self::CurrentFinalNoDevelopmentSpace => Some(Eval2Mask::NO_DEVELOPMENT_SPACE),
+            Self::CurrentFinalNoKingSafety => Some(Eval2Mask::NO_KING_SAFETY),
+            _ => None,
+        }
     }
 
     #[inline]
@@ -575,6 +660,8 @@ impl SearchProfile {
     ///
     /// `CurrentEval2` (bare historical search) and `CurrentFinalEval2` (promoted
     /// alias) are retained as compatibility identities.
+    ///
+    /// S9-A: `CurrentFinalNo*` ablation candidates use the masked Eval2 evaluator.
     pub(crate) const fn uses_eval2(self) -> bool {
         matches!(
             self,
@@ -591,6 +678,12 @@ impl SearchProfile {
                 | Self::CurrentFinalSingleEvasion
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -620,6 +713,12 @@ impl SearchProfile {
                 | Self::CurrentFinalBoundedCheck2
                 | Self::CurrentFinalPhaseAffine
                 | Self::CurrentFinalEval2
+                | Self::CurrentFinalNoPawnStructure
+                | Self::CurrentFinalNoMobility
+                | Self::CurrentFinalNoPieceActivity
+                | Self::CurrentFinalNoRookActivity
+                | Self::CurrentFinalNoDevelopmentSpace
+                | Self::CurrentFinalNoKingSafety
         )
     }
 
@@ -2450,6 +2549,8 @@ fn evaluate_profiled(pos: &Position, ctx: &SearchContext, profile: SearchProfile
     let start = ctx.sample_begin(&ctx.timing_eval);
     let result = if profile.uses_phase_affine_eval() {
         evaluate_phase_affine(pos)
+    } else if let Some(mask) = profile.eval2_mask() {
+        evaluate_integrated_positional_masked(pos, mask)
     } else if profile.uses_eval2() {
         evaluate_integrated_positional(pos)
     } else if profile.uses_threat_aware_eval() {
@@ -9778,6 +9879,62 @@ mod tests {
         assert_ne!(ROLLBACK_PROFILE, Cand);
     }
 
+    /// S9-A anti-drift and bit-identical policy guard for all 6 Leave-One-Out (LOO) profiles.
+    #[test]
+    fn s9a_loo_profiles_are_current_final_search_policy_with_dedicated_masks() {
+        use SearchProfile::*;
+        let loo_profiles = [
+            (
+                CurrentFinalNoPawnStructure,
+                Eval2Mask::NO_PAWN_STRUCTURE,
+                "current-final-no-pawn-structure",
+            ),
+            (
+                CurrentFinalNoMobility,
+                Eval2Mask::NO_MOBILITY,
+                "current-final-no-mobility",
+            ),
+            (
+                CurrentFinalNoPieceActivity,
+                Eval2Mask::NO_PIECE_ACTIVITY,
+                "current-final-no-piece-activity",
+            ),
+            (
+                CurrentFinalNoRookActivity,
+                Eval2Mask::NO_ROOK_ACTIVITY,
+                "current-final-no-rook-activity",
+            ),
+            (
+                CurrentFinalNoDevelopmentSpace,
+                Eval2Mask::NO_DEVELOPMENT_SPACE,
+                "current-final-no-development-space",
+            ),
+            (
+                CurrentFinalNoKingSafety,
+                Eval2Mask::NO_KING_SAFETY,
+                "current-final-no-king-safety",
+            ),
+        ];
+
+        for (cand, expected_mask, name) in loo_profiles {
+            assert_inherits_current_final_search_policy(cand);
+            assert!(cand.uses_eval2(), "{name} must use eval2");
+            assert_eq!(
+                cand.eval2_mask(),
+                Some(expected_mask),
+                "{name} must have expected mask"
+            );
+            assert!(
+                !cand.uses_phase_affine_eval(),
+                "{name} must not use phase affine"
+            );
+            assert!(
+                !cand.uses_threat_aware_eval(),
+                "{name} must not use threat aware"
+            );
+        }
+    }
+
     /// The evaluator selectors must stay mutually exclusive: phase-affine must
     /// not accidentally also claim eval2 or threat-aware dispatch, or
     /// `evaluate_profiled`'s if/else chain would silently shadow one of them.
@@ -9823,9 +9980,15 @@ mod tests {
                 SearchProfile::CurrentFinalBoundedCheck2 => (),
                 SearchProfile::CurrentFinalPhaseAffine => (),
                 SearchProfile::CurrentFinalEval2 => (),
+                SearchProfile::CurrentFinalNoPawnStructure => (),
+                SearchProfile::CurrentFinalNoMobility => (),
+                SearchProfile::CurrentFinalNoPieceActivity => (),
+                SearchProfile::CurrentFinalNoRookActivity => (),
+                SearchProfile::CurrentFinalNoDevelopmentSpace => (),
+                SearchProfile::CurrentFinalNoKingSafety => (),
             }
         }
-        let all: [SearchProfile; 36] = [
+        let all: [SearchProfile; 42] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -9862,6 +10025,12 @@ mod tests {
             SearchProfile::CurrentFinalBoundedCheck2,
             SearchProfile::CurrentFinalPhaseAffine,
             SearchProfile::CurrentFinalEval2,
+            SearchProfile::CurrentFinalNoPawnStructure,
+            SearchProfile::CurrentFinalNoMobility,
+            SearchProfile::CurrentFinalNoPieceActivity,
+            SearchProfile::CurrentFinalNoRookActivity,
+            SearchProfile::CurrentFinalNoDevelopmentSpace,
+            SearchProfile::CurrentFinalNoKingSafety,
         ];
         for profile in all {
             assert_exhaustive(profile);
