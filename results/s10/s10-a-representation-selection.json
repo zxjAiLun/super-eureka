@@ -1,0 +1,69 @@
+{
+  "selected_feature_set": "v2",
+  "selection_rule_version": 1,
+  "holdout_observed_before_decision": false,
+  "stage": "stage_1_frozen_selection",
+  "timestamp_utc": "2026-08-27T02:20:00Z",
+  "dataset_sha256": "5c90b07481c70e7e1b5f10682ba7d4c82c3c907a974b71be0e657bfb7b9f34fb",
+  "labels_sha256": "e3057e93dcad1a704f0ddbf5f6d7285a8dfda1d2729a6e11894d03e5c9a0937c",
+  "environment": {
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "torch_version": "2.13.0+cu130",
+    "cuda_version": "13.0",
+    "seeds": [20260818, 20260819, 20260820]
+  },
+  "primary_criterion": {
+    "metric": "median_validation_mae_cp",
+    "v1_median_val_mae_cp": 236.2257,
+    "v2_median_val_mae_cp": 238.8546,
+    "ratio_v2_to_v1": 1.01113,
+    "delta_pct": 1.113,
+    "threshold_max_ratio": 1.02,
+    "gate_passed": true
+  },
+  "secondary_criteria": {
+    "validation_unseen_activation_rate": {
+      "v1": 0.01012,
+      "v2": 0.00511,
+      "advantage": "v2_50pct_lower_unseen_activations"
+    },
+    "validation_positions_with_unseen_rate": {
+      "v1": 0.18926,
+      "v2": 0.10128,
+      "advantage": "v2_46pct_fewer_positions_with_unseen"
+    },
+    "feature_transformer_parameters": {
+      "v1": 5243008,
+      "v2": 2883712,
+      "reduction_pct": 45.0,
+      "advantage": "v2_saves_9_00_mib_fp32"
+    },
+    "feature_extraction_cost_ns_per_pos": {
+      "v1_median_ns": 480.99,
+      "v2_median_ns": 537.30,
+      "overhead_ns": 56.31,
+      "impact": "negligible_search_budget_overhead"
+    }
+  },
+  "v1_validation": {
+    "seeds": {
+      "20260818": {"val_loss": 0.053229, "val_mae": 236.2257, "best_epoch": 44},
+      "20260819": {"val_loss": 0.054366, "val_mae": 237.9063, "best_epoch": 21},
+      "20260820": {"val_loss": 0.053427, "val_mae": 235.7326, "best_epoch": 32}
+    },
+    "median_val_loss": 0.053427,
+    "median_val_mae": 236.2257
+  },
+  "v2_validation": {
+    "seeds": {
+      "20260818": {"val_loss": 0.055107, "val_mae": 239.8546, "best_epoch": 53},
+      "20260819": {"val_loss": 0.054944, "val_mae": 238.8546, "best_epoch": 11},
+      "20260820": {"val_loss": 0.054170, "val_mae": 237.5076, "best_epoch": 28}
+    },
+    "median_val_loss": 0.054944,
+    "median_val_mae": 238.8546
+  },
+  "decision": "SELECT_V2",
+  "rationale": "V2 satisfies the primary non-inferiority gate (+1.11% vs allowed +2.00%) and provides decisive secondary engineering advantages: 45.0% reduction in Feature Transformer parameter footprint (11.0 MiB vs 20.0 MiB FP32), 49.5% reduction in validation unseen feature activation rate (0.51% vs 1.01%), and 46.5% reduction in positions containing unseen features (10.13% vs 18.93%)."
+}

@@ -2403,6 +2403,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-features-batch" {
         return run_nnue_features_batch(&args[1..]);
     }
+    if args[0] == "nnue-feature-cost" {
+        return run_nnue_feature_cost(&args[1..]);
+    }
     if args[0] == "nnue-probe" {
         return run_nnue_probe(&args[1..]);
     }
@@ -2616,12 +2619,12 @@ fn features_line(pos: &mut crate::chess::position::Position, fen: &str) -> Strin
     out
 }
 
-/// S6-N1: `bench nnue-features --fen <fen>` - deterministic sparse
-/// NnueFeatureSetV1 export (JSON line). `active_features()` in
-/// [`crate::engine::nnue`] is the single encoding source of truth; this is
-/// only a CLI bridge. Observation-only; never wired into evaluation/search.
+/// S6-N1 / S10-A: `bench nnue-features --fen <fen> [--feature-set v1|v2]` - deterministic sparse
+/// NNUE export (JSON line). `active_features_for()` in [`crate::engine::nnue`] is the single
+/// encoding source of truth; this is only a CLI bridge. Observation-only; never wired into evaluation/search.
 fn run_nnue_features(args: &[String]) -> Result<(), String> {
     let mut fen: Option<String> = None;
+    let mut feature_set = crate::engine::nnue::NnueFeatureSet::V1;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
@@ -2632,30 +2635,48 @@ fn run_nnue_features(args: &[String]) -> Result<(), String> {
                     .clone();
                 fen = Some(value);
             }
+            "--feature-set" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-features: --feature-set requires a value".to_string())?;
+                match value.to_lowercase().as_str() {
+                    "v1" => feature_set = crate::engine::nnue::NnueFeatureSet::V1,
+                    "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
+                    other => {
+                        return Err(format!(
+                            "nnue-features: unknown feature set '{other}' (expected v1|v2)"
+                        ))
+                    }
+                }
+            }
             other => {
                 return Err(format!(
-                    "nnue-features: unknown argument '{}' (expected --fen <fen>)",
+                    "nnue-features: unknown argument '{}' (expected --fen <fen> [--feature-set v1|v2])",
                     other
                 ));
             }
         }
     }
     let fen = fen.ok_or_else(|| "nnue-features: --fen is required".to_string())?;
-    println!("{}", nnue_features_for_fen(&fen)?);
+    println!("{}", nnue_features_for_fen(&fen, feature_set)?);
     Ok(())
 }
 
-fn nnue_features_for_fen(fen: &str) -> Result<String, String> {
+fn nnue_features_for_fen(
+    fen: &str,
+    feature_set: crate::engine::nnue::NnueFeatureSet,
+) -> Result<String, String> {
     let pos = parse_fen(fen).map_err(|e| format!("nnue-features: {e}"))?;
-    Ok(nnue_features_line(&pos, fen, None))
+    Ok(nnue_features_line(&pos, fen, None, feature_set))
 }
 
-/// S6-N1: `bench nnue-features-batch --batch <file>` - one JSON line per
+/// S6-N1 / S10-A: `bench nnue-features-batch --batch <file> [--feature-set v1|v2]` - one JSON line per
 /// input record, in deterministic file order. Each non-empty, non-comment
 /// line is either `position_id|fen` (the id round-trips into the output) or a
 /// plain FEN (no position_id emitted).
 fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
     let mut batch: Option<String> = None;
+    let mut feature_set = crate::engine::nnue::NnueFeatureSet::V1;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
@@ -2666,9 +2687,23 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
                     .clone();
                 batch = Some(value);
             }
+            "--feature-set" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-features-batch: --feature-set requires a value".to_string())?;
+                match value.to_lowercase().as_str() {
+                    "v1" => feature_set = crate::engine::nnue::NnueFeatureSet::V1,
+                    "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
+                    other => {
+                        return Err(format!(
+                            "nnue-features-batch: unknown feature set '{other}' (expected v1|v2)"
+                        ))
+                    }
+                }
+            }
             other => {
                 return Err(format!(
-                    "nnue-features-batch: unknown argument '{}' (expected --batch <file>)",
+                    "nnue-features-batch: unknown argument '{}' (expected --batch <file> [--feature-set v1|v2])",
                     other
                 ));
             }
@@ -2677,7 +2712,7 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
     let batch = batch.ok_or_else(|| "nnue-features-batch: --batch is required".to_string())?;
     let text = std::fs::read_to_string(&batch)
         .map_err(|e| format!("nnue-features-batch: cannot read {batch}: {e}"))?;
-    print!("{}", nnue_features_batch_from_text(&text)?);
+    print!("{}", nnue_features_batch_from_text(&text, feature_set)?);
     Ok(())
 }
 
@@ -2882,7 +2917,10 @@ fn run_phase_affine_microbench(args: &[String]) -> Result<(), String> {
 }
 
 /// Process one batch input text (used by both the CLI bridge and the tests).
-fn nnue_features_batch_from_text(text: &str) -> Result<String, String> {
+fn nnue_features_batch_from_text(
+    text: &str,
+    feature_set: crate::engine::nnue::NnueFeatureSet,
+) -> Result<String, String> {
     let mut out = String::new();
     for line in text.lines() {
         let line = line.trim();
@@ -2894,7 +2932,7 @@ fn nnue_features_batch_from_text(text: &str) -> Result<String, String> {
             None => (None, line),
         };
         let pos = parse_fen(fen).map_err(|e| format!("nnue-features-batch: {e}: '{fen}'"))?;
-        out.push_str(&nnue_features_line(&pos, fen, position_id));
+        out.push_str(&nnue_features_line(&pos, fen, position_id, feature_set));
         out.push('\n');
     }
     Ok(out)
@@ -2950,12 +2988,17 @@ fn json_escape(s: &str) -> String {
     out
 }
 
-/// Deterministic JSON line for one position's NnueFeatureSetV1 sparse export:
+/// Deterministic JSON line for one position's sparse NNUE export:
 /// `{"position_id":?, "fen": "...", "white": [u16...], "black": [u16...]}`.
-fn nnue_features_line(pos: &Position, fen: &str, position_id: Option<&str>) -> String {
-    use crate::engine::nnue::{active_features, NnuePerspective};
-    let white = active_features(pos, NnuePerspective::White);
-    let black = active_features(pos, NnuePerspective::Black);
+fn nnue_features_line(
+    pos: &Position,
+    fen: &str,
+    position_id: Option<&str>,
+    feature_set: crate::engine::nnue::NnueFeatureSet,
+) -> String {
+    use crate::engine::nnue::{active_features_for, NnuePerspective};
+    let white = active_features_for(pos, NnuePerspective::White, feature_set);
+    let black = active_features_for(pos, NnuePerspective::Black, feature_set);
     let escaped_fen = json_escape(fen);
     let escaped_id = json_escape(position_id.unwrap_or(""));
     let mut out = String::from("{");
@@ -2979,6 +3022,204 @@ fn nnue_features_line(pos: &Position, fen: &str, position_id: Option<&str>) -> S
     }
     out.push_str("]}");
     out
+}
+
+/// S10-A: `bench nnue-feature-cost --batch <file> [--feature-set v1|v2|both] [--repeats N] [--rounds R]`
+/// Measures pure in-memory Rust feature extraction cost (`ns/position`) across pre-parsed positions.
+/// All file I/O and FEN parsing happen outside the timed region.
+fn run_nnue_feature_cost(args: &[String]) -> Result<(), String> {
+    let mut batch: Option<String> = None;
+    let mut mode = "both";
+    let mut repeats = 100u32;
+    let mut rounds = 7u32;
+
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-feature-cost: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            "--feature-set" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-feature-cost: --feature-set requires a value".to_string())?;
+                match value.to_lowercase().as_str() {
+                    "v1" => mode = "v1",
+                    "v2" => mode = "v2",
+                    "both" => mode = "both",
+                    other => {
+                        return Err(format!(
+                            "nnue-feature-cost: unknown feature set '{other}' (expected v1|v2|both)"
+                        ))
+                    }
+                }
+            }
+            "--repeats" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-feature-cost: --repeats requires a value".to_string())?;
+                repeats = value
+                    .parse()
+                    .map_err(|_| format!("nnue-feature-cost: invalid --repeats '{value}'"))?;
+            }
+            "--rounds" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-feature-cost: --rounds requires a value".to_string())?;
+                rounds = value
+                    .parse()
+                    .map_err(|_| format!("nnue-feature-cost: invalid --rounds '{value}'"))?;
+            }
+            other => {
+                return Err(format!(
+                    "nnue-feature-cost: unknown argument '{other}' (expected --batch <file> [--feature-set v1|v2|both] [--repeats N] [--rounds R])"
+                ));
+            }
+        }
+    }
+
+    let batch_path =
+        batch.ok_or_else(|| "nnue-feature-cost: --batch is required".to_string())?;
+    let text = std::fs::read_to_string(&batch_path)
+        .map_err(|e| format!("nnue-feature-cost: cannot read {batch_path}: {e}"))?;
+
+    // Pre-parse all positions completely OUTSIDE the timed region
+    let mut positions = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let fen = if line.starts_with('{') {
+            // JSON record: extract "fen" field
+            if let Some(idx) = line.find("\"fen\":") {
+                let rest = &line[idx + 6..].trim_start();
+                if let Some(start_quote) = rest.find('"') {
+                    let after_quote = &rest[start_quote + 1..];
+                    if let Some(end_quote) = after_quote.find('"') {
+                        &after_quote[..end_quote]
+                    } else {
+                        line
+                    }
+                } else {
+                    line
+                }
+            } else {
+                line
+            }
+        } else {
+            match line.split_once('|') {
+                Some((_, fen)) => fen.trim(),
+                None => line,
+            }
+        };
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-feature-cost: {e}: '{fen}'"))?;
+        positions.push(pos);
+    }
+
+    if positions.is_empty() {
+        return Err("nnue-feature-cost: batch file contains 0 valid positions".to_string());
+    }
+
+    let num_positions = positions.len();
+
+    // Warm-up loop
+    for pos in &positions {
+        let bp = std::hint::black_box(pos);
+        std::hint::black_box(crate::engine::nnue::active_features_v1(
+            bp,
+            crate::engine::nnue::NnuePerspective::White,
+        ));
+        std::hint::black_box(crate::engine::nnue::active_features_v1(
+            bp,
+            crate::engine::nnue::NnuePerspective::Black,
+        ));
+        std::hint::black_box(crate::engine::nnue::active_features_v2(
+            bp,
+            crate::engine::nnue::NnuePerspective::White,
+        ));
+        std::hint::black_box(crate::engine::nnue::active_features_v2(
+            bp,
+            crate::engine::nnue::NnuePerspective::Black,
+        ));
+    }
+
+    println!(
+        "nnue_feature_cost_header positions={} repeats={} rounds={} mode={}",
+        num_positions, repeats, rounds, mode
+    );
+
+    let sets_to_run: Vec<crate::engine::nnue::NnueFeatureSet> = match mode {
+        "v1" => vec![crate::engine::nnue::NnueFeatureSet::V1],
+        "v2" => vec![crate::engine::nnue::NnueFeatureSet::V2],
+        _ => vec![
+            crate::engine::nnue::NnueFeatureSet::V1,
+            crate::engine::nnue::NnueFeatureSet::V2,
+        ],
+    };
+
+    let mut round_ns_per_pos: std::collections::HashMap<&'static str, Vec<f64>> =
+        std::collections::HashMap::new();
+
+    for round in 0..rounds {
+        let mut cur_sets = sets_to_run.clone();
+        if round % 2 == 1 && cur_sets.len() == 2 {
+            cur_sets.swap(0, 1);
+        }
+
+        for &fset in &cur_sets {
+            let label = match fset {
+                crate::engine::nnue::NnueFeatureSet::V1 => "v1",
+                crate::engine::nnue::NnueFeatureSet::V2 => "v2",
+            };
+
+            let start = std::time::Instant::now();
+            let mut total_active: usize = 0;
+
+            for _ in 0..repeats {
+                for pos in &positions {
+                    let bp = std::hint::black_box(pos);
+                    let w = crate::engine::nnue::active_features_for(
+                        bp,
+                        crate::engine::nnue::NnuePerspective::White,
+                        fset,
+                    );
+                    let b = crate::engine::nnue::active_features_for(
+                        bp,
+                        crate::engine::nnue::NnuePerspective::Black,
+                        fset,
+                    );
+                    total_active += w.len() + b.len();
+                }
+            }
+
+            std::hint::black_box(total_active);
+            let elapsed_ns = start.elapsed().as_nanos();
+            let total_evals = (num_positions as u64) * (repeats as u64);
+            let ns_per_pos = elapsed_ns as f64 / total_evals as f64;
+            round_ns_per_pos.entry(label).or_default().push(ns_per_pos);
+        }
+    }
+
+    for &label in &["v1", "v2"] {
+        if let Some(samples) = round_ns_per_pos.get_mut(label) {
+            samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let median = samples[samples.len() / 2];
+            let mut abs_devs: Vec<f64> = samples.iter().map(|s| (s - median).abs()).collect();
+            abs_devs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let mad = abs_devs[abs_devs.len() / 2];
+            println!(
+                "nnue_feature_cost_result feature_set={} median_ns_per_pos={:.2} mad_ns={:.2} min_ns={:.2} max_ns={:.2}",
+                label, median, mad, samples.first().unwrap_or(&0.0), samples.last().unwrap_or(&0.0)
+            );
+        }
+    }
+
+    Ok(())
 }
 
 /// S6-N2: `bench nnue-probe --model <bin> --fen <fen>` - one JSON line with
@@ -4448,7 +4689,9 @@ mod tests {
 
     #[test]
     fn nnue_single_export_matches_active_features_exact() {
-        use crate::engine::nnue::{active_features, NnuePerspective};
+        use crate::engine::nnue::{
+            active_features_v1, active_features_v2, NnueFeatureSet, NnuePerspective,
+        };
         let fens = [
             START_FEN,
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -4456,30 +4699,46 @@ mod tests {
         ];
         for fen in fens {
             let pos = parse_fen(fen).unwrap();
-            let line = nnue_features_line(&pos, fen, None);
-            let white = active_features(&pos, NnuePerspective::White);
-            let black = active_features(&pos, NnuePerspective::Black);
-            let expected = format!(
+            // Test V1 (legacy default)
+            let line_v1 = nnue_features_line(&pos, fen, None, NnueFeatureSet::V1);
+            let white_v1 = active_features_v1(&pos, NnuePerspective::White);
+            let black_v1 = active_features_v1(&pos, NnuePerspective::Black);
+            let expected_v1 = format!(
                 "{{\"fen\":\"{fen}\",\"white\":{},\"black\":{}}}",
-                json_array(&white),
-                json_array(&black)
+                json_array(&white_v1),
+                json_array(&black_v1)
             );
             assert_eq!(
-                line, expected,
-                "export must equal direct active_features for {fen}"
+                line_v1, expected_v1,
+                "V1 export must equal direct active_features for {fen}"
+            );
+
+            // Test V2
+            let line_v2 = nnue_features_line(&pos, fen, None, NnueFeatureSet::V2);
+            let white_v2 = active_features_v2(&pos, NnuePerspective::White);
+            let black_v2 = active_features_v2(&pos, NnuePerspective::Black);
+            let expected_v2 = format!(
+                "{{\"fen\":\"{fen}\",\"white\":{},\"black\":{}}}",
+                json_array(&white_v2),
+                json_array(&black_v2)
+            );
+            assert_eq!(
+                line_v2, expected_v2,
+                "V2 export must equal direct active_features_v2 for {fen}"
             );
         }
     }
 
     #[test]
     fn nnue_batch_export_is_deterministic_and_roundtrips_position_id() {
+        use crate::engine::nnue::NnueFeatureSet;
         let text = concat!(
             "# comment line\n",
             "startpos_id|rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n",
         );
-        let first = nnue_features_batch_from_text(text).unwrap();
-        let second = nnue_features_batch_from_text(text).unwrap();
+        let first = nnue_features_batch_from_text(text, NnueFeatureSet::V1).unwrap();
+        let second = nnue_features_batch_from_text(text, NnueFeatureSet::V1).unwrap();
         assert_eq!(first, second, "batch export must be deterministic");
 
         let lines: Vec<&str> = first.lines().collect();
@@ -4496,13 +4755,19 @@ mod tests {
             assert!(line.contains("\"white\":["));
             assert!(line.contains("\"black\":["));
         }
+
+        let first_v2 = nnue_features_batch_from_text(text, NnueFeatureSet::V2).unwrap();
+        let second_v2 = nnue_features_batch_from_text(text, NnueFeatureSet::V2).unwrap();
+        assert_eq!(first_v2, second_v2, "V2 batch export must be deterministic");
     }
 
     #[test]
     fn nnue_export_rejects_malformed_fen() {
-        let err = nnue_features_for_fen("this is not a fen").unwrap_err();
+        use crate::engine::nnue::NnueFeatureSet;
+        let err = nnue_features_for_fen("this is not a fen", NnueFeatureSet::V1).unwrap_err();
         assert!(err.contains("nnue-features"), "single export error: {err}");
-        let err = nnue_features_batch_from_text("bad|this is not a fen\n").unwrap_err();
+        let err =
+            nnue_features_batch_from_text("bad|this is not a fen\n", NnueFeatureSet::V1).unwrap_err();
         assert!(
             err.contains("nnue-features-batch"),
             "batch export error: {err}"
@@ -4585,10 +4850,11 @@ mod tests {
 
     #[test]
     fn nnue_export_escapes_quotes_backslashes_and_control_chars() {
+        use crate::engine::nnue::NnueFeatureSet;
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let pos = parse_fen(fen).unwrap();
         // Backslash, quote, tab, and U+001F in the position_id.
-        let line = nnue_features_line(&pos, fen, Some("id\\x\"y\tz\u{1f}"));
+        let line = nnue_features_line(&pos, fen, Some("id\\x\"y\tz\u{1f}"), NnueFeatureSet::V1);
         assert!(
             line.contains("\"position_id\":\"id\\\\x\\\"y\\tz\\u001f\""),
             "escaped id: {line}"
@@ -4613,10 +4879,11 @@ mod tests {
 
     #[test]
     fn nnue_export_accepts_tab_separated_fen_and_escapes_it() {
+        use crate::engine::nnue::NnueFeatureSet;
         // parse_fen uses split_whitespace, so tab-separated fields parse.
         let tab_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR\tw\tKQkq\t-\t0\t1";
         let pos = parse_fen(tab_fen).unwrap();
-        let line = nnue_features_line(&pos, tab_fen, None);
+        let line = nnue_features_line(&pos, tab_fen, None, NnueFeatureSet::V1);
         assert!(line.contains("\\t"), "tab must be escaped: {line}");
         assert!(!line.contains('\t'), "raw tab in export: {line}");
         // The emitted fen field is exactly json_escape(tab_fen): a JSON parser
@@ -4628,9 +4895,10 @@ mod tests {
 
     #[test]
     fn nnue_export_normal_input_bytes_are_stable() {
+        use crate::engine::nnue::NnueFeatureSet;
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let pos = parse_fen(fen).unwrap();
-        let line = nnue_features_line(&pos, fen, Some("startpos_id"));
+        let line = nnue_features_line(&pos, fen, Some("startpos_id"), NnueFeatureSet::V1);
         // Exact literal from the pre-escape-helper bridge (04396a0 output):
         // identity escaping keeps normal bytes unchanged.
         assert!(line.starts_with(

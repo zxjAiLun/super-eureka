@@ -22,6 +22,10 @@
 !/results/s3-promotion/**
 !/results/s4-attribution/
 !/results/s4-attribution/**
+!/results/s10/
+!/results/s10/**
+/results/s10/bakeoff/
+/results/s10/**/*.pt
 !/results/artifacts/
 !/results/artifacts/**
 # Release binaries and tarballs are build outputs, never committed.

@@ -1,28 +1,67 @@
-//! S6-N0 — NnueFeatureSetV1: king-conditioned sparse NNUE input encoding.
+//! S6-N0 / S10-A — NNUE sparse input encodings:
+//! - NnueFeatureSetV1 (S6 legacy control): 64 king buckets * 10 piece channels * 64 piece squares = 40,960.
+//! - NnueFeatureSetV2 (S10 HalfKAv2_hm-inspired): 32 horizontal king buckets * 11 piece channels * 64 piece squares = 22,528.
 //!
-//! FROZEN S6-N0 CONTRACT (no additional feature engineering):
+//! FROZEN CONTRACTS:
+//! V1:
 //! - two perspectives: White / Black, each conditioned on its own king square;
 //! - king buckets: 64 (one per oriented king square);
 //! - piece channels: 10 = own P/N/B/R/Q (0..=4) + opponent P/N/B/R/Q (5..=9);
-//! - kings are NOT ordinary piece features (each accumulator is conditioned on
-//!   its own king, so both king locations enter the network via the buckets);
-//! - feature index:
-//!   `((oriented_king_square * 10 + relative_channel) * 64 + oriented_piece_square)`;
-//! - `NNUE_INPUTS = 64 * 10 * 64 = 40_960`;
-//! - side to move, tempo, castling, en passant, halfmove, phase, pawn
-//!   structure, mobility, king safety, and the legacy 227-feature
-//!   `FeatureSetV1` are deliberately NOT part of this first input schema.
+//! - own and opp kings are NOT piece channels (each perspective conditions on its own king);
+//! - feature index: `((oriented_king_square * 10 + relative_channel) * 64 + oriented_piece_square)`;
+//! - `NNUE_INPUTS = 40_960`.
 //!
-//! This module is NOT wired into `evaluate_profiled`, the search, or UCI. It is
-//! a standalone input contract for the future NNUE runtime and trainer; S6-N0
-//! only freezes the encoding and measures its cost.
+//! V2 (S10-A):
+//! - two perspectives: White / Black, each conditioned on its own king square with horizontal symmetry;
+//! - if oriented king is on files a–d (`(sq & 7) < 4`), both the king and all piece squares are horizontally mirrored (`sq ^ 7`),
+//!   mapping the king to files e–h (files 4..=7);
+//! - king buckets: 32 = `(oriented_king_sq / 8) * 4 + ((oriented_king_sq % 8) - 4)`;
+//! - piece channels: 11 = own P/N/B/R/Q (0..=4) + opponent P/N/B/R/Q (5..=9) + opponent King (10);
+//! - own king remains the conditioning bucket only; opponent king is an active piece channel;
+//! - feature index: `((king_bucket * 11 + channel) * 64 + oriented_piece_sq)`;
+//! - `NNUE_INPUTS_V2 = 32 * 11 * 64 = 22_528`;
+//! - startpos has exactly 31 active features per perspective.
+//!
+//! This module is NOT wired into `evaluate_profiled`, the search, or UCI.
 
 use crate::chess::position::Position;
 use crate::chess::types::{Color, Piece, PieceType, Square};
 
-/// Total sparse input dimension: 64 king buckets * 10 piece channels * 64
-/// piece squares.
+/// Total sparse input dimension for V1 (legacy default): 64 king buckets * 10 piece channels * 64 piece squares.
 pub const NNUE_INPUTS: usize = 64 * 10 * 64;
+
+/// Explicit V1 sparse input dimension alias: 40,960.
+pub const NNUE_INPUTS_V1: usize = NNUE_INPUTS;
+
+/// Sparse input dimension for V2: 32 king buckets * 11 piece channels * 64 piece squares = 22,528.
+pub const NNUE_INPUTS_V2: usize = 32 * 11 * 64;
+
+/// Supported NNUE feature set representations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NnueFeatureSet {
+    V1,
+    V2,
+}
+
+impl NnueFeatureSet {
+    /// Sparse input dimension for this feature set.
+    #[inline]
+    pub const fn input_dim(self) -> usize {
+        match self {
+            NnueFeatureSet::V1 => NNUE_INPUTS_V1,
+            NnueFeatureSet::V2 => NNUE_INPUTS_V2,
+        }
+    }
+
+    /// Expected active features count for a standard start position.
+    #[inline]
+    pub const fn startpos_active_features(self) -> usize {
+        match self {
+            NnueFeatureSet::V1 => 30,
+            NnueFeatureSet::V2 => 31,
+        }
+    }
+}
 
 /// One of the two king-conditioned accumulator perspectives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,8 +91,11 @@ impl NnuePerspective {
     }
 }
 
-/// Map a piece to its relative channel for `perspective`. Kings are excluded
-/// (they are represented by the king bucket, never as ordinary piece features).
+// ---------------------------------------------------------------------------
+// V1 Feature Representation (Legacy Source-Compatible)
+// ---------------------------------------------------------------------------
+
+/// Map a piece to its relative channel for `perspective` under V1. Kings are excluded.
 #[inline]
 pub const fn relative_channel(perspective: NnuePerspective, piece: Piece) -> Option<u8> {
     let own = matches!(
@@ -72,9 +114,7 @@ pub const fn relative_channel(perspective: NnuePerspective, piece: Piece) -> Opt
     Some(base + index)
 }
 
-/// Feature index for one active feature. All three arguments are already
-/// oriented into the calling perspective's frame.
-///
+/// Feature index for one active feature in V1.
 /// Range: `0 .. 40_960` (fits `u16`).
 #[inline]
 pub const fn feature_index(
@@ -85,10 +125,8 @@ pub const fn feature_index(
     (oriented_king_square as usize * 10 + channel as usize) * 64 + oriented_piece_square as usize
 }
 
-/// Active feature indices for one perspective of `pos` (sparse, unsorted).
-///
+/// Active feature indices for one perspective of `pos` under V1 (sparse, unsorted).
 /// Count = number of non-king pieces on the board (30 for the start position).
-/// Read-only: `pos` is never mutated.
 pub fn active_features(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
     let king_sq = perspective.orient(pos.king_square(perspective.color()));
     let mut out = Vec::with_capacity(30);
@@ -103,6 +141,109 @@ pub fn active_features(pos: &Position, perspective: NnuePerspective) -> Vec<u16>
     out
 }
 
+/// Explicit V1 alias for active_features.
+#[inline]
+pub fn active_features_v1(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
+    active_features(pos, perspective)
+}
+
+// ---------------------------------------------------------------------------
+// V2 Feature Representation (HalfKAv2_hm-inspired, 22,528 inputs)
+// ---------------------------------------------------------------------------
+
+/// V2 relative piece channels:
+/// - 0..=4: Own P, N, B, R, Q
+/// - 5..=9: Opp P, N, B, R, Q
+/// - 10:    Opp King
+/// (Own king returns None as it is the conditioning bucket).
+#[inline]
+pub const fn v2_relative_channel(perspective: NnuePerspective, piece: Piece) -> Option<u8> {
+    let own = matches!(
+        (perspective.color(), piece.color),
+        (Color::White, Color::White) | (Color::Black, Color::Black)
+    );
+    if own {
+        match piece.piece_type {
+            PieceType::Pawn => Some(0),
+            PieceType::Knight => Some(1),
+            PieceType::Bishop => Some(2),
+            PieceType::Rook => Some(3),
+            PieceType::Queen => Some(4),
+            PieceType::King => None,
+        }
+    } else {
+        match piece.piece_type {
+            PieceType::Pawn => Some(5),
+            PieceType::Knight => Some(6),
+            PieceType::Bishop => Some(7),
+            PieceType::Rook => Some(8),
+            PieceType::Queen => Some(9),
+            PieceType::King => Some(10),
+        }
+    }
+}
+
+/// V2 king bucket index $\in [0, 31]$ for a king square that is already rank-oriented and mirrored to files e–h (4..=7).
+#[inline]
+pub const fn v2_king_bucket(mirrored_king_sq: Square) -> usize {
+    let rank = (mirrored_king_sq / 8) as usize;
+    let file = (mirrored_king_sq % 8) as usize;
+    rank * 4 + (file - 4)
+}
+
+/// V2 feature index for one active feature.
+/// Range: `0 .. 22_528` (fits `u16`).
+#[inline]
+pub const fn v2_feature_index(
+    king_bucket: usize,
+    channel: u8,
+    mirrored_piece_sq: Square,
+) -> usize {
+    (king_bucket * 11 + channel as usize) * 64 + mirrored_piece_sq as usize
+}
+
+/// Active feature indices for one perspective of `pos` under V2 (sparse, unsorted).
+/// Count = number of all pieces minus own king on the board (31 for start position).
+pub fn active_features_v2(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
+    let raw_king_sq = perspective.orient(pos.king_square(perspective.color()));
+    let mirror_file = (raw_king_sq & 7) < 4;
+    let king_sq = if mirror_file {
+        raw_king_sq ^ 7
+    } else {
+        raw_king_sq
+    };
+    let bucket = v2_king_bucket(king_sq);
+
+    let mut out = Vec::with_capacity(31);
+    for (sq, piece) in pos.board().iter().enumerate() {
+        let Some(piece) = piece else { continue };
+        let Some(channel) = v2_relative_channel(perspective, *piece) else {
+            continue;
+        };
+        let oriented_sq = perspective.orient(sq as Square);
+        let final_sq = if mirror_file {
+            oriented_sq ^ 7
+        } else {
+            oriented_sq
+        };
+        let index = v2_feature_index(bucket, channel, final_sq);
+        out.push(index as u16);
+    }
+    out
+}
+
+/// Dispatcher helper to extract active features for any given feature set.
+pub fn active_features_for(
+    pos: &Position,
+    perspective: NnuePerspective,
+    feature_set: NnueFeatureSet,
+) -> Vec<u16> {
+    match feature_set {
+        NnueFeatureSet::V1 => active_features_v1(pos, perspective),
+        NnueFeatureSet::V2 => active_features_v2(pos, perspective),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -112,13 +253,15 @@ mod tests {
 
     use super::*;
 
-    fn features(pos: &Position, perspective: NnuePerspective) -> BTreeSet<u16> {
-        active_features(pos, perspective).into_iter().collect()
+    fn features_v1(pos: &Position, perspective: NnuePerspective) -> BTreeSet<u16> {
+        active_features_v1(pos, perspective).into_iter().collect()
+    }
+
+    fn features_v2(pos: &Position, perspective: NnuePerspective) -> BTreeSet<u16> {
+        active_features_v2(pos, perspective).into_iter().collect()
     }
 
     /// Vertical mirror (rank flip `sq ^ 56`) + color swap, expressed as a FEN.
-    /// Side to move, castling, and en passant fields are carried over verbatim:
-    /// the S6-N0 encoding ignores them, so the invariant only needs the board.
     fn mirror_color_swap_fen(fen: &str) -> String {
         let mut parts = fen.split_whitespace();
         let board = parts.next().expect("fen board");
@@ -155,23 +298,80 @@ mod tests {
         out
     }
 
+    /// Horizontal mirror (file flip `sq ^ 7`), expressed as a FEN.
+    fn horizontal_mirror_fen(fen: &str) -> String {
+        let mut parts = fen.split_whitespace();
+        let board = parts.next().expect("fen board");
+        let rest: Vec<&str> = parts.collect();
+        let flipped: String = board
+            .split('/')
+            .map(|rank| {
+                let mut expanded = Vec::new();
+                for c in rank.chars() {
+                    if let Some(d) = c.to_digit(10) {
+                        for _ in 0..d {
+                            expanded.push('1');
+                        }
+                    } else {
+                        expanded.push(c);
+                    }
+                }
+                expanded.reverse();
+                // re-compress empty squares
+                let mut compressed = String::new();
+                let mut empties = 0;
+                for c in expanded {
+                    if c == '1' {
+                        empties += 1;
+                    } else {
+                        if empties > 0 {
+                            compressed.push_str(&empties.to_string());
+                            empties = 0;
+                        }
+                        compressed.push(c);
+                    }
+                }
+                if empties > 0 {
+                    compressed.push_str(&empties.to_string());
+                }
+                compressed
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        let mut out = flipped;
+        for part in rest {
+            out.push(' ');
+            out.push_str(part);
+        }
+        out
+    }
+
     #[test]
-    fn startpos_has_30_active_features_per_perspective() {
+    fn startpos_has_30_active_features_v1_and_31_active_features_v2() {
         let pos = parse_fen(START_FEN).unwrap();
         for perspective in [NnuePerspective::White, NnuePerspective::Black] {
-            let active = active_features(&pos, perspective);
-            assert_eq!(active.len(), 30, "{perspective:?} active feature count");
-            for index in active {
+            let active1 = active_features_v1(&pos, perspective);
+            assert_eq!(active1.len(), 30, "V1 {perspective:?} active count");
+            for index in active1 {
                 assert!(
-                    (index as usize) < NNUE_INPUTS,
-                    "{perspective:?} index {index} out of range"
+                    (index as usize) < NNUE_INPUTS_V1,
+                    "V1 {perspective:?} index {index} out of range"
+                );
+            }
+
+            let active2 = active_features_v2(&pos, perspective);
+            assert_eq!(active2.len(), 31, "V2 {perspective:?} active count");
+            for index in active2 {
+                assert!(
+                    (index as usize) < NNUE_INPUTS_V2,
+                    "V2 {perspective:?} index {index} out of range"
                 );
             }
         }
     }
 
     #[test]
-    fn all_indices_in_range_and_no_duplicates_across_fixtures() {
+    fn all_v1_and_v2_indices_in_range_and_no_duplicates_across_fixtures() {
         let fens = [
             START_FEN,
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -182,23 +382,26 @@ mod tests {
         for fen in fens {
             let pos = parse_fen(fen).unwrap();
             for perspective in [NnuePerspective::White, NnuePerspective::Black] {
-                let set = features(&pos, perspective);
-                assert_eq!(set.len(), active_features(&pos, perspective).len());
-                for index in &set {
-                    assert!(
-                        (*index as usize) < NNUE_INPUTS,
-                        "{perspective:?} index {index} out of range for {fen}"
-                    );
+                let set1 = features_v1(&pos, perspective);
+                assert_eq!(set1.len(), active_features_v1(&pos, perspective).len());
+                for index in &set1 {
+                    assert!((*index as usize) < NNUE_INPUTS_V1);
+                }
+
+                let set2 = features_v2(&pos, perspective);
+                assert_eq!(set2.len(), active_features_v2(&pos, perspective).len());
+                for index in &set2 {
+                    assert!((*index as usize) < NNUE_INPUTS_V2);
                 }
             }
         }
     }
 
     #[test]
-    fn startpos_indices_match_hand_computation() {
+    fn startpos_v1_indices_match_hand_computation() {
         let pos = parse_fen(START_FEN).unwrap();
-        let white = features(&pos, NnuePerspective::White);
-        let black = features(&pos, NnuePerspective::Black);
+        let white = features_v1(&pos, NnuePerspective::White);
+        let black = features_v1(&pos, NnuePerspective::Black);
 
         // White perspective: king e1 (bucket 4).
         //   a2 white pawn:  channel 0, square 8  -> (4*10+0)*64+8  = 2568
@@ -218,7 +421,56 @@ mod tests {
     }
 
     #[test]
-    fn vertical_mirror_color_swap_preserves_indices() {
+    fn startpos_v2_indices_match_hand_computation() {
+        let pos = parse_fen(START_FEN).unwrap();
+        let white = features_v2(&pos, NnuePerspective::White);
+        let black = features_v2(&pos, NnuePerspective::Black);
+
+        // White perspective: king e1 (sq 4: rank 0, file 4 >= 4, no mirror).
+        //   king bucket: 0 * 4 + (4 - 4) = 0.
+        //   a2 white pawn (channel 0, square 8):  (0 * 11 + 0) * 64 + 8 = 8.
+        //   g1 white knight (channel 1, square 6): (0 * 11 + 1) * 64 + 6 = 70.
+        //   e8 black king (channel 10, square 60): (0 * 11 + 10) * 64 + 60 = 700.
+        assert!(white.contains(&8), "white a2 pawn");
+        assert!(white.contains(&70), "white g1 knight");
+        assert!(white.contains(&700), "white perspective opp king e8");
+
+        // Black perspective: king e8 (sq 60) -> oriented sq = 60 ^ 56 = 4 (rank 0, file 4 >= 4, no mirror).
+        //   king bucket: 0 * 4 + (4 - 4) = 0.
+        //   d7 black pawn: sq 51 -> oriented sq = 51 ^ 56 = 11, channel 0: (0 * 11 + 0) * 64 + 11 = 11.
+        //   d1 white queen: sq 3 -> oriented sq = 3 ^ 56 = 59, channel 9: (0 * 11 + 9) * 64 + 59 = 635.
+        //   e1 white king: sq 4 -> oriented sq = 4 ^ 56 = 60, channel 10: (0 * 11 + 10) * 64 + 60 = 700.
+        assert!(black.contains(&11), "black d7 pawn");
+        assert!(black.contains(&635), "black perspective opp queen d1");
+        assert!(black.contains(&700), "black perspective opp king e1");
+    }
+
+    #[test]
+    fn v2_horizontal_mirror_preserves_features_identically() {
+        let fens = [
+            START_FEN,
+            // king on d1 (file 3 < 4) vs king on e1 (file 4 >= 4)
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R2K3R w KQkq - 0 1",
+            "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+        ];
+        for fen in fens {
+            let original = parse_fen(fen).unwrap();
+            let mirrored = parse_fen(&horizontal_mirror_fen(fen)).unwrap();
+            assert_eq!(
+                features_v2(&original, NnuePerspective::White),
+                features_v2(&mirrored, NnuePerspective::White),
+                "original White == mirrored White V2 for {fen}"
+            );
+            assert_eq!(
+                features_v2(&original, NnuePerspective::Black),
+                features_v2(&mirrored, NnuePerspective::Black),
+                "original Black == mirrored Black V2 for {fen}"
+            );
+        }
+    }
+
+    #[test]
+    fn v1_and_v2_vertical_mirror_color_swap_preserves_indices() {
         let fens = [
             START_FEN,
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -228,24 +480,36 @@ mod tests {
             let original = parse_fen(fen).unwrap();
             let mirrored = parse_fen(&mirror_color_swap_fen(fen)).unwrap();
             assert_eq!(
-                features(&original, NnuePerspective::White),
-                features(&mirrored, NnuePerspective::Black),
-                "original White == mirrored Black for {fen}"
+                features_v1(&original, NnuePerspective::White),
+                features_v1(&mirrored, NnuePerspective::Black),
+                "V1 original White == mirrored Black for {fen}"
             );
             assert_eq!(
-                features(&original, NnuePerspective::Black),
-                features(&mirrored, NnuePerspective::White),
-                "original Black == mirrored White for {fen}"
+                features_v1(&original, NnuePerspective::Black),
+                features_v1(&mirrored, NnuePerspective::White),
+                "V1 original Black == mirrored White for {fen}"
+            );
+            assert_eq!(
+                features_v2(&original, NnuePerspective::White),
+                features_v2(&mirrored, NnuePerspective::Black),
+                "V2 original White == mirrored Black for {fen}"
+            );
+            assert_eq!(
+                features_v2(&original, NnuePerspective::Black),
+                features_v2(&mirrored, NnuePerspective::White),
+                "V2 original Black == mirrored White for {fen}"
             );
         }
     }
 
     #[test]
-    fn encoding_does_not_mutate_position() {
+    fn v1_and_v2_encoding_does_not_mutate_position() {
         let pos = parse_fen(START_FEN).unwrap();
         let before = pos.zobrist_key();
-        let _ = active_features(&pos, NnuePerspective::White);
-        let _ = active_features(&pos, NnuePerspective::Black);
+        let _ = active_features_v1(&pos, NnuePerspective::White);
+        let _ = active_features_v1(&pos, NnuePerspective::Black);
+        let _ = active_features_v2(&pos, NnuePerspective::White);
+        let _ = active_features_v2(&pos, NnuePerspective::Black);
         assert_eq!(pos.zobrist_key(), before);
     }
 }
