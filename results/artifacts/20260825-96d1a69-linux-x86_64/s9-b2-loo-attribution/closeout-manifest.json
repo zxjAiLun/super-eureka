@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "kind": "s9_b2_attribution_manifest",
+  "evaluation_build": "20260825-96d1a69-linux-x86_64",
+  "binary_sha256": "45d1a895ebc8a6643dce3454d7b421111cfeaab2f5e55537c8851ffd318933ba",
+  "files": {
+    "attribution-summary.json": {
+      "sha256": "d4675409e6e7f4a5f2215b4784c562ea8a80b7c7eb53114063534f89272cf493",
+      "size": 4725
+    },
+    "s9-b2-loo-report.md": {
+      "sha256": "b552cba5ba80a446f40c76782d076372191e89f7258d3c4c55c1f6bda19146d0",
+      "size": 4724
+    },
+    "development-space/artifact-manifest.json": {
+      "sha256": "fad79359510564790f2ef07634fb7217ae325b075217355a85ec4023220d979e",
+      "size": 139251
+    },
+    "development-space/combined.pgn": {
+      "sha256": "1d0fb84d0dc2e0e9f90352fd27677541900d2b47a11d3c5600bdbd81ba090a43",
+      "size": 829164
+    },
+    "development-space/summary.json": {
+      "sha256": "60b6130a8896636bee5b17add325184d050c183a03d81c54d30a316cc59cc889",
+      "size": 47824
+    },
+    "development-space/tournament-snapshot.json": {
+      "sha256": "5f37660dbd05d142716c1a6c498ced35ef966b1a53a1dc7727ff14a76b5afcc0",
+      "size": 3746
+    },
+    "king-safety/artifact-manifest.json": {
+      "sha256": "40f82c11514cc0a90c852ccf28325d7d93cae977ad7b6adaf8bfa4334e78a5d9",
+      "size": 139249
+    },
+    "king-safety/combined.pgn": {
+      "sha256": "9e11d21dd5cef3a1aa25ece4e2e184b3d48e5d32ae719be16e6e323d64e4dc19",
+      "size": 780355
+    },
+    "king-safety/summary.json": {
+      "sha256": "57d2508a4972c55f02288727df9ea3dc78c25de59eb3a5c2535b78939ac87890",
+      "size": 46252
+    },
+    "king-safety/tournament-snapshot.json": {
+      "sha256": "b3210a84d8e1d5c4549bb92d29add064dac2267485cd2a530a5be99047a97385",
+      "size": 3717
+    },
+    "mobility/artifact-manifest.json": {
+      "sha256": "a40ca1b877d04fbdfcec9f8237834302d4ca018c7f588f08d01bdd9fc604bcd6",
+      "size": 139259
+    },
+    "mobility/combined.pgn": {
+      "sha256": "8767859d3e1ac3a79099ffd63677c7c0cdc859b0d4ba9aa73502564c5c73a73f",
+      "size": 831698
+    },
+    "mobility/summary.json": {
+      "sha256": "919fc62dd512e1ca74b7b1ce786e80a718fa8abdc1a11856a51605e18b4f2fee",
+      "size": 45467
+    },
+    "mobility/tournament-snapshot.json": {
+      "sha256": "8b1150b43edff66c2e5c80a65bf56b736ccd317fbf6c758ad30f39cb7dc29e1d",
+      "size": 3702
+    },
+    "pawn-structure/artifact-manifest.json": {
+      "sha256": "f5678aa392c9bbfec15752441c72869a7ff315c9e1a4684223d5457d4fd0d4d9",
+      "size": 139254
+    },
+    "pawn-structure/combined.pgn": {
+      "sha256": "f2a7c9e1f2bd4df2b658877330e1d7ee4cd1b5c1ca962dd0d3227ceebf7e0cb5",
+      "size": 837957
+    },
+    "pawn-structure/summary.json": {
+      "sha256": "4a76131aa5b77d99aee000398e0a18feeb5e13a3a55b32da9489b4f8eff3d9f1",
+      "size": 46983
+    },
+    "pawn-structure/tournament-snapshot.json": {
+      "sha256": "22efff852f3372c03694410c31a6e7aad4c11b9adac0262373e7b2e3974272f1",
+      "size": 3732
+    },
+    "piece-activity/artifact-manifest.json": {
+      "sha256": "0b5a317018179ae2ee51bfe0f44ae39e089764bd5af0a7acce8fa73621c26a42",
+      "size": 139252
+    },
+    "piece-activity/combined.pgn": {
+      "sha256": "b6ab1dbf630c4baa19822e530f0ef4d172474a3799235392b001651b36ef1675",
+      "size": 829785
+    },
+    "piece-activity/summary.json": {
+      "sha256": "838dd3ac7e584eaa100389194781bddbbd2816b76a72cb07ab737c418e79dba5",
+      "size": 47018
+    },
+    "piece-activity/tournament-snapshot.json": {
+      "sha256": "28539760bb896df8ee4236a355a6a0aae09fbb2808ceccec413414c7d1d6a130",
+      "size": 3731
+    },
+    "rook-activity/artifact-manifest.json": {
+      "sha256": "2287b11cd47f7e579aa66a0711853d9437e6ca264293128a969ceab1c8f07218",
+      "size": 139257
+    },
+    "rook-activity/combined.pgn": {
+      "sha256": "6c053103ae53f6326a35337d698914a82ba8be96e0d59ca4ccbe5027ae3032d6",
+      "size": 800964
+    },
+    "rook-activity/summary.json": {
+      "sha256": "a2da899a234a52e05428e25d2a97c4bc07c912442f038125169baa8b9eab6827",
+      "size": 46761
+    },
+    "rook-activity/tournament-snapshot.json": {
+      "sha256": "e18dbf2762d64f5dcfb0940083fc6abbcd65702eb6868b67f1347624e9db2ba8",
+      "size": 3727
+    }
+  }
+}

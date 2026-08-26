@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "kind": "s9_b2_horizontal_attribution_matrix",
+  "evaluation_build": {
+    "build_id": "20260825-96d1a69-linux-x86_64",
+    "git_sha": "96d1a69b2d884b3f78703d8c87c973dff9eb7830",
+    "binary_sha256": "45d1a895ebc8a6643dce3454d7b421111cfeaab2f5e55537c8851ffd318933ba"
+  },
+  "experimental_setup": {
+    "time_control": "10+0.1 (blitz_10_01)",
+    "decision_mode": "FIXED_GAMES",
+    "pairs_per_family": 128,
+    "games_per_family": 256,
+    "opening_set_id": "stockfish-8moves-v3",
+    "opening_seed": 2026082501,
+    "common_opening_indices_count": 128
+  },
+  "families": {
+    "piece_activity": {
+      "display_name": "Piece Activity",
+      "tournament_id": "952b2a48-5af9-435e-a190-893442d202f1",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-piece-activity",
+      "wins": 113,
+      "losses": 96,
+      "draws": 47,
+      "score_percent": 53.32,
+      "score_ci95": [
+        47.58,
+        59.06
+      ],
+      "ptnml": [
+        19,
+        19,
+        44,
+        18,
+        28
+      ],
+      "delta_elo": 23.11,
+      "elo_ci95": [
+        -16.8,
+        63.63
+      ],
+      "removable_cost_ns": 162.4,
+      "cost_tier": "High",
+      "elo_per_ns": 0.142,
+      "nps_speedup_on_removal_percent": 2.24
+    },
+    "pawn_structure": {
+      "display_name": "Pawn Structure",
+      "tournament_id": "19e75dd8-1379-4bb6-bd00-621a9b48d18b",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-pawn-structure",
+      "wins": 115,
+      "losses": 103,
+      "draws": 38,
+      "score_percent": 52.34,
+      "score_ci95": [
+        47.01,
+        57.68
+      ],
+      "ptnml": [
+        16,
+        18,
+        57,
+        12,
+        25
+      ],
+      "delta_elo": 16.3,
+      "elo_ci95": [
+        -20.83,
+        53.8
+      ],
+      "removable_cost_ns": 78.9,
+      "cost_tier": "Medium",
+      "elo_per_ns": 0.207,
+      "nps_speedup_on_removal_percent": 2.49
+    },
+    "mobility": {
+      "display_name": "Mobility",
+      "tournament_id": "931b4f90-1dce-4f9d-a865-9a891b9bc12e",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-mobility",
+      "wins": 108,
+      "losses": 102,
+      "draws": 46,
+      "score_percent": 51.17,
+      "score_ci95": [
+        45.58,
+        56.76
+      ],
+      "ptnml": [
+        19,
+        22,
+        45,
+        18,
+        24
+      ],
+      "delta_elo": 8.14,
+      "elo_ci95": [
+        -30.79,
+        47.29
+      ],
+      "removable_cost_ns": 109.8,
+      "cost_tier": "Medium-high",
+      "elo_per_ns": 0.074,
+      "nps_speedup_on_removal_percent": -28.29
+    },
+    "rook_activity": {
+      "display_name": "Rook Activity",
+      "tournament_id": "d9fdc528-35b7-4f10-b9bb-1c2b182ca104",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-rook-activity",
+      "wins": 107,
+      "losses": 102,
+      "draws": 47,
+      "score_percent": 50.98,
+      "score_ci95": [
+        45.84,
+        56.12
+      ],
+      "ptnml": [
+        18,
+        15,
+        57,
+        20,
+        18
+      ],
+      "delta_elo": 6.79,
+      "elo_ci95": [
+        -28.99,
+        42.71
+      ],
+      "removable_cost_ns": 78.0,
+      "cost_tier": "Medium",
+      "elo_per_ns": 0.087,
+      "nps_speedup_on_removal_percent": -42.42
+    },
+    "king_safety": {
+      "display_name": "King Safety",
+      "tournament_id": "1b560e21-c77f-412b-b398-a88918936312",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-king-safety",
+      "wins": 103,
+      "losses": 104,
+      "draws": 49,
+      "score_percent": 49.8,
+      "score_ci95": [
+        44.41,
+        55.2
+      ],
+      "ptnml": [
+        19,
+        23,
+        45,
+        22,
+        19
+      ],
+      "delta_elo": -1.36,
+      "elo_ci95": [
+        -39.0,
+        36.25
+      ],
+      "removable_cost_ns": 168.9,
+      "cost_tier": "High",
+      "elo_per_ns": -0.008,
+      "nps_speedup_on_removal_percent": 3.61
+    },
+    "development_space": {
+      "display_name": "Development / Space",
+      "tournament_id": "7a7e4948-ce43-40af-8eb7-d2cd076da33f",
+      "candidate_preset": "current-final",
+      "baseline_preset": "current-final-no-development-space",
+      "wins": 95,
+      "losses": 106,
+      "draws": 55,
+      "score_percent": 47.85,
+      "score_ci95": [
+        42.42,
+        53.29
+      ],
+      "ptnml": [
+        23,
+        19,
+        50,
+        18,
+        18
+      ],
+      "delta_elo": -14.94,
+      "elo_ci95": [
+        -53.11,
+        22.88
+      ],
+      "removable_cost_ns": 44.4,
+      "cost_tier": "Low",
+      "elo_per_ns": -0.336,
+      "nps_speedup_on_removal_percent": -1.84
+    }
+  }
+}
