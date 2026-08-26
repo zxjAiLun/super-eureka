@@ -155,6 +155,7 @@ pub fn active_features_v1(pos: &Position, perspective: NnuePerspective) -> Vec<u
 /// - 0..=4: Own P, N, B, R, Q
 /// - 5..=9: Opp P, N, B, R, Q
 /// - 10:    Opp King
+///
 /// (Own king returns None as it is the conditioning bucket).
 #[inline]
 pub const fn v2_relative_channel(perspective: NnuePerspective, piece: Piece) -> Option<u8> {
@@ -194,11 +195,7 @@ pub const fn v2_king_bucket(mirrored_king_sq: Square) -> usize {
 /// V2 feature index for one active feature.
 /// Range: `0 .. 22_528` (fits `u16`).
 #[inline]
-pub const fn v2_feature_index(
-    king_bucket: usize,
-    channel: u8,
-    mirrored_piece_sq: Square,
-) -> usize {
+pub const fn v2_feature_index(king_bucket: usize, channel: u8, mirrored_piece_sq: Square) -> usize {
     (king_bucket * 11 + channel as usize) * 64 + mirrored_piece_sq as usize
 }
 
@@ -309,9 +306,7 @@ mod tests {
                 let mut expanded = Vec::new();
                 for c in rank.chars() {
                     if let Some(d) = c.to_digit(10) {
-                        for _ in 0..d {
-                            expanded.push('1');
-                        }
+                        expanded.extend(std::iter::repeat_n('1', d as usize));
                     } else {
                         expanded.push(c);
                     }

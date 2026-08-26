@@ -2688,9 +2688,9 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
                 batch = Some(value);
             }
             "--feature-set" => {
-                let value = it
-                    .next()
-                    .ok_or_else(|| "nnue-features-batch: --feature-set requires a value".to_string())?;
+                let value = it.next().ok_or_else(|| {
+                    "nnue-features-batch: --feature-set requires a value".to_string()
+                })?;
                 match value.to_lowercase().as_str() {
                     "v1" => feature_set = crate::engine::nnue::NnueFeatureSet::V1,
                     "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
@@ -3044,9 +3044,9 @@ fn run_nnue_feature_cost(args: &[String]) -> Result<(), String> {
                 batch = Some(value);
             }
             "--feature-set" => {
-                let value = it
-                    .next()
-                    .ok_or_else(|| "nnue-feature-cost: --feature-set requires a value".to_string())?;
+                let value = it.next().ok_or_else(|| {
+                    "nnue-feature-cost: --feature-set requires a value".to_string()
+                })?;
                 match value.to_lowercase().as_str() {
                     "v1" => mode = "v1",
                     "v2" => mode = "v2",
@@ -3082,8 +3082,7 @@ fn run_nnue_feature_cost(args: &[String]) -> Result<(), String> {
         }
     }
 
-    let batch_path =
-        batch.ok_or_else(|| "nnue-feature-cost: --batch is required".to_string())?;
+    let batch_path = batch.ok_or_else(|| "nnue-feature-cost: --batch is required".to_string())?;
     let text = std::fs::read_to_string(&batch_path)
         .map_err(|e| format!("nnue-feature-cost: cannot read {batch_path}: {e}"))?;
 
@@ -4766,8 +4765,8 @@ mod tests {
         use crate::engine::nnue::NnueFeatureSet;
         let err = nnue_features_for_fen("this is not a fen", NnueFeatureSet::V1).unwrap_err();
         assert!(err.contains("nnue-features"), "single export error: {err}");
-        let err =
-            nnue_features_batch_from_text("bad|this is not a fen\n", NnueFeatureSet::V1).unwrap_err();
+        let err = nnue_features_batch_from_text("bad|this is not a fen\n", NnueFeatureSet::V1)
+            .unwrap_err();
         assert!(
             err.contains("nnue-features-batch"),
             "batch export error: {err}"

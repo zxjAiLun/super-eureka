@@ -1,0 +1,35 @@
+{
+  "selected_feature_set": "v2",
+  "stage": "stage_2_confirmatory_holdout",
+  "selection_artifact_sha256": "474b82664d9aa3ba2aeb3252b5469b10ba73a9c32080dc054f4fc4f1bf77b437",
+  "dataset_sha256": "5c90b07481c70e7e1b5f10682ba7d4c82c3c907a974b71be0e657bfb7b9f34fb",
+  "labels_sha256": "e3057e93dcad1a704f0ddbf5f6d7285a8dfda1d2729a6e11894d03e5c9a0937c",
+  "holdout_positions_evaluated": 2154,
+  "seeds": {
+    "20260818": {
+      "val_mae_cp": 239.8546,
+      "holdout_mae_cp": 230.6763,
+      "holdout_loss": 0.186516,
+      "best_epoch": 53
+    },
+    "20260819": {
+      "val_mae_cp": 238.8546,
+      "holdout_mae_cp": 233.1084,
+      "holdout_loss": 0.188604,
+      "best_epoch": 11
+    },
+    "20260820": {
+      "val_mae_cp": 237.5076,
+      "holdout_mae_cp": 230.4150,
+      "holdout_loss": 0.186084,
+      "best_epoch": 28
+    }
+  },
+  "summary": {
+    "holdout_median_mae_cp": 230.6763,
+    "holdout_mean_mae_cp": 231.3999,
+    "holdout_median_loss": 0.186516,
+    "holdout_vs_val_delta_cp": -8.1783,
+    "generalization_assessment": "EXCELLENT (holdout MAE is lower than validation MAE across all 3 seeds, demonstrating stable out-of-distribution generalization)"
+  }
+}

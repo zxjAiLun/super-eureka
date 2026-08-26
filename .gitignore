@@ -25,6 +25,7 @@
 !/results/s10/
 !/results/s10/**
 /results/s10/bakeoff/
+/results/s10/stage2_holdout/
 /results/s10/**/*.pt
 !/results/artifacts/
 !/results/artifacts/**
