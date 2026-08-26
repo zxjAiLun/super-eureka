@@ -7,39 +7,38 @@
 **Common Opening Design**: 6 LOO tournaments evaluated against identical 128 opening indices derived from `stockfish-8moves-v3` with fixed random seed `2026082501`.  
 **Attribution Metric**: $\Delta\text{Elo}_X = \text{Elo}(\text{Full}) - \text{Elo}(\text{NoX})$ (Engine A = `CurrentFinal`, Engine B = `CurrentFinalNoX`).
 
+> **Methodological Note on Screening Sample Size ($N=128$ pairs)**:  
+> As expected for an exploratory $N=128$ screening design, the 95% Elo confidence intervals for all 6 individual families currently span zero. Point estimates are reported strictly to rank and prioritize candidate hypotheses for targeted confirmatory testing (S9-C), not as definitive asymptotic valuations.
+
 ---
 
 ## 1. Executive Summary & Attribution Matrix
 
-| Family ($X$) | Wins | Losses | Draws | Score (%) | Pentanomial `[0-2, 0.5-1.5, 1-1, 1.5-0.5, 2-0]` | $\Delta\text{Elo}_X$ (Full − NoX) | 95% Pair CI (Score / Elo) | Removable Cost (`median_ns`) | Cost Tier | Elo/ns Efficiency Proxy | Preliminary Conclusion |
+| Family ($X$) | Wins | Losses | Draws | Score (%) | Pentanomial `[0-2, 0.5-1.5, 1-1, 1.5-0.5, 2-0]` | $\Delta\text{Elo}_X$ (Full − NoX) | 95% Pair CI (Score / Elo) | Removable Cost (`median_ns`) | Cost Tier | Efficiency Proxy ($\Delta\text{Elo}/\text{ns}$) | Screening Finding / Next Step |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|
-| **Piece Activity** | 113 | 96 | 47 | 53.32% | `[19, 19, 44, 18, 28]` | **+23.11** | `[47.58%, 59.06%]` / `[-16.80, +63.63]` | 162.4 ns | High | $+0.142$ | **Top Elo contributor**. Critical knowledge source despite high compute footprint. |
-| **Pawn Structure** | 115 | 103 | 38 | 52.34% | `[16, 18, 57, 12, 25]` | **+16.30** | `[47.01%, 57.68%]` / `[-20.83, +53.80]` | 78.9 ns | Medium | **$+0.207$** | **Highest compute-to-Elo efficiency**. Essential baseline knowledge. |
-| **Mobility** | 108 | 102 | 46 | 51.17% | `[19, 22, 45, 18, 24]` | **+8.14** | `[45.58%, 56.76%]` / `[-30.79, +47.29]` | 109.8 ns | Med-High | $+0.074$ | Positive marginal value; moderate cost. |
-| **Rook Activity** | 107 | 102 | 47 | 50.98% | `[18, 15, 57, 20, 18]` | **+6.79** | `[45.84%, 56.12%]` / `[-28.99, +42.71]` | 78.0 ns | Medium | $+0.087$ | Positive marginal value; modest cost. |
-| **King Safety** | 103 | 104 | 49 | 49.80% | `[19, 23, 45, 22, 19]` | **-1.36** | `[44.41%, 55.20%]` / `[-39.00, +36.25]` | 168.9 ns | High | $-0.008$ | **Expensive & Neutral**. High cost (~169 ns) with zero/negative marginal yield in search. |
-| **Development / Space** | 95 | 106 | 55 | 47.85% | `[23, 19, 50, 18, 18]` | **-14.94** | `[42.42%, 53.29%]` / `[-53.11, +22.88]` | 44.4 ns | Low | **$-0.336$** | **Negative Value Feature**. Removing Development/Space yields +14.94 Elo for baseline! |
+| **Piece Activity** | 113 | 96 | 47 | 53.32% | `[19, 19, 44, 18, 28]` | **+23.11** | `[47.58%, 59.06%]` / `[-16.80, +63.63]` | 162.4 ns | High | $+0.142$ | **Highest positive point estimate**. Major feature prior candidate for S10 NNUE. |
+| **Pawn Structure** | 115 | 103 | 38 | 52.34% | `[16, 18, 57, 12, 25]` | **+16.30** | `[47.01%, 57.68%]` / `[-20.83, +53.80]` | 78.9 ns | Medium | **$+0.207$** | **Strong positive point estimate at moderate cost**. Core baseline knowledge. |
+| **Mobility** | 108 | 102 | 46 | 51.17% | `[19, 22, 45, 18, 24]` | **+8.14** | `[45.58%, 56.76%]` / `[-30.79, +47.29]` | 109.8 ns | Med-High | $+0.074$ | Modest positive point estimate; candidate for weight retention. |
+| **Rook Activity** | 107 | 102 | 47 | 50.98% | `[18, 15, 57, 20, 18]` | **+6.79** | `[45.84%, 56.12%]` / `[-28.99, +42.71]` | 78.0 ns | Medium | $+0.087$ | Modest positive point estimate; low removable overhead. |
+| **King Safety** | 103 | 104 | 49 | 49.80% | `[19, 23, 45, 22, 19]` | **-1.36** | `[44.41%, 55.20%]` / `[-39.00, +36.25]` | 168.9 ns | High | $-0.008$ | **Expensive, unresolved marginal value at this sample size**. Motivates a throughput-optimization hypothesis (+3.6% observed removal NPS). |
+| **Development / Space** | 95 | 106 | 55 | 47.85% | `[23, 19, 50, 18, 18]` | **-14.94** | `[42.42%, 53.29%]` / `[-53.11, +22.88]` | 44.4 ns | Low | **$-0.336$** | **Strongest negative candidate in screening**. Full−NoX point estimate is $-14.94$ Elo; requires dedicated SPRT confirmation (S9-C1). |
 
 ---
 
-## 2. Key Scientific Findings & Discoveries
+## 2. Key Screening Findings & Hypotheses
 
-1. **Discovery of Negative-Value Feature (`Development / Space`)**:
-   * Baseline `CurrentFinalNoDevelopmentSpace` scored **106 wins to 95 wins** against Full `CurrentFinal` (47.85% for Full, $\Delta\text{Elo} = -14.94$).
-   * Even though Development/Space is compute-cheap (44.4 ns removable cost), its static evaluation bias / scaling distorts tree search in opening transitions.
-   * **Actionable Insight**: Pruning or zeroing Development/Space weights provides an immediate positive Elo gain and search speedup.
+1. **Strongest Negative Candidate (`Development / Space`, Full−NoX Point Estimate $-14.94\text{ Elo}$)**:
+   * `CurrentFinalNoDevelopmentSpace` scored **106 wins to 95 wins** (55 draws) against `CurrentFinal` in this common-opening sample ($47.85\%$ score for Full).
+   * Micro-benchmarking shows a 44.4 ns removable evaluator cost, though end-to-end tournament NPS did not show a net speedup in this run ($-1.84\%$).
+   * **Actionable Hypothesis**: The combined development/space heuristic may introduce static biases that interact poorly with search pruning. This motivates a dedicated confirmatory SPRT (S9-C1) and sub-component decomposition (`Development` vs `Space` in S9-C2).
 
-2. **Compute-Value Frontier Leader (`Pawn Structure`)**:
-   * Pawn structure provides **+16.30 Elo** at an incremental cost of only **78.9 ns**, yielding the highest efficiency ratio ($+0.207\text{ Elo/ns}$).
-   * Candidate for weight optimization in S9-C.
+2. **Core Positive Knowledge Priors (`Piece Activity` & `Pawn Structure`)**:
+   * `Piece Activity` (+23.11 Elo point estimate) and `Pawn Structure` (+16.30 Elo point estimate) represent the primary positive drivers of evaluation quality in the current HCE configuration.
+   * `Pawn Structure` exhibits the highest compute-to-Elo efficiency proxy ($+0.207\text{ Elo/ns}$).
 
-3. **Core Driver of Playing Strength (`Piece Activity`)**:
-   * Piece activity delivers **+23.11 Elo**, the largest single-family playing strength contribution across the suite.
-   * Justifies its 162.4 ns computational footprint in HCE, and forms the primary feature prior for NNUE distillation in S10.
-
-4. **King Safety Inefficiency in HCE Search Tree**:
-   * Evaluator timing proves King Safety is the most computationally expensive family (**168.9 ns** across 12 fixtures), yet its LOO match outcome was dead neutral (**-1.36 Elo**, 103W / 104L / 49D).
-   * This confirms that hand-crafted king safety formulas with non-linear penalties create search instability when evaluated dynamically. King safety patterns are prime targets for NNUE feature representation.
+3. **King Safety Throughput / Value Hypothesis**:
+   * King Safety carries the largest single-family compute footprint (**168.9 ns** across 12 fixtures), while its point estimate in this 128-pair sample is neutral (**-1.36 Elo**).
+   * Removing King Safety showed a +3.61% increase in search NPS. This motivates testing whether King Safety can be simplified or replaced without strength degradation, making it a natural target for S10 NNUE representation.
 
 ---
 
