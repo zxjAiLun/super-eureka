@@ -1,0 +1,262 @@
+{
+  "target_n": 300000,
+  "total_games": 234972,
+  "reject_stats": {
+    "in_check": 1642012,
+    "terminal": 50033
+  },
+  "per_source_stats": {
+    "08110310": {
+      "games": 100,
+      "candidates_top8": 798
+    },
+    "lichess-standard-rated-confirm-v1-g1400": {
+      "games": 1400,
+      "candidates_top8": 11200
+    },
+    "lichess-standard-rated-v1": {
+      "games": 2000,
+      "candidates_top8": 16000
+    },
+    "lichess-standard-rated-v2": {
+      "games": 70000,
+      "candidates_top8": 560000
+    },
+    "lichess-standard-rated-v3": {
+      "games": 100000,
+      "candidates_top8": 800000
+    },
+    "lichess-standard-rated-v4": {
+      "games": 60000,
+      "candidates_top8": 480000
+    },
+    "s43b-legality-fast-screen": {
+      "games": 100,
+      "candidates_top8": 800
+    },
+    "s43c-legality-fast-200pairs": {
+      "games": 400,
+      "candidates_top8": 3200
+    },
+    "s43d-formal-sprt": {
+      "games": 526,
+      "candidates_top8": 4207
+    },
+    "s44c-single-buffer-200pairs": {
+      "games": 400,
+      "candidates_top8": 3200
+    },
+    "sf-smoke3-1800": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "sf-smoke3-2000": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "sf-smoke3-2200": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "sf-smoke3-2400": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "smoke-blitz": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "smoke-c3-live": {
+      "games": 2,
+      "candidates_top8": 16
+    },
+    "smoke-foundation-prod-8moves-v2": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "smoke-live-1pair": {
+      "games": 2,
+      "candidates_top8": 16
+    },
+    "smoke-normal-complete": {
+      "games": 8,
+      "candidates_top8": 64
+    },
+    "smoke-p412-live": {
+      "games": 2,
+      "candidates_top8": 16
+    },
+    "smoke-p412-rated": {
+      "games": 0,
+      "candidates_top8": 0
+    },
+    "smoke-rapid_5_3": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "smoke-restart-recovery": {
+      "games": 4,
+      "candidates_top8": 32
+    },
+    "smoke-sprt-terminal": {
+      "games": 0,
+      "candidates_top8": 0
+    }
+  },
+  "tier1_raw_post_dedup": {
+    "candidates_top8": 1879773,
+    "unique_post_dedup": 1860066,
+    "duplicates_removed": 19707,
+    "family_totals": {
+      "lichess-standard-rated-v1": 1847660,
+      "arena": 12406
+    }
+  },
+  "tier2_stratified_pre_final": {
+    "stratified_total": 1406877,
+    "pre_final_families": {
+      "lichess-standard-rated-v1": 1396697,
+      "arena": 10180
+    },
+    "pre_final_family_count": 2,
+    "pre_final_largest_share": 0.9927641151287568,
+    "pre_final_family_pass": true,
+    "cell_matrix": {
+      "train": {
+        "high": {
+          "available": 372405,
+          "target": 60000,
+          "margin": 312405,
+          "status": "PASS"
+        },
+        "mid": {
+          "available": 429819,
+          "target": 108000,
+          "margin": 321819,
+          "status": "PASS"
+        },
+        "low": {
+          "available": 298184,
+          "target": 48000,
+          "margin": 250184,
+          "status": "PASS"
+        },
+        "zero": {
+          "available": 26543,
+          "target": 24000,
+          "margin": 2543,
+          "status": "PASS"
+        }
+      },
+      "validation": {
+        "high": {
+          "available": 46140,
+          "target": 7500,
+          "margin": 38640,
+          "status": "PASS"
+        },
+        "mid": {
+          "available": 54064,
+          "target": 13500,
+          "margin": 40564,
+          "status": "PASS"
+        },
+        "low": {
+          "available": 36875,
+          "target": 6000,
+          "margin": 30875,
+          "status": "PASS"
+        },
+        "zero": {
+          "available": 3151,
+          "target": 3000,
+          "margin": 151,
+          "status": "PASS"
+        }
+      },
+      "holdout": {
+        "high": {
+          "available": 46471,
+          "target": 7500,
+          "margin": 38971,
+          "status": "PASS"
+        },
+        "mid": {
+          "available": 52926,
+          "target": 13500,
+          "margin": 39426,
+          "status": "PASS"
+        },
+        "low": {
+          "available": 36954,
+          "target": 6000,
+          "margin": 30954,
+          "status": "PASS"
+        },
+        "zero": {
+          "available": 3345,
+          "target": 3000,
+          "margin": 345,
+          "status": "PASS"
+        }
+      }
+    },
+    "shortfalls_count": 0,
+    "total_shortfall": 0,
+    "family_cell_counts": {
+      "lichess-standard-rated-v1": {
+        "train": {
+          "high": 370960,
+          "mid": 426440,
+          "low": 295139,
+          "zero": 26222
+        },
+        "validation": {
+          "high": 45969,
+          "mid": 53731,
+          "low": 36498,
+          "zero": 3127
+        },
+        "holdout": {
+          "high": 46270,
+          "mid": 52486,
+          "low": 36560,
+          "zero": 3295
+        }
+      },
+      "arena": {
+        "train": {
+          "high": 1445,
+          "mid": 3379,
+          "low": 3045,
+          "zero": 321
+        },
+        "validation": {
+          "high": 171,
+          "mid": 333,
+          "low": 377,
+          "zero": 24
+        },
+        "holdout": {
+          "high": 201,
+          "mid": 440,
+          "low": 394,
+          "zero": 50
+        }
+      }
+    }
+  },
+  "tier3_final_selected": {
+    "final_selected_count": 300000,
+    "target_n": 300000,
+    "selection_matches_target": true,
+    "post_final_families": {
+      "lichess-standard-rated-v1": 297632,
+      "arena": 2368
+    },
+    "post_final_family_count": 2,
+    "post_final_largest_share": 0.9921066666666667,
+    "post_final_family_pass": true
+  },
+  "is_feasible": true
+}

@@ -141,7 +141,7 @@ class TestAnalyzeSourcePoolParity(unittest.TestCase):
             game_count=5,
             start_seed=10,
         )
-        report = profile_pool([src1], target_n=300000, final_mode=True)
+        report = profile_pool([src1], target_n=300000, final_mode=True, enforce_family_mix=True)
         self.assertFalse(report["is_feasible"])
         self.assertGreater(report["tier2_stratified_pre_final"]["shortfalls_count"], 0)
         self.assertFalse(report["tier2_stratified_pre_final"]["pre_final_family_pass"])

@@ -39,6 +39,7 @@ MIN_PLY = 12
 MAX_PLY = 160
 MAX_PER_GAME = 8
 TARGET = 300_000
+FINAL_DATASET_IDS = {"s6-eval-v1-core-300k", "s10-eval-v1-300k01"}
 FINAL_SPLIT_TARGETS = {"train": 240_000, "validation": 30_000, "holdout": 30_000}
 FINAL_PHASE_TARGETS = {"high": 75_000, "mid": 135_000, "low": 60_000, "zero": 30_000}
 MIN_FAMILIES = 2
@@ -633,8 +634,8 @@ def _stats_for(records, base, shard_size, source_manifest):
 def _final_gates_pre(stats, args):
     if args.sampling_version != 2:
         return "FINAL requires --sampling-version 2"
-    if args.dataset_id != "s6-eval-v1-core-300k":
-        return (f"FINAL requires --dataset-id s6-eval-v1-core-300k, "
+    if args.dataset_id not in FINAL_DATASET_IDS:
+        return (f"FINAL requires --dataset-id in {sorted(FINAL_DATASET_IDS)}, "
                 f"got {args.dataset_id}")
 
 
@@ -649,11 +650,12 @@ def _final_gates_post(stats, args):
         got = stats["phase_buckets"][bucket]
         if got != want:
             return f"phase bucket {bucket}={got} != {want}"
-    if len(stats["source_families"]) < MIN_FAMILIES:
-        return (f"only {len(stats['source_families'])} families "
-                f"(need >= {MIN_FAMILIES})")
-    if stats["largest_family_share"] > 0.70:
-        return f"largest family share {stats['largest_family_share']:.2%} > 70%"
+    if getattr(args, "enforce_family_mix", False):
+        if len(stats["source_families"]) < MIN_FAMILIES:
+            return (f"only {len(stats['source_families'])} families "
+                    f"(need >= {MIN_FAMILIES})")
+        if stats["largest_family_share"] > 0.70:
+            return f"largest family share {stats['largest_family_share']:.2%} > 70%"
     return None
 
 

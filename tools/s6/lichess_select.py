@@ -200,7 +200,7 @@ def write_game(game: chess.pgn.Game, fh) -> None:
     fh.write("\n\n")
 
 
-def passes(game: chess.pgn.Game) -> bool:
+def passes(game: chess.pgn.Game, min_plies: int = 40) -> bool:
     h = game.headers
     if h.get("Result") not in ("1-0", "0-1", "1/2-1/2"):
         return False
@@ -213,7 +213,7 @@ def passes(game: chess.pgn.Game) -> bool:
         return False
     if time_control_base(h.get("TimeControl", "0")) < TIME_CONTROL_BASE_MIN:
         return False
-    if len(list(game.mainline_moves())) < 40:
+    if len(list(game.mainline_moves())) < min_plies:
         return False
     return True
 
@@ -315,6 +315,16 @@ def main() -> int:
                         default="lichess-standard-rated-v1",
                         help="source family (confirmation shares the v1 "
                              "family while carrying its own source_id)")
+    parser.add_argument("--accept-byte", type=lambda x: int(x, 0), default=ACCEPT_BYTE,
+                        help="threshold byte for hash acceptance (default 0x05)")
+    parser.add_argument("--streaming-sample", action="store_true",
+                        help="stream sample mode: stop immediately when requested games are selected without draining remaining archive")
+    parser.add_argument("--long-fraction", type=float, default=LONG_GAME_FRACTION,
+                        help="fraction of selected games that must have >= long-min-plies (default 0.333)")
+    parser.add_argument("--long-min-plies", type=int, default=80,
+                        help="minimum plies for long game stratum (default 80)")
+    parser.add_argument("--min-plies", type=int, default=40,
+                        help="minimum mainline plies for candidate games (default 40)")
     parser.add_argument("--exclude-pgn", type=Path, action="append",
                         default=None,
                         help="PGN whose games must NOT be selected; matched "
@@ -328,7 +338,7 @@ def main() -> int:
     months = [m.strip() for m in args.months.split(",")]
     if args.local is not None and len(months) != 1:
         raise SystemExit("FAIL CLOSED: --local requires exactly one --months")
-    long_target = int(args.games_per_month * LONG_GAME_FRACTION)
+    long_target = int(args.games_per_month * args.long_fraction)
     total = 0
     t0 = time.time()
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -363,12 +373,12 @@ def main() -> int:
                     if game is None:
                         break
                     seen += 1
-                    if not passes(game):
+                    if not passes(game, min_plies=args.min_plies):
                         continue
                     key = select_key(game)
                     h = hashlib.sha256(
                         f"{key}:{args.seed}".encode("utf-8")).digest()
-                    if h[0] >= ACCEPT_BYTE:
+                    if h[0] >= args.accept_byte:
                         continue
                     # Identity gates BEFORE the stratum caps, so an excluded
                     # or duplicate game never consumes a stratum slot.
@@ -379,7 +389,7 @@ def main() -> int:
                     if fingerprint in selected_fingerprints:
                         duplicate_hits += 1
                         continue
-                    is_long = len(list(game.mainline_moves())) >= 80
+                    is_long = len(list(game.mainline_moves())) >= args.long_min_plies
                     if is_long:
                         if month_long >= long_target:
                             continue
@@ -390,17 +400,27 @@ def main() -> int:
                     month_selected += 1
                     selected_fingerprints.add(fingerprint)
                     write_game(game, fh)
-                # Consume the ENTIRE compressed stream THROUGH the hashing
-                # reader so every byte is hashed exactly once, then fail
-                # closed on any mismatch.
-                while hashing_reader.read(1 << 20):
-                    pass
-                actual = hashing_reader.hexdigest()
-                if actual != official:
-                    print(
-                        f"FAIL CLOSED: stream SHA mismatch for {month}: "
-                        f"{actual[:12]} != {official[:12]}", flush=True)
-                    return 5
+                    if month_selected % 5000 == 0:
+                        elapsed = time.time() - t0
+                        print(f"  [{month}] {month_selected}/{args.games_per_month} games selected "
+                              f"({month_long} long), {seen} candidates seen, {elapsed:.0f}s elapsed",
+                              flush=True)
+                if not args.streaming_sample:
+                    # Consume the ENTIRE compressed stream THROUGH the hashing
+                    # reader so every byte is hashed exactly once, then fail
+                    # closed on any mismatch.
+                    while hashing_reader.read(1 << 20):
+                        pass
+                    actual = hashing_reader.hexdigest()
+                    if actual != official:
+                        print(
+                            f"FAIL CLOSED: stream SHA mismatch for {month}: "
+                            f"{actual[:12]} != {official[:12]}", flush=True)
+                        return 5
+                else:
+                    actual = hashing_reader.hexdigest()
+                    print(f"  [{month}] streaming sample finished: {month_selected} games selected, stream prefix sha: {actual[:16]}", flush=True)
+
                 if month_selected < args.games_per_month:
                     print(
                         f"FAIL CLOSED: {month} selected only {month_selected} "

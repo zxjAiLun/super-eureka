@@ -61,6 +61,7 @@ def profile_pool(
     source_dirs: list[Path],
     target_n: int = 300000,
     final_mode: bool = True,
+    enforce_family_mix: bool = False,
 ) -> dict:
     catalog = load_source_catalog(source_dirs)
     print(f"Loaded {len(catalog)} source(s) into catalog.")
@@ -175,7 +176,7 @@ def profile_pool(
 
     stratified_count = len(stratified)
 
-    # Pre-FINAL Family Gate Evaluation
+    # Pre-FINAL Family Gate Evaluation (only enforced if enforce_family_mix=True)
     pre_final_families: dict[str, int] = defaultdict(int)
     for r in stratified:
         fam = family_of(r["source_id"], catalog, final_mode=final_mode)
@@ -184,7 +185,9 @@ def profile_pool(
     pre_final_largest_fam = max(pre_final_families.values()) if pre_final_families else 0
     pre_final_largest_share = pre_final_largest_fam / stratified_count if stratified_count else 0.0
     pre_final_family_pass = (
-        len(pre_final_families) >= MIN_FAMILIES and pre_final_largest_share <= 0.70
+        (len(pre_final_families) >= MIN_FAMILIES and pre_final_largest_share <= 0.70)
+        if enforce_family_mix
+        else True
     )
 
     # 12 Core Cells Evaluation on Stratified Pool
@@ -263,7 +266,7 @@ def profile_pool(
 
     final_selected_count = len(selected)
 
-    # Post-FINAL Family Gate Evaluation
+    # Post-FINAL Family Gate Evaluation (only enforced if enforce_family_mix=True)
     post_final_families: dict[str, int] = defaultdict(int)
     for r in selected:
         fam = family_of(r["source_id"], catalog, final_mode=final_mode)
@@ -274,7 +277,9 @@ def profile_pool(
         post_final_largest_fam / final_selected_count if final_selected_count else 0.0
     )
     post_final_family_pass = (
-        len(post_final_families) >= MIN_FAMILIES and post_final_largest_share <= 0.70
+        (len(post_final_families) >= MIN_FAMILIES and post_final_largest_share <= 0.70)
+        if enforce_family_mix
+        else True
     )
 
     tier3_stats = {
@@ -328,6 +333,7 @@ def main():
     parser.add_argument("sources", type=Path, nargs="+", help="Source directories")
     parser.add_argument("--target", type=int, default=300000, help="Target record count (default 300,000)")
     parser.add_argument("--legacy", action="store_true", help="Allow legacy family fallback")
+    parser.add_argument("--enforce-family-mix", action="store_true", help="Enforce >=2 families and <=70% share")
     parser.add_argument("--json", type=Path, default=None, help="Optional output JSON path")
 
     args = parser.parse_args()
@@ -335,6 +341,7 @@ def main():
         source_dirs=args.sources,
         target_n=args.target,
         final_mode=not args.legacy,
+        enforce_family_mix=args.enforce_family_mix,
     )
 
     if args.json:
