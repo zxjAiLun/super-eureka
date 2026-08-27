@@ -1,0 +1,131 @@
+{
+  "record_type": "s10-b1-source-extraction-provenance-sidecar",
+  "purpose": "Post-hoc provenance repair for the S10-B1 source extractions. The published source-manifest.json files for lichess-standard-rated-v2/v3/v4 were produced by tools/s6/lichess_select.py at a revision that hardcoded the manifest filters block (mainline_plies_min=40, long_stratum_plies_min=80, long_fraction=1/3) and the selection text (first byte < 0x05) regardless of the actual command-line arguments used. The actual extraction command lines were not preserved in any retrievable execution log, so the effective min_plies / long_min_plies / long_fraction / accept_byte arguments are recorded here as PARTIAL provenance rather than guessed. The immutable PGN SHA-256s remain the authoritative source identities. The 300k dataset s10-eval-v1-300k01 (dataset SHA 503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3) is FROZEN and was NOT rebuilt or re-derived as part of this repair.",
+  "repair_commit_context": {
+    "dataset_construction_commit": "c03fb422c1b6ab465d22f3f73438bad5c21092ae",
+    "dataset_construction_parent": "cb4f065",
+    "manifest_serialization_fix": "tools/s6/lichess_select.py now records args.min_plies, args.long_min_plies, args.long_fraction, and args.accept_byte in the filters block and formats the actual accept-byte threshold into the selection text; targeted tests assert non-default arguments round-trip exactly (tools/s6/test_lichess_select.py ManifestEffectiveArgumentsTests)."
+  },
+  "sources": [
+    {
+      "source_id": "lichess-standard-rated-v2",
+      "source_family": "lichess-standard-rated-v1",
+      "month": "2026-07",
+      "upstream_compressed_sha256": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7",
+      "pgn_sha256": "15d2ba131bf606fcc9feaa9c342cc56fc7a51ac5332a6b2f76b0994b71826650",
+      "pgn_sha256_reverified": true,
+      "games_selected": 70000,
+      "selection_seed": 20260827,
+      "finished_utc": "2026-08-27T07:49:55Z",
+      "extraction_script_sha256": "263c26a0ffc5ecc9f0867b8dfe27457cede9d09199badf641e5e52a3996fc7eb",
+      "extraction_script_commit": null,
+      "extraction_script_commit_note": "script_sha256 263c26a0... does not match any committed revision of tools/s6/lichess_select.py reachable in this repository (committed revisions hash to 86d3dc56..., ce929c69..., 3b8fc41a..., a91d0f4b..., 1d0761f8..., a93f2319...); the exact working-tree state used for the v2 run is not recoverable",
+      "exclude_sources": [
+        "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn (2000 games, sha256 d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf)",
+        "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/lichess-standard-rated-confirm-v1-g1400.pgn (1400 games, sha256 50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7)"
+      ],
+      "parameter_provenance_partial": true,
+      "actual_min_plies": null,
+      "actual_long_min_plies": null,
+      "actual_long_fraction": null,
+      "actual_accept_byte": null,
+      "parameter_provenance_note": "No execution log, shell history, or agent transcript containing the v2 command line was recoverable. NOT guessed from output properties.",
+      "observed_output_properties": {
+        "min_ply_observed": 40,
+        "max_ply_observed": 268,
+        "games_under_80_plies": 46667,
+        "games_under_40_plies": 0,
+        "mean_ply_observed": 75.6,
+        "note": "Counted directly from the immutable PGN bytes. 46667/70000 = 66.67% short games is consistent with the default long_fraction=1/3 stratum cap having been in effect for this run, but consistency is NOT recorded as provenance fact."
+      }
+    },
+    {
+      "source_id": "lichess-standard-rated-v3",
+      "source_family": "lichess-standard-rated-v1",
+      "month": "2026-07",
+      "upstream_compressed_sha256": "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7",
+      "pgn_sha256": "cf8b5a9502fa55c8ebe79ef15ee8f076d9cfa99e34a8705985062fe8d4b2fd96",
+      "pgn_sha256_reverified": true,
+      "games_selected": 100000,
+      "selection_seed": 20260828,
+      "finished_utc": "2026-08-27T08:47:50Z",
+      "extraction_script_sha256": "a93f23192849961fa58af8ce06315585c3518b33d6018fc5ba810efa480de1af",
+      "extraction_script_commit": null,
+      "extraction_script_commit_note": "script_sha256 matches the file as committed at c03fb42 (parent cb4f065), i.e. the committed working-tree file at dataset construction time; it is recorded here by hash only, since the extraction predates the c03fb42 commit that introduced it",
+      "exclude_sources": [
+        "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn (2000 games, sha256 d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf)",
+        "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/lichess-standard-rated-confirm-v1-g1400.pgn (1400 games, sha256 50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7)",
+        "data/s6/sources/lichess-standard-rated-v2/lichess-standard-rated-v2.pgn (70000 games, sha256 15d2ba131bf606fcc9feaa9c342cc56fc7a51ac5332a6b2f76b0994b71826650)"
+      ],
+      "parameter_provenance_partial": true,
+      "actual_min_plies": null,
+      "actual_long_min_plies": null,
+      "actual_long_fraction": null,
+      "actual_accept_byte": null,
+      "parameter_provenance_note": "No execution log, shell history, or agent transcript containing the v3 command line was recoverable. The manifest claims mainline_plies_min=40 / long_fraction=1/3, which CANNOT be the effective values: the immutable PGN contains 100% long games (min_ply_observed=80), impossible under the manifest-recorded defaults. The effective parameters are therefore known to be non-default but their exact values are NOT guessed from the output.",
+      "observed_output_properties": {
+        "min_ply_observed": 80,
+        "max_ply_observed": 353,
+        "games_under_80_plies": 0,
+        "games_under_40_plies": 0,
+        "mean_ply_observed": 107.5,
+        "note": "Counted directly from the immutable PGN bytes. 100% of games have >= 80 plies, which contradicts the manifest-recorded default filters and proves at least one of --min-plies / --long-fraction / --long-min-plies was non-default for this run.",
+        "manifest_inconsistency": "Published source-manifest.json filters block records mainline_plies_min=40, long_stratum_plies_min=80, long_fraction=0.3333333333333333; these values are NOT the effective extraction parameters for this run."
+      }
+    },
+    {
+      "source_id": "lichess-standard-rated-v4",
+      "source_family": "lichess-standard-rated-v1",
+      "month": "2026-06",
+      "upstream_compressed_sha256": "8fd81071f56511e7546cb77e38db5cf32f7e8a437fb906e26959cc064d8b1f79",
+      "pgn_sha256": "0c0d26dd48a5a5e2d0d5bf3b9379de40d15dd52ea1c6a91eed92e06615d3a6d2",
+      "pgn_sha256_reverified": true,
+      "games_selected": 60000,
+      "selection_seed": 20260829,
+      "finished_utc": "2026-08-27T10:32:59Z",
+      "extraction_script_sha256": "a93f23192849961fa58af8ce06315585c3518b33d6018fc5ba810efa480de1af",
+      "extraction_script_commit": null,
+      "extraction_script_commit_note": "script_sha256 matches the file as committed at c03fb42 (parent cb4f065), i.e. the committed working-tree file at dataset construction time; it is recorded here by hash only, since the extraction predates the c03fb42 commit that introduced it",
+      "exclude_sources": [
+        "data/s6/sources/lichess-standard-rated-v1/lichess-standard-rated-v1.pgn (2000 games, sha256 d81ffe3c5df21e4ae0fbc449db4cdd7cf4a1004805d220c8d90a528e3ab8edcf)",
+        "data/s6/sources/lichess-standard-rated-confirm-v1-g1400/lichess-standard-rated-confirm-v1-g1400.pgn (1400 games, sha256 50e88f13ddb721c2e58a5d0fb3a6be17d92d244057c30f551284503e686c95a7)",
+        "data/s6/sources/lichess-standard-rated-v2/lichess-standard-rated-v2.pgn (70000 games, sha256 15d2ba131bf606fcc9feaa9c342cc56fc7a51ac5332a6b2f76b0994b71826650)",
+        "data/s6/sources/lichess-standard-rated-v3/lichess-standard-rated-v3.pgn (100000 games, sha256 cf8b5a9502fa55c8ebe79ef15ee8f076d9cfa99e34a8705985062fe8d4b2fd96)"
+      ],
+      "parameter_provenance_partial": true,
+      "actual_min_plies": null,
+      "actual_long_min_plies": null,
+      "actual_long_fraction": null,
+      "actual_accept_byte": null,
+      "parameter_provenance_note": "No execution log, shell history, or agent transcript containing the v4 command line was recoverable. Same contradiction as v3: the immutable PGN contains 100% long games (min_ply_observed=80), impossible under the manifest-recorded defaults. Exact effective values are NOT guessed from the output.",
+      "observed_output_properties": {
+        "min_ply_observed": 80,
+        "max_ply_observed": 354,
+        "games_under_80_plies": 0,
+        "games_under_40_plies": 0,
+        "mean_ply_observed": 107.0,
+        "note": "Counted directly from the immutable PGN bytes. 100% of games have >= 80 plies, which contradicts the manifest-recorded default filters and proves at least one of --min-plies / --long-fraction / --long-min-plies was non-default for this run.",
+        "manifest_inconsistency": "Published source-manifest.json filters block records mainline_plies_min=40, long_stratum_plies_min=80, long_fraction=0.3333333333333333; these values are NOT the effective extraction parameters for this run."
+      }
+    }
+  ],
+  "historical_command_line_search": {
+    "searched": [
+      "~/.bash_history, ~/.zsh_history (no lichess_select invocations)",
+      "opencode session database (all parts matching lichess_select / rated-v3 / rated-v4 / games-per-month with 100000/60000/70000)",
+      "opencode permission log opencode.log (all evaluated bash patterns, 2026-08-27 extraction window 07:49Z-10:32Z)",
+      "Claude Code project transcripts ~/.claude/projects/-media-bailan-DISK-AUbuntuProject-project-chessenginedemo/",
+      "codex session rollouts ~/.codex/sessions/",
+      "qoder agent logs ~/.qoder/logs/",
+      "/tmp and /tmp/opencode for extraction nohup/redirect logs",
+      "results/ and docs/ for embedded command lines"
+    ],
+    "conclusion": "The actual v2/v3/v4 extraction command lines are NOT recoverable from any execution log on this machine. Per the no-guessing rule, parameter_provenance_partial=true is recorded for all three sources and the immutable PGN SHA-256s stand as the authoritative identities."
+  },
+  "frozen_dataset": {
+    "dataset_id": "s10-eval-v1-300k01",
+    "dataset_sha256": "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3",
+    "rebuilt_or_regenerated_by_this_repair": false,
+    "note": "Neither the v2/v3/v4 PGNs nor the 300k dataset were regenerated. This sidecar is documentation-only provenance repair."
+  }
+}

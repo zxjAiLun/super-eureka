@@ -2,7 +2,8 @@
 """lichess_select tests: stream SHA mismatch fails closed without publish;
 insufficient selection fails closed without publish (both via --local);
 S6-N3D game-fingerprint identity, --exclude-pgn skipping, duplicate-candidate
-rejection, full-drain SHA, and per-game exporter isolation."""
+rejection, full-drain SHA, per-game exporter isolation, and S10-B1 provenance
+repair (manifest records the exact effective extraction arguments)."""
 
 from __future__ import annotations
 
@@ -470,6 +471,60 @@ class ExcludeAndDuplicateTests(unittest.TestCase):
             self.assertEqual(
                 sources[0]["sha256"],
                 hashlib.sha256(path.read_bytes()).hexdigest())
+
+
+class ManifestEffectiveArgumentsTests(unittest.TestCase):
+    """S10-B1 provenance repair: the manifest must record the EXACT effective
+    extraction arguments (min_plies, long_min_plies, long_fraction,
+    accept_byte), not hardcoded defaults, and the selection text must name
+    the actual accept-byte threshold instead of a frozen 0x05."""
+
+    def _select(self, tmp: Path, games_per_month: int, out_name: str,
+                extra_argv: list[str]) -> dict:
+        # 50-ply games from make_game() pass min_plies=48 but not 80.
+        archive = make_archive_pgn(200)
+        official = hashlib.sha256(archive).hexdigest()
+        sha_text = f"{official}  lichess_db_standard_rated_2026-01.pgn.zst\n"
+        archive_path = tmp / f"{out_name}.zst"
+        archive_path.write_bytes(archive)
+        out = tmp / out_name
+        argv = ["lichess_select.py", "--months", "2026-01",
+                "--games-per-month", str(games_per_month),
+                "--seed", "20260812", "--out", str(out),
+                "--source-id", out_name,
+                "--source-family", "lichess-standard-rated-v1",
+                "--local", str(archive_path)] + extra_argv
+        with mock.patch.object(ls.urllib.request, "urlopen",
+                               side_effect=fake_urlopen_side_effect(
+                                   sha_text, archive)), \
+             mock.patch.object(sys, "argv", argv):
+            rc = ls.main()
+        self.assertEqual(rc, 0, "selection must succeed and publish")
+        return json.loads((out / "source-manifest.json").read_text())
+
+    def test_non_default_arguments_are_recorded_exactly(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b1-repair-") as tmp:
+            manifest = self._select(
+                Path(tmp), 3, "nondefault",
+                ["--min-plies", "48", "--long-min-plies", "50",
+                 "--long-fraction", "1.0", "--accept-byte", "0x1f"])
+            filters = manifest["filters"]
+            self.assertEqual(filters["mainline_plies_min"], 48)
+            self.assertEqual(filters["long_stratum_plies_min"], 50)
+            self.assertEqual(filters["long_fraction"], 1.0)
+            self.assertEqual(filters["accept_byte"], 0x1f)
+            self.assertIn("0x1f", manifest["selection"])
+            self.assertNotIn("0x05", manifest["selection"])
+
+    def test_default_arguments_are_recorded_as_effective_values(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b1-repair-") as tmp:
+            manifest = self._select(Path(tmp), 1, "defaults", [])
+            filters = manifest["filters"]
+            self.assertEqual(filters["mainline_plies_min"], 40)
+            self.assertEqual(filters["long_stratum_plies_min"], 80)
+            self.assertEqual(filters["long_fraction"], ls.LONG_GAME_FRACTION)
+            self.assertEqual(filters["accept_byte"], ls.ACCEPT_BYTE)
+            self.assertIn("0x05", manifest["selection"])
 
 
 if __name__ == "__main__":

@@ -79,3 +79,19 @@ Canonical dataset artifact installed at: `data/s10/s10-eval-v1-300k01/`
 - Python test suites (`test_extract_broadcast.py`, `test_analyze_source_pool.py`): 10 / 10 passing (0 failures).
 - Search and evaluation engines (`src/engine/eval.rs`, `src/engine/search.rs`): 0 diff against frozen baseline `3dae2fa`.
 - Ready for S10-B2 Stockfish-18 teacher labeling.
+
+---
+
+## Wall-Clock Telemetry
+- **S10-B1 total wall-clock time**: 370 minutes 38 seconds (6 hours 10 minutes 38 seconds).
+
+---
+
+## Post-Approval Provenance Repair (P1)
+A post-hoc provenance audit found that the published `source-manifest.json` files for `lichess-standard-rated-v2/v3/v4` recorded a hardcoded filters block (`mainline_plies_min=40`, `long_stratum_plies_min=80`, `long_fraction=1/3`) and a hardcoded selection threshold text (`< 0x05`) instead of the actual effective extraction arguments. For v3/v4 this is provably inconsistent with the outputs (both are 100% long games, impossible under the recorded defaults).
+
+- **Impact**: Documentation/provenance only. The PGNs, their SHA-256 identities, and the frozen 300k dataset (`503b47b6...`) are unaffected.
+- **Repair**: `tools/s6/lichess_select.py` now serializes `args.min_plies`, `args.long_min_plies`, `args.long_fraction`, and `args.accept_byte` into the manifest filters block and formats the actual accept-byte threshold into the selection text; targeted tests (`ManifestEffectiveArgumentsTests`) assert non-default arguments round-trip exactly.
+- **Historical parameters**: The actual v2/v3/v4 command lines were not recoverable from any execution log. Per the no-guessing rule, partial provenance is recorded in `results/s10/s10-b1-source-extraction-provenance.json` with the immutable PGN SHA-256s as the authoritative source identities.
+- **Non-blocking P2 fixes**: stale family-gate wording updated in `tools/s6/build_dataset.py --help` (family mix is opt-in via `--enforce-family-mix`) and the `tools/s10/analyze_source_pool.py` docstring (telemetry-only unless `--enforce-family-mix`).
+- **Explicitly NOT done**: no re-extraction of v2/v3/v4, no rebuild of `s10-eval-v1-300k01`; dataset SHA `503b47b6...` remains frozen.

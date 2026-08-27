@@ -9,9 +9,11 @@ Implements the exact 3-tier builder pipeline:
 1. Tier 1: Raw Post-Deduplication (top-8 per game, global position_id dedup)
 2. Tier 2: Global Phase Stratification (replicates build_dataset.py lines 375-387)
    - Evaluates the 12 core cells (split x phase) on this stratified pool
-   - Evaluates Pre-FINAL family share gate (>= 2 families, <= 70% largest share)
+   - Reports family counts and largest-family share as TELEMETRY; the
+     >= 2 families / <= 70% share check is a rejection gate ONLY when
+     --enforce-family-mix is passed (default: telemetry-only)
 3. Tier 3: Exact FINAL Selection (exact per-cell targeting, sorted by position_id)
-   - Evaluates Post-FINAL family share gate (>= 2 families, <= 70% largest share)
+   - Same opt-in family-mix gate semantics as Tier 2
    - Checks final_selected_count == target_n
 """
 

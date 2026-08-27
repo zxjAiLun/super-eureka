@@ -94,3 +94,10 @@ data/s6/s6-eval-v1-core-300k/
 /data/s6/construction-attempt-1000/
 /data/s6/sources/lichess-standard-rated-confirm-v1-g1400/
 /data/s6/s6-eval-v1-residual-confirm01-g1400/
+
+# S10-B1 source extractions and 300k dataset (raw PGNs/shards local-only;
+# SHAs and provenance records live in results/s10/)
+data/s6/sources/lichess-standard-rated-v2/
+data/s6/sources/lichess-standard-rated-v3/
+data/s6/sources/lichess-standard-rated-v4/
+data/s10/

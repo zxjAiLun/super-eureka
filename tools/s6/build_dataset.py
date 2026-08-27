@@ -673,8 +673,9 @@ def main() -> int:
                              "2 = deterministic hash top-K (FINAL contract)")
     parser.add_argument("--final-mode", action="store_true",
                         help="FINAL 300k contract: sampling v2, exact "
-                             "splits/phase targets, >=2 families, family "
-                             "share <=70 percent, staging + atomic move")
+                             "splits/phase targets, staging + atomic move; "
+                             "family count/share are telemetry unless "
+                             "--enforce-family-mix is passed")
     parser.add_argument("--enforce-family-mix", action="store_true",
                         help="fail closed when the largest source family "
                              "exceeds 70 percent (FINAL builds)")

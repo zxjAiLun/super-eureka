@@ -39,9 +39,15 @@ Outputs (staged, then atomically published; nothing is published if any month
 selects fewer than --games-per-month games):
   out/<source-id>.pgn                selected games (raw, with headers)
   out/source-manifest.json           provenance (CC0, upstream URLs, official
-                                     SHA256s, script SHA, selection seed,
-                                     counts, fingerprint key SHAs, output
-                                     SHA256)
+                                      SHA256s, script SHA, selection seed,
+                                      counts, fingerprint key SHAs, output
+                                      SHA256). The filters block records the
+                                      EFFECTIVE extraction arguments
+                                      (min_plies, long_min_plies,
+                                      long_fraction, accept_byte) - never
+                                      hardcoded defaults - and the selection
+                                      text names the actual accept-byte
+                                      threshold.
 
 Usage:
   python tools/s6/lichess_select.py \
@@ -462,13 +468,14 @@ def main() -> int:
             "elo_min": 1800,
             "no_bot_titles": True,
             "time_control_base_min_sec": TIME_CONTROL_BASE_MIN,
-            "mainline_plies_min": 40,
-            "long_stratum_plies_min": 80,
-            "long_fraction": LONG_GAME_FRACTION,
+            "mainline_plies_min": args.min_plies,
+            "long_stratum_plies_min": args.long_min_plies,
+            "long_fraction": args.long_fraction,
+            "accept_byte": args.accept_byte,
         },
         "games_selected": total,
-        "selection": "hash(GameURL, seed) first byte < 0x05, capped per "
-                     "month and per long stratum",
+        "selection": f"hash(GameURL, seed) first byte < 0x{args.accept_byte:02x}, "
+                     "capped per month and per long stratum",
         "fingerprint": {
             "definition": "sha256(canonical JSON with sorted keys and no "
                           "whitespace)",
