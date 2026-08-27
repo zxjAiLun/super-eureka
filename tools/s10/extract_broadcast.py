@@ -6,20 +6,19 @@ Streams and filters games from official Lichess broadcast monthly archives
 
 Features & Guarantees:
 - In-flight streaming SHA-256 verification of compressed stream against upstream sha256sums.txt.
-- Deterministic selection: hash(GameIdentifier + selection_seed).
-- Filtering:
-    - Result in {1-0, 0-1, 1/2-1/2}
-    - Standard starting position (or valid FEN)
-    - Minimum mainline plies (>= 40 plies)
-    - Long game stratum support (>= 80 plies)
-- Deduplication: Computes canonical game fingerprint (initial_fen, result, uci_moves)
-  and rejects any duplicates within the stream or against --exclude-pgn.
-- Atomic staged publication with comprehensive source-manifest.json provenance.
+  Compressed SHA is fully verified BEFORE decompression stream closing.
+- Global whole-month deterministic top-K selection: hash(seed || month || canonical_fingerprint).
+- Explicit long/short stratum balancing: ~1/3 long games (>= 80 plies) and 2/3 short games (>= 40 plies).
+- Canonical game fingerprinting matching S6 lichess_select.py.
+- Explicit --exclude-pgn missing fails closed.
+- Existing out_dir fails closed (never overwrites an already-published source).
+- Comprehensive source-manifest.json provenance.
 """
 
 from __future__ import annotations
 
 import argparse
+import heapq
 import hashlib
 import io
 import json
@@ -30,9 +29,20 @@ import time
 import urllib.request
 from pathlib import Path
 
+# Ensure project root is in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import chess
 import chess.pgn
 import zstandard as zstd
+
+from tools.s10.source_identity import (
+    game_fingerprint,
+    fingerprint_set_sha256,
+    load_pgn_fingerprints,
+)
 
 BROADCAST_CHECKSUMS_URL = "https://database.lichess.org/broadcast/sha256sums.txt"
 BROADCAST_BASE_URL = "https://database.lichess.org/broadcast/lichess_db_broadcast_{month}.pgn.zst"
@@ -57,18 +67,6 @@ def fetch_upstream_checksums() -> dict[str, str]:
     return checksums
 
 
-def compute_game_fingerprint(game: chess.pgn.Game) -> str:
-    """Deterministic canonical fingerprint: initial FEN + result + UCI move list."""
-    initial_fen = game.headers.get("FEN", chess.STARTING_FEN)
-    result = game.headers.get("Result", "*")
-    moves = [m.uci() for m in game.mainline_moves()]
-    payload = json.dumps(
-        {"initial_fen": initial_fen, "result": result, "moves": moves},
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
 class HashingStreamReader:
     def __init__(self, stream):
         self._stream = stream
@@ -84,6 +82,12 @@ class HashingStreamReader:
         return self._hasher.hexdigest()
 
 
+def compute_selection_rank(seed: int, month: str, fingerprint: str) -> str:
+    """Deterministic selection rank independent of archive encounter order."""
+    key = f"{seed}:{month}:{fingerprint}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
 def extract_broadcasts(
     months: list[str],
     games_per_month: int,
@@ -95,164 +99,203 @@ def extract_broadcasts(
     long_game_min_ply: int = 80,
     long_game_ratio: float = 0.33,
     exclude_pgns: list[Path] | None = None,
+    local_archives: dict[str, Path] | None = None,
+    mock_checksums: dict[str, str] | None = None,
 ) -> dict:
     out_dir = Path(out_dir)
-    staging_dir = out_dir.parent / f".staging-{out_dir.name}-{int(time.time())}"
+    if out_dir.exists():
+        raise SystemExit(f"FAIL CLOSED: destination source dir already exists: {out_dir}")
+
+    staging_dir = out_dir.parent / f".staging-{out_dir.name}-{int(time.time())}-{os.getpid()}"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Load exclusion fingerprints
+    # 1. Load exclusion fingerprints (fails closed if file missing)
     excluded_fingerprints: set[str] = set()
     if exclude_pgns:
         for pgn_path in exclude_pgns:
-            if not pgn_path.exists():
-                continue
-            with open(pgn_path, "r", encoding="utf-8", errors="replace") as f:
-                while True:
-                    g = chess.pgn.read_game(f)
-                    if g is None:
-                        break
-                    excluded_fingerprints.add(compute_game_fingerprint(g))
+            excluded_fingerprints.update(load_pgn_fingerprints(pgn_path))
 
     print(f"Loaded {len(excluded_fingerprints)} excluded fingerprints.")
 
-    # 2. Fetch upstream checksums
-    checksums = fetch_upstream_checksums()
+    # 2. Upstream checksums
+    checksums = mock_checksums if mock_checksums is not None else fetch_upstream_checksums()
 
-    selected_games_total = 0
-    seen_fingerprints: set[str] = set(excluded_fingerprints)
+    # Calculate stratum targets ensuring long_quota + short_quota == games_per_month exactly
+    long_quota = int(games_per_month * long_game_ratio)
+    if games_per_month > 0 and long_quota == 0 and long_game_ratio > 0.0:
+        long_quota = 1
+    short_quota = games_per_month - long_quota
+
+    selected_fingerprints_all: set[str] = set()
     manifest_sources = []
 
     out_pgn_path = staging_dir / f"{source_id}.pgn"
 
-    with open(out_pgn_path, "w", encoding="utf-8") as out_f:
-        for month in months:
-            archive_filename = f"lichess_db_broadcast_{month}.pgn.zst"
-            if archive_filename not in checksums:
-                raise SystemExit(f"FAIL CLOSED: month {month} not in official sha256sums.txt")
-            expected_sha = checksums[archive_filename]
-            url = BROADCAST_BASE_URL.format(month=month)
+    try:
+        with open(out_pgn_path, "w", encoding="utf-8") as out_f:
+            for month in months:
+                archive_filename = f"lichess_db_broadcast_{month}.pgn.zst"
+                if archive_filename not in checksums:
+                    raise SystemExit(f"FAIL CLOSED: month {month} not in upstream checksums")
+                expected_sha = checksums[archive_filename]
+                url = BROADCAST_BASE_URL.format(month=month)
 
-            print(f"\n--- Processing broadcast month {month} ---")
-            print(f"URL: {url}")
-            print(f"Expected SHA-256: {expected_sha}")
+                print(f"\n--- Processing broadcast month {month} ---")
+                print(f"Expected SHA-256: {expected_sha}")
 
-            req = urllib.request.Request(
-                url, headers={"User-Agent": "super-eureka-dataset-builder/1.0"}
-            )
-            resp = urllib.request.urlopen(req, timeout=60)
-            hash_stream = HashingStreamReader(resp)
+                if local_archives and month in local_archives:
+                    raw_stream = open(local_archives[month], "rb")
+                else:
+                    req = urllib.request.Request(
+                        url, headers={"User-Agent": "super-eureka-dataset-builder/1.0"}
+                    )
+                    raw_stream = urllib.request.urlopen(req, timeout=60)
 
-            dctx = zstd.ZstdDecompressor()
-            month_selected = 0
-            month_candidates_examined = 0
-            long_games_needed = int(games_per_month * long_game_ratio)
-            long_games_selected = 0
+                hashing_reader = HashingStreamReader(raw_stream)
+                dctx = zstd.ZstdDecompressor()
 
-            with dctx.stream_reader(hash_stream) as zstd_reader:
-                text_stream = io.TextIOWrapper(zstd_reader, encoding="utf-8", errors="replace")
-                while month_selected < games_per_month:
-                    game = chess.pgn.read_game(text_stream)
-                    if game is None:
-                        break
-                    month_candidates_examined += 1
+                # Stream and collect all eligible candidates for this month
+                long_candidates: list[tuple[str, str, str]] = []
+                short_candidates: list[tuple[str, str, str]] = []
 
-                    result = game.headers.get("Result", "*")
-                    if result not in ("1-0", "0-1", "1/2-1/2"):
-                        continue
+                candidates_examined = 0
+                eligible_candidates = 0
 
-                    moves = list(game.mainline_moves())
-                    ply_count = len(moves)
-                    if ply_count < min_ply:
-                        continue
+                zstd_stream = dctx.stream_reader(hashing_reader)
+                text_stream = io.TextIOWrapper(zstd_stream, encoding="utf-8", errors="replace")
 
-                    # Long game stratum balancing
-                    is_long = ply_count >= long_game_min_ply
-                    if not is_long and (games_per_month - month_selected) <= (long_games_needed - long_games_selected):
-                        # Reserve remaining slots for long games
-                        continue
+                try:
+                    while True:
+                        game = chess.pgn.read_game(text_stream)
+                        if game is None:
+                            break
+                        candidates_examined += 1
 
-                    # Deterministic hash threshold
-                    event = game.headers.get("Event", "")
-                    site = game.headers.get("Site", "")
-                    white = game.headers.get("White", "")
-                    black = game.headers.get("Black", "")
-                    hash_key = f"{month}:{seed}:{event}:{site}:{white}:{black}:{ply_count}:{month_candidates_examined}"
-                    h_val = int(hashlib.sha256(hash_key.encode("utf-8")).hexdigest()[:8], 16)
-                    # Pseudo-random acceptance
-                    if (h_val % 100) > 60 and month_selected + 100 < games_per_month:
-                        continue
+                        result = game.headers.get("Result", "*")
+                        if result not in ("1-0", "0-1", "1/2-1/2"):
+                            continue
 
-                    fp = compute_game_fingerprint(game)
-                    if fp in seen_fingerprints:
-                        continue
+                        moves = list(game.mainline_moves())
+                        ply_count = len(moves)
+                        if ply_count < min_ply:
+                            continue
 
-                    seen_fingerprints.add(fp)
-                    if is_long:
-                        long_games_selected += 1
+                        fp = game_fingerprint(game)
+                        if fp in excluded_fingerprints or fp in selected_fingerprints_all:
+                            continue
 
-                    # Write game to PGN
-                    exporter = chess.pgn.StringExporter(headers=True, variations=False, comments=False)
-                    out_f.write(game.accept(exporter) + "\n\n")
-                    month_selected += 1
+                        eligible_candidates += 1
+                        rank = compute_selection_rank(seed, month, fp)
 
-                    if month_selected % 500 == 0 or month_selected == games_per_month:
-                        print(f"  Selected {month_selected}/{games_per_month} games (examined {month_candidates_examined}, long: {long_games_selected})")
+                        # Export PGN string
+                        exporter = chess.pgn.StringExporter(headers=True, variations=False, comments=False)
+                        pgn_text = game.accept(exporter)
 
-            # Consume rest of stream to verify full archive SHA
-            while True:
-                buf = hash_stream.read(1024 * 1024)
-                if not buf:
-                    break
+                        if ply_count >= long_game_min_ply:
+                            long_candidates.append((rank, pgn_text, fp))
+                        else:
+                            short_candidates.append((rank, pgn_text, fp))
 
-            actual_sha = hash_stream.hexdigest()
-            if actual_sha != expected_sha:
-                raise SystemExit(
-                    f"FAIL CLOSED: archive SHA-256 mismatch for {month}: {actual_sha} != {expected_sha}"
+                    # Drain the remainder of hashing_reader BEFORE closing decompressor
+                    while True:
+                        buf = hashing_reader.read(1024 * 1024)
+                        if not buf:
+                            break
+
+                    actual_sha = hashing_reader.hexdigest()
+                    if actual_sha != expected_sha:
+                        raise SystemExit(
+                            f"FAIL CLOSED: archive SHA-256 mismatch for {month}: {actual_sha} != {expected_sha}"
+                        )
+                    print(f"Month {month} SHA-256 verified in flight: {actual_sha}")
+
+                finally:
+                    text_stream.close()
+                    zstd_stream.close()
+                    raw_stream.close()
+
+                if len(long_candidates) < long_quota or len(short_candidates) < short_quota:
+                    raise SystemExit(
+                        f"FAIL CLOSED: insufficient candidates for month {month}: "
+                        f"got {len(long_candidates)}/{long_quota} long, {len(short_candidates)}/{short_quota} short "
+                        f"(examined: {candidates_examined}, eligible: {eligible_candidates})"
+                    )
+
+                # Deterministic global top-K selection by rank
+                long_candidates.sort(key=lambda item: item[0])
+                short_candidates.sort(key=lambda item: item[0])
+
+                selected_long = long_candidates[:long_quota]
+                selected_short = short_candidates[:short_quota]
+
+                selected_month_games = sorted(selected_long + selected_short, key=lambda item: item[0])
+                for rank, pgn_text, fp in selected_month_games:
+                    out_f.write(pgn_text + "\n\n")
+                    selected_fingerprints_all.add(fp)
+
+                manifest_sources.append(
+                    {
+                        "month": month,
+                        "url": url,
+                        "sha256": actual_sha,
+                        "games_selected": len(selected_month_games),
+                        "long_games_selected": len(selected_long),
+                        "short_games_selected": len(selected_short),
+                        "candidates_examined": candidates_examined,
+                        "eligible_candidates": eligible_candidates,
+                    }
                 )
-            print(f"Month {month} SHA-256 verified in flight: {actual_sha}")
 
-            if month_selected < games_per_month:
-                raise SystemExit(
-                    f"FAIL CLOSED: insufficient games selected for {month}: {month_selected} < {games_per_month}"
-                )
+        # 3. Compute PGN SHA
+        with open(out_pgn_path, "rb") as f:
+            pgn_sha = hashlib.sha256(f.read()).hexdigest()
 
-            manifest_sources.append(
-                {
-                    "month": month,
-                    "url": url,
-                    "sha256": actual_sha,
-                    "games_selected": month_selected,
-                    "candidates_examined": month_candidates_examined,
-                }
-            )
-            selected_games_total += month_selected
+        # Compute script SHA
+        script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
-    # Compute PGN SHA
-    with open(out_pgn_path, "rb") as f:
-        pgn_sha = hashlib.sha256(f.read()).hexdigest()
+        manifest = {
+            "source_id": source_id,
+            "source_family": source_family,
+            "provenance": "lichess-official-broadcasts",
+            "license": "CC-BY-SA-4.0",
+            "selection_algorithm_version": 2,
+            "selection_strategy": "global_whole_month_deterministic_top_k",
+            "script_sha256": script_sha,
+            "python_version": sys.version,
+            "python_chess_version": chess.__version__,
+            "zstandard_version": zstd.__version__,
+            "months": months,
+            "selection_seed": seed,
+            "games_total": len(selected_fingerprints_all),
+            "pgn_sha256": pgn_sha,
+            "min_ply": min_ply,
+            "long_game_min_ply": long_game_min_ply,
+            "long_game_ratio": long_game_ratio,
+            "selected_fingerprints_count": len(selected_fingerprints_all),
+            "selected_fingerprints_sha256": fingerprint_set_sha256(selected_fingerprints_all),
+            "excluded_fingerprints_count": len(excluded_fingerprints),
+            "excluded_fingerprints_sha256": fingerprint_set_sha256(excluded_fingerprints),
+            "fingerprint_intersection_count": len(selected_fingerprints_all & excluded_fingerprints),
+            "upstream_archives": manifest_sources,
+        }
 
-    manifest = {
-        "source_id": source_id,
-        "source_family": source_family,
-        "provenance": "lichess-official-broadcasts-cc-by-sa-4.0",
-        "months": months,
-        "selection_seed": seed,
-        "games_total": selected_games_total,
-        "pgn_sha256": pgn_sha,
-        "min_ply": min_ply,
-        "upstream_archives": manifest_sources,
-        "excluded_fingerprints_count": len(excluded_fingerprints),
-    }
+        if manifest["fingerprint_intersection_count"] != 0:
+            raise SystemExit("FAIL CLOSED: fingerprint intersection with excluded PGN is non-zero")
 
-    manifest_path = staging_dir / "source-manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        manifest_path = staging_dir / "source-manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    # Atomic move
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    staging_dir.rename(out_dir)
-    print(f"\nSuccessfully created source {source_id} at {out_dir} with {selected_games_total} games (PGN SHA: {pgn_sha[:16]}).")
-    return manifest
+        # Atomic publish
+        staging_dir.rename(out_dir)
+        print(f"\nSuccessfully published source {source_id} to {out_dir} ({len(selected_fingerprints_all)} games).")
+        return manifest
+
+    except Exception:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        raise
 
 
 def main():
