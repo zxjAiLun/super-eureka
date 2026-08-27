@@ -672,10 +672,10 @@ def main() -> int:
     parser.add_argument("--final-mode", action="store_true",
                         help="FINAL 300k contract: sampling v2, exact "
                              "splits/phase targets, >=2 families, family "
-                             "share <=70%, staging + atomic move")
+                             "share <=70 percent, staging + atomic move")
     parser.add_argument("--enforce-family-mix", action="store_true",
                         help="fail closed when the largest source family "
-                             "exceeds 70% (FINAL builds)")
+                             "exceeds 70 percent (FINAL builds)")
     parser.add_argument("--dataset-id", required=True,
                         help="dataset identity (e.g. s6-eval-v1-core-300k); "
                              "REQUIRED so a run can never silently write "
