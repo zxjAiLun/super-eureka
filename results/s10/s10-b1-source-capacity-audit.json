@@ -1,0 +1,39 @@
+{
+  "audit_title": "S10-B1 Source Capacity Audit",
+  "target_dataset_id": "s10-eval-v1-300k01",
+  "target_records_total": 300000,
+  "sampling_contract": {
+    "sampling_version": 2,
+    "max_per_game": 8,
+    "min_ply": 12,
+    "max_ply": 160,
+    "min_families": 2,
+    "max_family_share": 0.70
+  },
+  "sources_audited": {
+    "arena_sources": {
+      "games": 1572,
+      "max_sampled_positions_at_8_per_game": 12576
+    },
+    "lichess_standard_rated_v1": {
+      "games": 2000,
+      "max_sampled_positions_at_8_per_game": 16000
+    },
+    "lichess_standard_rated_confirm_v1_g1400": {
+      "games": 1400,
+      "max_sampled_positions_at_8_per_game": 11200
+    }
+  },
+  "capacity_summary": {
+    "total_games_available": 4972,
+    "max_possible_unique_positions": 39776,
+    "required_target": 300000,
+    "deficit_positions": 260224,
+    "deficit_games_needed": 32528
+  },
+  "bottleneck_identification": {
+    "primary_bottleneck": "TOTAL_GAME_COUNT_INSUFFICIENT",
+    "details": "At the frozen contract limit of max 8 sampled positions per game, generating exactly 300,000 positions requires at least 37,500 unique chess games across >=2 source families. The current local source catalog contains 4,972 total games yielding a maximum feasible ceiling of ~39,776 positions."
+  },
+  "status": "FAIL_CLOSED_REPORTED"
+}

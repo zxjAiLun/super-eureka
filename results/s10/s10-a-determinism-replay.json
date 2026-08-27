@@ -1,0 +1,65 @@
+{
+  "audit_title": "S10-A Deterministic Training Replay Audit",
+  "audit_version": 1,
+  "execution_timestamp_utc": "2026-08-27T02:40:00Z",
+  "contract_enforcement": {
+    "cublas_workspace_config": ":4096:8",
+    "torch_deterministic_algorithms": true,
+    "cudnn_deterministic": true,
+    "cudnn_benchmark": false,
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "torch_version": "2.13.0+cu130",
+    "cuda_version": "13.0",
+    "cudnn_version": 92000
+  },
+  "dataset_sha256": "5c90b07481c70e7e1b5f10682ba7d4c82c3c907a974b71be0e657bfb7b9f34fb",
+  "labels_sha256": "e3057e93dcad1a704f0ddbf5f6d7285a8dfda1d2729a6e11894d03e5c9a0937c",
+  "holdout_observed_in_replay": false,
+  "v1_results": {
+    "seeds": {
+      "20260818": {"val_loss": 0.053229, "val_mae_cp": 236.2257, "best_epoch": 44},
+      "20260819": {"val_loss": 0.054366, "val_mae_cp": 237.9063, "best_epoch": 21},
+      "20260820": {"val_loss": 0.053427, "val_mae_cp": 235.7326, "best_epoch": 32}
+    },
+    "median_val_mae_cp": 236.2257,
+    "mean_val_mae_cp": 236.6215
+  },
+  "v2_results": {
+    "seeds": {
+      "20260818": {"val_loss": 0.055107, "val_mae_cp": 239.8546, "best_epoch": 53},
+      "20260819": {"val_loss": 0.054944, "val_mae_cp": 238.8546, "best_epoch": 11},
+      "20260820": {"val_loss": 0.054170, "val_mae_cp": 237.5076, "best_epoch": 28}
+    },
+    "median_val_mae_cp": 238.8546,
+    "mean_val_mae_cp": 238.7389
+  },
+  "comparison": {
+    "ratio_v2_to_v1": 1.01113,
+    "delta_pct": 1.113,
+    "threshold_max_ratio": 1.0200,
+    "non_inferiority_gate_passed": true
+  },
+  "secondary_criteria_reconfirmed": {
+    "ft_parameter_reduction": "-45.00%",
+    "ft_fp32_memory_reduction": "20.00 MiB -> 11.00 MiB (-9.00 MiB)",
+    "val_unseen_activation_rate": "1.012% (V1) vs 0.511% (V2)",
+    "val_positions_with_unseen_rate": "18.926% (V1) vs 10.128% (V2)",
+    "rust_feature_cost": "480.99 ns/pos (V1) vs 537.30 ns/pos (V2, +11.7%)"
+  },
+  "decision_audit_outcome": "PASS_CONFIRMED",
+  "closeout_errata": [
+    {
+      "scope": "results/s10/s10-a-representation-selection.json",
+      "field": "secondary_criteria.feature_extraction_cost_ns_per_pos.impact",
+      "original": "negligible_search_budget_overhead",
+      "calibrated": "V2 trades approximately +11.7% full-refresh feature extraction cost (+56.3 ns/pos) for ~45% FT footprint reduction and substantially improved sparse-feature generalization."
+    },
+    {
+      "scope": "results/s10/s10-a-holdout.json",
+      "field": "summary.generalization_assessment",
+      "original": "EXCELLENT (holdout MAE is lower than validation MAE across all 3 seeds, demonstrating stable out-of-distribution generalization)",
+      "calibrated": "NO_GENERALIZATION_COLLAPSE (Selected V2 showed no post-selection generalization collapse on the untouched holdout split: median holdout MAE 230.68 cp vs validation MAE 238.85 cp)."
+    }
+  ]
+}

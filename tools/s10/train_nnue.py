@@ -20,23 +20,34 @@ Fail-Closed Rules:
     - FEN consistency check
     - Feature index bounds check
     - Usable position_id sets must be identical across all training runs for the same dataset
+    - Strict deterministic execution: fails closed if any operation is non-deterministic
 """
 
 from __future__ import annotations
+
+import os
+import sys
+
+# Ensure CUBLAS deterministic workspace is configured before torch is imported / used
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import argparse
 import hashlib
 import json
 import math
-import os
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 
 import torch
 import torch.nn as nn
+
+# Enforce deterministic mode globally
+torch.use_deterministic_algorithms(True, warn_only=False)
+if torch.cuda.is_available():
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 NNUE_INPUTS_V1 = 40960
 NNUE_INPUTS_V2 = 22528
@@ -553,6 +564,9 @@ def train_and_eval(
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
         "torch_version": torch.__version__,
         "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
+        "cudnn_version": torch.backends.cudnn.version() if torch.cuda.is_available() else None,
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
         "dataset_sha256": ds["dataset_sha"],
         "labels_sha256": ds["labels_sha"],
         "records_usable": len(usable),
@@ -640,7 +654,12 @@ def main():
         device_name=args.device,
         allow_holdout=args.allow_holdout,
     )
-    print(f"Training completed for {args.feature_set} seed {args.seed}: best_epoch={summary['training']['best_epoch']} best_val_mae={summary['training']['best_val_mae']:.3f} cp (elapsed: {summary['training']['elapsed_seconds']:.1f}s)")
+    print(
+        f"Training completed for {args.feature_set} seed {args.seed}: "
+        f"best_epoch={summary['training']['best_epoch']} "
+        f"best_val_mae={summary['training']['best_val_mae']:.3f} cp "
+        f"(elapsed: {summary['training']['elapsed_seconds']:.1f}s)"
+    )
 
 
 if __name__ == "__main__":
