@@ -5,11 +5,14 @@ Directly imports and reuses the frozen builder functions and constants from
 `tools/s6/build_dataset.py` (sampling-v2 top-8, eligible filter, canonical_fen4,
 game_split, phase_of, bucket_of, family_of, DATASET_SEED, etc.).
 
-Audits:
-- 12-cell matrix: (split x phase) against exact target quotas
-- Family distribution: (family x split x phase) post-deduplication
-- Global family share against 70% ceiling
-- Exact shortfalls and binding constraints
+Implements the exact 3-tier builder pipeline:
+1. Tier 1: Raw Post-Deduplication (top-8 per game, global position_id dedup)
+2. Tier 2: Global Phase Stratification (replicates build_dataset.py lines 375-387)
+   - Evaluates the 12 core cells (split x phase) on this stratified pool
+   - Evaluates Pre-FINAL family share gate (>= 2 families, <= 70% largest share)
+3. Tier 3: Exact FINAL Selection (exact per-cell targeting, sorted by position_id)
+   - Evaluates Post-FINAL family share gate (>= 2 families, <= 70% largest share)
+   - Checks final_selected_count == target_n
 """
 
 from __future__ import annotations
@@ -36,6 +39,8 @@ from tools.s6.build_dataset import (
     FINAL_SPLIT_TARGETS,
     FINAL_PHASE_TARGETS,
     SCHEMA_VERSION,
+    TARGET as DEFAULT_TARGET,
+    MIN_FAMILIES,
     bucket_of,
     canonical_fen4,
     eligible,
@@ -51,14 +56,8 @@ from tools.s6.build_dataset import (
     sha256_text,
 )
 
-TARGET_CELLS_300K = {
-    "train": {"high": 60000, "mid": 108000, "low": 48000, "zero": 24000},
-    "validation": {"high": 7500, "mid": 13500, "low": 6000, "zero": 3000},
-    "holdout": {"high": 7500, "mid": 13500, "low": 6000, "zero": 3000},
-}
 
-
-def analyze_pool(
+def profile_pool(
     source_dirs: list[Path],
     target_n: int = 300000,
     final_mode: bool = True,
@@ -106,10 +105,15 @@ def analyze_pool(
                         ply_priority(game_id, ply, DATASET_SEED),
                         ply,
                         {
+                            "schema_version": SCHEMA_VERSION,
                             "position_id": pos_id,
+                            "fen": board.fen(),
+                            "canonical_fen4": fen4,
                             "source_id": src["source_id"],
                             "source_game_id": game_id,
-                            "phase_bucket": bucket_of(phase_of(board)),
+                            "ply": ply,
+                            "game_result_white": result,
+                            "phase": phase_of(board),
                             "split": split,
                         },
                     )
@@ -125,8 +129,10 @@ def analyze_pool(
             "candidates_top8": source_candidates,
         }
 
-    # 1. Global deduplication (first seen by position_id)
-    before_dedup = len(records)
+    # =========================================================================
+    # TIER 1: Raw Post-Deduplication
+    # =========================================================================
+    raw_candidates_seen = len(records)
     records.sort(key=lambda r: (r["position_id"], r["source_game_id"]))
     unique_records: list[dict] = []
     seen_pos: set[str] = set()
@@ -136,16 +142,53 @@ def analyze_pool(
         seen_pos.add(r["position_id"])
         unique_records.append(r)
 
-    dedup_removed = before_dedup - len(unique_records)
-    print(f"\nTop-8 pool: {before_dedup} -> {len(unique_records)} post-dedup ({dedup_removed} duplicates removed)")
+    dedup_removed = raw_candidates_seen - len(unique_records)
+    raw_post_dedup_count = len(unique_records)
 
-    # 2. 12-cell matrix calculation (split x phase)
-    cell_counts: dict[str, dict[str, int]] = {
-        split: {phase: 0 for phase in ("high", "mid", "low", "zero")}
-        for split in ("train", "validation", "holdout")
+    raw_family_totals: dict[str, int] = defaultdict(int)
+    for r in unique_records:
+        fam = family_of(r["source_id"], catalog, final_mode=final_mode)
+        raw_family_totals[fam] += 1
+
+    tier1_stats = {
+        "candidates_top8": raw_candidates_seen,
+        "unique_post_dedup": raw_post_dedup_count,
+        "duplicates_removed": dedup_removed,
+        "family_totals": dict(raw_family_totals),
     }
 
-    # 3. Family x split x phase matrix
+    # =========================================================================
+    # TIER 2: Global Phase Stratification (Matching build_dataset.py lines 375-387)
+    # =========================================================================
+    n_pre = len(unique_records)
+    strat_targets = {
+        name: round(n_pre * share) for name, share in PHASE_QUOTAS.items()
+    }
+    quota_pool = {name: [] for name in PHASE_BUCKETS}
+    for r in unique_records:
+        quota_pool[bucket_of(r["phase"])].append(r)
+
+    stratified: list[dict] = []
+    for name in PHASE_BUCKETS:
+        pool = sorted(quota_pool[name], key=lambda r: r["position_id"])
+        stratified.extend(pool[: strat_targets[name]])
+
+    stratified_count = len(stratified)
+
+    # Pre-FINAL Family Gate Evaluation
+    pre_final_families: dict[str, int] = defaultdict(int)
+    for r in stratified:
+        fam = family_of(r["source_id"], catalog, final_mode=final_mode)
+        pre_final_families[fam] += 1
+
+    pre_final_largest_fam = max(pre_final_families.values()) if pre_final_families else 0
+    pre_final_largest_share = pre_final_largest_fam / stratified_count if stratified_count else 0.0
+    pre_final_family_pass = (
+        len(pre_final_families) >= MIN_FAMILIES and pre_final_largest_share <= 0.70
+    )
+
+    # 12 Core Cells Evaluation on Stratified Pool
+    pools: dict[tuple[str, str], list[dict]] = {}
     family_cell_counts: dict[str, dict[str, dict[str, int]]] = defaultdict(
         lambda: {
             split: {phase: 0 for phase in ("high", "mid", "low", "zero")}
@@ -153,104 +196,130 @@ def analyze_pool(
         }
     )
 
-    family_totals: dict[str, int] = defaultdict(int)
-
-    for r in unique_records:
+    for r in stratified:
         fam = family_of(r["source_id"], catalog, final_mode=final_mode)
-        split = r["split"]
-        phase = r["phase_bucket"]
+        s = r["split"]
+        b = bucket_of(r["phase"])
+        pools.setdefault((s, b), []).append(r)
+        family_cell_counts[fam][s][b] += 1
 
-        cell_counts[split][phase] += 1
-        family_cell_counts[fam][split][phase] += 1
-        family_totals[fam] += 1
-
-    # 4. Target cells computation for arbitrary target_n
-    if target_n == 300000:
-        targets = TARGET_CELLS_300K
-    else:
-        targets = {}
-        for split, split_want in FINAL_SPLIT_TARGETS.items():
-            split_ratio = split_want / 300000.0
-            targets[split] = {}
-            for phase, phase_share in PHASE_QUOTAS.items():
-                targets[split][phase] = round(target_n * split_ratio * phase_share)
-
-    # 5. Shortfall calculation
     cell_eval: dict[str, dict[str, dict[str, int]]] = {}
-    shortfalls_found = 0
+    shortfalls_count = 0
     total_shortfall = 0
 
     print("\n" + "=" * 80)
-    print(f"12-CELL AUDIT MATRIX (Target N = {target_n})")
+    print(f"TIER 2: 12-CELL AUDIT MATRIX (On Stratified Pre-FINAL Pool, Target N = {target_n})")
     print("=" * 80)
     print(f"{'Split':<12} {'Phase':<8} {'Available':<12} {'Target':<10} {'Margin':<10} {'Status'}")
     print("-" * 80)
 
-    for split in ("train", "validation", "holdout"):
+    for split, split_want in FINAL_SPLIT_TARGETS.items():
+        share = split_want / DEFAULT_TARGET
         cell_eval[split] = {}
-        for phase in ("high", "mid", "low", "zero"):
-            avail = cell_counts[split][phase]
-            tgt = targets[split][phase]
-            margin = avail - tgt
+        for bucket, bucket_want in FINAL_PHASE_TARGETS.items():
+            if target_n == DEFAULT_TARGET:
+                want = round(bucket_want * share)
+            else:
+                want = round(target_n * (split_want / DEFAULT_TARGET) * PHASE_QUOTAS[bucket])
+            avail = len(pools.get((split, bucket), []))
+            margin = avail - want
             status = "PASS" if margin >= 0 else "DEFICIT"
             if margin < 0:
-                shortfalls_found += 1
+                shortfalls_count += 1
                 total_shortfall += abs(margin)
-            cell_eval[split][phase] = {
+            cell_eval[split][bucket] = {
                 "available": avail,
-                "target": tgt,
+                "target": want,
                 "margin": margin,
                 "status": status,
             }
-            print(f"{split:<12} {phase:<8} {avail:<12} {tgt:<10} {margin:<+10} {status}")
+            print(f"{split:<12} {bucket:<8} {avail:<12} {want:<10} {margin:<+10} {status}")
 
-    # 6. Family breakdown
+    tier2_stats = {
+        "stratified_total": stratified_count,
+        "pre_final_families": dict(pre_final_families),
+        "pre_final_family_count": len(pre_final_families),
+        "pre_final_largest_share": pre_final_largest_share,
+        "pre_final_family_pass": pre_final_family_pass,
+        "cell_matrix": cell_eval,
+        "shortfalls_count": shortfalls_count,
+        "total_shortfall": total_shortfall,
+        "family_cell_counts": {k: dict(v) for k, v in family_cell_counts.items()},
+    }
+
+    # =========================================================================
+    # TIER 3: Exact FINAL Selection (Matching build_dataset.py lines 533-556)
+    # =========================================================================
+    selected: list[dict] = []
+    for split, split_want in FINAL_SPLIT_TARGETS.items():
+        share = split_want / DEFAULT_TARGET
+        for bucket, bucket_want in FINAL_PHASE_TARGETS.items():
+            if target_n == DEFAULT_TARGET:
+                want = round(bucket_want * share)
+            else:
+                want = round(target_n * (split_want / DEFAULT_TARGET) * PHASE_QUOTAS[bucket])
+            pool = sorted(pools.get((split, bucket), []), key=lambda r: r["position_id"])
+            selected.extend(pool[:want])
+
+    final_selected_count = len(selected)
+
+    # Post-FINAL Family Gate Evaluation
+    post_final_families: dict[str, int] = defaultdict(int)
+    for r in selected:
+        fam = family_of(r["source_id"], catalog, final_mode=final_mode)
+        post_final_families[fam] += 1
+
+    post_final_largest_fam = max(post_final_families.values()) if post_final_families else 0
+    post_final_largest_share = (
+        post_final_largest_fam / final_selected_count if final_selected_count else 0.0
+    )
+    post_final_family_pass = (
+        len(post_final_families) >= MIN_FAMILIES and post_final_largest_share <= 0.70
+    )
+
+    tier3_stats = {
+        "final_selected_count": final_selected_count,
+        "target_n": target_n,
+        "selection_matches_target": final_selected_count == target_n,
+        "post_final_families": dict(post_final_families),
+        "post_final_family_count": len(post_final_families),
+        "post_final_largest_share": post_final_largest_share,
+        "post_final_family_pass": post_final_family_pass,
+    }
+
+    # =========================================================================
+    # OVERALL FEASIBILITY
+    # =========================================================================
+    is_feasible = (
+        shortfalls_count == 0
+        and pre_final_family_pass
+        and final_selected_count == target_n
+        and post_final_family_pass
+    )
+
     print("\n" + "=" * 80)
-    print("FAMILY BREAKDOWN POST-DEDUP")
+    print("3-TIER CAPACITY SUMMARY")
     print("=" * 80)
-    total_post_dedup = len(unique_records)
-    largest_family_share = 0.0
-    for fam, count in sorted(family_totals.items(), key=lambda x: -x[1]):
-        share = count / max(1, total_post_dedup)
-        if share > largest_family_share:
-            largest_family_share = share
-        print(f"Family '{fam}': {count} positions ({share * 100:.2f}%)")
-
-    print("\nDetailed Family x Split x Phase:")
-    for fam in sorted(family_cell_counts):
-        print(f"\n  Family [{fam}]:")
-        for split in ("train", "validation", "holdout"):
-            phase_str = ", ".join(
-                f"{p}: {family_cell_counts[fam][split][p]}"
-                for p in ("high", "mid", "low", "zero")
-            )
-            print(f"    {split:<12}: {phase_str}")
+    print(f"Tier 1 (Raw Post-Dedup):        {raw_post_dedup_count} positions")
+    print(f"Tier 2 (Global Stratified):     {stratified_count} positions (Pre-FINAL Largest Family Share: {pre_final_largest_share * 100:.2f}%)")
+    print(f"Tier 3 (Exact FINAL Selected):  {final_selected_count}/{target_n} positions (Post-FINAL Largest Family Share: {post_final_largest_share * 100:.2f}%)")
+    print("-" * 80)
+    if is_feasible:
+        print("OVERALL FEASIBILITY: PASS (Ready for FINAL build)")
+    else:
+        print(f"OVERALL FEASIBILITY: FAIL CLOSED ({shortfalls_count} cell shortfalls, Pre-Gate: {pre_final_family_pass}, Post-Gate: {post_final_family_pass})")
+    print("=" * 80)
 
     report = {
         "target_n": target_n,
         "total_games": sum(s["games"] for s in per_source_stats.values()),
-        "candidates_top8": before_dedup,
-        "unique_post_dedup": len(unique_records),
-        "dedup_removed": dedup_removed,
         "reject_stats": dict(reject_stats),
         "per_source_stats": per_source_stats,
-        "cell_matrix": cell_eval,
-        "family_totals": dict(family_totals),
-        "family_cell_counts": {k: dict(v) for k, v in family_cell_counts.items()},
-        "largest_family_share": largest_family_share,
-        "family_share_pass": largest_family_share <= 0.70,
-        "shortfalls_count": shortfalls_found,
-        "total_shortfall": total_shortfall,
-        "is_feasible": shortfalls_found == 0 and largest_family_share <= 0.70,
+        "tier1_raw_post_dedup": tier1_stats,
+        "tier2_stratified_pre_final": tier2_stats,
+        "tier3_final_selected": tier3_stats,
+        "is_feasible": is_feasible,
     }
-
-    print("\n" + "=" * 80)
-    if report["is_feasible"]:
-        print("RESULT: ALL 12 CELLS PASS & FAMILY SHARE <= 70% (FEASIBLE)")
-    else:
-        print(f"RESULT: FAIL CLOSED ({shortfalls_found} cell shortfalls, total deficit: {total_shortfall})")
-    print("=" * 80)
-
     return report
 
 
@@ -262,7 +331,7 @@ def main():
     parser.add_argument("--json", type=Path, default=None, help="Optional output JSON path")
 
     args = parser.parse_args()
-    report = analyze_pool(
+    report = profile_pool(
         source_dirs=args.sources,
         target_n=args.target,
         final_mode=not args.legacy,

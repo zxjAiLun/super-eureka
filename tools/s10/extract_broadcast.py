@@ -111,29 +111,29 @@ def extract_broadcasts(
         shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Load exclusion fingerprints (fails closed if file missing)
-    excluded_fingerprints: set[str] = set()
-    if exclude_pgns:
-        for pgn_path in exclude_pgns:
-            excluded_fingerprints.update(load_pgn_fingerprints(pgn_path))
-
-    print(f"Loaded {len(excluded_fingerprints)} excluded fingerprints.")
-
-    # 2. Upstream checksums
-    checksums = mock_checksums if mock_checksums is not None else fetch_upstream_checksums()
-
-    # Calculate stratum targets ensuring long_quota + short_quota == games_per_month exactly
-    long_quota = int(games_per_month * long_game_ratio)
-    if games_per_month > 0 and long_quota == 0 and long_game_ratio > 0.0:
-        long_quota = 1
-    short_quota = games_per_month - long_quota
-
-    selected_fingerprints_all: set[str] = set()
-    manifest_sources = []
-
-    out_pgn_path = staging_dir / f"{source_id}.pgn"
-
     try:
+        # 1. Load exclusion fingerprints (fails closed if file missing)
+        excluded_fingerprints: set[str] = set()
+        if exclude_pgns:
+            for pgn_path in exclude_pgns:
+                excluded_fingerprints.update(load_pgn_fingerprints(pgn_path))
+
+        print(f"Loaded {len(excluded_fingerprints)} excluded fingerprints.")
+
+        # 2. Upstream checksums
+        checksums = mock_checksums if mock_checksums is not None else fetch_upstream_checksums()
+
+        # Calculate stratum targets ensuring long_quota + short_quota == games_per_month exactly
+        long_quota = int(games_per_month * long_game_ratio)
+        if games_per_month > 0 and long_quota == 0 and long_game_ratio > 0.0:
+            long_quota = 1
+        short_quota = games_per_month - long_quota
+
+        selected_fingerprints_all: set[str] = set()
+        manifest_sources = []
+
+        out_pgn_path = staging_dir / f"{source_id}.pgn"
+
         with open(out_pgn_path, "w", encoding="utf-8") as out_f:
             for month in months:
                 archive_filename = f"lichess_db_broadcast_{month}.pgn.zst"
@@ -157,11 +157,14 @@ def extract_broadcasts(
                 dctx = zstd.ZstdDecompressor()
 
                 # Stream and collect all eligible candidates for this month
+                month_seen_fingerprints: set[str] = set()
                 long_candidates: list[tuple[str, str, str]] = []
                 short_candidates: list[tuple[str, str, str]] = []
 
                 candidates_examined = 0
                 eligible_candidates = 0
+                month_duplicate_rejected = 0
+                month_excluded_rejected = 0
 
                 zstd_stream = dctx.stream_reader(hashing_reader)
                 text_stream = io.TextIOWrapper(zstd_stream, encoding="utf-8", errors="replace")
@@ -183,9 +186,15 @@ def extract_broadcasts(
                             continue
 
                         fp = game_fingerprint(game)
-                        if fp in excluded_fingerprints or fp in selected_fingerprints_all:
+                        if fp in excluded_fingerprints:
+                            month_excluded_rejected += 1
                             continue
 
+                        if fp in selected_fingerprints_all or fp in month_seen_fingerprints:
+                            month_duplicate_rejected += 1
+                            continue
+
+                        month_seen_fingerprints.add(fp)
                         eligible_candidates += 1
                         rank = compute_selection_rank(seed, month, fp)
 
@@ -245,10 +254,31 @@ def extract_broadcasts(
                         "short_games_selected": len(selected_short),
                         "candidates_examined": candidates_examined,
                         "eligible_candidates": eligible_candidates,
+                        "duplicate_candidates_rejected": month_duplicate_rejected,
+                        "excluded_candidates_rejected": month_excluded_rejected,
                     }
                 )
 
-        # 3. Compute PGN SHA
+        # 3. Verify actual PGN game count matches selected fingerprints and quota
+        actual_pgn_game_count = 0
+        with open(out_pgn_path, "r", encoding="utf-8", errors="replace") as f:
+            while True:
+                g = chess.pgn.read_game(f)
+                if g is None:
+                    break
+                actual_pgn_game_count += 1
+
+        expected_total_games = len(months) * games_per_month
+        if (
+            actual_pgn_game_count != len(selected_fingerprints_all)
+            or actual_pgn_game_count != expected_total_games
+        ):
+            raise SystemExit(
+                f"FAIL CLOSED: output game count mismatch: actual PGN games={actual_pgn_game_count}, "
+                f"selected fingerprints={len(selected_fingerprints_all)}, expected={expected_total_games}"
+            )
+
+        # 4. Compute PGN SHA
         with open(out_pgn_path, "rb") as f:
             pgn_sha = hashlib.sha256(f.read()).hexdigest()
 
@@ -278,6 +308,12 @@ def extract_broadcasts(
             "excluded_fingerprints_count": len(excluded_fingerprints),
             "excluded_fingerprints_sha256": fingerprint_set_sha256(excluded_fingerprints),
             "fingerprint_intersection_count": len(selected_fingerprints_all & excluded_fingerprints),
+            "duplicate_candidates_rejected_total": sum(
+                s["duplicate_candidates_rejected"] for s in manifest_sources
+            ),
+            "excluded_candidates_rejected_total": sum(
+                s["excluded_candidates_rejected"] for s in manifest_sources
+            ),
             "upstream_archives": manifest_sources,
         }
 
@@ -292,7 +328,7 @@ def extract_broadcasts(
         print(f"\nSuccessfully published source {source_id} to {out_dir} ({len(selected_fingerprints_all)} games).")
         return manifest
 
-    except Exception:
+    except BaseException:
         if staging_dir.exists():
             shutil.rmtree(staging_dir)
         raise
