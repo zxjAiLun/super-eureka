@@ -128,3 +128,39 @@ identity; crash-tail truncation; corruption fail-closed; dataset/teacher
 identity fail-closed; PID validation fail-closed; partial never publishes;
 audit semantics unchanged; final serialization unchanged; frozen Stockfish
 settings; frozen dataset SHA; real Stockfish smoke; regression gates).
+
+## Repair 1 (post-review): frozen-dataset preflight integrity gate
+Review found the pipeline trusted `dataset_manifest.json` without
+re-verifying the local dataset bytes (the 300k shards are local-only, not
+in Git). Added `preflight_dataset()` in `tools/s6/label_teacher.py`,
+running BEFORE any Teacher process is instantiated, before any partial
+file is created or mutated, and before resume validation:
+
+- dataset_id non-empty string; dataset_sha256 64 lowercase hex
+- `manifest.records_total == len(records)`
+- recomputed canonical dataset SHA (exact builder/verify_dataset
+  serialization) `== manifest.dataset_sha256`
+- position_id uniqueness
+
+A mutated local shard now fails closed even when `teacher-progress.json`
+is internally valid, and the partial/progress files are left untouched.
+Also locked the checkpoint interval into the resume contract (resume with
+a different `--checkpoint-interval` fails closed; production rule is to
+re-run the exact same command).
+
+New tests (T21–T25 + interval lock, 27 total):
+| ID | Scenario | Result |
+|---|---|---|
+| T21 | manifest records_total mismatch | FAIL CLOSED, 0 Teacher instances |
+| T22 | mutated record FEN, manifest unchanged (SHA mismatch) | FAIL CLOSED, 0 Teacher instances |
+| T23 | removed record line | FAIL CLOSED, 0 Teacher instances |
+| T23b | post-checkpoint dataset mutation on RESUME | FAIL CLOSED, partial/progress untouched |
+| T24 | duplicate position_id in dataset (SHA consistent) | FAIL CLOSED |
+| T25 | valid dataset passes preflight, pipeline unchanged | PASS |
+| P2 | checkpoint_interval mismatch on resume | FAIL CLOSED; same interval resumes |
+
+Verified against the real frozen dataset: preflight recomputes
+`503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3` over
+300000 records. Real Stockfish 12-position smoke after the repair:
+byte-identical labels. Regression: 27/27 resume tests, 24/24 existing
+teacher/verify/build tests, `cargo test --lib` 372/372.

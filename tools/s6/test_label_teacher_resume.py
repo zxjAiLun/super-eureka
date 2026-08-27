@@ -525,5 +525,142 @@ class ResumeTests(unittest.TestCase):
                              (ref / "labels.jsonl").read_bytes())
 
 
+class PreflightTests(unittest.TestCase):
+    """S10-B2A Repair 1: frozen-dataset preflight integrity gate.
+
+    Every failure path must FAIL CLOSED with ZERO Teacher instances
+    constructed and no partial/progress mutation."""
+
+    def setUp(self):
+        FakeTeacher.instances = 0
+        FakeTeacher.fail_at = None
+        FakeTeacher.audit_mismatch = False
+
+    def _run(self, d: Path, checkpoint_interval: int = INTERVAL) -> int:
+        FakeTeacher.instances = 0
+        argv = ["label_teacher.py", "--dataset", str(d), "--native",
+                "--checkpoint-interval", str(checkpoint_interval),
+                "--expected-binary-sha256", FAKE_SHA]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(lt, "Teacher", FakeTeacher):
+            try:
+                return lt.main()
+            except lt.ResumeError:
+                return 4
+
+    def _rewrite_manifest(self, d: Path, **changes) -> None:
+        m = json.loads((d / "dataset_manifest.json").read_text())
+        m.update(changes)
+        (d / "dataset_manifest.json").write_text(json.dumps(m))
+
+    # T21: manifest records_total mismatch -------------------------------
+    def test_t21_records_total_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            self._rewrite_manifest(d, records_total=N + 1)
+            rc = self._run(d)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0,
+                             "no Teacher may be constructed on preflight "
+                             "failure")
+            self.assertFalse((d / lt.PARTIAL_NAME).exists())
+            self.assertFalse((d / "labels.jsonl").exists())
+
+    # T22: mutate one dataset record, manifest unchanged ------------------
+    def test_t22_mutated_record_sha_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            lines = (d / "part-0000.jsonl").read_text().splitlines()
+            rec = json.loads(lines[0])
+            rec["fen"] = rec["fen"].replace("w KQkq", "b KQkq") \
+                if "w KQkq" in rec["fen"] else rec["fen"] + " "
+            lines[0] = json.dumps(rec, ensure_ascii=False, sort_keys=True)
+            (d / "part-0000.jsonl").write_text("\n".join(lines) + "\n")
+            rc = self._run(d)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0)
+            self.assertFalse((d / lt.PARTIAL_NAME).exists())
+
+    # T23: remove one record line (count + SHA both drift) ----------------
+    def test_t23_removed_record_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            lines = (d / "part-0000.jsonl").read_text().splitlines()
+            (d / "part-0000.jsonl").write_text(
+                "\n".join(lines[:-1]) + "\n")
+            rc = self._run(d)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0)
+            self.assertFalse((d / lt.PARTIAL_NAME).exists())
+
+    # T23b: mutated local shards also fail closed on RESUME ---------------
+    def test_t23b_mutation_fails_closed_on_resume_before_partial_touch(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            make_committed_state(d, n_commit=8)
+            prog_before = (d / lt.PROGRESS_NAME).read_bytes()
+            partial_before = (d / lt.PARTIAL_NAME).read_bytes()
+            # Mutate the dataset after the checkpoint exists.
+            lines = (d / "part-0000.jsonl").read_text().splitlines()
+            rec = json.loads(lines[0])
+            rec["phase"] = (rec["phase"] + 1) % 25
+            lines[0] = json.dumps(rec, ensure_ascii=False, sort_keys=True)
+            (d / "part-0000.jsonl").write_text("\n".join(lines) + "\n")
+            rc = self._run(d)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0)
+            # partial/progress untouched by the failed resume
+            self.assertEqual((d / lt.PROGRESS_NAME).read_bytes(),
+                             prog_before)
+            self.assertEqual((d / lt.PARTIAL_NAME).read_bytes(),
+                             partial_before)
+            self.assertFalse((d / "labels.jsonl").exists())
+
+    # T24: duplicate position_id in dataset -------------------------------
+    def test_t24_duplicate_dataset_pid_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            lines = (d / "part-0000.jsonl").read_text().splitlines()
+            rec0 = json.loads(lines[0])
+            rec1 = json.loads(lines[1])
+            rec1["position_id"] = rec0["position_id"]
+            lines[1] = json.dumps(rec1, ensure_ascii=False, sort_keys=True)
+            text = "\n".join(lines) + "\n"
+            (d / "part-0000.jsonl").write_text(text)
+            # keep the manifest consistent with the mutated records so the
+            # SHA check passes and the PID-uniqueness gate is what fires
+            self._rewrite_manifest(
+                d, records_total=N,
+                dataset_sha256=hashlib.sha256(text.encode()).hexdigest())
+            rc = self._run(d)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0)
+
+    # T25: valid dataset passes preflight; full pipeline still works ------
+    def test_t25_valid_dataset_preflight_passes(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            rc = self._run(d)
+            self.assertEqual(rc, 0)
+            self.assertGreater(FakeTeacher.instances, 0)
+            self.assertTrue((d / "labels.jsonl").is_file())
+
+    # P2: checkpoint interval is locked across resume ----------------------
+    def test_p2_checkpoint_interval_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="s10-b2a-r1-") as tmp:
+            d = make_dataset(Path(tmp))
+            make_committed_state(d, n_commit=8)  # interval 5, completed 5
+            # resume with a DIFFERENT interval must fail closed
+            rc = self._run(d, checkpoint_interval=7)
+            self.assertEqual(rc, 4)
+            self.assertEqual(FakeTeacher.instances, 0)
+            self.assertFalse((d / "labels.jsonl").exists())
+            # the same interval still resumes fine
+            rc = self._run(d, checkpoint_interval=INTERVAL)
+            self.assertEqual(rc, 0)
+            tm = json.loads((d / "teacher_manifest.json").read_text())
+            self.assertEqual(tm["resume"]["resume_count"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

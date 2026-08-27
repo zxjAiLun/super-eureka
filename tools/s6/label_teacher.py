@@ -149,6 +149,60 @@ def build_teacher_contract(teacher_binary_sha256: str) -> dict:
     }
 
 
+def preflight_dataset(dataset_dir: Path, records: list[dict],
+                      dataset_manifest: dict) -> str:
+    """S10-B2A Repair 1: frozen-dataset preflight integrity gate.
+
+    Runs BEFORE any Teacher process is instantiated, before any partial
+    file is created or mutated, and before resume validation. Verifies the
+    local dataset bytes still represent the frozen dataset described by
+    dataset_manifest.json:
+
+    - dataset_id is a non-empty string
+    - dataset_sha256 is 64 lowercase hex
+    - manifest.records_total == len(records)
+    - recomputed canonical dataset SHA == manifest.dataset_sha256 (EXACTLY
+      the builder/verify_dataset serialization)
+    - position_id uniqueness
+
+    Returns the verified dataset_sha256. Any failure raises ResumeError
+    (FAIL CLOSED).
+    """
+    dataset_id = dataset_manifest.get("dataset_id")
+    if not isinstance(dataset_id, str) or not dataset_id:
+        raise ResumeError(
+            "FAIL CLOSED: dataset_manifest dataset_id missing/empty")
+    expected_sha = dataset_manifest.get("dataset_sha256")
+    if not isinstance(expected_sha, str) or \
+            not _HEX64_RE.fullmatch(expected_sha):
+        raise ResumeError(
+            "FAIL CLOSED: dataset_manifest dataset_sha256 is not 64 "
+            "lowercase hex")
+    records_total = dataset_manifest.get("records_total")
+    if not isinstance(records_total, int) or isinstance(records_total, bool):
+        raise ResumeError(
+            "FAIL CLOSED: dataset_manifest records_total missing/not int")
+    if records_total != len(records):
+        raise ResumeError(
+            f"FAIL CLOSED: dataset records_total {records_total} != "
+            f"{len(records)} loaded records (local shard mutation?)")
+    canonical = "".join(
+        json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+        for r in records)
+    recomputed_sha = sha256_text(canonical)
+    if recomputed_sha != expected_sha:
+        raise ResumeError(
+            f"FAIL CLOSED: dataset SHA mismatch: manifest "
+            f"{expected_sha[:16]}... != recomputed "
+            f"{recomputed_sha[:16]}... (local shard mutation?)")
+    pids = [r["position_id"] for r in records]
+    if len(set(pids)) != len(pids):
+        dupes = len(pids) - len(set(pids))
+        raise ResumeError(
+            f"FAIL CLOSED: {dupes} duplicate position_id in dataset records")
+    return recomputed_sha
+
+
 class Teacher:
     """Persistent UCI teacher process with a REAL read timeout (reader thread
     + queue: blocking readline never wedges the caller) and one-shot retry
@@ -653,6 +707,10 @@ def label_dataset(dataset_dir: Path, records: list[dict],
     partial_path = dataset_dir / PARTIAL_NAME
 
     dataset_manifest = load_dataset_manifest(dataset_dir)
+    # Repair 1: frozen-dataset preflight runs BEFORE any Teacher process,
+    # before any partial mutation, and before resume validation - a mutated
+    # local dataset fails closed even when the progress file is valid.
+    preflight_dataset(dataset_dir, records, dataset_manifest)
     dataset_contract = build_resume_contract(dataset_manifest, records)
 
     labels: dict[str, dict] = {}
@@ -665,6 +723,15 @@ def label_dataset(dataset_dir: Path, records: list[dict],
                 teacher_kwargs.get("expected_binary_sha256",
                                     DEFAULT_BINARY_SHA256)))
         if progress:
+            # P2: the checkpoint interval is part of the run contract;
+            # resume with a different interval fails closed (the
+            # production rule is: re-run the exact same command).
+            if progress.get("checkpoint_interval") != checkpoint_interval:
+                raise ResumeError(
+                    f"FAIL CLOSED: checkpoint_interval mismatch: progress "
+                    f"has {progress.get('checkpoint_interval')}, invoked "
+                    f"with {checkpoint_interval} (re-run the exact same "
+                    f"command)")
             start_index = progress["completed_count"]
             resume_count += 1
             print(f"resume: continuing from {start_index}/{len(records)} "
