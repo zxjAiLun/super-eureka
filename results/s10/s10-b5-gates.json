@@ -1,0 +1,37 @@
+{
+  "stage": "s10_b5_gates",
+  "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+  "quantized_artifact_sha256": "b51a79b19999aeed974c2279eef60b01f890248c7d006cbe3d504cc7c0f28b9a",
+  "engine_sha256": "4b5be2b74a4b73b3480f80dd9a1db3c6f9a3cbbcf1c12843700001ef9aaec110",
+  "holdout_used": false,
+  "gate1_python_rust_bit_exact": {
+    "positions": 1000,
+    "mismatches": 0,
+    "passed": true
+  },
+  "gate2_quantized_vs_fp32": {
+    "positions": 10000,
+    "mean_abs_error_cp": 0.19332966859489678,
+    "p50_abs_error_cp": 0.14556884765625,
+    "p95_abs_error_cp": 0.540761566162109,
+    "p99_abs_error_cp": 0.8240093994140633,
+    "max_abs_error_cp": 1.576690673828125,
+    "passed": true
+  },
+  "gate3_validation_mae_delta": {
+    "validation_positions": 29270,
+    "fp32_validation_mae_cp": 165.32460021972656,
+    "quantized_validation_mae_cp": 165.33122083991714,
+    "delta_mae_cp": 0.0066206201905743,
+    "passed": true
+  },
+  "gates": {
+    "gate2_thresholds": {
+      "mean": 1.0,
+      "p95": 2.0,
+      "p99": 4.0
+    },
+    "gate3_threshold_delta_cp": 1.0
+  },
+  "all_passed": true
+}

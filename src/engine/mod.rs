@@ -5,6 +5,7 @@ pub mod features;
 pub mod nnue;
 pub mod nnue_probe;
 pub mod nnue_v2_runtime;
+pub mod nnue_v2q_runtime;
 pub mod search;
 pub mod time;
 pub mod tt;

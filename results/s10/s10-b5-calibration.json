@@ -1,0 +1,96 @@
+{
+  "stage": "s10_b5_calibration",
+  "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+  "engine_exporter_sha256": "f005811bda2c73f8833915787dc7fcc777b8a6b84803f752ff357c5d60bfb41b",
+  "telemetry_positions": 10000,
+  "holdout_used": false,
+  "parameter_stats": {
+    "ft_weight": {
+      "min": -0.36523666977882385,
+      "max": 0.44140395522117615,
+      "absmax": 0.44140395522117615,
+      "p999_abs": 0.22350485880673077
+    },
+    "ft_bias": {
+      "min": -0.23040665686130524,
+      "max": 0.11283964663743973,
+      "absmax": 0.23040665686130524,
+      "p999_abs": 0.22584136578440733
+    },
+    "l1_weight": {
+      "min": -0.3380219042301178,
+      "max": 0.32165682315826416,
+      "absmax": 0.3380219042301178,
+      "p999_abs": 0.3178745513558397
+    },
+    "l1_bias": {
+      "min": -0.0746338739991188,
+      "max": 0.16137294471263885,
+      "absmax": 0.16137294471263885,
+      "p999_abs": 0.16074509331583986
+    },
+    "l2_weight": {
+      "min": -0.7237589359283447,
+      "max": 0.5942124724388123,
+      "absmax": 0.7237589359283447,
+      "p999_abs": 0.6756937684416794
+    },
+    "l2_bias": {
+      "min": -0.09513788670301437,
+      "max": 0.1415637582540512,
+      "absmax": 0.1415637582540512,
+      "p999_abs": 0.14133712182939057
+    },
+    "out_weight": {
+      "min": -0.5426146984100342,
+      "max": 0.4235554337501526,
+      "absmax": 0.5426146984100342,
+      "p999_abs": 0.5389238612055784
+    },
+    "out_bias": {
+      "min": -0.01999172382056713,
+      "max": -0.01999172382056713,
+      "absmax": 0.01999172382056713,
+      "p999_abs": 0.01999172382056713
+    }
+  },
+  "activation_telemetry": {
+    "positions": 10000,
+    "acc_pre_clip_absmax": 2.518223285675049,
+    "acc_post_clip_absmax": 1.0,
+    "l1_preact_absmax": 1.5676625967025757,
+    "l1_postact_absmax": 1.0,
+    "l2_preact_absmax": 3.612560987472534,
+    "l2_postact_absmax": 1.0,
+    "output_absmax": 0.8398357033729553
+  },
+  "scheme": {
+    "ft_weight": "i16, scale s_ft = 127/absmax, q = round(w/s_ft)",
+    "ft_bias": "i32 in s_ft units, q = round(b/s_ft)",
+    "accumulator": "i32 = q_bias + sum(q_w)",
+    "dense_weight": "i8 per layer, s_l = 127/absmax, q = round(w/s_l)",
+    "dense_bias": "i32 in layer input scale",
+    "activation": "integer ClippedReLU: clamp(x, 0, QACT)",
+    "output": "fixed-point chain dequantization"
+  },
+  "scales": {
+    "s_ft": 287.7183099466419,
+    "s_l1": 375.71529658486634,
+    "s_l2": 175.47279031118387,
+    "s_out": 234.05189791602498,
+    "qact": 0
+  },
+  "overflow_analysis": {
+    "ft_accumulator_bound": 1,
+    "ft_accumulator_bound_i16_container_worst": 1015778,
+    "l1_mac_bound": 1,
+    "l2_mac_bound": 516129,
+    "out_mac_bound": 516129,
+    "i32_max": 2147483647,
+    "ft_overflow": false,
+    "ft_overflow_i16_container_worst": false,
+    "l1_overflow": false,
+    "l2_overflow": false,
+    "out_overflow": false
+  }
+}
