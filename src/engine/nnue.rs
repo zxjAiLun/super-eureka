@@ -199,9 +199,15 @@ pub const fn v2_feature_index(king_bucket: usize, channel: u8, mirrored_piece_sq
     (king_bucket * 11 + channel as usize) * 64 + mirrored_piece_sq as usize
 }
 
-/// Active feature indices for one perspective of `pos` under V2 (sparse, unsorted).
-/// Count = number of all pieces minus own king on the board (31 for start position).
-pub fn active_features_v2(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
+/// Shared V2 king context for one perspective of a position: oriented +
+/// mirrored king square, mirror flag, and bucket. Used by both
+/// `active_features_v2()` and `v2_feature_for_piece()` so the full-refresh
+/// and incremental paths share ONE feature formula.
+#[inline]
+pub(crate) fn v2_king_context(
+    pos: &Position,
+    perspective: NnuePerspective,
+) -> (usize, bool) {
     let raw_king_sq = perspective.orient(pos.king_square(perspective.color()));
     let mirror_file = (raw_king_sq & 7) < 4;
     let king_sq = if mirror_file {
@@ -209,22 +215,43 @@ pub fn active_features_v2(pos: &Position, perspective: NnuePerspective) -> Vec<u
     } else {
         raw_king_sq
     };
-    let bucket = v2_king_bucket(king_sq);
+    (v2_king_bucket(king_sq), mirror_file)
+}
 
+/// V2 feature index for one specific piece on one specific square under
+/// one perspective of `pos` (the single feature formula shared by
+/// full-refresh extraction and incremental accumulator updates).
+///
+/// Returns None for the perspective's own king (conditioning bucket only).
+#[inline]
+pub(crate) fn v2_feature_for_piece(
+    pos: &Position,
+    perspective: NnuePerspective,
+    square: Square,
+    piece: Piece,
+) -> Option<u16> {
+    let (bucket, mirror_file) = v2_king_context(pos, perspective);
+    let channel = v2_relative_channel(perspective, piece)?;
+    let oriented_sq = perspective.orient(square);
+    let final_sq = if mirror_file {
+        oriented_sq ^ 7
+    } else {
+        oriented_sq
+    };
+    Some(v2_feature_index(bucket, channel, final_sq) as u16)
+}
+
+/// Active feature indices for one perspective of `pos` under V2 (sparse, unsorted).
+/// Count = number of all pieces minus own king on the board (31 for start position).
+pub fn active_features_v2(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
     let mut out = Vec::with_capacity(31);
     for (sq, piece) in pos.board().iter().enumerate() {
         let Some(piece) = piece else { continue };
-        let Some(channel) = v2_relative_channel(perspective, *piece) else {
-            continue;
-        };
-        let oriented_sq = perspective.orient(sq as Square);
-        let final_sq = if mirror_file {
-            oriented_sq ^ 7
-        } else {
-            oriented_sq
-        };
-        let index = v2_feature_index(bucket, channel, final_sq);
-        out.push(index as u16);
+        if let Some(index) =
+            v2_feature_for_piece(pos, perspective, sq as Square, *piece)
+        {
+            out.push(index);
+        }
     }
     out
 }
@@ -256,6 +283,66 @@ mod tests {
 
     fn features_v2(pos: &Position, perspective: NnuePerspective) -> BTreeSet<u16> {
         active_features_v2(pos, perspective).into_iter().collect()
+    }
+
+    /// S10-C1 no-drift: the shared per-piece formula must reproduce
+    /// `active_features_v2` exactly (set equality, both perspectives)
+    /// across representative positions incl. mirror regimes and
+    /// asymmetric material.
+    #[test]
+    fn v2_feature_for_piece_matches_active_features_v2() {
+        let fens = [
+            START_FEN,
+            "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/8/8/8/3K4 w - - 0 1",             // kings on d/e files
+            "3k4/8/8/8/8/8/8/4K3 w - - 0 1",             // mirror boundary
+            "rnbqkbnr/pp1ppppp/8/8/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", // ep-ish, pawns
+            "4k3/8/8/8/8/8/8/4K2R w K - 0 1",
+            "r3k3/8/8/8/8/8/8/4K3 b q - 0 1",
+        ];
+        for fen in fens {
+            let pos = parse_fen(fen).expect(fen);
+            for perspective in [NnuePerspective::White, NnuePerspective::Black] {
+                let reference = features_v2(&pos, perspective);
+                let per_piece: BTreeSet<u16> = pos
+                    .board()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(sq, piece)| {
+                        let piece = (*piece)?;
+                        v2_feature_for_piece(
+                            &pos, perspective, sq as Square, piece)
+                    })
+                    .collect();
+                assert_eq!(
+                    per_piece, reference,
+                    "per-piece drift for {fen} / {perspective:?}"
+                );
+            }
+        }
+    }
+
+    /// The per-piece formula must never emit the perspective's own king.
+    #[test]
+    fn v2_feature_for_piece_excludes_own_king() {
+        let pos = parse_fen(START_FEN).unwrap();
+        for perspective in [NnuePerspective::White, NnuePerspective::Black] {
+            let king_sq = pos.king_square(perspective.color());
+            let king = pos.board()[king_sq as usize].unwrap();
+            assert!(
+                v2_feature_for_piece(&pos, perspective, king_sq, king)
+                    .is_none()
+            );
+            // Opponent king must be a channel-10 feature.
+            let opp_sq = pos.king_square(perspective.color().opposite());
+            let opp_king = pos.board()[opp_sq as usize].unwrap();
+            assert!(
+                v2_feature_for_piece(&pos, perspective, opp_sq, opp_king)
+                    .is_some()
+            );
+        }
     }
 
     /// Vertical mirror (rank flip `sq ^ 56`) + color swap, expressed as a FEN.

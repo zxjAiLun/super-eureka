@@ -2427,6 +2427,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-probe-batch" {
         return run_nnue_v2q_probe_batch(&args[1..]);
     }
+    if args[0] == "nnue-v2q-accumulator-audit" {
+        return run_nnue_v2q_accumulator_audit(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -2507,6 +2510,7 @@ fn print_help() {
     println!("  nnue-v2-probe-batch --model <bin> --batch <file>  one JSON line per record");
     println!("  nnue-v2q-probe --model <bin> --fen <fen>  S10-B5 V2 quantized integer inference, one JSON line");
     println!("  nnue-v2q-probe-batch --model <bin> --batch <file>  one JSON line per record");
+    println!("  nnue-v2q-accumulator-audit --model <bin> [--games N] [--plies N]  S10-C1 incremental vs full-refresh bit-exact audit");
 }
 
 // ---------------------------------------------------------------------------
@@ -3614,6 +3618,175 @@ fn nnue_v2q_probe_line(
         "\"fen\":\"{escaped_fen}\",\"raw_output\":{raw},\"prediction_cp\":{cp}}}"
     ));
     out
+}
+
+/// S10-C1: `bench nnue-v2q-accumulator-audit --model <bin> [--games N]
+/// [--plies N]` — deterministic random legal playouts; every transition
+/// compares the incremental accumulator (all 256 lanes) and the dense raw
+/// output against a fresh full refresh. Emits one JSON object.
+fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
+    use crate::chess::movegen::generate_legal_moves;
+    use crate::chess::types::{Color, MoveFlag};
+
+    let mut model: Option<String> = None;
+    let mut games: usize = 100;
+    let mut plies: usize = 100;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| {
+                        "nnue-v2q-accumulator-audit: --model requires a value"
+                            .to_string()
+                    })?
+                    .clone();
+                model = Some(value);
+            }
+            "--games" => {
+                let value = it.next().ok_or_else(|| {
+                    "--games requires a value".to_string()
+                })?;
+                games = value
+                    .parse()
+                    .map_err(|_| format!("bad --games {value}"))?;
+            }
+            "--plies" => {
+                let value = it.next().ok_or_else(|| {
+                    "--plies requires a value".to_string()
+                })?;
+                plies = value
+                    .parse()
+                    .map_err(|_| format!("bad --plies {value}"))?;
+            }
+            other => {
+                return Err(format!(
+                    "nnue-v2q-accumulator-audit: unknown argument '{other}'"
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or_else(|| {
+        "nnue-v2q-accumulator-audit: --model is required".to_string()
+    })?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+        std::path::Path::new(&model_path))?;
+
+    // Deterministic xorshift RNG (fixed seed = frozen commit prefix).
+    let mut rng: u64 = 0x5989d5721ea4258e;
+    let mut next = move || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+
+    let mut transitions: u64 = 0;
+    let mut lanes_checked: u64 = 0;
+    let mut white_lane_mismatches: u64 = 0;
+    let mut black_lane_mismatches: u64 = 0;
+    let mut raw_mismatches: u64 = 0;
+    let mut delta_updates: u64 = 0;
+    let mut full_refreshes: u64 = 0;
+    let mut mirror_boundary_king_moves: u64 = 0;
+    let mut flag_counts: std::collections::BTreeMap<String, u64> =
+        std::collections::BTreeMap::new();
+
+    for _game in 0..games {
+        let mut pos = Position::startpos();
+        let mut acc = model.full_accumulator(&pos);
+        for _ply in 0..plies {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                break;
+            }
+            let m = moves[(next() % moves.len() as u64) as usize];
+            let flag_name = match m.flag {
+                MoveFlag::Normal => "normal",
+                MoveFlag::DoublePawnPush => "double_pawn_push",
+                MoveFlag::EnPassant => "en_passant",
+                MoveFlag::KingCastle => "king_castle",
+                MoveFlag::QueenCastle => "queen_castle",
+                MoveFlag::Promotion(_) => "promotion",
+            };
+            *flag_counts.entry(flag_name.to_string()).or_insert(0) += 1;
+
+            let before = pos.clone();
+            pos.make_move(m);
+
+            // Own-king mirror-regime telemetry (a-d vs e-h file regime).
+            for color in [Color::White, Color::Black] {
+                let b_sq = before.king_square(color);
+                let a_sq = pos.king_square(color);
+                if b_sq != a_sq
+                    && ((b_sq & 7) < 4) != ((a_sq & 7) < 4)
+                {
+                    mirror_boundary_king_moves += 1;
+                }
+            }
+
+            // Incremental update and three-layer exact comparison.
+            let mut inc = acc;
+            let stats = model.update_accumulator(&mut inc, &before, &pos);
+            delta_updates += stats.delta_updates as u64;
+            full_refreshes += stats.full_refreshes as u64;
+
+            let fresh = model.full_accumulator(&pos);
+            lanes_checked += 256;
+            if inc.white != fresh.white {
+                white_lane_mismatches += inc
+                    .white
+                    .iter()
+                    .zip(fresh.white.iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+            }
+            if inc.black != fresh.black {
+                black_lane_mismatches += inc
+                    .black
+                    .iter()
+                    .zip(fresh.black.iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+            }
+            let inc_raw = model.evaluate_raw_from_accumulator(&pos, &inc);
+            let full_raw = model.evaluate_raw(&pos);
+            if inc_raw != full_raw {
+                raw_mismatches += 1;
+            }
+            acc = inc;
+            transitions += 1;
+        }
+    }
+
+    let passed = white_lane_mismatches == 0
+        && black_lane_mismatches == 0
+        && raw_mismatches == 0;
+    let flags_json = flag_counts
+        .iter()
+        .map(|(k, v)| format!("\"{k}\":{v}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    println!(
+        "{{\"stage\":\"s10_c1_incremental_accumulator\",\
+         \"games\":{games},\"plies_max\":{plies},\
+         \"transitions_checked\":{transitions},\
+         \"accumulator_lanes_checked\":{lanes_checked},\
+         \"white_lane_mismatches\":{white_lane_mismatches},\
+         \"black_lane_mismatches\":{black_lane_mismatches},\
+         \"raw_output_mismatches\":{raw_mismatches},\
+         \"delta_updates\":{delta_updates},\
+         \"full_refreshes\":{full_refreshes},\
+         \"mirror_boundary_king_moves\":{mirror_boundary_king_moves},\
+         \"move_flags\":{{{flags_json}}},\
+         \"passed\":{passed}}}"
+    );
+    if !passed {
+        return Err("nnue-v2q-accumulator-audit: FAIL (lane or raw mismatch)"
+            .to_string());
+    }
+    Ok(())
 }
 
 /// S6-N2: `bench nnue-probe-microbench --model <bin> --batch <file>

@@ -18,8 +18,10 @@
 //! single feature-encoding source of truth.
 
 use crate::chess::position::Position;
-use crate::chess::types::Color;
-use crate::engine::nnue::{active_features_v2, NnuePerspective, NNUE_INPUTS_V2};
+use crate::chess::types::{Color, Square};
+use crate::engine::nnue::{
+    active_features_v2, v2_feature_for_piece, NnuePerspective, NNUE_INPUTS_V2,
+};
 
 /// Fixed S10-B5 artifact constants (must match export_quantized.py).
 pub const NNUE_V2Q_MAGIC: [u8; 8] = *b"EUNN2Q01";
@@ -70,6 +72,35 @@ const L2_B_OFFSET: usize = L2_W_OFFSET + L2_W_COUNT * 2;
 const OUT_W_OFFSET: usize = L2_B_OFFSET + L2_B_COUNT * 4;
 const OUT_B_OFFSET: usize = OUT_W_OFFSET + OUT_W_COUNT * 2;
 const TOTAL_BYTES: usize = OUT_B_OFFSET + OUT_B_COUNT * 4;
+
+/// Fixed-perspective NNUE accumulator (S10-C1). Lanes are ALWAYS stored in
+/// White/Black perspective order — never STM/NSTM; the dense forward
+/// selects by side-to-move at evaluation time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NnueV2Accumulator {
+    pub white: [i32; NNUE_V2Q_FT_WIDTH],
+    pub black: [i32; NNUE_V2Q_FT_WIDTH],
+}
+
+impl NnueV2Accumulator {
+    /// Lane slice for one perspective.
+    #[inline]
+    pub fn lanes_for(&self, perspective: NnuePerspective) -> &[i32; NNUE_V2Q_FT_WIDTH] {
+        match perspective {
+            NnuePerspective::White => &self.white,
+            NnuePerspective::Black => &self.black,
+        }
+    }
+}
+
+/// Telemetry from one incremental accumulator update.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UpdateStats {
+    /// Number of individual feature add/sub applications performed.
+    pub delta_updates: usize,
+    /// Number of perspectives fully refreshed (own-king move).
+    pub full_refreshes: usize,
+}
 
 /// Loaded S10-B5 quantized model. Immutable after construction.
 pub struct NnueV2QuantizedModel {
@@ -225,17 +256,100 @@ impl NnueV2QuantizedModel {
     }
 
     /// Full integer forward pass; returns the raw integer output (A units).
+    /// Single fact path: full_accumulator -> evaluate_raw_from_accumulator.
     pub fn evaluate_raw(&self, pos: &Position) -> i32 {
+        let acc = self.full_accumulator(pos);
+        self.evaluate_raw_from_accumulator(pos, &acc)
+    }
+
+    /// Full-refresh accumulator for both perspectives of `pos`.
+    ///
+    /// Stored ALWAYS in White/Black perspective order (never STM/NSTM);
+    /// the dense forward swaps by side-to-move at evaluation time.
+    pub fn full_accumulator(&self, pos: &Position) -> NnueV2Accumulator {
         let white = active_features_v2(pos, NnuePerspective::White);
         let black = active_features_v2(pos, NnuePerspective::Black);
-        let (own, opp) = match pos.side_to_move() {
-            Color::White => (white, black),
-            Color::Black => (black, white),
-        };
-        let own_acc = self.accumulate(&own);
-        let opp_acc = self.accumulate(&opp);
+        NnueV2Accumulator {
+            white: self.accumulate(&white),
+            black: self.accumulate(&black),
+        }
+    }
 
-        // ClippedReLU(0, QA) -> 256 activations, then dense input requant.
+    /// Incrementally update `acc` across the transition `before -> after`.
+    ///
+    /// Frozen S10-C1 rules:
+    /// - For each perspective, if its OWN king square changed, that
+    ///   perspective is fully refreshed (the V2 own-king conditioning
+    ///   controls orientation, horizontal mirror, and bucket; a king move
+    ///   can flip the mirror regime of the whole perspective).
+    /// - Otherwise only changed squares are applied: subtract the FT row
+    ///   of the before-piece's feature, add the FT row of the after-
+    ///   piece's feature. The opponent king participates normally as
+    ///   channel 10.
+    /// - Changed squares are found by a 64-square board diff (correctness
+    ///   first; Move-aware dirty extraction is C2/C3 work).
+    pub fn update_accumulator(
+        &self,
+        acc: &mut NnueV2Accumulator,
+        before: &Position,
+        after: &Position,
+    ) -> UpdateStats {
+        let mut stats = UpdateStats::default();
+        for (perspective, lanes) in [
+            (NnuePerspective::White, &mut acc.white),
+            (NnuePerspective::Black, &mut acc.black),
+        ] {
+            let own_king_moved = before.king_square(perspective.color())
+                != after.king_square(perspective.color());
+            if own_king_moved {
+                let fresh = self.full_accumulator(after);
+                let fresh_lanes = fresh.lanes_for(perspective);
+                lanes.copy_from_slice(fresh_lanes);
+                stats.full_refreshes += 1;
+                continue;
+            }
+            let mut deltas = 0usize;
+            for sq in 0..64 {
+                let old_piece = before.board()[sq];
+                let new_piece = after.board()[sq];
+                if old_piece == new_piece {
+                    continue;
+                }
+                if let Some(piece) = old_piece {
+                    if let Some(f) = v2_feature_for_piece(
+                        before, perspective, sq as Square, piece)
+                    {
+                        self.apply_feature(lanes, f, -1);
+                        deltas += 1;
+                    }
+                }
+                if let Some(piece) = new_piece {
+                    if let Some(f) = v2_feature_for_piece(
+                        after, perspective, sq as Square, piece)
+                    {
+                        self.apply_feature(lanes, f, 1);
+                        deltas += 1;
+                    }
+                }
+            }
+            stats.delta_updates += deltas;
+        }
+        stats
+    }
+
+    /// Dense forward pass from an (incremental or fresh) accumulator.
+    /// `pos` supplies ONLY the side-to-move for the STM/NSTM ordering.
+    pub fn evaluate_raw_from_accumulator(
+        &self,
+        pos: &Position,
+        acc: &NnueV2Accumulator,
+    ) -> i32 {
+        let (own_acc, opp_acc) = match pos.side_to_move() {
+            Color::White => (&acc.white, &acc.black),
+            Color::Black => (&acc.black, &acc.white),
+        };
+
+        // ClippedReLU(0, QA) -> 256 activations.
         let mut acts = [0i32; 256];
         for i in 0..NNUE_V2Q_FT_WIDTH {
             acts[i] = clamp_i(own_acc[i], 0, NNUE_V2Q_QA as i32);
@@ -274,6 +388,22 @@ impl NnueV2QuantizedModel {
             z_out += (self.out_weight[i] as i32) * a2[i];
         }
         shift_round(z_out, NNUE_V2Q_DENSE_Z_SHIFT)
+    }
+
+    /// Apply one feature row (`+1` add / `-1` subtract) to a lane set.
+    fn apply_feature(&self, lanes: &mut [i32; NNUE_V2Q_FT_WIDTH],
+                     feature: u16, sign: i32) {
+        debug_assert!(sign == 1 || sign == -1);
+        let base = (feature as usize) * NNUE_V2Q_FT_WIDTH;
+        for (i, slot) in lanes.iter_mut().enumerate() {
+            if sign > 0 {
+                *slot = slot
+                    .wrapping_add(self.ft_weights[base + i] as i32);
+            } else {
+                *slot = slot
+                    .wrapping_sub(self.ft_weights[base + i] as i32);
+            }
+        }
     }
 
     /// Centipawn prediction: `raw / 2^FT_SHIFT * 1000` (final conversion).
@@ -584,5 +714,262 @@ mod tests {
         let _ = model.evaluate_raw(&pos);
         let _ = model.evaluate_cp(&pos);
         assert_eq!(pos.zobrist_key(), before);
+    }
+
+    // ------------------------------------------------------------------
+    // S10-C1 incremental accumulator correctness tests
+    // ------------------------------------------------------------------
+
+    use crate::chess::movegen::generate_legal_moves;
+    use crate::chess::types::{Move, MoveFlag, PieceType};
+
+    fn test_model() -> NnueV2QuantizedModel {
+        NnueV2QuantizedModel::from_bytes(&synthetic_artifact_bytes(START_FEN))
+            .unwrap()
+    }
+
+    /// Verify one transition `before -> after` incrementally: update the
+    /// parent accumulator and compare all 256 lanes + the raw output
+    /// against a fresh full refresh of `after`. Panics with context on any
+    /// mismatch.
+    fn verify_transition(
+        model: &NnueV2QuantizedModel,
+        before: &Position,
+        after: &Position,
+        mut acc: NnueV2Accumulator,
+        context: &str,
+    ) -> UpdateStats {
+        let stats = model.update_accumulator(&mut acc, before, after);
+        let fresh = model.full_accumulator(after);
+        assert_eq!(
+            acc.white, fresh.white,
+            "white lanes mismatch ({context})"
+        );
+        assert_eq!(
+            acc.black, fresh.black,
+            "black lanes mismatch ({context})"
+        );
+        let inc_raw = model.evaluate_raw_from_accumulator(after, &acc);
+        let full_raw = model.evaluate_raw(after);
+        assert_eq!(
+            inc_raw, full_raw,
+            "raw output mismatch ({context}): {inc_raw} != {full_raw}"
+        );
+        stats
+    }
+
+    fn apply_uci(pos: &mut Position, uci: &str) {
+        let m = parse_uci_move(pos, uci);
+        pos.make_move(m);
+    }
+
+    fn parse_uci_move(pos: &Position, uci: &str) -> Move {
+        let from = algebraic_sq(&uci[0..2]);
+        let to = algebraic_sq(&uci[2..4]);
+        let promo = uci.chars().nth(4).and_then(PieceType::from_char);
+        let mut probe = pos.clone();
+        for m in generate_legal_moves(&mut probe) {
+            if m.from == from && m.to == to && m.promotion == promo {
+                return m;
+            }
+        }
+        panic!("illegal or unknown uci move {uci}");
+    }
+
+    fn algebraic_sq(s: &str) -> Square {
+        let bytes = s.as_bytes();
+        (bytes[0] - b'a') as Square + ((bytes[1] - b'1') as Square) * 8
+    }
+
+    #[test]
+    fn c1_quiet_pawn_capture_sequence() {
+        let model = test_model();
+        let mut pos = Position::startpos();
+        let mut acc = model.full_accumulator(&pos);
+        // e4 d5 exd5 (pawn double push, capture) e6? (pawn push) — also
+        // exercises quiet knight moves.
+        for uci in ["e2e4", "d7d5", "e4d5", "g8f6", "d5d6", "e7d6"] {
+            let before = pos.clone();
+            apply_uci(&mut pos, uci);
+            verify_transition(&model, &before, &pos, acc.clone(), uci);
+            // keep the incremental accumulator for the next ply
+            let mut next = acc.clone();
+            model.update_accumulator(&mut next, &before, &pos);
+            acc = next;
+        }
+    }
+
+    #[test]
+    fn c1_en_passant_three_square_change() {
+        let model = test_model();
+        let mut pos = parse_fen(
+            "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 3")
+            .unwrap();
+        let mut acc = model.full_accumulator(&pos);
+        // ... d4xe3 e.p.: changed squares = d4 (vacated), e4 (vacated),
+        // e3 (capturing pawn appears).
+        let before = pos.clone();
+        apply_uci(&mut pos, "d4e3");
+        let stats = verify_transition(
+            &model, &before, &pos, acc, "en passant d4xe3");
+        // Both perspectives use pure deltas (no king moved).
+        assert_eq!(stats.full_refreshes, 0);
+        // 2 remove + 1 add per perspective = 6 applications.
+        assert_eq!(stats.delta_updates, 6);
+    }
+
+    #[test]
+    fn c1_castling_both_sides() {
+        let model = test_model();
+        // King-side castle: white K e1->g1, rook h1->f1.
+        let mut pos = parse_fen(
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+        let mut acc = model.full_accumulator(&pos);
+        let before = pos.clone();
+        apply_uci(&mut pos, "e1g1");
+        let stats = verify_transition(&model, &before, &pos, acc, "white O-O");
+        // White perspective: own king moved -> full refresh; black
+        // perspective: king+rook are opponent channel deltas.
+        assert_eq!(stats.full_refreshes, 1);
+
+        // Queen-side castle for black.
+        let mut pos = parse_fen(
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R b KQkq - 0 1")
+            .unwrap();
+        let mut acc = model.full_accumulator(&pos);
+        let before = pos.clone();
+        apply_uci(&mut pos, "e8c8");
+        let stats = verify_transition(&model, &before, &pos, acc, "black O-O-O");
+        assert_eq!(stats.full_refreshes, 1);
+    }
+
+    #[test]
+    fn c1_promotions_quiet_and_capture() {
+        let model = test_model();
+        // Quiet promotion (queen) and knight promotion.
+        for (fen, uci, ctx) in [
+            ("8/P7/8/8/8/8/k6K/8 w - - 0 1", "a7a8q", "quiet Q promo"),
+            ("8/P7/8/8/8/8/k6K/8 w - - 0 1", "a7a8n", "quiet N promo"),
+            ("1n6/P7/8/8/8/8/k6K/8 w - - 0 1", "a7b8q", "capture Q promo"),
+        ] {
+            let mut pos = parse_fen(fen).unwrap();
+            let mut acc = model.full_accumulator(&pos);
+            let before = pos.clone();
+            apply_uci(&mut pos, uci);
+            verify_transition(&model, &before, &pos, acc, ctx);
+        }
+    }
+
+    #[test]
+    fn c1_own_king_move_triggers_perspective_refresh() {
+        let model = test_model();
+        let mut pos = parse_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let mut acc = model.full_accumulator(&pos);
+        let before = pos.clone();
+        apply_uci(&mut pos, "e1e2");
+        let stats = verify_transition(
+            &model, &before, &pos, acc, "white king e1->e2");
+        // White own king moved -> white full refresh; black perspective
+        // sees the king as channel-10 delta only.
+        assert_eq!(stats.full_refreshes, 1);
+        assert!(stats.delta_updates >= 2);
+
+        // Black king move.
+        let mut pos = parse_fen("4k3/8/8/8/8/8/8/4K3 b - - 0 1").unwrap();
+        let mut acc = model.full_accumulator(&pos);
+        let before = pos.clone();
+        apply_uci(&mut pos, "e8d7");
+        let stats = verify_transition(
+            &model, &before, &pos, acc, "black king e8->d7");
+        assert_eq!(stats.full_refreshes, 1);
+    }
+
+    #[test]
+    fn c1_horizontal_mirror_boundary_king_moves() {
+        let model = test_model();
+        // d-file -> e-file crosses the mirror boundary (a-d mirror, e-h
+        // canonical). Even when the mirrored bucket would look identical,
+        // the whole perspective must refresh.
+        for (fen, uci, ctx) in [
+            ("4k3/8/8/8/8/8/8/3K4 w - - 0 1", "d1e1", "king d->e (mirror off)"),
+            ("4k3/8/8/8/8/8/8/4K3 w - - 0 1", "e1d1", "king e->d (mirror on)"),
+            ("4k3/8/8/8/8/8/8/2K5 w - - 0 1", "c1d1", "king c->d (within mirror)"),
+            ("4k3/8/8/8/8/8/8/5K2 w - - 0 1", "f1e1", "king f->e (within canonical)"),
+            ("4k3/8/8/8/8/8/8/3K4 w - - 0 1", "d1e2", "king d->e diagonal (mirror boundary)"),
+        ] {
+            let mut pos = parse_fen(fen).unwrap();
+            let mut acc = model.full_accumulator(&pos);
+            let before = pos.clone();
+            apply_uci(&mut pos, uci);
+            let stats = verify_transition(&model, &before, &pos, acc, ctx);
+            assert_eq!(stats.full_refreshes, 1, "own king move ({ctx})");
+        }
+    }
+
+    #[test]
+    fn c1_make_unmake_branch_restores_parent() {
+        let model = test_model();
+        let mut pos = parse_fen(
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+        let parent_acc = model.full_accumulator(&pos);
+        for m in generate_legal_moves(&mut pos.clone()) {
+            let before = pos.clone();
+            let undo = pos.make_move(m);
+            // Incremental update from the parent accumulator, verify.
+            let mut acc = parent_acc;
+            model.update_accumulator(&mut acc, &before, &pos);
+            let fresh = model.full_accumulator(&pos);
+            assert_eq!(acc.white, fresh.white, "make {m:?}");
+            assert_eq!(acc.black, fresh.black, "make {m:?}");
+
+            // Unmake and verify the PARENT accumulator snapshot still
+            // matches a fresh full refresh of the restored position.
+            pos.unmake_move(undo);
+            let parent_fresh = model.full_accumulator(&pos);
+            assert_eq!(parent_acc.white, parent_fresh.white);
+            assert_eq!(parent_acc.black, parent_fresh.black);
+        }
+    }
+
+    #[test]
+    fn c1_deterministic_random_legal_playout_100_games() {
+        let model = test_model();
+        // Fixed-seed xorshift; deterministic across runs/platforms.
+        let mut rng: u64 = 0x5989d5721ea4258e;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let mut transitions = 0usize;
+        let mut king_refreshes = 0usize;
+        for game in 0..100 {
+            let mut pos = Position::startpos();
+            let mut acc = model.full_accumulator(&pos);
+            for _ply in 0..100 {
+                let moves = generate_legal_moves(&mut pos.clone());
+                if moves.is_empty() {
+                    break;
+                }
+                let m = moves[(next() % moves.len() as u64) as usize];
+                let before = pos.clone();
+                pos.make_move(m);
+                let stats =
+                    verify_transition(&model, &before, &pos, acc, "playout");
+                king_refreshes += stats.full_refreshes;
+                // carry the incremental accumulator forward
+                let mut next_acc = acc;
+                model.update_accumulator(&mut next_acc, &before, &pos);
+                acc = next_acc;
+                transitions += 1;
+            }
+            let _ = game;
+        }
+        // Sanity: the playout actually exercised moves and king moves.
+        assert!(transitions > 1000, "too few transitions: {transitions}");
+        assert!(king_refreshes > 0, "no own-king moves exercised");
     }
 }
