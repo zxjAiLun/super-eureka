@@ -141,6 +141,8 @@ def main() -> int:
         "all_passed": all_pass,
         "per_fixture": entries,
     }
+    all_pass = all_pass and all(result["gate"].values())
+    result["all_passed"] = all_pass
     print(json.dumps({k: v for k, v in result.items()
                       if k != "per_fixture"}, indent=2))
     out = Path("results/s10/s10-c2b-deep-audit.json")

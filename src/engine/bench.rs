@@ -160,6 +160,10 @@ struct BenchArgs {
     /// NNUE profile only): every static eval compares the stack top
     /// against a fresh full refresh (256 lanes + raw).
     nnue_audit: bool,
+    /// S10-C3-0: bench-only stack telemetry (implplied by --nnue-audit).
+    /// Normal performance runs keep diagnostics OFF (zero atomic RMW on
+    /// the hot paths).
+    nnue_stack_telemetry: bool,
     /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
     /// ordering, before forced-root filtering.
     target_root: Option<String>,
@@ -292,6 +296,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut forced_root: Option<String> = None;
     let mut nnue_model: Option<String> = None;
     let mut nnue_audit = false;
+    let mut nnue_stack_telemetry = false;
     let mut target_root: Option<String> = None;
 
     while let Some(tok) = it.next() {
@@ -594,6 +599,9 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
             "--nnue-audit" => {
                 nnue_audit = true;
             }
+            "--nnue-stack-telemetry" => {
+                nnue_stack_telemetry = true;
+            }
             "--target-root" => {
                 if suite != Suite::Profile {
                     return Err("bench: --target-root is only valid for profile".to_string());
@@ -663,6 +671,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         forced_root,
         nnue_model,
         nnue_audit,
+        nnue_stack_telemetry,
         target_root,
         timing_sample,
     })
@@ -1713,10 +1722,10 @@ fn run_one(
 
     // S10-C2B: load the frozen quantized model ONCE per run (never per
     // node / per go) for the NNUE candidate profiles.
-    // S10-C2B Repair 1: the state (with shared telemetry/audit handles) is
-    // built once per run; the handles stay readable after the search
-    // consumed the state.
-    let (nnue_state, nnue_tele, nnue_audit) = if cfg.profile.uses_nnue_eval() {
+    // S10-C3-0: diagnostics are OPT-IN. Normal performance runs build the
+    // state with telemetry/audit OFF (zero atomic RMW on hot paths).
+    let want_diagnostics = cfg.nnue_audit || cfg.nnue_stack_telemetry;
+    let (nnue_state, nnue_state_handle) = if cfg.profile.uses_nnue_eval() {
         if cfg.nnue_audit && !cfg.profile.uses_nnue_incremental_stack() {
             return Err(
                 "bench: --nnue-audit requires --profile current-final-nnue-v2q"
@@ -1729,7 +1738,7 @@ fn run_one(
         })?;
         let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
             std::path::Path::new(path))?;
-        let state = crate::engine::nnue_search::NnueSearchState::new(
+        let state = crate::engine::nnue_search::NnueSearchState::with_options(
             std::sync::Arc::new(model),
             if cfg.profile.uses_nnue_incremental_stack() {
                 crate::engine::nnue_search::NnueSearchMode::Incremental
@@ -1737,20 +1746,22 @@ fn run_one(
                 crate::engine::nnue_search::NnueSearchMode::FullRefresh
             },
             &pos,
+            want_diagnostics,
+            cfg.nnue_audit,
         );
-        if cfg.nnue_audit {
-            state.enable_audit();
-        }
-        let tele = state.telemetry.clone();
-        let audit = state.audit.clone();
-        (Some(state), Some(tele), Some(audit))
+        // Keep a read handle: the Arc model is shared; diagnostics are
+        // read via the state BEFORE it moves into the search — so instead
+        // we retain an Arc<NnueDiagnostics> clone when enabled.
+        let handle = state.diagnostics.clone();
+        (Some(state), handle)
     } else {
-        if cfg.nnue_audit {
+        if cfg.nnue_audit || cfg.nnue_stack_telemetry {
             return Err(
-                "bench: --nnue-audit requires an NNUE profile".to_string()
+                "bench: --nnue-audit/--nnue-stack-telemetry require an NNUE profile"
+                    .to_string(),
             );
         }
-        (None, None, None)
+        (None, None)
     };
 
     let start = Instant::now();
@@ -1758,13 +1769,21 @@ fn run_one(
         .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
     let elapsed = start.elapsed();
 
-    // S10-C2B Repair 1: NNUE stack lifecycle + deep-audit evidence line.
-    if let (Some(tele), Some(audit)) = (nnue_tele.as_ref(), nnue_audit.as_ref()) {
-        let t = tele.snapshot();
+    // Evidence lines only when diagnostics were explicitly requested.
+    if let Some(diag) = nnue_state_handle.as_ref() {
         let mode = if cfg.profile.uses_nnue_incremental_stack() {
             "incremental"
         } else {
             "full"
+        };
+        use std::sync::atomic::Ordering as O;
+        let t = crate::engine::nnue_search::TelemetrySnapshot {
+            pushes: diag.pushes.load(O::Relaxed),
+            pops: diag.pops.load(O::Relaxed),
+            null_pushes: diag.null_pushes.load(O::Relaxed),
+            full_refreshes: diag.full_refreshes.load(O::Relaxed),
+            delta_updates: diag.delta_updates.load(O::Relaxed),
+            max_depth: diag.max_depth.load(O::Relaxed),
         };
         println!(
             "nnue_stack_result fixture={} mode={} pushes={} pops={} null_pushes={} delta_updates={} full_refreshes={} max_depth={}",
@@ -1772,10 +1791,9 @@ fn run_one(
             t.full_refreshes, t.max_depth,
         );
         if cfg.nnue_audit {
-            use std::sync::atomic::Ordering as O;
-            let evals = audit.eval_calls.load(O::Relaxed);
-            let lanes = audit.lane_mismatches.load(O::Relaxed);
-            let raws = audit.raw_mismatches.load(O::Relaxed);
+            let evals = diag.audit_eval_calls.load(O::Relaxed);
+            let lanes = diag.audit_lane_mismatches.load(O::Relaxed);
+            let raws = diag.audit_raw_mismatches.load(O::Relaxed);
             let passed = evals > 0 && lanes == 0 && raws == 0;
             println!(
                 "nnue_audit_result fixture={} eval_calls={} lane_mismatches={} raw_mismatches={} passed={}",
@@ -4727,6 +4745,7 @@ mod tests {
             forced_root: None,
             nnue_model: None,
             nnue_audit: false,
+            nnue_stack_telemetry: false,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -4764,6 +4783,7 @@ mod tests {
             target_root: target_root.map(|s| s.to_string()),
             nnue_model: None,
             nnue_audit: false,
+            nnue_stack_telemetry: false,
         }
     }
 
@@ -4846,6 +4866,7 @@ mod tests {
             forced_root: None,
             nnue_model: None,
             nnue_audit: false,
+            nnue_stack_telemetry: false,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
@@ -4907,6 +4928,7 @@ mod tests {
             forced_root: None,
             nnue_model: None,
             nnue_audit: false,
+            nnue_stack_telemetry: false,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
@@ -4967,6 +4989,7 @@ mod tests {
                 forced_root: None,
                 nnue_model: None,
                 nnue_audit: false,
+                nnue_stack_telemetry: false,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -5011,6 +5034,7 @@ mod tests {
                 forced_root: None,
                 nnue_model: None,
                 nnue_audit: false,
+                nnue_stack_telemetry: false,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
@@ -5151,6 +5175,7 @@ mod tests {
             forced_root: None,
             nnue_model: None,
             nnue_audit: false,
+            nnue_stack_telemetry: false,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();

@@ -10259,40 +10259,49 @@ mod tests {
             crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel
                 ::from_bytes(&bytes).unwrap());
 
-        // FullRefresh: zero telemetry movement.
-        let full_state = crate::engine::nnue_search::NnueSearchState::new(
+        // FullRefresh WITH telemetry enabled: zero movement (the no-op is
+        // mode-gated, not diagnostics-gated).
+        let full_state = crate::engine::nnue_search::NnueSearchState::with_options(
             model.clone(),
             crate::engine::nnue_search::NnueSearchMode::FullRefresh,
             &pos,
+            true,
+            false,
         );
-        let full_tele = full_state.telemetry.clone();
+        let full_handle = full_state.diagnostics.clone();
         let mut tt = TranspositionTable::disabled();
         let _ = search_best_move_with_history_tt_and_profile(
             &mut pos, &[key], &limits, &ctx, &mut tt,
             SearchProfile::CurrentFinalNnueV2QFull, Some(full_state),
         );
-        let snap = full_tele.snapshot();
-        assert_eq!(snap.pushes, 0, "FullRefresh must not push");
-        assert_eq!(snap.pops, 0, "FullRefresh must not pop");
-        assert_eq!(snap.null_pushes, 0);
-        assert_eq!(snap.delta_updates, 0);
-        assert_eq!(snap.full_refreshes, 0);
+        let d = full_handle.unwrap();
+        use std::sync::atomic::Ordering as O;
+        assert_eq!(d.pushes.load(O::Relaxed), 0, "FullRefresh must not push");
+        assert_eq!(d.pops.load(O::Relaxed), 0, "FullRefresh must not pop");
+        assert_eq!(d.null_pushes.load(O::Relaxed), 0);
+        assert_eq!(d.delta_updates.load(O::Relaxed), 0);
+        assert_eq!(d.full_refreshes.load(O::Relaxed), 0);
 
-        // Incremental on the same fixture: pushes > 0 and balanced.
-        let inc_state = crate::engine::nnue_search::NnueSearchState::new(
+        // Incremental with telemetry on the same fixture: pushes > 0 and
+        // balanced.
+        let inc_state = crate::engine::nnue_search::NnueSearchState::with_options(
             model,
             crate::engine::nnue_search::NnueSearchMode::Incremental,
             &pos,
+            true,
+            false,
         );
-        let inc_tele = inc_state.telemetry.clone();
+        let inc_handle = inc_state.diagnostics.clone();
         let mut tt = TranspositionTable::disabled();
         let _ = search_best_move_with_history_tt_and_profile(
             &mut pos, &[key], &limits, &ctx, &mut tt,
             SearchProfile::CurrentFinalNnueV2QIncremental, Some(inc_state),
         );
-        let snap = inc_tele.snapshot();
-        assert!(snap.pushes > 0, "incremental must push");
-        assert_eq!(snap.pushes, snap.pops, "stack must be balanced");
+        let d = inc_handle.unwrap();
+        let pushes = d.pushes.load(O::Relaxed);
+        let pops = d.pops.load(O::Relaxed);
+        assert!(pushes > 0, "incremental must push");
+        assert_eq!(pushes, pops, "stack must be balanced");
     }
 
     /// S10-C2B: abort/unwind must leave the NNUE stack perfectly balanced
