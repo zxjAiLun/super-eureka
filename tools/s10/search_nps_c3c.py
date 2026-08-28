@@ -94,13 +94,12 @@ PROFILE = {"A": "current-final",
            "C": "current-final-nnue-v2q",
            "C0": "current-final-nnue-v2q"}  # C0 = baseline binary arm
 
-# 4-arm balanced orders (A=Eval2, 0=old incr, B=full, C=new incr):
-# a 4x4 Latin square (each symbol once per row, balanced columns).
+# S10-C3-C2 3-arm candidate gate: A=Eval2 (current), 0=C0 baseline
+# incremental (frozen binary), 1=C1 AVX2 candidate (current binary).
+# Balanced rotation over the 6 permutations.
 ORDERS = [
-    "A0BC", "0BCA", "BCA0", "CA0B",
-    "AB0C", "B0CA", "0CAB", "CAB0",
-    "ACB0", "CB0A", "B0AC", "0ACB",
-][:ROUNDS]
+    "A01", "A10", "0A1", "01A", "1A0", "10A",
+] * (ROUNDS // 6)
 
 IDENTITY_FIELDS = ["nodes", "qsearch_nodes", "score", "bestmove", "pv"]
 
@@ -116,7 +115,7 @@ def run_arm(arm: str, fen: str) -> dict:
            "--nodes", str(NODES),
            "--hash-mb", str(HASH_MB),
            "--fen", fen]
-    if arm in ("B", "C", "C0"):
+    if arm in ("C", "C0"):
         cmd += ["--nnue-model", str(MODEL)]
     proc = subprocess.run(cmd, capture_output=True, text=True,
                           timeout=1200,
@@ -154,8 +153,8 @@ def main() -> int:
     corpus_sha = hashlib.sha256(
         "\n".join(f for _, f in CORPUS).encode()).hexdigest()
 
-    ratios = {"B/A": [], "C/A": [], "C/B": [], "C/C0": [], "C0/A": []}
-    arm_nps = {"A": [], "B": [], "C": [], "C0": []}
+    ratios = {"C1/C0": [], "C1/A": [], "C0/A": []}
+    arm_nps = {"A": [], "C": [], "C0": []}
     identity_failures = []
     per_fixture = []
     identity_checked = 0
@@ -166,29 +165,26 @@ def main() -> int:
             order = ORDERS[round_idx % len(ORDERS)]
             results = {}
             for sym in order:
-                arm = {"A": "A", "0": "C0", "B": "B", "C": "C"}[sym]
+                arm = {"A": "A", "0": "C0", "1": "C"}[sym]
                 r = run_arm(arm, fen)
                 if "error" in r:
                     print(f"FATAL: {name}/{arm} round {round_idx}: "
                           f"{r['error']}")
                     return 4
                 results[arm] = r
-            # B/C/C0 tree identity (fail-closed across BOTH binaries).
-            b, c, c0 = results["B"], results["C"], results["C0"]
-            identical = all(
-                b.get(f) == c.get(f) == c0.get(f) for f in IDENTITY_FIELDS)
+            # C1/C0 tree identity (fail-closed across BOTH binaries).
+            c, c0 = results["C"], results["C0"]
+            identical = all(c.get(f) == c0.get(f) for f in IDENTITY_FIELDS)
             identity_checked += 1
             if not identical:
-                diff = {}
-                for f in IDENTITY_FIELDS:
-                    if not (b.get(f) == c.get(f) == c0.get(f)):
-                        diff[f] = (b.get(f), c.get(f), c0.get(f))
+                diff = {f: (c.get(f), c0.get(f)) for f in IDENTITY_FIELDS
+                        if c.get(f) != c0.get(f)}
                 identity_failures.append(
                     {"fixture": name, "round": round_idx, "diff": diff})
                 continue
             # node budget must be consumed exactly (fixed-budget contract)
             valid = True
-            for arm in ("A", "B", "C", "C0"):
+            for arm in ("A", "C", "C0"):
                 if results[arm].get("nodes") != str(NODES):
                     identity_failures.append({
                         "fixture": name, "round": round_idx,
@@ -197,19 +193,17 @@ def main() -> int:
             if not valid:
                 continue  # skip invalid samples entirely
             nps = {}
-            for arm in ("A", "B", "C", "C0"):
+            for arm in ("A", "C", "C0"):
                 elapsed_us = int(results[arm]["elapsed_us"])
                 v = int(results[arm]["nodes"]) * 1_000_000 / max(elapsed_us, 1)
                 nps[arm] = v
                 arm_nps[arm].append(v)
-            ratios["B/A"].append(nps["B"] / nps["A"])
-            ratios["C/A"].append(nps["C"] / nps["A"])
-            ratios["C/B"].append(nps["C"] / nps["B"])
-            ratios["C/C0"].append(nps["C"] / nps["C0"])
+            ratios["C1/C0"].append(nps["C"] / nps["C0"])
+            ratios["C1/A"].append(nps["C"] / nps["A"])
             ratios["C0/A"].append(nps["C0"] / nps["A"])
             entry["rounds"].append({
                 "order": order,
-                "nps": {a: round(nps[a], 1) for a in ("A", "B", "C", "C0")},
+                "nps": {a: round(nps[a], 1) for a in ("A", "C", "C0")},
             })
         per_fixture.append(entry)
 
@@ -235,16 +229,16 @@ def main() -> int:
     #   0.85 <= C/A < 0.95 -> Arena unless a cheap win exists
     #   C/A < 0.85         -> bounded runtime optimization first
     #   C/B > 1 expected (incremental must beat full refresh)
-    ca = headline["C/A"]["median"]
-    cb = headline["C/B"]["median"]
+    c10 = headline["C1/C0"]["median"]
+    c1a = headline["C1/A"]["median"]
+    # Frozen C3-C2 decision rules: keep AVX2 iff C1/C0 > 1.00; either way
+    # this is the LAST runtime optimization candidate before Arena.
     decision = (
-        "arena_direct" if ca >= 0.95 else
-        "arena_with_optional_optimization" if ca >= 0.85 else
-        "bounded_optimization_first"
+        "keep_avx2_then_arena" if c10 > 1.00 else "reject_avx2_then_arena"
     )
 
     result = {
-        "stage": "s10_c3c_search_nps",
+        "stage": "s10_c3c2_search_nps",
         "engine_sha256": engine_sha,
         "baseline_engine_sha256": actual_baseline_sha,
         "baseline_engine_path": str(BASELINE_ENGINE),
@@ -261,14 +255,13 @@ def main() -> int:
         "identity_checked": identity_checked,
         "identity_failures": identity_failures,
         "decision_gate": {
-            "C_over_A_median": ca,
-            "C_over_B_median": cb,
+            "C1_over_C0_median": c10,
+            "C1_over_A_median": c1a,
             "decision": decision,
             "rules": {
-                "C/A >= 0.95": "arena_direct",
-                "0.85 <= C/A < 0.95": "arena_with_optional_optimization",
-                "C/A < 0.85": "bounded_optimization_first",
-                "C/B <= 1.0": "anomaly: incremental slower than full refresh",
+                "C1/C0 > 1.00": "keep_avx2_then_arena",
+                "C1/C0 <= 1.00": "reject_avx2_then_arena",
+                "note": "last runtime optimization candidate before Arena",
             },
         },
         "per_fixture": per_fixture,
@@ -277,7 +270,7 @@ def main() -> int:
     result["passed"] = passed
     print(json.dumps({k: v for k, v in result.items()
                       if k != "per_fixture"}, indent=2))
-    Path("results/s10/s10-c3b-search-nps.json").write_text(
+    Path("results/s10/s10-c3c2-search-nps.json").write_text(
         json.dumps(result, indent=2), encoding="utf-8")
     return 0 if passed else 1
 

@@ -10,3 +10,8 @@ description = "Eureka chess engine: traditional alpha-beta + NNUE-in-progress."
 opt-level = 3
 lto = true
 codegen-units = 1
+
+[features]
+# S10-C3-C2 test hook: force the scalar L1 backend even on AVX2-capable
+# machines (used by the backend-parity tests to compare both paths).
+force_scalar_l1 = []
