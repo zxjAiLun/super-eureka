@@ -1,0 +1,22 @@
+{
+  "stage": "s10_b3_stage_2_blind_holdout",
+  "checkpoint": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/data/s10/b3/seed-20260818/checkpoint_v2_s20260818.pt",
+  "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+  "checkpoint_seed": 20260818,
+  "checkpoint_best_epoch": 6,
+  "checkpoint_best_val_mae_cp": 165.32461547851562,
+  "checkpoint_best_val_loss": 0.12383734434843063,
+  "dataset_sha256": "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3",
+  "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f",
+  "feature_set": "v2",
+  "engine_exporter_sha256": "d6649098fe5f47b335454a54cddb57c64afcda157d20cf8a279e4c2f23d02abe",
+  "device": "cuda",
+  "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "torch_version": "2.13.0+cu130",
+  "cuda_version": "13.0",
+  "holdout_positions_evaluated": 29229,
+  "holdout_loss": 0.12451086938381195,
+  "holdout_mae_cp": 166.07615661621094,
+  "optimizer_steps_performed": 0,
+  "training_performed": false
+}
