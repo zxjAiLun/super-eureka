@@ -170,17 +170,18 @@ impl NnueV2QuantizedModel {
         let out_bias = read_i32s(data, OUT_B_OFFSET, OUT_B_COUNT)?;
 
         // Fail-closed overflow safety: recompute the PROVEN worst-case
-        // bounds from the actual payload (i64 arithmetic) and refuse any
-        // artifact whose MACs could exceed i32 range. The frozen artifact's
-        // bounds are ~1.45e9 max, far below i32::MAX.
-        let ft_bound = max_abs_i32(&ft_bias) as i64
-            + MAX_FEATURES_PER_PERSPECTIVE as i64 * max_abs_i16(&ft_weights) as i64;
-        let l1_bound = max_abs_i32(&l1_bias) as i64
-            + 256 * max_abs_i16(&l1_weight) as i64 * NNUE_V2Q_QA as i64;
-        let l2_bound = max_abs_i32(&l2_bias) as i64
-            + 32 * max_abs_i16(&l2_weight) as i64 * NNUE_V2Q_QA as i64;
-        let out_bound = max_abs_i32(&out_bias) as i64
-            + 32 * max_abs_i16(&out_weight) as i64 * NNUE_V2Q_QA as i64;
+        // bounds from the actual payload (i64 arithmetic throughout — the
+        // abs of i16::MIN/i32::MIN is not representable in the source
+        // type) and refuse any artifact whose MACs could exceed i32 range.
+        // The frozen artifact's bounds are ~1.45e9 max, far below i32::MAX.
+        let ft_bound = max_abs_i32(&ft_bias)
+            + MAX_FEATURES_PER_PERSPECTIVE * max_abs_i16(&ft_weights);
+        let l1_bound = max_abs_i32(&l1_bias)
+            + 256 * max_abs_i16(&l1_weight) * NNUE_V2Q_QA as i64;
+        let l2_bound = max_abs_i32(&l2_bias)
+            + 32 * max_abs_i16(&l2_weight) * NNUE_V2Q_QA as i64;
+        let out_bound = max_abs_i32(&out_bias)
+            + 32 * max_abs_i16(&out_weight) * NNUE_V2Q_QA as i64;
         if ft_bound > i32::MAX as i64
             || l1_bound > i32::MAX as i64
             || l2_bound > i32::MAX as i64
@@ -331,12 +332,15 @@ fn read_i32s(data: &[u8], offset: usize, count: usize) -> Result<Vec<i32>, Strin
     Ok(out)
 }
 
-fn max_abs_i16(v: &[i16]) -> i16 {
-    v.iter().fold(0i16, |m, &x| m.max(x.abs()))
+/// Max absolute value as i64 (MIN-safe: abs(i16::MIN) = 32768 is not
+/// representable in i16, so widen BEFORE abs).
+fn max_abs_i16(v: &[i16]) -> i64 {
+    v.iter().map(|&x| (x as i64).abs()).max().unwrap_or(0)
 }
 
-fn max_abs_i32(v: &[i32]) -> i32 {
-    v.iter().fold(0i32, |m, &x| m.max(x.abs()))
+/// Max absolute value as i64 (MIN-safe; see max_abs_i16).
+fn max_abs_i32(v: &[i32]) -> i64 {
+    v.iter().map(|&x| (x as i64).abs()).max().unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -512,6 +516,50 @@ mod tests {
         match NnueV2QuantizedModel::from_bytes(&data) {
             Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
             Ok(_) => panic!("runaway FT bias was accepted"),
+        }
+    }
+
+    #[test]
+    fn max_abs_helpers_are_min_safe() {
+        // abs(i16::MIN) = 32768 is NOT representable in i16; the helpers
+        // must widen to i64 before abs so adversarial payloads cannot
+        // underestimate the proven bounds (or panic on overflow).
+        assert_eq!(max_abs_i16(&[i16::MIN]), 32768);
+        assert_eq!(max_abs_i16(&[0, -1, i16::MIN, 5]), 32768);
+        assert_eq!(max_abs_i16(&[]), 0);
+        assert_eq!(max_abs_i32(&[i32::MIN]), 2147483648);
+        assert_eq!(max_abs_i32(&[0, i32::MIN, 7]), 2147483648);
+        assert_eq!(max_abs_i32(&[]), 0);
+    }
+
+    #[test]
+    fn rejects_i32_min_bias_without_panicking() {
+        // Adversarial/corrupted payload: an i32::MIN FT bias must be
+        // rejected by the bound scan (|MIN| = 2^31 > i32::MAX), never
+        // panic or wrap.
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        let base = FT_B_OFFSET;
+        for chunk in data[base..base + 128 * 4].chunks_exact_mut(4) {
+            chunk.copy_from_slice(&i32::MIN.to_le_bytes());
+        }
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Ok(_) => panic!("i32::MIN bias was accepted"),
+        }
+    }
+
+    #[test]
+    fn rejects_i16_min_dense_weight_without_panicking() {
+        // i16::MIN in the l1 weights: bound = 256 * 32768 * 4096 >> 2^31,
+        // must fail closed (not panic, not silently underestimate).
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        let base = L1_W_OFFSET;
+        for chunk in data[base..base + 1024].chunks_exact_mut(2) {
+            chunk.copy_from_slice(&i16::MIN.to_le_bytes());
+        }
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Ok(_) => panic!("i16::MIN dense weight was accepted"),
         }
     }
 
