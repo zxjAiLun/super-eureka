@@ -596,6 +596,37 @@ impl NnueV2QuantizedModel {
         (self.evaluate_raw(pos) as f32 / (1 << NNUE_V2Q_FT_SHIFT) as f32)
             * NNUE_V2Q_TARGET_SCALE
     }
+
+    /// Integer search-eval conversion: `raw * 1000 / 2^FT_SHIFT` computed
+    /// in i64 with signed round-half-away-from-zero. This is the ONLY
+    /// production-search conversion path (no f32 anywhere in the search).
+    pub fn cp_i32_from_raw(raw: i32) -> i32 {
+        let wide = (raw as i64) * 1000;
+        let denom = 1i64 << NNUE_V2Q_FT_SHIFT;
+        let cp = if wide >= 0 {
+            (wide + denom / 2) / denom
+        } else {
+            -((-wide + denom / 2) / denom)
+        };
+        cp as i32
+    }
+
+    /// Integer centipawn evaluation from a (fresh or incremental)
+    /// accumulator. `pos` supplies only the side-to-move.
+    pub fn evaluate_cp_i32_from_accumulator(
+        &self,
+        pos: &Position,
+        acc: &NnueV2Accumulator,
+    ) -> i32 {
+        let raw = self.evaluate_raw_from_accumulator(pos, acc);
+        Self::cp_i32_from_raw(raw)
+    }
+
+    /// Integer centipawn evaluation via full refresh (the C2B full-refresh
+    /// profile path).
+    pub fn evaluate_cp_i32(&self, pos: &Position) -> i32 {
+        Self::cp_i32_from_raw(self.evaluate_raw(pos))
+    }
 }
 
 /// Arithmetic right shift with round half away from zero.
@@ -658,6 +689,13 @@ fn max_abs_i32(v: &[i32]) -> i64 {
     v.iter().map(|&x| (x as i64).abs()).max().unwrap_or(0)
 }
 
+/// Test-only synthetic EUNN2Q01 artifact builder (shared with the
+/// nnue_search stack tests).
+#[cfg(test)]
+pub(crate) fn synthetic_artifact_bytes_for_tests(fen: &str) -> Vec<u8> {
+    tests::synthetic_artifact_bytes(fen)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::chess::fen::parse_fen;
@@ -669,7 +707,7 @@ mod tests {
     /// startpos feature row is [16; 128] (= 0.00390625 float), ft_bias 8,
     /// l1 weights 256 rows of all 1s? Too big to hand-build in full; instead
     /// build the FULL byte array programmatically like the V1 probe tests.
-    fn synthetic_artifact_bytes(fen: &str) -> Vec<u8> {
+    pub(super) fn synthetic_artifact_bytes(fen: &str) -> Vec<u8> {
         let pos = parse_fen(fen).unwrap();
         let white = active_features_v2(&pos, NnuePerspective::White);
         let black = active_features_v2(&pos, NnuePerspective::Black);

@@ -108,6 +108,10 @@ fn spawn_search(
             &ctx,
             &mut guard,
             profile,
+            // S10-C2B: UCI never selects an NNUE candidate profile today
+            // (process-fixed PRODUCTION_PROFILE); None is the fail-closed
+            // default for any future NNUE profile without a model.
+            None,
         ) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
             None => println!("bestmove 0000"),

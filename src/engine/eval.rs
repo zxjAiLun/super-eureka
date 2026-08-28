@@ -425,6 +425,24 @@ fn finish_evaluation(pos: &Position, mg: i32, eg: i32, phase: i32) -> i32 {
     }
 }
 
+/// S10-C2B: exact KQK/KRK mop-up override for non-classical evaluators
+/// (the NNUE candidate profiles). Mirrors `finish_evaluation`'s tail with
+/// the caller's `base` evaluation: same bonus computation, same
+/// strong/weak sign rule, same stalemate zeroing. Returns None when the
+/// exact mop-up configuration does not apply (the caller uses its own
+/// evaluator unchanged).
+pub fn exact_mop_up_for_search(pos: &Position, base: i32) -> Option<i32> {
+    let mop_up = exact_mop_up(pos)?;
+    let bonus = exact_mop_up_bonus(pos, mop_up);
+    if pos.side == mop_up.strong {
+        Some(base + bonus)
+    } else if bonus == STALEMATE_BONUS {
+        Some(0)
+    } else {
+        Some(base - bonus)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct ExactMopUp {
     strong: Color,

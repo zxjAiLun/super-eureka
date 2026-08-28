@@ -153,6 +153,9 @@ struct BenchArgs {
     timing_sample: Option<u32>,
     /// S4.0B: force the root to search only this move (UCI), e.g. the teacher move.
     forced_root: Option<String>,
+    /// S10-C2B: path to the frozen EUNN2Q01 artifact for the NNUE candidate
+    /// profiles (required, fail-closed, when --profile is an NNUE profile).
+    nnue_model: Option<String>,
     /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
     /// ordering, before forced-root filtering.
     target_root: Option<String>,
@@ -203,6 +206,8 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalNoRookActivity => "current-final-no-rook-activity",
         SearchProfile::CurrentFinalNoDevelopmentSpace => "current-final-no-development-space",
         SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
+        SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
+        SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
     }
 }
 
@@ -281,6 +286,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut diag_s75b_probe = false;
     let mut timing_sample: Option<u32> = None;
     let mut forced_root: Option<String> = None;
+    let mut nnue_model: Option<String> = None;
     let mut target_root: Option<String> = None;
 
     while let Some(tok) = it.next() {
@@ -468,9 +474,11 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                         SearchProfile::CurrentFinalNoDevelopmentSpace
                     }
                     "current-final-no-king-safety" => SearchProfile::CurrentFinalNoKingSafety,
+                    "current-final-nnue-v2q-full" => SearchProfile::CurrentFinalNnueV2QFull,
+                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q)",
                             other
                         ));
                     }
@@ -568,6 +576,16 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                 }
                 forced_root = Some(v);
             }
+            "--nnue-model" => {
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --nnue-model requires a value".to_string())?
+                    .clone();
+                if nnue_model.is_some() {
+                    return Err("bench: --nnue-model may be specified only once".to_string());
+                }
+                nnue_model = Some(v);
+            }
             "--target-root" => {
                 if suite != Suite::Profile {
                     return Err("bench: --target-root is only valid for profile".to_string());
@@ -635,6 +653,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         diag_root_full_window,
         diag_s75b_probe,
         forced_root,
+        nnue_model,
         target_root,
         timing_sample,
     })
@@ -808,11 +827,33 @@ fn search_one(
     ctx: &SearchContext,
     tt: &mut TranspositionTable,
     profile: SearchProfile,
+    nnue_model: Option<&crate::engine::nnue_search::NnueSearchState>,
 ) -> Option<SearchOutcome> {
     if profile == SearchProfile::M4Reference {
         search_best_move_with_history_and_tt(pos, hist, limits, ctx, tt)
     } else {
-        search_best_move_with_history_tt_and_profile(pos, hist, limits, ctx, tt, profile)
+        // S10-C2B: NNUE candidate profiles need a search-local state built
+        // from the frozen model (fresh per run: the accumulator stack is
+        // search-local, the model itself is Arc-shared).
+        let mut nnue_owned: Option<crate::engine::nnue_search::NnueSearchState> =
+            if profile.uses_nnue_eval() {
+                Some(crate::engine::nnue_search::NnueSearchState::new(
+                    nnue_model
+                        .map(|s| s.model.clone())
+                        .expect("NNUE profile requires --nnue-model (fail closed)"),
+                    if profile.uses_nnue_incremental_stack() {
+                        crate::engine::nnue_search::NnueSearchMode::Incremental
+                    } else {
+                        crate::engine::nnue_search::NnueSearchMode::FullRefresh
+                    },
+                    pos,
+                ))
+            } else {
+                None
+            };
+        search_best_move_with_history_tt_and_profile(
+            pos, hist, limits, ctx, tt, profile, nnue_owned,
+        )
     }
 }
 
@@ -1545,7 +1586,7 @@ fn run_warmup(
     let hist = effective_history(fx, &pos);
     let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
     let limits = limits_for(actual_limit);
-    let out = search_one(&mut pos, &hist, &limits, &ctx, tt, profile).ok_or_else(|| {
+    let out = search_one(&mut pos, &hist, &limits, &ctx, tt, profile, None).ok_or_else(|| {
         format!(
             "fixture {} (warm-up): no legal moves (terminal root)",
             fx.id
@@ -1673,8 +1714,30 @@ fn run_one(
 
     let limits = limits_for(actual_limit);
 
+    // S10-C2B: load the frozen quantized model ONCE per run (never per
+    // node / per go) for the NNUE candidate profiles.
+    let nnue_state = if cfg.profile.uses_nnue_eval() {
+        let path = cfg.nnue_model.as_deref().ok_or_else(|| {
+            "bench: NNUE profile requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
+                .to_string()
+        })?;
+        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+            std::path::Path::new(path))?;
+        Some(crate::engine::nnue_search::NnueSearchState::new(
+            std::sync::Arc::new(model),
+            if cfg.profile.uses_nnue_incremental_stack() {
+                crate::engine::nnue_search::NnueSearchMode::Incremental
+            } else {
+                crate::engine::nnue_search::NnueSearchMode::FullRefresh
+            },
+            &pos,
+        ))
+    } else {
+        None
+    };
+
     let start = Instant::now();
-    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, cfg.profile)
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, cfg.profile, nnue_state.as_ref())
         .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
     let elapsed = start.elapsed();
     let nodes = ctx.nodes.load(Ordering::Relaxed);
@@ -4613,6 +4676,7 @@ mod tests {
             diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
+            nnue_model: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -4648,6 +4712,7 @@ mod tests {
             timing_sample: None,
             forced_root: forced_root.map(|s| s.to_string()),
             target_root: target_root.map(|s| s.to_string()),
+            nnue_model: None,
         }
     }
 
@@ -4728,6 +4793,7 @@ mod tests {
             diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
+            nnue_model: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
@@ -4787,6 +4853,7 @@ mod tests {
             diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
+            nnue_model: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
@@ -4845,6 +4912,7 @@ mod tests {
                 diag_s75b_probe: false,
                 timing_sample: None,
                 forced_root: None,
+                nnue_model: None,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -4887,6 +4955,7 @@ mod tests {
                 diag_s75b_probe: false,
                 timing_sample: None,
                 forced_root: None,
+                nnue_model: None,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
@@ -4937,6 +5006,7 @@ mod tests {
             &ctx,
             &mut tt,
             SearchProfile::Current,
+            None,
         )
         .unwrap();
         let nodes = ctx.nodes.load(Ordering::Relaxed);
@@ -4973,6 +5043,7 @@ mod tests {
             &ctx2,
             &mut tt2,
             SearchProfile::M4Reference,
+            None,
         )
         .unwrap();
         let nodes2 = ctx2.nodes.load(Ordering::Relaxed);
@@ -5023,6 +5094,7 @@ mod tests {
             diag_s75b_probe: false,
             timing_sample: None,
             forced_root: None,
+            nnue_model: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -5061,6 +5133,7 @@ mod tests {
             &ctx,
             &mut tt,
             SearchProfile::M4Reference,
+            None,
         )
         .unwrap();
         let nodes = ctx.nodes.load(Ordering::Relaxed);

@@ -1,0 +1,368 @@
+{
+  "stage": "s10_c2b_search_parity",
+  "engine_sha256": "bf0cc118d159d23400929c1575d92361d7ce50cc7b9ff6c89b517d4e105e9806",
+  "model_sha256": "b51a79b19999aeed974c2279eef60b01f890248c7d006cbe3d504cc7c0f28b9a",
+  "profile_full": "current-final-nnue-v2q-full",
+  "profile_incremental": "current-final-nnue-v2q",
+  "fixtures": 18,
+  "fields_compared": [
+    "score",
+    "bestmove",
+    "completed_depth",
+    "nodes",
+    "pv"
+  ],
+  "mismatched_fixtures": [],
+  "mismatches": 0,
+  "passed": true,
+  "path_coverage": {
+    "qsearch_nodes": 395016,
+    "null_move_attempts": 19,
+    "lmr_reductions": 187,
+    "aspiration_retries": 51
+  },
+  "per_fixture": [
+    {
+      "fixture": "startpos",
+      "limit": "depth:6",
+      "full": {
+        "score": "cp:18",
+        "bestmove": "b1c3",
+        "completed_depth": "6",
+        "nodes": "44077",
+        "pv": "\"b1c3"
+      },
+      "incremental": {
+        "score": "cp:18",
+        "bestmove": "b1c3",
+        "completed_depth": "6",
+        "nodes": "44077",
+        "pv": "\"b1c3"
+      },
+      "match": true
+    },
+    {
+      "fixture": "middlegame",
+      "limit": "depth:5",
+      "full": {
+        "score": "cp:19",
+        "bestmove": "e3c5",
+        "completed_depth": "5",
+        "nodes": "59550",
+        "pv": "\"e3c5"
+      },
+      "incremental": {
+        "score": "cp:19",
+        "bestmove": "e3c5",
+        "completed_depth": "5",
+        "nodes": "59550",
+        "pv": "\"e3c5"
+      },
+      "match": true
+    },
+    {
+      "fixture": "tactical",
+      "limit": "depth:5",
+      "full": {
+        "score": "mate:5",
+        "bestmove": "d6d1",
+        "completed_depth": "5",
+        "nodes": "81848",
+        "pv": "\"d6d1"
+      },
+      "incremental": {
+        "score": "mate:5",
+        "bestmove": "d6d1",
+        "completed_depth": "5",
+        "nodes": "81848",
+        "pv": "\"d6d1"
+      },
+      "match": true
+    },
+    {
+      "fixture": "endgame-krp",
+      "limit": "depth:6",
+      "full": {
+        "score": "cp:84",
+        "bestmove": "b4f4",
+        "completed_depth": "6",
+        "nodes": "16452",
+        "pv": "\"b4f4"
+      },
+      "incremental": {
+        "score": "cp:84",
+        "bestmove": "b4f4",
+        "completed_depth": "6",
+        "nodes": "16452",
+        "pv": "\"b4f4"
+      },
+      "match": true
+    },
+    {
+      "fixture": "kqk-mopup",
+      "limit": "depth:6",
+      "full": {
+        "score": "cp:1026",
+        "bestmove": "b1b7",
+        "completed_depth": "6",
+        "nodes": "47550",
+        "pv": "\"b1b7"
+      },
+      "incremental": {
+        "score": "cp:1026",
+        "bestmove": "b1b7",
+        "completed_depth": "6",
+        "nodes": "47550",
+        "pv": "\"b1b7"
+      },
+      "match": true
+    },
+    {
+      "fixture": "krk-mopup",
+      "limit": "depth:6",
+      "full": {
+        "score": "cp:817",
+        "bestmove": "b1b7",
+        "completed_depth": "6",
+        "nodes": "15233",
+        "pv": "\"b1b7"
+      },
+      "incremental": {
+        "score": "cp:817",
+        "bestmove": "b1b7",
+        "completed_depth": "6",
+        "nodes": "15233",
+        "pv": "\"b1b7"
+      },
+      "match": true
+    },
+    {
+      "fixture": "promotion",
+      "limit": "depth:6",
+      "full": {
+        "score": "cp:890",
+        "bestmove": "a7a8q",
+        "completed_depth": "6",
+        "nodes": "7121",
+        "pv": "\"a7a8q"
+      },
+      "incremental": {
+        "score": "cp:890",
+        "bestmove": "a7a8q",
+        "completed_depth": "6",
+        "nodes": "7121",
+        "pv": "\"a7a8q"
+      },
+      "match": true
+    },
+    {
+      "fixture": "ep-rich",
+      "limit": "depth:5",
+      "full": {
+        "score": "cp:28",
+        "bestmove": "g8f6",
+        "completed_depth": "5",
+        "nodes": "32891",
+        "pv": "\"g8f6"
+      },
+      "incremental": {
+        "score": "cp:28",
+        "bestmove": "g8f6",
+        "completed_depth": "5",
+        "nodes": "32891",
+        "pv": "\"g8f6"
+      },
+      "match": true
+    },
+    {
+      "fixture": "castle-both",
+      "limit": "depth:5",
+      "full": {
+        "score": "cp:765",
+        "bestmove": "a1a8",
+        "completed_depth": "5",
+        "nodes": "5949",
+        "pv": "\"a1a8"
+      },
+      "incremental": {
+        "score": "cp:765",
+        "bestmove": "a1a8",
+        "completed_depth": "5",
+        "nodes": "5949",
+        "pv": "\"a1a8"
+      },
+      "match": true
+    },
+    {
+      "fixture": "tactical-2",
+      "limit": "depth:5",
+      "full": {
+        "score": "cp:-35",
+        "bestmove": "e1c1",
+        "completed_depth": "5",
+        "nodes": "33331",
+        "pv": "\"e1c1"
+      },
+      "incremental": {
+        "score": "cp:-35",
+        "bestmove": "e1c1",
+        "completed_depth": "5",
+        "nodes": "33331",
+        "pv": "\"e1c1"
+      },
+      "match": true
+    },
+    {
+      "fixture": "nullmove-heavy",
+      "limit": "depth:5",
+      "full": {
+        "score": "cp:325",
+        "bestmove": "d4e6",
+        "completed_depth": "5",
+        "nodes": "36490",
+        "pv": "\"d4e6"
+      },
+      "incremental": {
+        "score": "cp:325",
+        "bestmove": "d4e6",
+        "completed_depth": "5",
+        "nodes": "36490",
+        "pv": "\"d4e6"
+      },
+      "match": true
+    },
+    {
+      "fixture": "deep-endgame",
+      "limit": "depth:7",
+      "full": {
+        "score": "cp:700",
+        "bestmove": "e2e3",
+        "completed_depth": "7",
+        "nodes": "95943",
+        "pv": "\"e2e3"
+      },
+      "incremental": {
+        "score": "cp:700",
+        "bestmove": "e2e3",
+        "completed_depth": "7",
+        "nodes": "95943",
+        "pv": "\"e2e3"
+      },
+      "match": true
+    },
+    {
+      "fixture": "startpos-nodes",
+      "limit": "nodes:5000",
+      "full": {
+        "score": "cp:34",
+        "bestmove": "d2d4",
+        "completed_depth": "4",
+        "nodes": "5000",
+        "pv": "\"d2d4"
+      },
+      "incremental": {
+        "score": "cp:34",
+        "bestmove": "d2d4",
+        "completed_depth": "4",
+        "nodes": "5000",
+        "pv": "\"d2d4"
+      },
+      "match": true
+    },
+    {
+      "fixture": "middlegame-nodes",
+      "limit": "nodes:5000",
+      "full": {
+        "score": "cp:7",
+        "bestmove": "e3c5",
+        "completed_depth": "3",
+        "nodes": "5000",
+        "pv": "\"e3c5"
+      },
+      "incremental": {
+        "score": "cp:7",
+        "bestmove": "e3c5",
+        "completed_depth": "3",
+        "nodes": "5000",
+        "pv": "\"e3c5"
+      },
+      "match": true
+    },
+    {
+      "fixture": "abort-tiny-1",
+      "limit": "nodes:1",
+      "full": {
+        "score": "none",
+        "bestmove": "b1c3",
+        "completed_depth": "0",
+        "nodes": "1",
+        "pv": "\"\""
+      },
+      "incremental": {
+        "score": "none",
+        "bestmove": "b1c3",
+        "completed_depth": "0",
+        "nodes": "1",
+        "pv": "\"\""
+      },
+      "match": true
+    },
+    {
+      "fixture": "abort-tiny-7",
+      "limit": "nodes:7",
+      "full": {
+        "score": "none",
+        "bestmove": "b1c3",
+        "completed_depth": "0",
+        "nodes": "7",
+        "pv": "\"\""
+      },
+      "incremental": {
+        "score": "none",
+        "bestmove": "b1c3",
+        "completed_depth": "0",
+        "nodes": "7",
+        "pv": "\"\""
+      },
+      "match": true
+    },
+    {
+      "fixture": "abort-100",
+      "limit": "nodes:100",
+      "full": {
+        "score": "none",
+        "bestmove": "a1b1",
+        "completed_depth": "0",
+        "nodes": "100",
+        "pv": "\"\""
+      },
+      "incremental": {
+        "score": "none",
+        "bestmove": "a1b1",
+        "completed_depth": "0",
+        "nodes": "100",
+        "pv": "\"\""
+      },
+      "match": true
+    },
+    {
+      "fixture": "abort-1000",
+      "limit": "nodes:1000",
+      "full": {
+        "score": "cp:343",
+        "bestmove": "d4e6",
+        "completed_depth": "2",
+        "nodes": "1000",
+        "pv": "\"d4e6"
+      },
+      "incremental": {
+        "score": "cp:343",
+        "bestmove": "d4e6",
+        "completed_depth": "2",
+        "nodes": "1000",
+        "pv": "\"d4e6"
+      },
+      "match": true
+    }
+  ]
+}
