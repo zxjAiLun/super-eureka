@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""S10-B5-C: Python INTEGER reference for the EUNN2Q01 scheme (v2).
+"""S10-B5-C: Python INTEGER reference for the EUNN2Q01 scheme (v3).
 
-True integer arithmetic mirroring the future Rust runtime exactly:
-integer FT accumulate, integer clipping, integer dense input requantization
-((a+16)>>5), integer i16 dense MAC, arithmetic shift with round-half-away,
-final fixed-point -> cp conversion (single float multiply at the end).
+True integer arithmetic mirroring the Rust runtime exactly:
+integer FT accumulate, integer clipping, integer i16 dense MAC at
+accumulator precision (NO input requantization), arithmetic shift with
+round-half-away, final fixed-point -> cp conversion (single float multiply
+at the end).
+
+Frozen scheme v3 (see tools/s10/export_quantized.py):
+  FT i16 x 2^12 / dense i16 x 2^12 / bias x 2^24 / z >> 12 / QA = 4096
 
 This module is the semantic single source of truth for quantized inference;
 the Rust runtime must match it BIT-EXACTLY on the raw integer output

@@ -1,7 +1,7 @@
 {
   "stage": "s10_b5_calibration",
+  "scheme_version": 3,
   "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
-  "engine_exporter_sha256": "f005811bda2c73f8833915787dc7fcc777b8a6b84803f752ff357c5d60bfb41b",
   "telemetry_positions": 10000,
   "holdout_used": false,
   "parameter_stats": {
@@ -57,38 +57,33 @@
   "activation_telemetry": {
     "positions": 10000,
     "acc_pre_clip_absmax": 2.518223285675049,
-    "acc_post_clip_absmax": 1.0,
     "l1_preact_absmax": 1.5676625967025757,
-    "l1_postact_absmax": 1.0,
     "l2_preact_absmax": 3.612560987472534,
-    "l2_postact_absmax": 1.0,
     "output_absmax": 0.8398357033729553
   },
   "scheme": {
-    "ft_weight": "i16, scale s_ft = 127/absmax, q = round(w/s_ft)",
-    "ft_bias": "i32 in s_ft units, q = round(b/s_ft)",
-    "accumulator": "i32 = q_bias + sum(q_w)",
-    "dense_weight": "i8 per layer, s_l = 127/absmax, q = round(w/s_l)",
-    "dense_bias": "i32 in layer input scale",
-    "activation": "integer ClippedReLU: clamp(x, 0, QACT)",
-    "output": "fixed-point chain dequantization"
+    "ft": {
+      "container": "i16",
+      "shift": 12
+    },
+    "dense": {
+      "container": "i16",
+      "weight_shift": 12,
+      "input_requantization": false
+    },
+    "bias_shift": 24,
+    "dense_z_shift": 12,
+    "qa": 4096,
+    "rounding": "quantize round-half-away; shift round-half-away; integer ClippedReLU clamp(0, QA)",
+    "mac": "z_int = q_b + sum(q_w * a) at accumulator precision"
   },
-  "scales": {
-    "s_ft": 287.7183099466419,
-    "s_l1": 375.71529658486634,
-    "s_l2": 175.47279031118387,
-    "s_out": 234.05189791602498,
-    "qact": 0
-  },
-  "overflow_analysis": {
-    "ft_accumulator_bound": 1,
-    "ft_accumulator_bound_i16_container_worst": 1015778,
-    "l1_mac_bound": 1,
-    "l2_mac_bound": 516129,
-    "out_mac_bound": 516129,
+  "proven_overflow_bounds": {
+    "ft_accumulator_bound": 1016721,
+    "l1_mac_bound": 1454985149,
+    "l2_mac_bound": 391003526,
+    "out_mac_bound": 291708461,
     "i32_max": 2147483647,
     "ft_overflow": false,
-    "ft_overflow_i16_container_worst": false,
     "l1_overflow": false,
     "l2_overflow": false,
     "out_overflow": false

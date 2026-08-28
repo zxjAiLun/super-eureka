@@ -2,6 +2,12 @@
 
 **Status: CLOSED / PASS — all gates green, PTQ only (no QAT needed)**
 
+**Repair 1 (post-review)**: calibration tool/artifact realigned to the
+frozen v3 scheme (previously recorded a rejected early scheme); Rust
+loader now fail-closed on embedded source SHAs AND recomputes proven i32
+MAC bounds from the actual payload at load time; consistency tests pin
+calibration == layout == exporter constants. Numerical results unchanged.
+
 ## Frozen quantization scheme (EUNN2Q01 v1, "scheme v3")
 
 All power-of-two shifts, zero float operations at inference time:
@@ -66,24 +72,30 @@ active_features_v2 touched: NO (Rust runtime reuses the single source of truth)
 
 ```
 exporter:      tools/s10/export_quantized.py (fail-closed on frozen
-               checkpoint/F1P32-artifact SHA, tensor shapes, i32 bounds)
+               checkpoint/FP32-artifact SHA, tensor shapes, i32 bounds)
 reference:     tools/s10/integer_reference.py (pure-integer Python
                semantics: the single source of truth for the scheme)
-calibration:   tools/s10/calibrate_quantization.py (10k-position activation
-               telemetry + proven overflow analysis)
+calibration:   tools/s10/calibrate_quantization.py (imports scheme
+               constants from the exporter; 10k-position activation
+               telemetry + proven bounds matching the layout artifact)
 gates:         tools/s10/gates_quantized.py (gates 1-3, frozen identities)
-Rust runtime:  src/engine/nnue_v2q_runtime.rs (bench-only, strict artifact
-               validation incl. embedded source SHAs, 5 unit tests)
+Rust runtime:  src/engine/nnue_v2q_runtime.rs (bench-only; loader fails
+               closed on magic/version/dims/shifts, frozen source
+               checkpoint + FP32 artifact SHAs, and recomputed proven
+               i32 MAC bounds from the actual payload)
 bench:         nnue-v2q-probe / nnue-v2q-probe-batch (JSONL with raw_output
                for bit-exact comparison)
-engine SHA256: 4b5be2b74a4b73b3480f80dd9a1db3c6f9a3cbbcf1c12843700001ef9aaec110
+engine SHA256: see gates artifact (rebuilt in Repair 1; predictions
+               unchanged: startpos raw 190 -> 46.387 cp)
 ```
 
 ## Tests
 
 ```
-cargo test --release:  383 passed (378 prior + 5 new nnue_v2q)
-tools/s10 (python):    34 passed
+cargo test --release:  388 passed (378 prior + 10 nnue_v2q incl. loader
+                       source-SHA / proven-bound rejection tests)
+tools/s10 (python):    40 passed (incl. 6 calibration-layout-exporter
+                       consistency tests)
 startpos sanity:       Rust raw 190 -> 46.387 cp (FP32 46.445 cp)
 ```
 

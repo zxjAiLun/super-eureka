@@ -31,6 +31,26 @@ pub const NNUE_V2Q_DENSE_W_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_Z_SHIFT: u32 = 12;
 pub const NNUE_V2Q_QA: usize = 1 << 12;
 
+/// Frozen provenance: the EUNN2Q01 artifact must have been exported from
+/// the B3 production checkpoint (d59ad852...) via the B4 FP32 artifact
+/// (9bf7addd...). The loader rejects anything else.
+const EXPECTED_SOURCE_FP32_SHA: [u8; 32] = [
+    0x9b, 0xf7, 0xad, 0xdd, 0xf7, 0xb3, 0xb4, 0x4a,
+    0xff, 0xa5, 0xe2, 0x6d, 0x22, 0x76, 0xb1, 0x3d,
+    0x74, 0x56, 0x61, 0x91, 0xa4, 0xeb, 0x4d, 0x00,
+    0x90, 0xfb, 0xde, 0x5a, 0x7a, 0xfb, 0xc9, 0xfc,
+];
+const EXPECTED_SOURCE_CHECKPOINT_SHA: [u8; 32] = [
+    0xd5, 0x9a, 0xd8, 0x52, 0x5c, 0x06, 0xab, 0xe8,
+    0x03, 0x07, 0xbf, 0xfb, 0x12, 0x1f, 0xf4, 0x97,
+    0xa3, 0x6e, 0x94, 0xb1, 0x91, 0xc3, 0xc9, 0xbb,
+    0x3c, 0x8f, 0x31, 0xe5, 0xcc, 0xe5, 0x50, 0xc7,
+];
+
+/// Maximum active features per perspective (startpos: 32 pieces minus own
+/// king); used in the proven FT accumulator bound.
+const MAX_FEATURES_PER_PERSPECTIVE: i64 = 31;
+
 const HEADER_BYTES: usize = 8 + 4 * 4 + 4 * 3 + 4 + 4 + 32 + 32;
 const FT_W_COUNT: usize = NNUE_INPUTS_V2 * NNUE_V2Q_FT_WIDTH;
 const FT_B_COUNT: usize = NNUE_V2Q_FT_WIDTH;
@@ -61,8 +81,10 @@ pub struct NnueV2QuantizedModel {
     l2_bias: Vec<i32>,     // [32]
     out_weight: Vec<i16>,  // [1][32]
     out_bias: Vec<i32>,    // [1]
+    /// Verified-equal to EXPECTED_SOURCE_FP32_SHA at load time.
     #[allow(dead_code)]
     source_fp32_artifact_sha256: [u8; 32],
+    /// Verified-equal to EXPECTED_SOURCE_CHECKPOINT_SHA at load time.
     #[allow(dead_code)]
     source_checkpoint_sha256: [u8; 32],
 }
@@ -122,9 +144,21 @@ impl NnueV2QuantizedModel {
             ));
         }
         let mut source_fp32_artifact_sha256 = [0u8; 32];
-        source_fp32_artifact_sha256.copy_from_slice(&data[40..72]);
+        source_fp32_artifact_sha256.copy_from_slice(&data[44..76]);
         let mut source_checkpoint_sha256 = [0u8; 32];
-        source_checkpoint_sha256.copy_from_slice(&data[72..104]);
+        source_checkpoint_sha256.copy_from_slice(&data[76..108]);
+        // Fail-closed provenance: the artifact must have been exported from
+        // the frozen B3/B4 sources.
+        if source_fp32_artifact_sha256 != EXPECTED_SOURCE_FP32_SHA {
+            return Err(
+                "nnue-v2q-probe: source FP32 artifact SHA mismatch".to_string()
+            );
+        }
+        if source_checkpoint_sha256 != EXPECTED_SOURCE_CHECKPOINT_SHA {
+            return Err(
+                "nnue-v2q-probe: source checkpoint SHA mismatch".to_string()
+            );
+        }
 
         let ft_weights = read_i16s(data, FT_W_OFFSET, FT_W_COUNT)?;
         let ft_bias = read_i32s(data, FT_B_OFFSET, FT_B_COUNT)?;
@@ -134,6 +168,30 @@ impl NnueV2QuantizedModel {
         let l2_bias = read_i32s(data, L2_B_OFFSET, L2_B_COUNT)?;
         let out_weight = read_i16s(data, OUT_W_OFFSET, OUT_W_COUNT)?;
         let out_bias = read_i32s(data, OUT_B_OFFSET, OUT_B_COUNT)?;
+
+        // Fail-closed overflow safety: recompute the PROVEN worst-case
+        // bounds from the actual payload (i64 arithmetic) and refuse any
+        // artifact whose MACs could exceed i32 range. The frozen artifact's
+        // bounds are ~1.45e9 max, far below i32::MAX.
+        let ft_bound = max_abs_i32(&ft_bias) as i64
+            + MAX_FEATURES_PER_PERSPECTIVE as i64 * max_abs_i16(&ft_weights) as i64;
+        let l1_bound = max_abs_i32(&l1_bias) as i64
+            + 256 * max_abs_i16(&l1_weight) as i64 * NNUE_V2Q_QA as i64;
+        let l2_bound = max_abs_i32(&l2_bias) as i64
+            + 32 * max_abs_i16(&l2_weight) as i64 * NNUE_V2Q_QA as i64;
+        let out_bound = max_abs_i32(&out_bias) as i64
+            + 32 * max_abs_i16(&out_weight) as i64 * NNUE_V2Q_QA as i64;
+        if ft_bound > i32::MAX as i64
+            || l1_bound > i32::MAX as i64
+            || l2_bound > i32::MAX as i64
+            || out_bound > i32::MAX as i64
+        {
+            return Err(format!(
+                "nnue-v2q-probe: payload exceeds proven i32 MAC bounds \
+                 (ft={ft_bound}, l1={l1_bound}, l2={l2_bound}, out={out_bound})"
+            ));
+        }
+
         Ok(NnueV2QuantizedModel {
             ft_weights,
             ft_bias,
@@ -273,6 +331,14 @@ fn read_i32s(data: &[u8], offset: usize, count: usize) -> Result<Vec<i32>, Strin
     Ok(out)
 }
 
+fn max_abs_i16(v: &[i16]) -> i16 {
+    v.iter().fold(0i16, |m, &x| m.max(x.abs()))
+}
+
+fn max_abs_i32(v: &[i32]) -> i32 {
+    v.iter().fold(0i32, |m, &x| m.max(x.abs()))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::chess::fen::parse_fen;
@@ -300,8 +366,8 @@ mod tests {
         out.extend_from_slice(&NNUE_V2Q_DENSE_Z_SHIFT.to_le_bytes());
         out.extend_from_slice(&(NNUE_V2Q_QA as u32).to_le_bytes());
         out.extend_from_slice(&0u32.to_le_bytes()); // reserved
-        out.extend_from_slice(&[0xab; 32]);
-        out.extend_from_slice(&[0xcd; 32]);
+        out.extend_from_slice(&EXPECTED_SOURCE_FP32_SHA);
+        out.extend_from_slice(&EXPECTED_SOURCE_CHECKPOINT_SHA);
 
         // FT: active rows 16, bias 8 per lane.
         let mut ft = vec![0i16; FT_W_COUNT];
@@ -382,6 +448,71 @@ mod tests {
         let mut trailing = full.clone();
         trailing.push(0);
         assert!(NnueV2QuantizedModel::from_bytes(&trailing).is_err());
+    }
+
+    #[test]
+    fn rejects_tampered_source_fp32_sha() {
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        // Header source FP32 artifact SHA occupies bytes [44..76].
+        data[44] ^= 0xff;
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("source FP32 artifact SHA")),
+            Ok(_) => panic!("tampered source FP32 SHA was accepted"),
+        }
+    }
+
+    #[test]
+    fn rejects_tampered_source_checkpoint_sha() {
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        // Header source checkpoint SHA occupies bytes [76..108].
+        data[76] ^= 0xff;
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("source checkpoint SHA")),
+            Ok(_) => panic!("tampered source checkpoint SHA was accepted"),
+        }
+    }
+
+    #[test]
+    fn accepts_exact_frozen_source_identities() {
+        // The synthetic builder writes the frozen SHAs; loading must succeed
+        // and expose them for inspection.
+        let model =
+            NnueV2QuantizedModel::from_bytes(&synthetic_artifact_bytes(START_FEN))
+                .unwrap();
+        assert_eq!(model.source_fp32_artifact_sha256, EXPECTED_SOURCE_FP32_SHA);
+        assert_eq!(model.source_checkpoint_sha256, EXPECTED_SOURCE_CHECKPOINT_SHA);
+    }
+
+    #[test]
+    fn rejects_payload_exceeding_proven_bounds() {
+        // Valid header (frozen source SHAs, dims, shifts) but out-of-range
+        // dense weights: l1 MAC bound 256 * 32767 * 4096 >> i32::MAX.
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        // Fill 1024 bytes of l1 weight payload with i16::MAX pattern.
+        let base = L1_W_OFFSET;
+        for chunk in data[base..base + 1024].chunks_exact_mut(2) {
+            chunk.copy_from_slice(&i16::MAX.to_le_bytes());
+        }
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Ok(_) => panic!("out-of-bounds payload was accepted"),
+        }
+    }
+
+    #[test]
+    fn rejects_runaway_ft_bias_bound() {
+        // FT accumulator bound |bias| + 31*|w| must stay in i32; force a
+        // huge bias to violate it.
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        // Overwrite the first 128 biases with i32::MAX.
+        let base = FT_B_OFFSET;
+        for chunk in data[base..base + 128 * 4].chunks_exact_mut(4) {
+            chunk.copy_from_slice(&i32::MAX.to_le_bytes());
+        }
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Ok(_) => panic!("runaway FT bias was accepted"),
+        }
     }
 
     #[test]
