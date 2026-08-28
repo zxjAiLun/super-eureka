@@ -10,6 +10,7 @@
 //! `restore_root` safety net at every public entry, mirroring the
 //! existing abort-unwind contract.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::chess::position::Position;
@@ -28,15 +29,40 @@ pub enum NnueSearchMode {
     Incremental,
 }
 
-/// Telemetry counters (profiling-gated increments keep production clean).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Telemetry counters (shared handle so the caller can read them after
+/// the search consumed the state).
+#[derive(Clone, Debug, Default)]
 pub struct NnueStackTelemetry {
+    pub pushes: Arc<AtomicU64>,
+    pub pops: Arc<AtomicU64>,
+    pub null_pushes: Arc<AtomicU64>,
+    pub full_refreshes: Arc<AtomicU64>,
+    pub delta_updates: Arc<AtomicU64>,
+    pub max_depth: Arc<AtomicU64>,
+}
+
+impl NnueStackTelemetry {
+    pub fn snapshot(&self) -> TelemetrySnapshot {
+        TelemetrySnapshot {
+            pushes: self.pushes.load(Ordering::Relaxed),
+            pops: self.pops.load(Ordering::Relaxed),
+            null_pushes: self.null_pushes.load(Ordering::Relaxed),
+            full_refreshes: self.full_refreshes.load(Ordering::Relaxed),
+            delta_updates: self.delta_updates.load(Ordering::Relaxed),
+            max_depth: self.max_depth.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// Plain-copy snapshot of the telemetry counters.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TelemetrySnapshot {
     pub pushes: u64,
     pub pops: u64,
     pub null_pushes: u64,
     pub full_refreshes: u64,
     pub delta_updates: u64,
-    pub max_depth: usize,
+    pub max_depth: u64,
 }
 
 /// Search-local NNUE state: the frozen model plus the accumulator stack.
@@ -45,6 +71,21 @@ pub struct NnueSearchState {
     pub mode: NnueSearchMode,
     frames: Vec<NnueV2Accumulator>,
     pub telemetry: NnueStackTelemetry,
+    /// S10-C2B Repair 1: bench-only deep audit. When enabled, every NNUE
+    /// static eval compares the incremental stack top against a fresh
+    /// full refresh (all 256 lanes + raw integer). Counters live in an
+    /// Arc handle so the caller can read them AFTER the search consumed
+    /// the state.
+    pub audit: NnueAuditHandle,
+}
+
+/// Shared deep-audit counters (bench-only).
+#[derive(Clone, Debug, Default)]
+pub struct NnueAuditHandle {
+    pub enabled: Arc<std::sync::atomic::AtomicBool>,
+    pub eval_calls: Arc<AtomicU64>,
+    pub lane_mismatches: Arc<AtomicU64>,
+    pub raw_mismatches: Arc<AtomicU64>,
 }
 
 impl NnueSearchState {
@@ -60,11 +101,55 @@ impl NnueSearchState {
             model,
             mode,
             frames: vec![root_acc],
-            telemetry: NnueStackTelemetry {
-                max_depth: 1,
-                ..Default::default()
-            },
+            telemetry: NnueStackTelemetry::default(),
+            audit: NnueAuditHandle::default(),
         }
+    }
+
+    /// Enable the bench-only deep audit (incremental mode only).
+    pub fn enable_audit(&self) {
+        assert!(
+            self.is_incremental(),
+            "deep audit requires the incremental profile"
+        );
+        self.audit.enabled.store(true, Ordering::Relaxed);
+    }
+
+    /// Audited integer evaluation: when the audit is enabled, compare the
+    /// stack top against a fresh full refresh (256 lanes + raw) and count
+    /// mismatches, then return the FRESH score (a detected corruption must
+    /// not change the search tree — the mismatch counters fail the gate).
+    pub fn evaluate_cp_i32_audited(&self, pos: &Position) -> i32 {
+        if !self.audit.enabled.load(Ordering::Relaxed) {
+            return self.evaluate_cp_i32(pos);
+        }
+        self.audit.eval_calls.fetch_add(1, Ordering::Relaxed);
+        let fresh = self.model.full_accumulator(pos);
+        let top = self.top();
+        if top.white != fresh.white {
+            let n = top
+                .white
+                .iter()
+                .zip(fresh.white.iter())
+                .filter(|(a, b)| a != b)
+                .count() as u64;
+            self.audit.lane_mismatches.fetch_add(n, Ordering::Relaxed);
+        }
+        if top.black != fresh.black {
+            let n = top
+                .black
+                .iter()
+                .zip(fresh.black.iter())
+                .filter(|(a, b)| a != b)
+                .count() as u64;
+            self.audit.lane_mismatches.fetch_add(n, Ordering::Relaxed);
+        }
+        let inc_raw = self.model.evaluate_raw_from_accumulator(pos, top);
+        let fresh_raw = self.model.evaluate_raw(pos);
+        if inc_raw != fresh_raw {
+            self.audit.raw_mismatches.fetch_add(1, Ordering::Relaxed);
+        }
+        NnueV2QuantizedModel::cp_i32_from_raw(fresh_raw)
     }
 
     /// Current top frame (the accumulator of the current node).
@@ -79,6 +164,15 @@ impl NnueSearchState {
         self.frames.len()
     }
 
+    /// True when this state maintains the incremental accumulator stack.
+    /// FullRefresh states carry the model for evaluation only: their
+    /// push/pop/delta methods are no-ops so the full-refresh arm never
+    /// pays incremental maintenance cost (C3 benchmark purity).
+    #[inline]
+    pub fn is_incremental(&self) -> bool {
+        matches!(self.mode, NnueSearchMode::Incremental)
+    }
+
     /// Push the child frame for a real search move edge.
     ///
     /// `delta` MUST have been prepared against the PARENT position
@@ -89,16 +183,23 @@ impl NnueSearchState {
         delta: &NnueMoveDelta,
         child: &Position,
     ) {
+        if !self.is_incremental() {
+            return; // FullRefresh: no stack maintenance.
+        }
         let mut child_acc = *self.top();
         let stats =
             self.model.update_accumulator_for_move(&mut child_acc, delta, child);
-        self.telemetry.delta_updates += stats.delta_updates as u64;
-        self.telemetry.full_refreshes += stats.full_refreshes as u64;
+        self.telemetry
+            .delta_updates
+            .fetch_add(stats.delta_updates as u64, Ordering::Relaxed);
+        self.telemetry
+            .full_refreshes
+            .fetch_add(stats.full_refreshes as u64, Ordering::Relaxed);
         self.frames.push(child_acc);
-        self.telemetry.pushes += 1;
-        if self.frames.len() > self.telemetry.max_depth {
-            self.telemetry.max_depth = self.frames.len();
-        }
+        self.telemetry.pushes.fetch_add(1, Ordering::Relaxed);
+        self.telemetry
+            .max_depth
+            .fetch_max(self.frames.len() as u64, Ordering::Relaxed);
     }
 
     /// Push the null-move child: the board, pieces, and kings are
@@ -106,17 +207,23 @@ impl NnueSearchState {
     /// parent's — push a plain copy. The dense forward swaps STM/NSTM
     /// via the flipped side-to-move at eval time.
     pub fn push_null_child(&mut self) {
+        if !self.is_incremental() {
+            return; // FullRefresh: no stack maintenance.
+        }
         let child_acc = *self.top();
         self.frames.push(child_acc);
-        self.telemetry.null_pushes += 1;
-        self.telemetry.pushes += 1;
-        if self.frames.len() > self.telemetry.max_depth {
-            self.telemetry.max_depth = self.frames.len();
-        }
+        self.telemetry.null_pushes.fetch_add(1, Ordering::Relaxed);
+        self.telemetry.pushes.fetch_add(1, Ordering::Relaxed);
+        self.telemetry
+            .max_depth
+            .fetch_max(self.frames.len() as u64, Ordering::Relaxed);
     }
 
     /// Pop the current child frame (edge unwind).
     pub fn pop(&mut self) {
+        if !self.is_incremental() {
+            return; // FullRefresh: no stack maintenance.
+        }
         debug_assert!(
             self.frames.len() > 1,
             "nnue stack pop below root frame"
@@ -124,7 +231,7 @@ impl NnueSearchState {
         if self.frames.len() > 1 {
             self.frames.pop();
         }
-        self.telemetry.pops += 1;
+        self.telemetry.pops.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Abort-unwind safety net: truncate back to the root frame. Called
@@ -260,7 +367,8 @@ mod tests {
             assert_eq!(state.depth(), 1);
             assert_eq!(*state.top(), root_acc);
         }
-        assert_eq!(state.telemetry.pushes, state.telemetry.pops);
+        let snap = state.telemetry.snapshot();
+        assert_eq!(snap.pushes, snap.pops);
     }
 
     #[test]
@@ -274,7 +382,7 @@ mod tests {
         let parent = *state.top();
         state.push_null_child();
         assert_eq!(*state.top(), parent, "null child frame == parent frame");
-        assert_eq!(state.telemetry.null_pushes, 1);
+        assert_eq!(state.telemetry.null_pushes.load(Ordering::Relaxed), 1);
         state.pop();
         assert_eq!(state.depth(), 1);
     }
@@ -312,12 +420,15 @@ mod tests {
             .unwrap();
         let mut state =
             NnueSearchState::new(model, NnueSearchMode::Incremental, &pos);
+        state.enable_audit();
         // Corrupt the top frame's first lane deliberately.
         state.frames_mut()[0].white[0] = state.top().white[0].wrapping_add(1);
-        let mut counters = NnueAuditCounters::default();
-        let _ = audit_incremental_eval(&state, &pos, &mut counters);
-        assert_eq!(counters.eval_calls, 1);
-        assert!(counters.lane_mismatches > 0, "audit must detect corruption");
-        assert!(!counters.passed());
+        let handle = state.audit.clone();
+        let _ = state.evaluate_cp_i32_audited(&pos);
+        assert_eq!(handle.eval_calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert!(
+            handle.lane_mismatches.load(std::sync::atomic::Ordering::Relaxed) > 0,
+            "audit must detect corruption"
+        );
     }
 }

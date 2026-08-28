@@ -2609,7 +2609,7 @@ fn evaluate_profiled(
         // early-exit), then the frozen quantized NNUE evaluator.
         let nnue = nnue.expect(
             "NNUE profile requires a loaded NnueSearchState (fail closed)");
-        let base = nnue.evaluate_cp_i32(pos);
+        let base = nnue.evaluate_cp_i32_audited(pos);
         crate::engine::eval::exact_mop_up_for_search(pos, base)
             .unwrap_or(base)
     } else if profile.uses_phase_affine_eval() {
@@ -4120,7 +4120,7 @@ fn negamax_impl(
         path,
         tt,
         &mut None::<SearchHeuristics>,
-        &mut None,
+        nnue,
     )
 }
 
@@ -4877,7 +4877,10 @@ fn negamax_entered_impl_with_null_and_extensions(
         // push the child frame AFTER the make (exactly one push per real
         // search make; scout/re-search on the SAME child reuse the top
         // frame; exactly one pop at edge unwind).
-        let nnue_delta = nnue.as_ref().map(|s| s.prepare_delta(pos, &m));
+        let nnue_delta = nnue
+            .as_ref()
+            .filter(|s| s.is_incremental())
+            .map(|s| s.prepare_delta(pos, &m));
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
@@ -6989,7 +6992,10 @@ fn quiescence_entered_impl_with_profile(
         // push the child frame AFTER the make (exactly one push per real
         // search make; scout/re-search on the SAME child reuse the top
         // frame; exactly one pop at edge unwind).
-        let nnue_delta = nnue.as_ref().map(|s| s.prepare_delta(pos, &m));
+        let nnue_delta = nnue
+            .as_ref()
+            .filter(|s| s.is_incremental())
+            .map(|s| s.prepare_delta(pos, &m));
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
@@ -7174,7 +7180,10 @@ fn search_final_evasion_ply_with_profile(
         // push the child frame AFTER the make (exactly one push per real
         // search make; scout/re-search on the SAME child reuse the top
         // frame; exactly one pop at edge unwind).
-        let nnue_delta = nnue.as_ref().map(|s| s.prepare_delta(pos, &m));
+        let nnue_delta = nnue
+            .as_ref()
+            .filter(|s| s.is_incremental())
+            .map(|s| s.prepare_delta(pos, &m));
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
@@ -7441,7 +7450,10 @@ fn root_search_with_window(
         // push the child frame AFTER the make (exactly one push per real
         // search make; scout/re-search on the SAME child reuse the top
         // frame; exactly one pop at edge unwind).
-        let nnue_delta = nnue.as_ref().map(|s| s.prepare_delta(pos, &m));
+        let nnue_delta = nnue
+            .as_ref()
+            .filter(|s| s.is_incremental())
+            .map(|s| s.prepare_delta(pos, &m));
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
@@ -8052,7 +8064,7 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     ctx: &SearchContext,
     tt: &mut TranspositionTable,
     profile: SearchProfile,
-    mut nnue: Option<crate::engine::nnue_search::NnueSearchState>,
+    nnue: Option<crate::engine::nnue_search::NnueSearchState>,
 ) -> Option<SearchOutcome> {
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
@@ -10225,6 +10237,62 @@ mod tests {
                 assert!(expected.is_some(), "KQK/KRK must trigger mop-up");
             }
         }
+    }
+
+    /// S10-C2B Repair 1: FullRefresh searches must perform ZERO stack
+    /// maintenance (pure performance reference); Incremental searches the
+    /// same tree with pushes == pops.
+    #[test]
+    fn s10c2b_full_refresh_zero_stack_maintenance() {
+        use crate::chess::fen::parse_fen;
+        let fen = "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1";
+        let mut pos = parse_fen(fen).unwrap();
+        let key = pos.zobrist_key();
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = SearchLimits {
+            nodes: Some(2000),
+            ..Default::default()
+        };
+        let bytes = crate::engine::nnue_v2q_runtime::
+            synthetic_artifact_bytes_for_tests(fen);
+        let model = std::sync::Arc::new(
+            crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel
+                ::from_bytes(&bytes).unwrap());
+
+        // FullRefresh: zero telemetry movement.
+        let full_state = crate::engine::nnue_search::NnueSearchState::new(
+            model.clone(),
+            crate::engine::nnue_search::NnueSearchMode::FullRefresh,
+            &pos,
+        );
+        let full_tele = full_state.telemetry.clone();
+        let mut tt = TranspositionTable::disabled();
+        let _ = search_best_move_with_history_tt_and_profile(
+            &mut pos, &[key], &limits, &ctx, &mut tt,
+            SearchProfile::CurrentFinalNnueV2QFull, Some(full_state),
+        );
+        let snap = full_tele.snapshot();
+        assert_eq!(snap.pushes, 0, "FullRefresh must not push");
+        assert_eq!(snap.pops, 0, "FullRefresh must not pop");
+        assert_eq!(snap.null_pushes, 0);
+        assert_eq!(snap.delta_updates, 0);
+        assert_eq!(snap.full_refreshes, 0);
+
+        // Incremental on the same fixture: pushes > 0 and balanced.
+        let inc_state = crate::engine::nnue_search::NnueSearchState::new(
+            model,
+            crate::engine::nnue_search::NnueSearchMode::Incremental,
+            &pos,
+        );
+        let inc_tele = inc_state.telemetry.clone();
+        let mut tt = TranspositionTable::disabled();
+        let _ = search_best_move_with_history_tt_and_profile(
+            &mut pos, &[key], &limits, &ctx, &mut tt,
+            SearchProfile::CurrentFinalNnueV2QIncremental, Some(inc_state),
+        );
+        let snap = inc_tele.snapshot();
+        assert!(snap.pushes > 0, "incremental must push");
+        assert_eq!(snap.pushes, snap.pops, "stack must be balanced");
     }
 
     /// S10-C2B: abort/unwind must leave the NNUE stack perfectly balanced

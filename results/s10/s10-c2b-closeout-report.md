@@ -2,6 +2,16 @@
 
 **Status: CLOSED / PASS**
 
+**Repair 1 (post-review)**: (a) FullRefresh profile no longer performs ANY
+incremental stack maintenance (no delta preparation, no frame push/pop, no
+telemetry) — it is now a clean performance reference for C3; (b) the deep
+accumulator audit is wired into real recursive searches via bench
+`--nnue-audit` (incremental-only, fail-closed otherwise), comparing all
+256 lanes + raw at EVERY NNUE static eval; (c) the parity harness now
+compares qsearch_nodes, null_move_attempts, lmr_reductions, and
+aspiration_retries per fixture, plus stack lifecycle evidence
+(pushes == pops, > 0; FullRefresh pushes == 0).
+
 ## Question answered
 
 > With the quantized NNUE accumulator traveling through negamax / qsearch /
@@ -96,6 +106,29 @@ corrupted repetition detection — caught immediately by the existing locked
 smoke tests (score drift), root-caused, and fixed; all 405 pre-C2B tests
 pass unchanged, and no classical profile code path differs from the
 pre-C2B tree (verified by the locked node-count/score/PV baselines).
+
+## Repair 1 evidence
+
+```
+Parity (rerun, 9 fields incl. qsearch_nodes + 3 path counters):
+  18 fixtures, 0 mismatches                    PASS
+  per-fixture lifecycle: pushes == pops (both > 0) on every incremental run
+  FullRefresh arm: stack pushes == 0 on every fixture
+
+Deep audit (results/s10/s10-c2b-deep-audit.json, --nnue-audit, 8 fixtures
+covering qsearch/null/LMR/aspiration + abort budgets):
+  eval calls:            214,423   (each compares 256 lanes + raw)
+  total lanes checked:   54,892,288
+  lane mismatches:       0
+  raw mismatches:        0
+  pushes == pops ==      228,585   (perfectly balanced, root restore never
+                                    masked a leak)
+  coverage: qsearch 192,051 nodes | null 19 | LMR 173 | aspiration 22
+
+New tests: s10c2b_full_refresh_zero_stack_maintenance (zero telemetry
+movement for FullRefresh; balanced pushes for Incremental on the same
+fixture). cargo 413 pass.
+```
 
 ## Untouched
 

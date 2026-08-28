@@ -53,15 +53,22 @@ CORPUS = [
     ("abort-1000", "r2q1rk1/1b2bppp/p2ppn2/1p6/3NPP2/1BN1B3/PPPQ2PP/2KR3R w - - 0 12", "nodes", 1000),
 ]
 
-FIELDS = ["score", "bestmove", "completed_depth", "nodes", "pv"]
+FIELDS = [
+    "score", "bestmove", "completed_depth", "nodes", "qsearch_nodes", "pv",
+    "null_move_attempts", "lmr_reductions", "aspiration_retries",
+]
 
 
-def run_fixture(profile: str, fen: str, kind: str, value: int) -> dict:
+def run_fixture(profile: str, fen: str, kind: str, value: int,
+                audit: bool = False) -> dict:
     limit = f"{kind}:{value}"
+    cmd = [str(ENGINE), "bench", "profile", "--profile", profile,
+           "--nnue-model", str(MODEL), "--fen", fen,
+           "--" + kind, str(value)]
+    if audit:
+        cmd.append("--nnue-audit")
     proc = subprocess.run(
-        [str(ENGINE), "bench", "profile", "--profile", profile,
-         "--nnue-model", str(MODEL), "--fen", fen, "--" + kind, str(value)],
-        capture_output=True, text=True, timeout=600,
+        cmd, capture_output=True, text=True, timeout=600,
         cwd=str(Path(__file__).resolve().parents[2]))
     if proc.returncode != 0:
         return {"error": proc.stderr[-400:]}
@@ -72,6 +79,16 @@ def run_fixture(profile: str, fen: str, kind: str, value: int) -> dict:
                 if "=" in kv:
                     k, v = kv.split("=", 1)
                     result[k] = v
+        elif line.startswith("nnue_stack_result"):
+            for kv in line.split()[1:]:
+                if "=" in kv:
+                    k, v = kv.split("=", 1)
+                    result["stack_" + k] = v
+        elif line.startswith("nnue_audit_result"):
+            for kv in line.split()[1:]:
+                if "=" in kv:
+                    k, v = kv.split("=", 1)
+                    result["audit_" + k] = v
     return result
 
 
@@ -102,6 +119,26 @@ def main() -> int:
             entry["incremental"][f] = iv
             if fv != iv:
                 entry["match"] = False
+        # S10-C2B Repair 1: stack lifecycle evidence — pushes must equal
+        # pops (restore_root must NEVER have masked a leaked frame) and the
+        # stack must end at depth 1.
+        inc_pushes = int(inc.get("stack_pushes", 0))
+        inc_pops = int(inc.get("stack_pops", 0))
+        entry["lifecycle"] = {
+            "pushes": inc_pushes, "pops": inc_pops,
+            "null_pushes": int(inc.get("stack_null_pushes", 0)),
+            "delta_updates": int(inc.get("stack_delta_updates", 0)),
+            "full_refreshes": int(inc.get("stack_full_refreshes", 0)),
+            "max_depth": int(inc.get("stack_max_depth", 0)),
+            "balanced": inc_pushes == inc_pops and inc_pushes > 0,
+        }
+        if not entry["lifecycle"]["balanced"]:
+            entry["match"] = False
+        # FullRefresh arm must show ZERO stack maintenance.
+        full_pushes = int(full.get("stack_pushes", 0))
+        entry["full_stack_pushes"] = full_pushes
+        if full_pushes != 0:
+            entry["match"] = False
         if not entry["match"]:
             mismatches.append(name.strip())
         per_fixture.append(entry)

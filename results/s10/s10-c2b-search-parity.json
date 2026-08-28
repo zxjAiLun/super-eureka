@@ -1,6 +1,6 @@
 {
   "stage": "s10_c2b_search_parity",
-  "engine_sha256": "bf0cc118d159d23400929c1575d92361d7ce50cc7b9ff6c89b517d4e105e9806",
+  "engine_sha256": "8626d625c35aeb916bf932606550a4625735792d533e958a943d71c93d615867",
   "model_sha256": "b51a79b19999aeed974c2279eef60b01f890248c7d006cbe3d504cc7c0f28b9a",
   "profile_full": "current-final-nnue-v2q-full",
   "profile_incremental": "current-final-nnue-v2q",
@@ -10,7 +10,11 @@
     "bestmove",
     "completed_depth",
     "nodes",
-    "pv"
+    "qsearch_nodes",
+    "pv",
+    "null_move_attempts",
+    "lmr_reductions",
+    "aspiration_retries"
   ],
   "mismatched_fixtures": [],
   "mismatches": 0,
@@ -30,16 +34,34 @@
         "bestmove": "b1c3",
         "completed_depth": "6",
         "nodes": "44077",
-        "pv": "\"b1c3"
+        "qsearch_nodes": "37832",
+        "pv": "\"b1c3",
+        "null_move_attempts": "19",
+        "lmr_reductions": "53",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:18",
         "bestmove": "b1c3",
         "completed_depth": "6",
         "nodes": "44077",
-        "pv": "\"b1c3"
+        "qsearch_nodes": "37832",
+        "pv": "\"b1c3",
+        "null_move_attempts": "19",
+        "lmr_reductions": "53",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 44015,
+        "pops": 44015,
+        "null_pushes": 19,
+        "delta_updates": 185675,
+        "full_refreshes": 1482,
+        "max_depth": 15,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "middlegame",
@@ -49,16 +71,34 @@
         "bestmove": "e3c5",
         "completed_depth": "5",
         "nodes": "59550",
-        "pv": "\"e3c5"
+        "qsearch_nodes": "53127",
+        "pv": "\"e3c5",
+        "null_move_attempts": "0",
+        "lmr_reductions": "36",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:19",
         "bestmove": "e3c5",
         "completed_depth": "5",
         "nodes": "59550",
-        "pv": "\"e3c5"
+        "qsearch_nodes": "53127",
+        "pv": "\"e3c5",
+        "null_move_attempts": "0",
+        "lmr_reductions": "36",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 59525,
+        "pops": 59525,
+        "null_pushes": 0,
+        "delta_updates": 252405,
+        "full_refreshes": 10535,
+        "max_depth": 14,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "tactical",
@@ -68,16 +108,34 @@
         "bestmove": "d6d1",
         "completed_depth": "5",
         "nodes": "81848",
-        "pv": "\"d6d1"
+        "qsearch_nodes": "67525",
+        "pv": "\"d6d1",
+        "null_move_attempts": "0",
+        "lmr_reductions": "14",
+        "aspiration_retries": "15"
       },
       "incremental": {
         "score": "mate:5",
         "bestmove": "d6d1",
         "completed_depth": "5",
         "nodes": "81848",
-        "pv": "\"d6d1"
+        "qsearch_nodes": "67525",
+        "pv": "\"d6d1",
+        "null_move_attempts": "0",
+        "lmr_reductions": "14",
+        "aspiration_retries": "15"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 81641,
+        "pops": 81641,
+        "null_pushes": 0,
+        "delta_updates": 378173,
+        "full_refreshes": 12426,
+        "max_depth": 14,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "endgame-krp",
@@ -87,16 +145,34 @@
         "bestmove": "b4f4",
         "completed_depth": "6",
         "nodes": "16452",
-        "pv": "\"b4f4"
+        "qsearch_nodes": "10853",
+        "pv": "\"b4f4",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "12"
       },
       "incremental": {
         "score": "cp:84",
         "bestmove": "b4f4",
         "completed_depth": "6",
         "nodes": "16452",
-        "pv": "\"b4f4"
+        "qsearch_nodes": "10853",
+        "pv": "\"b4f4",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "12"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 16420,
+        "pops": 16420,
+        "null_pushes": 0,
+        "delta_updates": 61484,
+        "full_refreshes": 8140,
+        "max_depth": 11,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "kqk-mopup",
@@ -106,16 +182,34 @@
         "bestmove": "b1b7",
         "completed_depth": "6",
         "nodes": "47550",
-        "pv": "\"b1b7"
+        "qsearch_nodes": "31308",
+        "pv": "\"b1b7",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
       "incremental": {
         "score": "cp:1026",
         "bestmove": "b1b7",
         "completed_depth": "6",
         "nodes": "47550",
-        "pv": "\"b1b7"
+        "qsearch_nodes": "31308",
+        "pv": "\"b1b7",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 47487,
+        "pops": 47487,
+        "null_pushes": 0,
+        "delta_updates": 146757,
+        "full_refreshes": 22485,
+        "max_depth": 9,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "krk-mopup",
@@ -125,16 +219,34 @@
         "bestmove": "b1b7",
         "completed_depth": "6",
         "nodes": "15233",
-        "pv": "\"b1b7"
+        "qsearch_nodes": "9277",
+        "pv": "\"b1b7",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "2"
       },
       "incremental": {
         "score": "cp:817",
         "bestmove": "b1b7",
         "completed_depth": "6",
         "nodes": "15233",
-        "pv": "\"b1b7"
+        "qsearch_nodes": "9277",
+        "pv": "\"b1b7",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "2"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 15214,
+        "pops": 15214,
+        "null_pushes": 0,
+        "delta_updates": 45664,
+        "full_refreshes": 7793,
+        "max_depth": 7,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "promotion",
@@ -144,16 +256,34 @@
         "bestmove": "a7a8q",
         "completed_depth": "6",
         "nodes": "7121",
-        "pv": "\"a7a8q"
+        "qsearch_nodes": "4802",
+        "pv": "\"a7a8q",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
       "incremental": {
         "score": "cp:890",
         "bestmove": "a7a8q",
         "completed_depth": "6",
         "nodes": "7121",
-        "pv": "\"a7a8q"
+        "qsearch_nodes": "4802",
+        "pv": "\"a7a8q",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 7096,
+        "pops": 7096,
+        "null_pushes": 0,
+        "delta_updates": 21199,
+        "full_refreshes": 3671,
+        "max_depth": 8,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "ep-rich",
@@ -163,16 +293,34 @@
         "bestmove": "g8f6",
         "completed_depth": "5",
         "nodes": "32891",
-        "pv": "\"g8f6"
+        "qsearch_nodes": "29755",
+        "pv": "\"g8f6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "26",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:28",
         "bestmove": "g8f6",
         "completed_depth": "5",
         "nodes": "32891",
-        "pv": "\"g8f6"
+        "qsearch_nodes": "29755",
+        "pv": "\"g8f6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "26",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 32871,
+        "pops": 32871,
+        "null_pushes": 0,
+        "delta_updates": 137103,
+        "full_refreshes": 1570,
+        "max_depth": 11,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "castle-both",
@@ -182,16 +330,34 @@
         "bestmove": "a1a8",
         "completed_depth": "5",
         "nodes": "5949",
-        "pv": "\"a1a8"
+        "qsearch_nodes": "4256",
+        "pv": "\"a1a8",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
       "incremental": {
         "score": "cp:765",
         "bestmove": "a1a8",
         "completed_depth": "5",
         "nodes": "5949",
-        "pv": "\"a1a8"
+        "qsearch_nodes": "4256",
+        "pv": "\"a1a8",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 5927,
+        "pops": 5927,
+        "null_pushes": 0,
+        "delta_updates": 21022,
+        "full_refreshes": 2751,
+        "max_depth": 9,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "tactical-2",
@@ -201,16 +367,34 @@
         "bestmove": "e1c1",
         "completed_depth": "5",
         "nodes": "33331",
-        "pv": "\"e1c1"
+        "qsearch_nodes": "27259",
+        "pv": "\"e1c1",
+        "null_move_attempts": "0",
+        "lmr_reductions": "31",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:-35",
         "bestmove": "e1c1",
         "completed_depth": "5",
         "nodes": "33331",
-        "pv": "\"e1c1"
+        "qsearch_nodes": "27259",
+        "pv": "\"e1c1",
+        "null_move_attempts": "0",
+        "lmr_reductions": "31",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 33308,
+        "pops": 33308,
+        "null_pushes": 0,
+        "delta_updates": 163756,
+        "full_refreshes": 3484,
+        "max_depth": 18,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "nullmove-heavy",
@@ -220,16 +404,34 @@
         "bestmove": "d4e6",
         "completed_depth": "5",
         "nodes": "36490",
-        "pv": "\"d4e6"
+        "qsearch_nodes": "27906",
+        "pv": "\"d4e6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "27",
+        "aspiration_retries": "7"
       },
       "incremental": {
         "score": "cp:325",
         "bestmove": "d4e6",
         "completed_depth": "5",
         "nodes": "36490",
-        "pv": "\"d4e6"
+        "qsearch_nodes": "27906",
+        "pv": "\"d4e6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "27",
+        "aspiration_retries": "7"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 36471,
+        "pops": 36471,
+        "null_pushes": 0,
+        "delta_updates": 192808,
+        "full_refreshes": 3091,
+        "max_depth": 18,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "deep-endgame",
@@ -239,16 +441,34 @@
         "bestmove": "e2e3",
         "completed_depth": "7",
         "nodes": "95943",
-        "pv": "\"e2e3"
+        "qsearch_nodes": "81623",
+        "pv": "\"e2e3",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
       "incremental": {
         "score": "cp:700",
         "bestmove": "e2e3",
         "completed_depth": "7",
         "nodes": "95943",
-        "pv": "\"e2e3"
+        "qsearch_nodes": "81623",
+        "pv": "\"e2e3",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 95901,
+        "pops": 95901,
+        "null_pushes": 0,
+        "delta_updates": 302054,
+        "full_refreshes": 45386,
+        "max_depth": 11,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "startpos-nodes",
@@ -258,16 +478,34 @@
         "bestmove": "d2d4",
         "completed_depth": "4",
         "nodes": "5000",
-        "pv": "\"d2d4"
+        "qsearch_nodes": "4066",
+        "pv": "\"d2d4",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:34",
         "bestmove": "d2d4",
         "completed_depth": "4",
         "nodes": "5000",
-        "pv": "\"d2d4"
+        "qsearch_nodes": "4066",
+        "pv": "\"d2d4",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 4964,
+        "pops": 4964,
+        "null_pushes": 0,
+        "delta_updates": 20586,
+        "full_refreshes": 98,
+        "max_depth": 12,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "middlegame-nodes",
@@ -277,16 +515,34 @@
         "bestmove": "e3c5",
         "completed_depth": "3",
         "nodes": "5000",
-        "pv": "\"e3c5"
+        "qsearch_nodes": "4490",
+        "pv": "\"e3c5",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "cp:7",
         "bestmove": "e3c5",
         "completed_depth": "3",
         "nodes": "5000",
-        "pv": "\"e3c5"
+        "qsearch_nodes": "4490",
+        "pv": "\"e3c5",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 4981,
+        "pops": 4981,
+        "null_pushes": 0,
+        "delta_updates": 23438,
+        "full_refreshes": 546,
+        "max_depth": 12,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "abort-tiny-1",
@@ -296,16 +552,34 @@
         "bestmove": "b1c3",
         "completed_depth": "0",
         "nodes": "1",
-        "pv": "\"\""
+        "qsearch_nodes": "1",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "none",
         "bestmove": "b1c3",
         "completed_depth": "0",
         "nodes": "1",
-        "pv": "\"\""
+        "qsearch_nodes": "1",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 2,
+        "pops": 2,
+        "null_pushes": 0,
+        "delta_updates": 8,
+        "full_refreshes": 0,
+        "max_depth": 2,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "abort-tiny-7",
@@ -315,16 +589,34 @@
         "bestmove": "b1c3",
         "completed_depth": "0",
         "nodes": "7",
-        "pv": "\"\""
+        "qsearch_nodes": "7",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "none",
         "bestmove": "b1c3",
         "completed_depth": "0",
         "nodes": "7",
-        "pv": "\"\""
+        "qsearch_nodes": "7",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 6,
+        "pops": 6,
+        "null_pushes": 0,
+        "delta_updates": 24,
+        "full_refreshes": 0,
+        "max_depth": 2,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "abort-100",
@@ -334,16 +626,34 @@
         "bestmove": "a1b1",
         "completed_depth": "0",
         "nodes": "100",
-        "pv": "\"\""
+        "qsearch_nodes": "100",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
       "incremental": {
         "score": "none",
         "bestmove": "a1b1",
         "completed_depth": "0",
         "nodes": "100",
-        "pv": "\"\""
+        "qsearch_nodes": "100",
+        "pv": "\"\"",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "0"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 96,
+        "pops": 96,
+        "null_pushes": 0,
+        "delta_updates": 494,
+        "full_refreshes": 5,
+        "max_depth": 6,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     },
     {
       "fixture": "abort-1000",
@@ -353,16 +663,34 @@
         "bestmove": "d4e6",
         "completed_depth": "2",
         "nodes": "1000",
-        "pv": "\"d4e6"
+        "qsearch_nodes": "829",
+        "pv": "\"d4e6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
       "incremental": {
         "score": "cp:343",
         "bestmove": "d4e6",
         "completed_depth": "2",
         "nodes": "1000",
-        "pv": "\"d4e6"
+        "qsearch_nodes": "829",
+        "pv": "\"d4e6",
+        "null_move_attempts": "0",
+        "lmr_reductions": "0",
+        "aspiration_retries": "3"
       },
-      "match": true
+      "match": true,
+      "lifecycle": {
+        "pushes": 994,
+        "pops": 994,
+        "null_pushes": 0,
+        "delta_updates": 5077,
+        "full_refreshes": 30,
+        "max_depth": 9,
+        "balanced": true
+      },
+      "full_stack_pushes": 0
     }
   ]
 }
