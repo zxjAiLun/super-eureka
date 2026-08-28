@@ -1,0 +1,92 @@
+{
+  "stage": "s10_b3_stage_1_frozen_selection",
+  "selection_rule_version": 2,
+  "selection_rule": "minimum best_val_mae_cp across seeds (per-seed checkpoint by minimum validation SmoothL1, unchanged)",
+  "holdout_observed_before_selection": false,
+  "timestamp_utc": "2026-08-28T07:40:00Z",
+  "dataset_sha256": "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3",
+  "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f",
+  "feature_set": "v2",
+  "feature_set_inputs": 22528,
+  "environment": {
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "torch_version": "2.13.0+cu130",
+    "cuda_version": "13.0",
+    "deterministic_algorithms": true,
+    "cublas_workspace_config": ":4096:8",
+    "engine_exporter": "target/release/eureka",
+    "engine_exporter_sha256": "d6649098fe5f47b335454a54cddb57c64afcda157d20cf8a279e4c2f23d02abe",
+    "seeds": [20260818, 20260819, 20260820],
+    "python_env": ".venv-s10 (uv cache-linked, torch 2.13.0+cu130)"
+  },
+  "usable_split_counts": {
+    "train": 233823,
+    "validation": 29270,
+    "holdout": 29229
+  },
+  "mate_only_excluded_by_split": {
+    "train": 6177,
+    "validation": 730,
+    "holdout": 771
+  },
+  "records_with_teacher_cp_stm": 292322,
+  "records_with_teacher_mate_only": 7678,
+  "seeds": {
+    "20260818": {
+      "best_epoch": 6,
+      "total_epochs": 21,
+      "best_val_loss": 0.12383734434843063,
+      "best_val_mae_cp": 165.32461547851562,
+      "elapsed_seconds": 82.14049673080444,
+      "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+      "training_summary_sha256": "6ca1929bcafef67c1e885833979a7045423734f0feb06e106774a7f0f124a54e"
+    },
+    "20260819": {
+      "best_epoch": 6,
+      "total_epochs": 21,
+      "best_val_loss": 0.12414581328630447,
+      "best_val_mae_cp": 165.56922912597656,
+      "elapsed_seconds": 82.51225686073303,
+      "checkpoint_sha256": "5b40ffc2489b8698afab28125165c2d0e15498e7e6e06d661bb0e228aa8aa973",
+      "training_summary_sha256": "bf540017ac9feb869864f4382803ec852db09f8df305a7aaa80a1c30ef8c24b7"
+    },
+    "20260820": {
+      "best_epoch": 6,
+      "total_epochs": 21,
+      "best_val_loss": 0.12495896965265274,
+      "best_val_mae_cp": 166.4740753173828,
+      "elapsed_seconds": 84.22725534439087,
+      "checkpoint_sha256": "bb8bbad476be82a5b11f88a688ecf1667b519a2e26d753732cddcf25aa4a7f6b",
+      "training_summary_sha256": "523eb8a9b8b63695756bc0926c117892a22f812452a6e8169e72d61110992ea1"
+    }
+  },
+  "selection_summary": {
+    "median_validation_mae_cp": 165.56922912597656,
+    "min_validation_mae_cp": 165.32461547851562,
+    "max_validation_mae_cp": 166.4740753173828,
+    "seed_spread_cp": 1.1494598388671875,
+    "median_best_epoch": 6,
+    "median_training_time_seconds": 82.51225686073303,
+    "selected_seed": 20260818,
+    "selected_checkpoint": "data/s10/b3/seed-20260818/checkpoint_v2_s20260818.pt",
+    "selected_checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+    "selected_val_mae_cp": 165.32461547851562
+  },
+  "coverage_diagnostics_selected_seed": {
+    "train_observed_unique": 18012,
+    "train_observed_ratio": 0.7995383522727273,
+    "singleton_count": 1550,
+    "singleton_ratio": 0.08605374194981123,
+    "le5_count": 4733,
+    "le5_ratio": 0.2627692649344881,
+    "val_unseen_activation_rate": 0.00017806964675678427,
+    "val_positions_with_unseen_rate": 0.0050905363853775195
+  },
+  "descriptive_reference_s10_a": {
+    "note": "descriptive only; different dataset (21k vs 300k), NOT a pass/fail threshold",
+    "s10_a_v2_median_val_mae_cp": 238.8546,
+    "s10_a_v2_val_unseen_activation_rate": 0.00511,
+    "s10_a_v2_val_positions_with_unseen_rate": 0.10128
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "stage": "s10_b3_preflight",
+  "dataset_sha256": "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3",
+  "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f",
+  "teacher_contract_verified": true,
+  "records_total": 300000,
+  "records_with_teacher_cp_stm": 292322,
+  "records_with_teacher_mate": 7678,
+  "usable_split_counts": {
+    "train": 233823,
+    "validation": 29270,
+    "holdout": 29229
+  },
+  "mate_only_excluded_by_split": {
+    "train": 6177,
+    "validation": 730,
+    "holdout": 771
+  },
+  "feature_set": "v2",
+  "feature_set_inputs": 22528,
+  "engine_exporter_path": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/target/release/eureka",
+  "engine_exporter_sha256": "d6649098fe5f47b335454a54cddb57c64afcda157d20cf8a279e4c2f23d02abe",
+  "device": "cuda",
+  "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "torch_version": "2.13.0+cu130",
+  "cuda_version": "13.0",
+  "deterministic_algorithms": true,
+  "cublas_workspace_config": ":4096:8"
+}

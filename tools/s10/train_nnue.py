@@ -61,6 +61,78 @@ DEFAULT_BATCH_SIZE = 256
 DEFAULT_MAX_EPOCHS = 100
 DEFAULT_PATIENCE = 15
 
+# S10-B3 frozen teacher provenance contract: the 300k Stockfish-18 labeling
+# run (see results/s10/s10-b2-closeout-report.md). Training fails closed if
+# the labels on disk were produced by any other teacher artifact.
+FROZEN_TEACHER_CONTRACT = {
+    "engine": "Stockfish 18",
+    "binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+    "nodes": 16384,
+    "options": {
+        "Threads": "1",
+        "Hash": "64",
+        "MultiPV": "1",
+        "UCI_ShowWDL": "true",
+    },
+    "labeled_positions": 300000,
+    "audit": {
+        "ok": True,
+        "mode": "fresh-second-pass",
+        "checked": 1000,
+        "mismatches": [],
+    },
+    "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f",
+}
+
+
+def verify_teacher_contract(teacher_manifest: dict) -> None:
+    """Fail closed unless the teacher manifest matches the frozen S10-B2
+    provenance contract exactly (engine identity, binary SHA, options,
+    labeled count, audit result, labels SHA)."""
+    tm = teacher_manifest
+    checks = [
+        ("engine", tm.get("engine"), FROZEN_TEACHER_CONTRACT["engine"]),
+        ("binary_sha256", tm.get("binary_sha256"),
+         FROZEN_TEACHER_CONTRACT["binary_sha256"]),
+        ("nodes", tm.get("nodes"), FROZEN_TEACHER_CONTRACT["nodes"]),
+        ("labeled_positions", tm.get("labeled_positions"),
+         FROZEN_TEACHER_CONTRACT["labeled_positions"]),
+        ("labels_sha256", tm.get("labels_sha256"),
+         FROZEN_TEACHER_CONTRACT["labels_sha256"]),
+    ]
+    for field, actual, expected in checks:
+        if actual != expected:
+            raise SystemExit(
+                f"FAIL CLOSED: teacher manifest {field} {actual!r} != frozen "
+                f"contract {expected!r}"
+            )
+    for opt_key, opt_expected in FROZEN_TEACHER_CONTRACT["options"].items():
+        opt_actual = tm.get("options", {}).get(opt_key)
+        if opt_actual != opt_expected:
+            raise SystemExit(
+                f"FAIL CLOSED: teacher manifest option {opt_key}="
+                f"{opt_actual!r} != frozen contract {opt_expected!r}"
+            )
+    audit = tm.get("audit", {})
+    frozen_audit = FROZEN_TEACHER_CONTRACT["audit"]
+    if audit.get("ok") is not frozen_audit["ok"]:
+        raise SystemExit("FAIL CLOSED: teacher manifest audit.ok is not true")
+    if audit.get("mode") != frozen_audit["mode"]:
+        raise SystemExit(
+            f"FAIL CLOSED: teacher manifest audit.mode {audit.get('mode')!r} "
+            f"!= {frozen_audit['mode']!r}"
+        )
+    if audit.get("checked") != frozen_audit["checked"]:
+        raise SystemExit(
+            f"FAIL CLOSED: teacher manifest audit.checked "
+            f"{audit.get('checked')!r} != {frozen_audit['checked']!r}"
+        )
+    if audit.get("mismatches") != frozen_audit["mismatches"]:
+        raise SystemExit(
+            f"FAIL CLOSED: teacher manifest audit.mismatches "
+            f"{audit.get('mismatches')!r} != {frozen_audit['mismatches']!r}"
+        )
+
 
 class ClippedReLU(nn.Module):
     def __init__(self, min_val: float = 0.0, max_val: float = 1.0):
@@ -204,6 +276,10 @@ def load_dataset(dataset_dir: Path) -> dict:
         raise SystemExit(
             f"FAIL CLOSED: labels_sha256 mismatch {labels_sha} != {teacher_manifest.get('labels_sha256')}"
         )
+
+    # S10-B3: fail closed unless the teacher artifact is the frozen 300k
+    # Stockfish-18 labeling run (never train against other teacher labels).
+    verify_teacher_contract(teacher_manifest)
 
     return {
         "records": records,
@@ -349,25 +425,41 @@ def train_and_eval(
     records = ds["records"]
     labels = ds["labels"]
 
-    # 2. Filter usable records (teacher_cp_stm not None)
+    # 2. Filter usable records (teacher_cp_stm not None). Mate-only positions
+    #    (teacher_cp_stm is None) are excluded per the frozen S10-A recipe.
     usable = []
+    mate_only_by_split: dict[str, int] = {}
     for r in records:
         lbl = labels[r["position_id"]]
         cp = lbl.get("teacher_cp_stm")
         if cp is not None:
             usable.append((r, lbl))
+        else:
+            mate_only_by_split[r["split"]] = (
+                mate_only_by_split.get(r["split"], 0) + 1
+            )
 
     if not usable:
         raise SystemExit("FAIL CLOSED: 0 usable records with teacher_cp_stm")
 
+    # S10-B3: Stage 1 (allow_holdout=False) exports features and constructs
+    # targets ONLY for train + validation. Holdout is never computed, never
+    # output, and participates in no metric during Stage 1.
+    export_records = [
+        r for r, _ in usable if r["split"] in ("train", "validation")
+    ] + ([r for r, _ in usable if r["split"] == "holdout"]
+         if allow_holdout else [])
+
     # 3. Export features from Rust engine
-    exported = export_features_from_engine(engine_bin, [r for r, _ in usable], feature_set)
+    exported = export_features_from_engine(engine_bin, export_records, feature_set)
 
     # 4. Prepare split items
     splits: dict[str, list[dict]] = {"train": [], "validation": [], "holdout": []}
     for r, lbl in usable:
         pid = r["position_id"]
         split = r["split"]
+        if split == "holdout" and not allow_holdout:
+            continue
         exp = exported[pid]
         target_cp = max(-CLIP_CP, min(CLIP_CP, float(lbl["teacher_cp_stm"])))
         target_scaled = target_cp / TARGET_SCALE
@@ -571,6 +663,9 @@ def train_and_eval(
         "labels_sha256": ds["labels_sha"],
         "records_usable": len(usable),
         "usable_split_counts": {k: len(v) for k, v in splits.items()},
+        "mate_only_excluded_by_split": mate_only_by_split,
+        "records_with_teacher_cp_stm": len(usable),
+        "records_with_teacher_mate": sum(mate_only_by_split.values()),
         "architecture": {
             "num_inputs": num_inputs,
             "ft_width": 128,
@@ -624,6 +719,63 @@ def train_and_eval(
     return summary
 
 
+def run_preflight(dataset_dir: Path, engine_bin: Path, feature_set: str,
+                  device_name: str | None = None) -> dict:
+    """S10-B3-1: pure data/training preflight. Loads and verifies the frozen
+    dataset/labels/teacher provenance, counts usable vs mate-only records,
+    and reports the runtime identity. No model is created and no training
+    happens."""
+    num_inputs = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
+
+    ds = load_dataset(dataset_dir)
+    records = ds["records"]
+    labels = ds["labels"]
+
+    n_cp = sum(1 for r in records
+               if labels[r["position_id"]].get("teacher_cp_stm") is not None)
+    n_mate_only = len(records) - n_cp
+
+    usable_by_split: dict[str, int] = {"train": 0, "validation": 0, "holdout": 0}
+    mate_by_split: dict[str, int] = {}
+    for r in records:
+        if labels[r["position_id"]].get("teacher_cp_stm") is not None:
+            usable_by_split[r["split"]] += 1
+        else:
+            mate_by_split[r["split"]] = mate_by_split.get(r["split"], 0) + 1
+
+    engine_bin = Path(engine_bin).resolve()
+    engine_sha = hashlib.sha256(engine_bin.read_bytes()).hexdigest()
+
+    if device_name is None:
+        device_name = "cuda" if torch.cuda.is_available() else "cpu"
+
+    preflight = {
+        "stage": "s10_b3_preflight",
+        "dataset_sha256": ds["dataset_sha"],
+        "labels_sha256": ds["labels_sha"],
+        "teacher_contract_verified": True,
+        "records_total": len(records),
+        "records_with_teacher_cp_stm": n_cp,
+        "records_with_teacher_mate": n_mate_only,
+        "usable_split_counts": usable_by_split,
+        "mate_only_excluded_by_split": mate_by_split,
+        "feature_set": feature_set,
+        "feature_set_inputs": num_inputs,
+        "engine_exporter_path": str(engine_bin),
+        "engine_exporter_sha256": engine_sha,
+        "device": device_name,
+        "device_name": (torch.cuda.get_device_name(0)
+                        if device_name.startswith("cuda")
+                        and torch.cuda.is_available() else device_name),
+        "torch_version": torch.__version__,
+        "cuda_version": (torch.version.cuda
+                         if torch.cuda.is_available() else None),
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+    }
+    return preflight
+
+
 def main():
     parser = argparse.ArgumentParser(description="S10 Production NNUE Training Harness")
     parser.add_argument("--dataset", type=Path, required=True, help="Path to dataset directory")
@@ -638,8 +790,21 @@ def main():
     parser.add_argument("--patience", type=int, default=DEFAULT_PATIENCE)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--allow-holdout", action="store_true", help="Stage 2 only: evaluate holdout split")
+    parser.add_argument("--preflight", action="store_true",
+                        help="run data/training preflight only (no training)")
 
     args = parser.parse_args()
+
+    if args.preflight:
+        preflight = run_preflight(
+            dataset_dir=args.dataset,
+            engine_bin=args.engine,
+            feature_set=args.feature_set,
+            device_name=args.device,
+        )
+        print(json.dumps(preflight, indent=2))
+        return
+
     summary = train_and_eval(
         dataset_dir=args.dataset,
         engine_bin=args.engine,

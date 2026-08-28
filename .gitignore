@@ -101,3 +101,6 @@ data/s6/sources/lichess-standard-rated-v2/
 data/s6/sources/lichess-standard-rated-v3/
 data/s6/sources/lichess-standard-rated-v4/
 data/s10/
+
+# S10-B3 python environment (torch cu130 from uv cache)
+.venv-s10/
