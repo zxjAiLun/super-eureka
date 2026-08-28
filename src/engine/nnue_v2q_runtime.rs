@@ -331,6 +331,15 @@ impl NnueV2QuantizedModel {
         self.accumulate(&features)
     }
 
+    /// S10-C3-A microcost shim: FT accumulate from PRECOMPUTED feature
+    /// indices (isolates the accumulator math from feature extraction).
+    pub fn accumulate_public(
+        &self,
+        indices: &[u16],
+    ) -> [i32; NNUE_V2Q_FT_WIDTH] {
+        self.accumulate(indices)
+    }
+
     /// Incrementally update `acc` across the transition `before -> after`.
     ///
     /// Frozen S10-C1 rules:

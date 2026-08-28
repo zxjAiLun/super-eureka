@@ -1,0 +1,90 @@
+{
+  "stage": "s10_c3a_search_tree_telemetry",
+  "fixtures": 8,
+  "totals": {
+    "pushes": 285311,
+    "pops": 285311,
+    "null_pushes": 19,
+    "delta_updates": 1185652,
+    "full_refreshes": 58580,
+    "max_depth": 103
+  },
+  "real_move_edges": 285292,
+  "king_refresh_rate": 0.20533348288770803,
+  "ft_row_updates_per_real_move": 4.15592445634648,
+  "null_move_rate": 6.659399742736873e-05,
+  "per_fixture": [
+    {
+      "fixture": "middlegame",
+      "pushes": 59525,
+      "pops": 59525,
+      "null_pushes": 0,
+      "delta_updates": 252405,
+      "full_refreshes": 10535,
+      "max_depth": 14
+    },
+    {
+      "fixture": "nullmove-heavy",
+      "pushes": 36471,
+      "pops": 36471,
+      "null_pushes": 0,
+      "delta_updates": 192808,
+      "full_refreshes": 3091,
+      "max_depth": 18
+    },
+    {
+      "fixture": "tactical-2",
+      "pushes": 33308,
+      "pops": 33308,
+      "null_pushes": 0,
+      "delta_updates": 163756,
+      "full_refreshes": 3484,
+      "max_depth": 18
+    },
+    {
+      "fixture": "startpos",
+      "pushes": 44015,
+      "pops": 44015,
+      "null_pushes": 19,
+      "delta_updates": 185675,
+      "full_refreshes": 1482,
+      "max_depth": 15
+    },
+    {
+      "fixture": "endgame-krp",
+      "pushes": 16420,
+      "pops": 16420,
+      "null_pushes": 0,
+      "delta_updates": 61484,
+      "full_refreshes": 8140,
+      "max_depth": 11
+    },
+    {
+      "fixture": "ep-rich",
+      "pushes": 32871,
+      "pops": 32871,
+      "null_pushes": 0,
+      "delta_updates": 137103,
+      "full_refreshes": 1570,
+      "max_depth": 11
+    },
+    {
+      "fixture": "kqk-mopup",
+      "pushes": 47487,
+      "pops": 47487,
+      "null_pushes": 0,
+      "delta_updates": 146757,
+      "full_refreshes": 22485,
+      "max_depth": 9
+    },
+    {
+      "fixture": "krk-mopup",
+      "pushes": 15214,
+      "pops": 15214,
+      "null_pushes": 0,
+      "delta_updates": 45664,
+      "full_refreshes": 7793,
+      "max_depth": 7
+    }
+  ]
+}

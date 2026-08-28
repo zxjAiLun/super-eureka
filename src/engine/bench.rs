@@ -2560,6 +2560,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-accumulator-audit" {
         return run_nnue_v2q_accumulator_audit(&args[1..]);
     }
+    if args[0] == "nnue-v2q-cost" {
+        return run_nnue_v2q_cost(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -2641,6 +2644,7 @@ fn print_help() {
     println!("  nnue-v2q-probe --model <bin> --fen <fen>  S10-B5 V2 quantized integer inference, one JSON line");
     println!("  nnue-v2q-probe-batch --model <bin> --batch <file>  one JSON line per record");
     println!("  nnue-v2q-accumulator-audit --model <bin> [--games N] [--plies N]  S10-C1 incremental vs full-refresh bit-exact audit");
+    println!("  nnue-v2q-cost --model <bin> --batch <file> [--rounds N]  S10-C3-A component microcost (Eval2 vs NNUE full vs incremental)");
 }
 
 // ---------------------------------------------------------------------------
@@ -3931,6 +3935,386 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
         return Err("nnue-v2q-accumulator-audit: FAIL (lane or raw mismatch)"
             .to_string());
     }
+    Ok(())
+}
+
+
+/// S10-C3-A: `bench nnue-v2q-cost --model <bin> --batch <file>
+/// [--rounds N]` — component microcost for the frozen quantized NNUE vs
+/// the production Eval2 evaluator. FEN parsing and model loading happen
+/// OUTSIDE the timed regions; every timed loop uses `black_box`.
+fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    use crate::chess::movegen::generate_legal_moves;
+    use crate::engine::eval::evaluate_integrated_positional;
+    use crate::engine::nnue::{active_features_v2, NnuePerspective};
+    use crate::engine::nnue_search::{
+        NnueSearchMode, NnueSearchState,
+    };
+    use crate::engine::nnue_v2q_runtime::{
+        NnueV2QuantizedModel, NNUE_V2Q_FT_WIDTH,
+    };
+
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut rounds: u32 = 16;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| {
+                        "nnue-v2q-cost: --model requires a value".to_string()
+                    })?
+                    .clone();
+                model = Some(value);
+            }
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| {
+                        "nnue-v2q-cost: --batch requires a value".to_string()
+                    })?
+                    .clone();
+                batch = Some(value);
+            }
+            "--rounds" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| {
+                        "nnue-v2q-cost: --rounds requires a value".to_string()
+                    })?
+                    .clone();
+                rounds = value
+                    .parse()
+                    .map_err(|_| format!("bad --rounds {value}"))?;
+                if rounds < 4 {
+                    return Err("nnue-v2q-cost: --rounds must be >= 4".to_string());
+                }
+            }
+            other => {
+                return Err(format!(
+                    "nnue-v2q-cost: unknown argument '{other}'"
+                ));
+            }
+        }
+    }
+    let model_path =
+        model.ok_or_else(|| "nnue-v2q-cost: --model is required".to_string())?;
+    let batch = batch
+        .ok_or_else(|| "nnue-v2q-cost: --batch is required".to_string())?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+        std::path::Path::new(&model_path))?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("nnue-v2q-cost: cannot read {batch}: {e}"))?;
+
+    // --- corpus parse (untimed) ---
+    let mut positions: Vec<Position> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let fen = match line.split_once('|') {
+            Some((_, fen)) => fen.trim(),
+            None => line,
+        };
+        let pos = parse_fen(fen)
+            .map_err(|e| format!("nnue-v2q-cost: {e}: '{fen}'"))?;
+        positions.push(pos);
+    }
+    if positions.is_empty() {
+        return Err("nnue-v2q-cost: empty corpus".to_string());
+    }
+    let n = positions.len();
+    let model_arc = std::sync::Arc::new(model);
+
+    // --- deterministic transition corpus (untimed): fixed-seed legal
+    // playouts, split into ordinary vs own-king transitions ---
+    struct Transition {
+        parent: Position,
+        child: Position,
+        mv: crate::chess::types::Move,
+        is_king: bool,
+    }
+    let mut transitions: Vec<Transition> = Vec::new();
+    {
+        let mut rng: u64 = 0xc3a0_7a11_ce5e_d5c3;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let mut pos = Position::startpos();
+        while transitions.len() < 10_000 {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                pos = Position::startpos();
+                continue;
+            }
+            let m = moves[(next() % moves.len() as u64) as usize];
+            let parent = pos.clone();
+            pos.make_move(m);
+            let moved_is_king = parent.board()[m.from as usize]
+                .map(|p| {
+                    p.piece_type == crate::chess::types::PieceType::King
+                })
+                .unwrap_or(false);
+            transitions.push(Transition {
+                parent,
+                child: pos.clone(),
+                mv: m,
+                is_king: moved_is_king,
+            });
+        }
+    }
+
+    // Pre-compute per-transition fixtures (untimed): parent accumulator,
+    // prepared delta.
+    struct IncrementalFixture {
+        parent_acc: crate::engine::nnue_v2q_runtime::NnueV2Accumulator,
+        delta: crate::engine::nnue_v2q_runtime::NnueMoveDelta,
+        parent: Position,
+        child: Position,
+    }
+    let fixtures: Vec<IncrementalFixture> = transitions
+        .iter()
+        .map(|t| {
+            let parent_acc = model_arc.full_accumulator(&t.parent);
+            let delta = model_arc.prepare_move_delta(&t.parent, &t.mv);
+            IncrementalFixture {
+                parent_acc,
+                delta,
+                parent: t.parent.clone(),
+                child: t.child.clone(),
+            }
+        })
+        .collect();
+    let king_count = transitions.iter().filter(|t| t.is_king).count();
+    let ordinary_count = n.min(usize::MAX) - 0; // report both below
+    let ordinary_transitions =
+        transitions.iter().filter(|t| !t.is_king).count();
+
+    // --- helper: measure median/p25/p75/min/max ns/op over `rounds` ---
+    fn stats(samples: &[u128]) -> (u128, u128, u128, u128, u128) {
+        let mut s = samples.to_vec();
+        s.sort_unstable();
+        let pick = |q: f64| -> u128 {
+            let idx =
+                ((s.len() as f64 - 1.0) * q).round() as usize;
+            s[idx.min(s.len() - 1)]
+        };
+        (pick(0.5), pick(0.25), pick(0.75), s[0], *s.last().unwrap())
+    }
+    let mut json_parts: Vec<String> = Vec::new();
+    let mut add_part = |name: &str, samples: &[u128], ops: usize| {
+        let (med, p25, p75, min, max) = stats(samples);
+        json_parts.push(format!(
+            "\"{name}\":{{\"median_ns\":{med},\"p25_ns\":{p25},\"p75_ns\":{p75},\"min_ns\":{min},\"max_ns\":{max},\"ops\":{ops}}}"
+        ));
+    };
+    fn run_rounds<F: FnMut()>(mut f: F, rounds: u32) -> Vec<u128> {
+        let mut samples = Vec::new();
+        // warmup (2 unmeasured rounds)
+        for _ in 0..2 {
+            f();
+        }
+        for _ in 0..rounds {
+            let start = Instant::now();
+            f();
+            samples.push(start.elapsed().as_nanos());
+        }
+        samples
+    }
+
+    // 1. Eval2 total (production integrated positional evaluator).
+    {
+        let samples = run_rounds(|| {
+            for pos in &positions {
+                black_box(evaluate_integrated_positional(black_box(pos)));
+            }
+        }, rounds);
+        add_part("eval2_total", &samples, n);
+    }
+
+    // 2. V2 feature extraction (both perspectives, per position).
+    {
+        let samples = run_rounds(|| {
+            for pos in &positions {
+                black_box(active_features_v2(
+                    black_box(pos),
+                    black_box(NnuePerspective::White),
+                ));
+                black_box(active_features_v2(
+                    black_box(pos),
+                    black_box(NnuePerspective::Black),
+                ));
+            }
+        }, rounds);
+        add_part("v2_feature_extract", &samples, n);
+    }
+
+    // 3. FT full accumulate (both perspectives) — measured directly on
+    // precomputed feature lists so it isolates the accumulator math.
+    let feature_lists: Vec<(Vec<u16>, Vec<u16>)> = positions
+        .iter()
+        .map(|pos| {
+            (
+                active_features_v2(pos, NnuePerspective::White),
+                active_features_v2(pos, NnuePerspective::Black),
+            )
+        })
+        .collect();
+    {
+        let samples = run_rounds(|| {
+            for (white, black) in &feature_lists {
+                // FT accumulate via the full_accumulator path on a
+                // position is not isolated; use the per-perspective
+                // public method.
+                black_box(model_arc.accumulate_public(white));
+                black_box(model_arc.accumulate_public(black));
+            }
+        }, rounds);
+        add_part("ft_accumulate", &samples, n);
+    }
+
+    // 4. Dense forward (from precomputed accumulators).
+    let accs: Vec<crate::engine::nnue_v2q_runtime::NnueV2Accumulator> =
+        positions
+            .iter()
+            .map(|pos| model_arc.full_accumulator(pos))
+            .collect();
+    {
+        let samples = run_rounds(|| {
+            for (pos, acc) in positions.iter().zip(accs.iter()) {
+                black_box(model_arc.evaluate_raw_from_accumulator(
+                    black_box(pos),
+                    black_box(acc),
+                ));
+            }
+        }, rounds);
+        add_part("dense_forward", &samples, n);
+    }
+
+    // 5. NNUE full total — the ACTUAL production full-refresh path.
+    {
+        let samples = run_rounds(|| {
+            for pos in &positions {
+                black_box(model_arc.evaluate_cp_i32(black_box(pos)));
+            }
+        }, rounds);
+        add_part("nnue_full_total", &samples, n);
+    }
+
+    // 6. Delta preparation.
+    {
+        let samples = run_rounds(|| {
+            for t in &transitions {
+                black_box(model_arc.prepare_move_delta(
+                    black_box(&t.parent),
+                    black_box(&t.mv),
+                ));
+            }
+        }, rounds);
+        add_part("delta_prepare", &samples, transitions.len());
+    }
+
+    // 7. Ordinary accumulator update (non-king transitions only).
+    {
+        let ordinary: Vec<&IncrementalFixture> = fixtures
+            .iter()
+            .zip(transitions.iter())
+            .filter(|(_, t)| !t.is_king)
+            .map(|(f, _)| f)
+            .collect();
+        let samples = run_rounds(|| {
+            for f in &ordinary {
+                let mut acc = f.parent_acc;
+                black_box(model_arc.update_accumulator_for_move(
+                    &mut acc, &f.delta, &f.child,
+                ));
+            }
+        }, rounds);
+        add_part(
+            "ordinary_accumulator_update",
+            &samples,
+            ordinary.len(),
+        );
+    }
+
+    // 8. King-refresh accumulator update (own-king transitions only).
+    {
+        let kings: Vec<&IncrementalFixture> = fixtures
+            .iter()
+            .zip(transitions.iter())
+            .filter(|(_, t)| t.is_king)
+            .map(|(f, _)| f)
+            .collect();
+        let samples = run_rounds(|| {
+            for f in &kings {
+                let mut acc = f.parent_acc;
+                black_box(model_arc.update_accumulator_for_move(
+                    &mut acc, &f.delta, &f.child,
+                ));
+            }
+        }, rounds);
+        add_part(
+            "king_refresh_accumulator_update",
+            &samples,
+            kings.len(),
+        );
+    }
+
+    // 9. Dense from accumulator (reuses fixtures' children + parents).
+    {
+        let samples = run_rounds(|| {
+            for f in &fixtures {
+                black_box(model_arc.evaluate_raw_from_accumulator(
+                    black_box(&f.child),
+                    black_box(&f.parent_acc),
+                ));
+            }
+        }, rounds);
+        add_part("dense_from_accumulator", &samples, fixtures.len());
+    }
+
+    // 10. Incremental edge + eval (delta prepare + update + dense), all
+    // precomputed fixtures, no movegen/FEN in the timed region.
+    {
+        let samples = run_rounds(|| {
+            for (f, t) in fixtures.iter().zip(transitions.iter()) {
+                let delta =
+                    model_arc.prepare_move_delta(&t.parent, &t.mv);
+                let mut acc = f.parent_acc;
+                black_box(model_arc.update_accumulator_for_move(
+                    &mut acc, &delta, &f.child,
+                ));
+                black_box(model_arc.evaluate_raw_from_accumulator(
+                    &f.child, &acc,
+                ));
+            }
+        }, rounds);
+        add_part(
+            "incremental_edge_plus_eval",
+            &samples,
+            fixtures.len(),
+        );
+    }
+
+    let parts = json_parts.join(",");
+    println!(
+        "{{\"stage\":\"s10_c3a_microcost\",\"rounds\":{rounds},\
+         \"corpus_positions\":{n},\
+         \"transitions\":{trans},\
+         \"ordinary_transitions\":{ordinary_transitions},\
+         \"king_transitions\":{king_count},\
+         {parts}}}",
+        trans = transitions.len(),
+    );
     Ok(())
 }
 
