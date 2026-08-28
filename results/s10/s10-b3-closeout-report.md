@@ -100,6 +100,19 @@ evaluated the single selected checkpoint:
    holdout MAE 166.0762 cp  ->  ratio 1.0045 <= 1.15  ->  PASS
 ```
 
+### Blindness scope correction (Provenance Repair 1)
+
+The original wording "holdout never exported, never evaluated" is accurate
+for the Stage-1 training runs, but "completely blind" would overstate it.
+Precisely: **B3 was performance-blind, not holdout-unread.**
+
+Before selection, the B3-1 preflight DID observe holdout label-type
+metadata (cp vs mate-only: 29229 / 771), which also fed a data-sanity
+decision (2.56% mate-only — normal). It never observed holdout target
+values, features, predictions, losses, or MAE, and selection used
+validation performance only. Full statement:
+`results/s10/s10-b3-holdout-blindness-clarification.json`.
+
 ## Offline gate verdict
 
 ```

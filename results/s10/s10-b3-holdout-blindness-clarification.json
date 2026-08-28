@@ -1,0 +1,27 @@
+{
+  "stage": "s10_b3_holdout_blindness_clarification",
+  "repair": "S10-B3 Provenance Repair 1",
+  "base_commit": "d224f6d0c62e80752794d9d91daca189ed8c",
+  "purpose": "Correct the wording of Stage-1 holdout blindness: B3 was performance-blind, not completely unread. Model results unchanged; no retraining, no re-holdout, checkpoint untouched.",
+  "holdout_performance_observed_before_selection": false,
+  "holdout_features_exported_before_selection": false,
+  "holdout_predictions_observed_before_selection": false,
+  "holdout_loss_observed_before_selection": false,
+  "holdout_mae_observed_before_selection": false,
+  "holdout_label_type_metadata_observed_before_selection": true,
+  "holdout_usable_cp_count_observed": 29229,
+  "holdout_mate_only_count_observed": 771,
+  "selection_used_holdout_performance": false,
+  "what_was_observed_before_selection": [
+    "B3-1 preflight counted, for all three splits, whether each record's teacher label is teacher_cp_stm or mate-only. Holdout was seen as label-type metadata only: 29229 usable cp / 771 mate-only.",
+    "These counts appear in results/s10/s10-b3-preflight.json and in the Stage-1 selection artifact (bb6383c), and the 2.56% overall mate-only rate was used for a data-sanity decision (no anomalous data loss).",
+    "The B3-2 training runs used allow_holdout=False: the Rust exporter received only train+validation records; no holdout FEN, feature, target value, prediction, loss, or MAE was ever computed or observed before selection."
+  ],
+  "what_was_never_observed_before_selection": [
+    "holdout teacher_cp_stm values (target distribution)",
+    "holdout features / FEN content during training runs",
+    "holdout predictions, losses, or MAE",
+    "any model choice influenced by holdout performance"
+  ],
+  "conclusion": "The Stage-1 selection (seed 20260818, min validation MAE) was made strictly on validation performance. The holdout evaluation in d224f6d therefore remains a valid generalization estimate; it was merely not 'completely blind' at the metadata level."
+}

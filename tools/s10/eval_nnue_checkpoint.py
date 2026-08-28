@@ -43,12 +43,62 @@ if torch.cuda.is_available():
     torch.backends.cudnn.benchmark = False
 
 
+def verify_selection_binding(
+    selection: dict,
+    ckpt_sha: str,
+    ckpt_summary: dict,
+    dataset_sha: str,
+    labels_sha: str,
+    exporter_sha: str,
+) -> None:
+    """Fail closed unless the checkpoint and runtime identities match the
+    frozen Stage-1 selection artifact exactly (checkpoint SHA, seed, dataset
+    SHA, labels SHA, feature set, engine exporter SHA)."""
+    ss = selection["selection_summary"]
+    seed = str(ckpt_summary["seed"])
+
+    if seed not in selection["seeds"]:
+        raise SystemExit(
+            f"FAIL CLOSED: checkpoint seed {seed} not in frozen selection "
+            f"seeds {sorted(selection['seeds'])}"
+        )
+    sel_seed = selection["seeds"][seed]
+
+    checks = [
+        ("checkpoint_sha256", ckpt_sha, sel_seed["checkpoint_sha256"]),
+        ("checkpoint_sha256 (summary)", ckpt_sha,
+         ss["selected_checkpoint_sha256"]),
+        ("dataset_sha256", dataset_sha, selection["dataset_sha256"]),
+        ("labels_sha256", labels_sha, selection["labels_sha256"]),
+        ("feature_set", ckpt_summary["feature_set"],
+         selection["feature_set"]),
+        ("engine_exporter_sha256", exporter_sha,
+         selection["environment"]["engine_exporter_sha256"]),
+    ]
+    if ss["selected_seed"] != ckpt_summary["seed"]:
+        raise SystemExit(
+            f"FAIL CLOSED: checkpoint seed {seed} != frozen selected seed "
+            f"{ss['selected_seed']}"
+        )
+    for field, actual, expected in checks:
+        if actual != expected:
+            raise SystemExit(
+                f"FAIL CLOSED: {field} {actual!r} != frozen selection "
+                f"{expected!r}"
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="S10-B3 evaluation-only holdout for a frozen checkpoint")
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--selection", type=Path, required=True,
+                        help="frozen Stage-1 selection artifact "
+                             "(results/s10/s10-b3-selection.json); the "
+                             "checkpoint/runtime identities must match it "
+                             "fail-closed")
     parser.add_argument("--device", type=str, default=None)
     args = parser.parse_args()
 
@@ -80,6 +130,20 @@ def main() -> int:
     if summary.get("holdout_observed"):
         print("FATAL: checkpoint was trained with holdout observed")
         return 4
+
+    # 2b. Fail-closed binding to the frozen Stage-1 selection artifact.
+    selection = json.loads(
+        Path(args.selection).read_text(encoding="utf-8"))
+    engine_bin = Path(args.engine).resolve()
+    exporter_sha = hashlib.sha256(engine_bin.read_bytes()).hexdigest()
+    verify_selection_binding(
+        selection,
+        ckpt_sha=ckpt_sha,
+        ckpt_summary=summary,
+        dataset_sha=ds["dataset_sha"],
+        labels_sha=ds["labels_sha"],
+        exporter_sha=exporter_sha,
+    )
 
     # 3. Collect usable holdout records (teacher_cp_stm not None).
     holdout = [
@@ -148,8 +212,9 @@ def main() -> int:
         "dataset_sha256": ds["dataset_sha"],
         "labels_sha256": ds["labels_sha"],
         "feature_set": "v2",
-        "engine_exporter_sha256": hashlib.sha256(
-            engine_bin.read_bytes()).hexdigest(),
+        "selection_artifact": str(Path(args.selection).resolve()),
+        "selection_binding_verified": True,
+        "engine_exporter_sha256": exporter_sha,
         "device": args.device,
         "device_name": (torch.cuda.get_device_name(0)
                         if torch.cuda.is_available() else "cpu"),
