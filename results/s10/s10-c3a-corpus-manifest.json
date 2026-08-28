@@ -1,0 +1,18 @@
+{
+  "stage": "s10_c3a_corpus_manifest",
+  "purpose": "Provenance for the frozen C3-A microcost corpus (P2 follow-up from the C3-A review). Option A: manifest with the deterministic selection rule and identity SHAs; the corpus file itself stays local-only (data/s10/ is gitignored).",
+  "corpus_path_local_only": "data/s10/b3/c3a-corpus-10k.txt",
+  "corpus_sha256": "6eaa7f8fabcbb2a4eb9bf3b5f8f86decc89175ce9524261c6e3a4686f198b611",
+  "selection_rule": "first 10,000 records of data/s10/s10-eval-v1-300k01/part-0000.jsonl (dataset order) that are (a) split != holdout and (b) labels.jsonl teacher_cp_stm != null; emitted as 'position_id|fen' lines",
+  "source_dataset": {
+    "dataset_id": "s10-eval-v1-300k01",
+    "dataset_sha256": "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3",
+    "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f"
+  },
+  "resulting_composition": {
+    "records_selected": 10000,
+    "splits": { "train": 10000, "validation": 0, "holdout": 0 }
+  },
+  "usage": "bench nnue-v2q-cost --model <bin> --batch data/s10/b3/c3a-corpus-10k.txt --rounds 16",
+  "note": "The corpus can be regenerated from the frozen B1 dataset with the rule above; the corpus SHA pins the artifact actually measured in s10-c3a-microcost.json."
+}

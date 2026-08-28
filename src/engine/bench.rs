@@ -164,6 +164,10 @@ struct BenchArgs {
     /// Normal performance runs keep diagnostics OFF (zero atomic RMW on
     /// the hot paths).
     nnue_stack_telemetry: bool,
+    /// S10-C3-B: TT size in MiB for the profile suite (default 0 =
+    /// disabled TT, the historical behavior). With N > 0 each run gets a
+    /// FRESH (cold) N-MiB table.
+    hash_mb: Option<u32>,
     /// S4.0B: record the 1-based root rank of this move (UCI) under the normal
     /// ordering, before forced-root filtering.
     target_root: Option<String>,
@@ -297,6 +301,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut nnue_model: Option<String> = None;
     let mut nnue_audit = false;
     let mut nnue_stack_telemetry = false;
+    let mut hash_mb: Option<u32> = None;
     let mut target_root: Option<String> = None;
 
     while let Some(tok) = it.next() {
@@ -602,6 +607,19 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
             "--nnue-stack-telemetry" => {
                 nnue_stack_telemetry = true;
             }
+            "--hash-mb" => {
+                let v = it
+                    .next()
+                    .ok_or_else(|| "bench: --hash-mb requires a value".to_string())?
+                    .clone();
+                let n: u32 = v
+                    .parse()
+                    .map_err(|_| format!("bad --hash-mb {v}"))?;
+                if n == 0 || n > 4096 {
+                    return Err("bench: --hash-mb must be in 1..=4096".to_string());
+                }
+                hash_mb = Some(n);
+            }
             "--target-root" => {
                 if suite != Suite::Profile {
                     return Err("bench: --target-root is only valid for profile".to_string());
@@ -672,6 +690,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         nnue_model,
         nnue_audit,
         nnue_stack_telemetry,
+        hash_mb,
         target_root,
         timing_sample,
     })
@@ -1630,9 +1649,16 @@ fn run_one(
         _ => fx.limit,
     };
 
-    // Build the TT for this mode.
+    // Build the TT for this mode. S10-C3-B: --hash-mb gives the profile
+    // suite a fresh (cold) table of the requested size so NPS numbers
+    // reflect a TT-enabled production-like search.
     let mut tt = match mode {
-        BenchMode::Disabled => TranspositionTable::disabled(),
+        BenchMode::Disabled => match cfg.hash_mb {
+            Some(mb) => TranspositionTable::new_mb(mb as usize).map_err(|e| {
+                format!("fixture {}: failed to allocate {mb}MB TT: {}", fx.id, e)
+            })?,
+            None => TranspositionTable::disabled(),
+        },
         _ => TranspositionTable::new_mb(16)
             .map_err(|e| format!("fixture {}: failed to allocate 16MB TT: {}", fx.id, e))?,
     };
@@ -3950,12 +3976,6 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
     use crate::chess::movegen::generate_legal_moves;
     use crate::engine::eval::evaluate_integrated_positional;
     use crate::engine::nnue::{active_features_v2, NnuePerspective};
-    use crate::engine::nnue_search::{
-        NnueSearchMode, NnueSearchState,
-    };
-    use crate::engine::nnue_v2q_runtime::{
-        NnueV2QuantizedModel, NNUE_V2Q_FT_WIDTH,
-    };
 
     let mut model: Option<String> = None;
     let mut batch: Option<String> = None;
@@ -4078,6 +4098,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
     struct IncrementalFixture {
         parent_acc: crate::engine::nnue_v2q_runtime::NnueV2Accumulator,
         delta: crate::engine::nnue_v2q_runtime::NnueMoveDelta,
+        #[allow(dead_code)]
         parent: Position,
         child: Position,
     }
@@ -4095,7 +4116,6 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
         })
         .collect();
     let king_count = transitions.iter().filter(|t| t.is_king).count();
-    let ordinary_count = n.min(usize::MAX) - 0; // report both below
     let ordinary_transitions =
         transitions.iter().filter(|t| !t.is_king).count();
 
@@ -5130,6 +5150,7 @@ mod tests {
             nnue_model: None,
             nnue_audit: false,
             nnue_stack_telemetry: false,
+            hash_mb: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -5168,6 +5189,7 @@ mod tests {
             nnue_model: None,
             nnue_audit: false,
             nnue_stack_telemetry: false,
+            hash_mb: None,
         }
     }
 
@@ -5251,6 +5273,7 @@ mod tests {
             nnue_model: None,
             nnue_audit: false,
             nnue_stack_telemetry: false,
+            hash_mb: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Cold, 1).unwrap();
@@ -5313,6 +5336,7 @@ mod tests {
             nnue_model: None,
             nnue_audit: false,
             nnue_stack_telemetry: false,
+            hash_mb: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Warm, 1).unwrap();
@@ -5374,6 +5398,7 @@ mod tests {
                 nnue_model: None,
                 nnue_audit: false,
                 nnue_stack_telemetry: false,
+                hash_mb: None,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
@@ -5419,6 +5444,7 @@ mod tests {
                 nnue_model: None,
                 nnue_audit: false,
                 nnue_stack_telemetry: false,
+                hash_mb: None,
                 target_root: None,
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1)
@@ -5560,6 +5586,7 @@ mod tests {
             nnue_model: None,
             nnue_audit: false,
             nnue_stack_telemetry: false,
+            hash_mb: None,
             target_root: None,
         };
         let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
