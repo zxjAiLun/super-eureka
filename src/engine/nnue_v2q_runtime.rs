@@ -148,6 +148,7 @@ impl NnueMoveDelta {
 }
 
 /// Loaded S10-B5 quantized model. Immutable after construction.
+#[derive(Debug)]
 pub struct NnueV2QuantizedModel {
     ft_weights: Vec<i16>,  // [22528][128]
     ft_bias: Vec<i32>,     // [128]

@@ -95,12 +95,32 @@ fn spawn_search(
     budget: TimeBudget,
     tt: Arc<Mutex<TranspositionTable>>,
     profile: search::SearchProfile,
+    // S10-D preview: NNUE model for the NNUE candidate profiles (loaded
+    // once at startup, Arc-shared per search). None for classical profiles.
+    nnue_model: Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let ctx = search::SearchContext::with_budget(stop.clone(), budget);
         let (mut pos, game_history) = game.into_search_parts();
         // Acquire the (only) mutable TT guard and keep it for the whole run.
         let mut guard = lock_tt_recover(&tt);
+        // Build the search-local NNUE state when the profile requires it
+        // (fail-closed: an NNUE profile without a model never searches).
+        let nnue_state = if profile.uses_nnue_eval() {
+            Some(crate::engine::nnue_search::NnueSearchState::new(
+                nnue_model.expect(
+                    "NNUE profile requires --nnue-model at startup (fail closed)"
+                ),
+                if profile.uses_nnue_incremental_stack() {
+                    crate::engine::nnue_search::NnueSearchMode::Incremental
+                } else {
+                    crate::engine::nnue_search::NnueSearchMode::FullRefresh
+                },
+                &pos,
+            ))
+        } else {
+            None
+        };
         match search::search_best_move_with_history_tt_and_profile(
             &mut pos,
             &game_history,
@@ -108,10 +128,7 @@ fn spawn_search(
             &ctx,
             &mut guard,
             profile,
-            // S10-C2B: UCI never selects an NNUE candidate profile today
-            // (process-fixed PRODUCTION_PROFILE); None is the fail-closed
-            // default for any future NNUE profile without a model.
-            None,
+            nnue_state,
         ) {
             Some(outcome) => println!("bestmove {}", move_to_uci(outcome.best_move)),
             None => println!("bestmove 0000"),
@@ -444,6 +461,7 @@ fn handle_setoption(
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     let mut profile = search::PRODUCTION_PROFILE;
     let mut profile_seen = false;
+    let mut nnue_model_path: Option<String> = None;
     let mut it = args.iter();
 
     while let Some(arg) = it.next() {
@@ -518,6 +536,14 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-no-king-safety" => {
                         search::SearchProfile::CurrentFinalNoKingSafety
                     }
+                    // S10-D preview: NNUE candidate profiles (require
+                    // --nnue-model; fail-closed otherwise).
+                    "current-final-nnue-v2q-full" => {
+                        search::SearchProfile::CurrentFinalNnueV2QFull
+                    }
+                    "current-final-nnue-v2q" => {
+                        search::SearchProfile::CurrentFinalNnueV2QIncremental
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
@@ -528,21 +554,50 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 };
                 profile_seen = true;
             }
+            "--nnue-model" => {
+                if nnue_model_path.is_some() {
+                    return Err("--nnue-model may be specified only once".into());
+                }
+                let path = it
+                    .next()
+                    .ok_or_else(|| "--nnue-model requires a value".to_string())?;
+                nnue_model_path = Some(path.clone());
+            }
             other => {
                 return Err(format!(
-                    "unknown startup argument '{}' (expected --profile <cumulative-profile>)",
+                    "unknown startup argument '{}' (expected --profile <cumulative-profile> | --nnue-model <EUNN2Q01 artifact>)",
                     other
                 ));
             }
         }
     }
 
-    Ok(StartupCommand::Run(profile))
+    // S10-D preview: load the quantized model ONCE at startup (fail
+    // closed when an NNUE profile has no model, or the model fails to
+    // load/verify).
+    let nnue_model = if let Some(path) = nnue_model_path.as_deref() {
+        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+            std::path::Path::new(path),
+        ) {
+            Ok(model) => Some(Arc::new(model)),
+            Err(e) => return Err(format!("--nnue-model: {e}")),
+        }
+    } else {
+        None
+    };
+    if profile.uses_nnue_eval() && nnue_model.is_none() {
+        return Err(format!(
+            "profile '{:?}' requires --nnue-model <EUNN2Q01 artifact> (fail closed)",
+            profile
+        ));
+    }
+
+    Ok(StartupCommand::Run((profile, nnue_model)))
 }
 
 #[derive(Debug)]
 enum StartupCommand {
-    Run(search::SearchProfile),
+    Run((search::SearchProfile, Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>)),
     Help,
 }
 
@@ -563,7 +618,7 @@ fn print_startup_help() {
 
 /// Run the UCI loop using the canonical production profile.
 pub fn run() {
-    run_with_profile(search::PRODUCTION_PROFILE);
+    run_with_profile(search::PRODUCTION_PROFILE, None);
 }
 
 /// Parse startup arguments and run the UCI loop with the selected profile.
@@ -573,13 +628,18 @@ pub fn run() {
 /// binary or an explicitly selected historical/candidate profile.
 pub fn run_with_args(args: &[String]) -> Result<(), String> {
     match parse_startup_profile(args)? {
-        StartupCommand::Run(profile) => run_with_profile(profile),
+        StartupCommand::Run((profile, nnue_model)) => {
+            run_with_profile(profile, nnue_model)
+        }
         StartupCommand::Help => print_startup_help(),
     }
     Ok(())
 }
 
-fn run_with_profile(profile: search::SearchProfile) {
+fn run_with_profile(
+    profile: search::SearchProfile,
+    nnue_model: Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+) {
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -689,6 +749,7 @@ fn run_with_profile(profile: search::SearchProfile) {
                     budget,
                     tt.clone(),
                     profile,
+                    nnue_model.clone(),
                 );
                 active = Some(ActiveSearch { stop, handle });
             }
@@ -959,7 +1020,7 @@ mod tests {
     fn startup_profile(args: &[&str]) -> search::SearchProfile {
         let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
         match parse_startup_profile(&owned).expect("startup arguments must parse") {
-            StartupCommand::Run(profile) => profile,
+            StartupCommand::Run((profile, _)) => profile,
             StartupCommand::Help => panic!("expected a profile command"),
         }
     }
@@ -1112,16 +1173,22 @@ mod tests {
 
     #[test]
     fn s80_help_text_advertises_the_eval2_candidate() {
-        let err =
-            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
+        let err = parse_startup_profile(&[
+            "--profile".to_string(),
+            "nope".to_string(),
+        ])
+        .unwrap_err();
         assert!(err.contains("current-final-eval2"), "got: {}", err);
     }
 
     /// S9-A: The rejection message must advertise all LOO candidates.
     #[test]
     fn s9a_help_text_advertises_loo_candidates() {
-        let err =
-            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
+        let err = parse_startup_profile(&[
+            "--profile".to_string(),
+            "nope".to_string(),
+        ])
+        .unwrap_err();
         assert!(
             err.contains("current-final-no-pawn-structure"),
             "got: {}",
@@ -1965,6 +2032,7 @@ mod tests {
             budget,
             tt.clone(),
             search::SearchProfile::Current,
+            None,
         );
         let _ = handle.join();
 
