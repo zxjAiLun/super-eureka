@@ -3687,6 +3687,7 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
     let mut white_lane_mismatches: u64 = 0;
     let mut black_lane_mismatches: u64 = 0;
     let mut raw_mismatches: u64 = 0;
+    let mut reference_mismatches: u64 = 0;
     let mut delta_updates: u64 = 0;
     let mut full_refreshes: u64 = 0;
     let mut mirror_boundary_king_moves: u64 = 0;
@@ -3713,6 +3714,7 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             *flag_counts.entry(flag_name.to_string()).or_insert(0) += 1;
 
             let before = pos.clone();
+            let delta = model.prepare_move_delta(&before, &m);
             pos.make_move(m);
 
             // Own-king mirror-regime telemetry (a-d vs e-h file regime).
@@ -3726,11 +3728,22 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
                 }
             }
 
-            // Incremental update and three-layer exact comparison.
+            // Move-aware update (C2A production path) and A==B==C
+            // comparison: move-aware == C1 64-square reference ==
+            // full refresh.
             let mut inc = acc;
-            let stats = model.update_accumulator(&mut inc, &before, &pos);
+            let stats =
+                model.update_accumulator_for_move(&mut inc, &delta, &pos);
             delta_updates += stats.delta_updates as u64;
             full_refreshes += stats.full_refreshes as u64;
+
+            // B: C1 64-square reference oracle (kept as live verification
+            // of the move-aware path).
+            let mut reference = acc;
+            model.update_accumulator(&mut reference, &before, &pos);
+            if inc.white != reference.white || inc.black != reference.black {
+                reference_mismatches += 1;
+            }
 
             let fresh = model.full_accumulator(&pos);
             lanes_checked += 256;
@@ -3762,20 +3775,22 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
 
     let passed = white_lane_mismatches == 0
         && black_lane_mismatches == 0
-        && raw_mismatches == 0;
+        && raw_mismatches == 0
+        && reference_mismatches == 0;
     let flags_json = flag_counts
         .iter()
         .map(|(k, v)| format!("\"{k}\":{v}"))
         .collect::<Vec<_>>()
         .join(",");
     println!(
-        "{{\"stage\":\"s10_c1_incremental_accumulator\",\
+        "{{\"stage\":\"s10_c2a_incremental_accumulator\",\
          \"games\":{games},\"plies_max\":{plies},\
          \"transitions_checked\":{transitions},\
          \"accumulator_lanes_checked\":{lanes_checked},\
          \"white_lane_mismatches\":{white_lane_mismatches},\
          \"black_lane_mismatches\":{black_lane_mismatches},\
          \"raw_output_mismatches\":{raw_mismatches},\
+         \"reference_64sq_mismatches\":{reference_mismatches},\
          \"delta_updates\":{delta_updates},\
          \"full_refreshes\":{full_refreshes},\
          \"mirror_boundary_king_moves\":{mirror_boundary_king_moves},\

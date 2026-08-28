@@ -18,7 +18,7 @@
 //! single feature-encoding source of truth.
 
 use crate::chess::position::Position;
-use crate::chess::types::{Color, Square};
+use crate::chess::types::{Color, Move, Piece, Square};
 use crate::engine::nnue::{
     active_features_v2, v2_feature_for_piece, NnuePerspective, NNUE_INPUTS_V2,
 };
@@ -100,6 +100,51 @@ pub struct UpdateStats {
     pub delta_updates: usize,
     /// Number of perspectives fully refreshed (own-king move).
     pub full_refreshes: usize,
+}
+
+/// Fixed-size, zero-heap move description for the C2A move-aware
+/// accumulator updater. Describes the board changes of one move BEFORE it
+/// is played (relative to the parent position):
+///
+/// - quiet / double push: removed = [moved@from], added = [moved@to]
+/// - normal capture:      removed = [moved@from, captured@to]
+///                        added   = [moved@to]
+/// - en passant:          removed = [pawn@from, cap@ep-sq]
+///                        added   = [pawn@to]
+/// - castling:            removed = [king@from, rook@rf]
+///                        added   = [king@to, rook@rt]
+/// - promotion:           removed = [pawn@from, (captured@to)]
+///                        added   = [promoted@to]
+///
+/// `moved_king` records the color whose KING square changes (the mover on
+/// a king move, including castling), so the updater can full-refresh that
+/// perspective without comparing positions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NnueMoveDelta {
+    removed: [Option<(Square, Piece)>; 2],
+    added: [Option<(Square, Piece)>; 2],
+    moved_king: Option<Color>,
+}
+
+impl NnueMoveDelta {
+    /// Squares whose occupant changes across the move (test-facing view
+    /// for the board-diff invariant check).
+    pub fn dirty_squares(&self) -> impl Iterator<Item = Square> + '_ {
+        self.removed
+            .iter()
+            .chain(self.added.iter())
+            .filter_map(|e| e.map(|(sq, _)| sq))
+    }
+
+    #[cfg(test)]
+    pub fn removed_entries(&self) -> impl Iterator<Item = (Square, Piece)> + '_ {
+        self.removed.iter().filter_map(|&e| e)
+    }
+
+    #[cfg(test)]
+    pub fn added_entries(&self) -> impl Iterator<Item = (Square, Piece)> + '_ {
+        self.added.iter().filter_map(|&e| e)
+    }
 }
 
 /// Loaded S10-B5 quantized model. Immutable after construction.
@@ -267,12 +312,23 @@ impl NnueV2QuantizedModel {
     /// Stored ALWAYS in White/Black perspective order (never STM/NSTM);
     /// the dense forward swaps by side-to-move at evaluation time.
     pub fn full_accumulator(&self, pos: &Position) -> NnueV2Accumulator {
-        let white = active_features_v2(pos, NnuePerspective::White);
-        let black = active_features_v2(pos, NnuePerspective::Black);
         NnueV2Accumulator {
-            white: self.accumulate(&white),
-            black: self.accumulate(&black),
+            white: self.full_accumulator_for_perspective(
+                pos, NnuePerspective::White),
+            black: self.full_accumulator_for_perspective(
+                pos, NnuePerspective::Black),
         }
+    }
+
+    /// Full-refresh lanes for ONE perspective only (the C2A shape: an
+    /// own-king move refreshes just that perspective, not both).
+    pub fn full_accumulator_for_perspective(
+        &self,
+        pos: &Position,
+        perspective: NnuePerspective,
+    ) -> [i32; NNUE_V2Q_FT_WIDTH] {
+        let features = active_features_v2(pos, perspective);
+        self.accumulate(&features)
     }
 
     /// Incrementally update `acc` across the transition `before -> after`.
@@ -302,9 +358,9 @@ impl NnueV2QuantizedModel {
             let own_king_moved = before.king_square(perspective.color())
                 != after.king_square(perspective.color());
             if own_king_moved {
-                let fresh = self.full_accumulator(after);
-                let fresh_lanes = fresh.lanes_for(perspective);
-                lanes.copy_from_slice(fresh_lanes);
+                let fresh_lanes =
+                    self.full_accumulator_for_perspective(after, perspective);
+                lanes.copy_from_slice(&fresh_lanes);
                 stats.full_refreshes += 1;
                 continue;
             }
@@ -330,6 +386,135 @@ impl NnueV2QuantizedModel {
                         self.apply_feature(lanes, f, 1);
                         deltas += 1;
                     }
+                }
+            }
+            stats.delta_updates += deltas;
+        }
+        stats
+    }
+
+    /// Build the fixed-size move description for `mv` played from `pos`
+    /// (the PARENT position, before the move). Zero heap allocation.
+    pub fn prepare_move_delta(
+        &self,
+        pos: &Position,
+        mv: &Move,
+    ) -> NnueMoveDelta {
+        use crate::chess::types::{
+            make_square, file_of, rank_of, MoveFlag, Piece,
+        };
+
+        let mut removed: [Option<(Square, Piece)>; 2] = [None, None];
+        let mut added: [Option<(Square, Piece)>; 2] = [None, None];
+        let us = pos.side_to_move();
+        let moved_piece =
+            pos.board()[mv.from as usize].expect("move from empty square");
+
+        match mv.flag {
+            MoveFlag::EnPassant => {
+                let cap_sq =
+                    make_square(file_of(mv.to), rank_of(mv.from));
+                let captured = pos.board()[cap_sq as usize]
+                    .expect("en passant target pawn missing");
+                removed[0] = Some((mv.from, moved_piece));
+                removed[1] = Some((cap_sq, captured));
+                added[0] = Some((mv.to, moved_piece));
+            }
+            MoveFlag::KingCastle | MoveFlag::QueenCastle => {
+                let (rf, rt) = match (us, mv.flag) {
+                    (Color::White, MoveFlag::KingCastle) => {
+                        (crate::chess::types::H1, crate::chess::types::F1)
+                    }
+                    (Color::Black, MoveFlag::KingCastle) => {
+                        (crate::chess::types::H8, crate::chess::types::F8)
+                    }
+                    (Color::White, _) => {
+                        (crate::chess::types::A1, crate::chess::types::D1)
+                    }
+                    (Color::Black, _) => {
+                        (crate::chess::types::A8, crate::chess::types::D8)
+                    }
+                };
+                let rook = pos.board()[rf as usize]
+                    .expect("castling rook missing");
+                removed[0] = Some((mv.from, moved_piece));
+                removed[1] = Some((rf, rook));
+                added[0] = Some((mv.to, moved_piece));
+                added[1] = Some((rt, rook));
+            }
+            MoveFlag::Promotion(pt) => {
+                let promoted = Piece::new(us, pt);
+                removed[0] = Some((mv.from, moved_piece));
+                if let Some(captured) = pos.board()[mv.to as usize] {
+                    removed[1] = Some((mv.to, captured));
+                }
+                added[0] = Some((mv.to, promoted));
+            }
+            _ => {
+                // quiet / double pawn push / normal capture
+                removed[0] = Some((mv.from, moved_piece));
+                if let Some(captured) = pos.board()[mv.to as usize] {
+                    removed[1] = Some((mv.to, captured));
+                }
+                added[0] = Some((mv.to, moved_piece));
+            }
+        }
+
+        let moved_king = if moved_piece.piece_type
+            == crate::chess::types::PieceType::King
+        {
+            Some(us)
+        } else {
+            None
+        };
+
+        NnueMoveDelta { removed, added, moved_king }
+    }
+
+    /// Move-aware incremental update (C2A production path).
+    ///
+    /// `delta` was prepared against the PARENT position; `child` is the
+    /// position AFTER the move. For every perspective whose own king did
+    /// not move, the king context is identical in parent and child, so
+    /// old AND new feature indices are computed with the CHILD's king
+    /// context — no parent position copy is needed on the search hot path.
+    /// The perspective whose king moved is fully refreshed (its feature
+    /// indices are undefined under the old context).
+    pub fn update_accumulator_for_move(
+        &self,
+        acc: &mut NnueV2Accumulator,
+        delta: &NnueMoveDelta,
+        child: &Position,
+    ) -> UpdateStats {
+        let mut stats = UpdateStats::default();
+        for (perspective, lanes) in [
+            (NnuePerspective::White, &mut acc.white),
+            (NnuePerspective::Black, &mut acc.black),
+        ] {
+            if delta.moved_king == Some(perspective.color()) {
+                let fresh =
+                    self.full_accumulator_for_perspective(child, perspective);
+                lanes.copy_from_slice(&fresh);
+                stats.full_refreshes += 1;
+                continue;
+            }
+            let mut deltas = 0usize;
+            for entry in delta.removed.iter().flatten() {
+                let (sq, piece) = *entry;
+                if let Some(f) =
+                    v2_feature_for_piece(child, perspective, sq, piece)
+                {
+                    self.apply_feature(lanes, f, -1);
+                    deltas += 1;
+                }
+            }
+            for entry in delta.added.iter().flatten() {
+                let (sq, piece) = *entry;
+                if let Some(f) =
+                    v2_feature_for_piece(child, perspective, sq, piece)
+                {
+                    self.apply_feature(lanes, f, 1);
+                    deltas += 1;
                 }
             }
             stats.delta_updates += deltas;
@@ -971,5 +1156,201 @@ mod tests {
         // Sanity: the playout actually exercised moves and king moves.
         assert!(transitions > 1000, "too few transitions: {transitions}");
         assert!(king_refreshes > 0, "no own-king moves exercised");
+    }
+
+    // ------------------------------------------------------------------
+    // S10-C2A move-aware dirty accumulator tests
+    // ------------------------------------------------------------------
+
+    /// Invariant: dirty squares derived from the Move == the squares that
+    /// actually change across before.board vs after.board. The 64-square
+    /// scan exists ONLY in this test, never in the production updater.
+    #[test]
+    fn c2a_dirty_squares_match_board_diff() {
+        use crate::chess::movegen::generate_legal_moves;
+        let model = test_model();
+        let fens = [
+            START_FEN,
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1",
+            "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 3",
+            "8/P7/8/8/8/8/k6K/8 w - - 0 1",
+            "1n6/P7/8/8/8/8/k6K/8 w - - 0 1",
+        ];
+        let mut checked = 0usize;
+        for fen in fens {
+            let mut pos = parse_fen(fen).unwrap();
+            let legal = generate_legal_moves(&mut pos.clone());
+            for m in legal {
+                let before = pos.clone();
+                let delta = model.prepare_move_delta(&before, &m);
+                let dirty: std::collections::BTreeSet<Square> =
+                    delta.dirty_squares().collect();
+                let undo = pos.make_move(m);
+                let mut actual = std::collections::BTreeSet::new();
+                for sq in 0..64 {
+                    if before.board()[sq] != pos.board()[sq] {
+                        actual.insert(sq as Square);
+                    }
+                }
+                pos.unmake_move(undo);
+                assert_eq!(
+                    dirty, actual,
+                    "dirty-squares drift for {m:?} in {fen}"
+                );
+                // The delta's own entry counts must match its slots.
+                assert_eq!(delta.removed_entries().count(), removed_count(&delta));
+                assert_eq!(delta.added_entries().count(), added_count(&delta));
+                checked += 1;
+            }
+        }
+        assert!(checked > 50, "too few moves checked: {checked}");
+    }
+
+    fn removed_count(d: &NnueMoveDelta) -> usize {
+        d.removed.iter().flatten().count()
+    }
+    fn added_count(d: &NnueMoveDelta) -> usize {
+        d.added.iter().flatten().count()
+    }
+
+    /// A == B == C: move-aware update == C1 64-square reference update ==
+    /// full refresh, on every legal move of a scenario-rich FEN set.
+    #[test]
+    fn c2a_move_aware_matches_reference_and_full_refresh() {
+        use crate::chess::movegen::generate_legal_moves;
+        let model = test_model();
+        let fens = [
+            START_FEN,
+            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1",
+            "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 3",
+            "8/P7/8/8/8/8/k6K/8 w - - 0 1",
+            "1n6/P7/8/8/8/8/k6K/8 w - - 0 1",
+            "4k3/8/8/8/8/8/8/3K4 w - - 0 1",
+            "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+        ];
+        let mut transitions = 0usize;
+        for fen in fens {
+            let mut pos = parse_fen(fen).unwrap();
+            let parent = model.full_accumulator(&pos);
+            let legal = generate_legal_moves(&mut pos.clone());
+            for m in legal {
+                let before = pos.clone();
+                let delta = model.prepare_move_delta(&before, &m);
+                let undo = pos.make_move(m);
+
+                // A: move-aware update from the parent accumulator.
+                let mut a = parent;
+                let stats_a =
+                    model.update_accumulator_for_move(&mut a, &delta, &pos);
+
+                // B: C1 64-square reference update.
+                let mut b = parent;
+                let stats_b =
+                    model.update_accumulator(&mut b, &before, &pos);
+
+                // C: full refresh.
+                let c = model.full_accumulator(&pos);
+
+                assert_eq!(a.white, b.white, "A!=B white for {m:?} in {fen}");
+                assert_eq!(a.black, b.black, "A!=B black for {m:?} in {fen}");
+                assert_eq!(a.white, c.white, "A!=C white for {m:?} in {fen}");
+                assert_eq!(a.black, c.black, "A!=C black for {m:?} in {fen}");
+                assert_eq!(
+                    model.evaluate_raw_from_accumulator(&pos, &a),
+                    model.evaluate_raw(&pos),
+                    "raw mismatch for {m:?} in {fen}"
+                );
+                assert_eq!(stats_a, stats_b, "stats drift for {m:?}");
+                pos.unmake_move(undo);
+                transitions += 1;
+            }
+        }
+        assert!(transitions > 100);
+    }
+
+    /// Null-move semantics: the fixed-perspective accumulator is entirely
+    /// unchanged by a side-to-move flip; only the dense STM/NSTM ordering
+    /// (and therefore possibly the raw output) differs.
+    #[test]
+    fn c2a_null_move_leaves_accumulator_bit_identical() {
+        let model = test_model();
+        let fen = "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1";
+        let pos = parse_fen(fen).unwrap();
+        let acc = model.full_accumulator(&pos);
+        // Null move shape: same board, side to move flipped (via FEN).
+        let flipped = parse_fen(&fen.replace(" w KQkq", " b KQkq")).unwrap();
+        let acc2 = model.full_accumulator(&flipped);
+        // Accumulator lanes bit-identical across the null-move shape.
+        assert_eq!(acc.white, acc2.white);
+        assert_eq!(acc.black, acc2.black);
+        // Dense forward sees the SAME accumulator but swaps STM/NSTM.
+        let raw_w = model.evaluate_raw_from_accumulator(&pos, &acc);
+        let raw_b = model.evaluate_raw_from_accumulator(&flipped, &acc);
+        // Both must be valid integers; difference (if any) comes only
+        // from the ordering swap.
+        assert_ne!(raw_w, i32::MAX);
+        assert_ne!(raw_b, i32::MAX);
+        // And evaluating the flipped position with the shared accumulator
+        // equals a fresh full evaluation of the flipped position.
+        assert_eq!(
+            raw_b,
+            model.evaluate_raw(&flipped),
+            "null-move dense parity"
+        );
+    }
+
+    /// 100-game deterministic playout through the MOVE-AWARE path with
+    /// the C1 64-square updater as a live oracle at every ply.
+    #[test]
+    fn c2a_move_aware_100_game_playout_with_oracle() {
+        use crate::chess::movegen::generate_legal_moves;
+        let model = test_model();
+        let mut rng: u64 = 0x2aa2f932cdbb2dff;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let mut transitions = 0usize;
+        let mut refreshes = 0usize;
+        let mut deltas = 0usize;
+        for _game in 0..100 {
+            let mut pos = Position::startpos();
+            let mut acc = model.full_accumulator(&pos);
+            for _ply in 0..100 {
+                let moves = generate_legal_moves(&mut pos.clone());
+                if moves.is_empty() {
+                    break;
+                }
+                let m = moves[(next() % moves.len() as u64) as usize];
+                let before = pos.clone();
+                let delta = model.prepare_move_delta(&pos, &m);
+                pos.make_move(m);
+
+                let mut a = acc;
+                let stats =
+                    model.update_accumulator_for_move(&mut a, &delta, &pos);
+                let mut b = acc;
+                model.update_accumulator(&mut b, &before, &pos);
+                let c = model.full_accumulator(&pos);
+
+                assert_eq!(a.white, b.white, "A!=B white @ {m:?}");
+                assert_eq!(a.black, b.black, "A!=B black @ {m:?}");
+                assert_eq!(a.white, c.white, "A!=C white @ {m:?}");
+                assert_eq!(a.black, c.black, "A!=C black @ {m:?}");
+                assert_eq!(
+                    model.evaluate_raw_from_accumulator(&pos, &a),
+                    model.evaluate_raw(&pos)
+                );
+                refreshes += stats.full_refreshes;
+                deltas += stats.delta_updates;
+                acc = a;
+                transitions += 1;
+            }
+        }
+        assert!(transitions > 1000, "too few transitions: {transitions}");
+        assert!(refreshes > 0);
+        assert!(deltas > 0);
     }
 }
