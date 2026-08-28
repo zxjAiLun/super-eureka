@@ -33,6 +33,13 @@ ENGINE = Path("target/release/eureka")
 MODEL = Path("data/s10/b3/seed-20260818/nnue-v2-q01.bin")
 MODEL_SHA = "b51a79b19999aeed974c2279eef60b01f890248c7d006cbe3d504cc7c0f28b9a"
 
+# S10-C3-C1 4-arm mode: C0 runs the PRE-optimization binary (from
+# 2eae99c) so C1/C0 is a same-machine paired measurement of the
+# optimization itself, immune to thermal drift between sessions.
+BASELINE_ENGINE = Path("/tmp/opencode/eureka-baseline-2eae99c")
+BASELINE_ENGINE_SHA = (
+    "aa9ec116d21f953f6adf75c6e87a2e09b1eb968411ad4e6a001c9b099276a17f")
+
 NODES = 200_000
 ROUNDS = 12
 HASH_MB = 64
@@ -79,20 +86,32 @@ CORPUS = [
 
 PROFILE = {"A": "current-final",
            "B": "current-final-nnue-v2q-full",
-           "C": "current-final-nnue-v2q"}
+           "C": "current-final-nnue-v2q",
+           "C0": "current-final-nnue-v2q"}  # C0 = baseline binary arm
 
-ORDERS = ["ABC", "ACB", "BAC", "BCA", "CAB", "CBA"] * (ROUNDS // 6)
+# 4-arm balanced orders (A=Eval2, 0=old incr, B=full, C=new incr):
+# a 4x4 Latin square (each symbol once per row, balanced columns).
+ORDERS = [
+    "A0BC", "0BCA", "BCA0", "CA0B",
+    "AB0C", "B0CA", "0CAB", "CAB0",
+    "ACB0", "CB0A", "B0AC", "0ACB",
+][:ROUNDS]
 
 IDENTITY_FIELDS = ["nodes", "qsearch_nodes", "score", "bestmove", "pv"]
 
 
 def run_arm(arm: str, fen: str) -> dict:
-    cmd = [str(ENGINE), "bench", "profile",
-           "--profile", PROFILE[arm],
+    engine = ENGINE
+    profile = PROFILE[arm]
+    if arm == "C0":
+        engine = BASELINE_ENGINE
+        profile = PROFILE["C"]
+    cmd = [str(engine), "bench", "profile",
+           "--profile", profile,
            "--nodes", str(NODES),
            "--hash-mb", str(HASH_MB),
            "--fen", fen]
-    if arm in ("B", "C"):
+    if arm in ("B", "C", "C0"):
         cmd += ["--nnue-model", str(MODEL)]
     proc = subprocess.run(cmd, capture_output=True, text=True,
                           timeout=1200,
@@ -119,8 +138,8 @@ def main() -> int:
     corpus_sha = hashlib.sha256(
         "\n".join(f for _, f in CORPUS).encode()).hexdigest()
 
-    ratios = {"B/A": [], "C/A": [], "C/B": []}
-    arm_nps = {"A": [], "B": [], "C": []}
+    ratios = {"B/A": [], "C/A": [], "C/B": [], "C/C0": [], "C0/A": []}
+    arm_nps = {"A": [], "B": [], "C": [], "C0": []}
     identity_failures = []
     per_fixture = []
     identity_checked = 0
@@ -130,32 +149,39 @@ def main() -> int:
         for round_idx in range(ROUNDS):
             order = ORDERS[round_idx % len(ORDERS)]
             results = {}
-            for arm in order:
+            for sym in order:
+                arm = {"A": "A", "0": "C0", "B": "B", "C": "C"}[sym]
                 r = run_arm(arm, fen)
                 if "error" in r:
                     print(f"FATAL: {name}/{arm} round {round_idx}: "
                           f"{r['error']}")
                     return 4
                 results[arm] = r
-            # B/C tree identity (fail-closed)
-            b, c = results["B"], results["C"]
-            identical = all(b.get(f) == c.get(f) for f in IDENTITY_FIELDS)
+            # B/C/C0 tree identity (fail-closed across BOTH binaries).
+            b, c, c0 = results["B"], results["C"], results["C0"]
+            identical = all(
+                b.get(f) == c.get(f) == c0.get(f) for f in IDENTITY_FIELDS)
             identity_checked += 1
             if not identical:
-                diff = {f: (b.get(f), c.get(f)) for f in IDENTITY_FIELDS
-                        if b.get(f) != c.get(f)}
+                diff = {}
+                for f in IDENTITY_FIELDS:
+                    if not (b.get(f) == c.get(f) == c0.get(f)):
+                        diff[f] = (b.get(f), c.get(f), c0.get(f))
                 identity_failures.append(
                     {"fixture": name, "round": round_idx, "diff": diff})
                 continue
             # node budget must be consumed exactly (fixed-budget contract)
-            for arm in "ABC":
+            valid = True
+            for arm in ("A", "B", "C", "C0"):
                 if results[arm].get("nodes") != str(NODES):
                     identity_failures.append({
                         "fixture": name, "round": round_idx,
                         "diff": {arm: results[arm].get("nodes")}})
-                    continue
+                    valid = False
+            if not valid:
+                continue  # skip invalid samples entirely
             nps = {}
-            for arm in "ABC":
+            for arm in ("A", "B", "C", "C0"):
                 elapsed_us = int(results[arm]["elapsed_us"])
                 v = int(results[arm]["nodes"]) * 1_000_000 / max(elapsed_us, 1)
                 nps[arm] = v
@@ -163,9 +189,11 @@ def main() -> int:
             ratios["B/A"].append(nps["B"] / nps["A"])
             ratios["C/A"].append(nps["C"] / nps["A"])
             ratios["C/B"].append(nps["C"] / nps["B"])
+            ratios["C/C0"].append(nps["C"] / nps["C0"])
+            ratios["C0/A"].append(nps["C0"] / nps["A"])
             entry["rounds"].append({
                 "order": order,
-                "nps": {a: round(nps[a], 1) for a in "ABC"},
+                "nps": {a: round(nps[a], 1) for a in ("A", "B", "C", "C0")},
             })
         per_fixture.append(entry)
 
@@ -202,6 +230,7 @@ def main() -> int:
     result = {
         "stage": "s10_c3b_search_nps",
         "engine_sha256": engine_sha,
+        "baseline_engine_sha256": BASELINE_ENGINE_SHA,
         "model_sha256": model_sha,
         "corpus_sha256": corpus_sha,
         "fen_count": len(CORPUS),
