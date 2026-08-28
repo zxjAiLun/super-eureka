@@ -1,0 +1,13 @@
+{
+  "artifact_path": "/media/bailan/DISK/AUbuntuProject/project/chessenginedemo/data/s10/b3/seed-20260818/nnue-v2-f32.bin",
+  "artifact_sha256": "9bf7adddf7b3b44affa5e26d2276b13d74566191a4eb4d0090fbde5a7afbc9fc",
+  "total_bytes": 11572156,
+  "magic": "EUNN2F32",
+  "format_version": 1,
+  "inputs": 22528,
+  "ft_width": 128,
+  "target_scale": 1000.0,
+  "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+  "seed": 20260818,
+  "format": "EUNN2F32 (S10-B4 bench-only parity bridge)"
+}

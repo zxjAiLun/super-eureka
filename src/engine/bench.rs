@@ -2415,6 +2415,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-probe-microbench" {
         return run_nnue_probe_microbench(&args[1..]);
     }
+    if args[0] == "nnue-v2-probe" {
+        return run_nnue_v2_probe(&args[1..]);
+    }
+    if args[0] == "nnue-v2-probe-batch" {
+        return run_nnue_v2_probe_batch(&args[1..]);
+    }
     if args[0] == "microbench" {
         return run_microbench(&args[1..]);
     }
@@ -2491,6 +2497,8 @@ fn print_help() {
     println!("  nnue-probe --model <bin> --fen <fen>  S6-N2 full-refresh inference, one JSON line");
     println!("  nnue-probe-batch --model <bin> --batch <file>  one JSON line per record");
     println!("  nnue-probe-microbench --model <bin> --batch <file> --iterations <N>  cost probe");
+    println!("  nnue-v2-probe --model <bin> --fen <fen>  S10-B4 V2 full-refresh FP32 inference, one JSON line");
+    println!("  nnue-v2-probe-batch --model <bin> --batch <file>  one JSON line per record");
 }
 
 // ---------------------------------------------------------------------------
@@ -3329,6 +3337,133 @@ fn nnue_probe_batch_from_text(
 ///   "prediction_cp": f32}`.
 fn nnue_probe_line(
     model: &crate::engine::nnue_probe::NnueProbeModelV1,
+    pos: &Position,
+    fen: &str,
+    position_id: Option<&str>,
+) -> String {
+    let scaled = model.evaluate_scaled(pos);
+    let cp = model.evaluate_cp(pos);
+    let escaped_fen = json_escape(fen);
+    let escaped_id = json_escape(position_id.unwrap_or(""));
+    let mut out = String::from("{");
+    if position_id.is_some() {
+        out.push_str(&format!("\"position_id\":\"{escaped_id}\","));
+    }
+    out.push_str(&format!(
+        "\"fen\":\"{escaped_fen}\",\"scaled_prediction\":{scaled},\"prediction_cp\":{cp}}}"
+    ));
+    out
+}
+
+/// S10-B4: `bench nnue-v2-probe --model <bin> --fen <fen>` - one JSON line
+/// with the full-refresh FP32 V2 inference result.
+fn run_nnue_v2_probe(args: &[String]) -> Result<(), String> {
+    let mut model: Option<String> = None;
+    let mut fen: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-v2-probe: --model requires a value".to_string())?
+                    .clone();
+                model = Some(value);
+            }
+            "--fen" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-v2-probe: --fen requires a value".to_string())?
+                    .clone();
+                fen = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-v2-probe: unknown argument '{}' (expected --model <bin> --fen <fen>)",
+                    other
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or_else(|| "nnue-v2-probe: --model is required".to_string())?;
+    let fen = fen.ok_or_else(|| "nnue-v2-probe: --fen is required".to_string())?;
+    let model =
+        crate::engine::nnue_v2_runtime::NnueV2Model::load(std::path::Path::new(&model_path))?;
+    let pos = parse_fen(&fen).map_err(|e| format!("nnue-v2-probe: {e}"))?;
+    println!("{}", nnue_v2_probe_line(&model, &pos, &fen, None));
+    Ok(())
+}
+
+/// S10-B4: `bench nnue-v2-probe-batch --model <bin> --batch <file>` - one
+/// JSON line per input record (`position_id|fen` or plain FEN),
+/// deterministic order, full-refresh FP32 inference.
+fn run_nnue_v2_probe_batch(args: &[String]) -> Result<(), String> {
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-v2-probe-batch: --model requires a value".to_string())?
+                    .clone();
+                model = Some(value);
+            }
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "nnue-v2-probe-batch: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "nnue-v2-probe-batch: unknown argument '{}' (expected --model <bin> --batch <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let model_path =
+        model.ok_or_else(|| "nnue-v2-probe-batch: --model is required".to_string())?;
+    let batch = batch.ok_or_else(|| "nnue-v2-probe-batch: --batch is required".to_string())?;
+    let model =
+        crate::engine::nnue_v2_runtime::NnueV2Model::load(std::path::Path::new(&model_path))?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("nnue-v2-probe-batch: cannot read {batch}: {e}"))?;
+    print!("{}", nnue_v2_probe_batch_from_text(&model, &text)?);
+    Ok(())
+}
+
+/// Process one batch input text (shared by the CLI bridge and tests).
+fn nnue_v2_probe_batch_from_text(
+    model: &crate::engine::nnue_v2_runtime::NnueV2Model,
+    text: &str,
+) -> Result<String, String> {
+    let mut out = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (position_id, fen) = match line.split_once('|') {
+            Some((id, fen)) => (Some(id.trim()), fen.trim()),
+            None => (None, line),
+        };
+        let pos =
+            parse_fen(fen).map_err(|e| format!("nnue-v2-probe-batch: {e}: '{fen}'"))?;
+        out.push_str(&nnue_v2_probe_line(model, &pos, fen, position_id));
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Deterministic JSON line for one position's full-refresh V2 prediction:
+/// `{"position_id":?, "fen": "...", "scaled_prediction": f32,
+///   "prediction_cp": f32}`.
+fn nnue_v2_probe_line(
+    model: &crate::engine::nnue_v2_runtime::NnueV2Model,
     pos: &Position,
     fen: &str,
     position_id: Option<&str>,

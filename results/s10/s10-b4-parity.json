@@ -1,0 +1,16 @@
+{
+  "stage": "s10_b4_parity",
+  "checkpoint_sha256": "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7",
+  "artifact_sha256": "9bf7adddf7b3b44affa5e26d2276b13d74566191a4eb4d0090fbde5a7afbc9fc",
+  "engine_sha256": "f005811bda2c73f8833915787dc7fcc777b8a6b84803f752ff357c5d60bfb41b",
+  "corpus_size": 1000,
+  "corpus_splits": {
+    "train": 1000
+  },
+  "corpus_source": "first 1000 non-holdout usable records of s10-eval-v1-300k01, dataset order",
+  "holdout_positions_used": 0,
+  "max_abs_error_cp": 0.000152998046871744,
+  "mean_abs_error_cp": 2.8261581090564897e-05,
+  "gate_max_abs_error_cp": 0.01,
+  "passed": true
+}
