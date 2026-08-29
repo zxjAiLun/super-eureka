@@ -3,6 +3,27 @@
 # Triggers: workflow_dispatch with inputs:
 #   git_ref      - commit/tag to build (default: main)
 #   build_label  - short label used in the immutable build directory name
+#   skip_quality_gates          - waive fmt/clippy (see "Quality-gate waiver")
+#   quality_gate_waiver_reason  - mandatory justification for the waiver
+#
+# Quality-gate waiver:
+#   A frozen historical commit (e.g. an accepted candidate whose correctness
+#   and performance evidence is all pinned to that SHA) may carry rustfmt /
+#   clippy debt that cannot be fixed without changing the commit. Waiving the
+#   two *lint* gates lets us deploy that exact SHA. The waiver is deliberately
+#   narrow:
+#     * only `cargo fmt --check` and `cargo clippy` are skippable — the debug
+#       and release test suites, the release build, the UCI probe, the
+#       manifest validation, the binary SHA and the server-side build-install
+#       SHA check all remain mandatory;
+#     * it is accepted only for a full 40-char commit SHA whose checkout
+#       resolves back to that exact SHA (never `main`, never a branch);
+#     * a non-empty `quality_gate_waiver_reason` is required;
+#     * the outcome is recorded in the build manifest as
+#       `quality_gate_provenance`, so a build found on the server months later
+#       explains itself without digging through Actions logs.
+#   This is a waiver for immutable history, not a way to ship unverified
+#   work: a feature branch that never passed CI still cannot get in.
 #
 # Flow:
 #   1. checkout the pinned ref,
@@ -31,9 +52,24 @@ on:
         description: "short label for the build directory (e.g. linux-x86_64)"
         required: true
         default: "linux-x86_64"
+      skip_quality_gates:
+        description: "Waive fmt/clippy for a frozen historical commit"
+        required: false
+        type: boolean
+        default: false
+      quality_gate_waiver_reason:
+        description: "Required when quality gates are waived"
+        required: false
+        type: string
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
+  # Binary path, derived from the Cargo package name (`eureka`). Declared once
+  # here so the build / probe / stage steps cannot drift apart on a rename:
+  # the crate was previously `chess-engine-demo` and every one of those steps
+  # hard-coded the old path.
+  BIN: target/release/eureka
 
 jobs:
   build-and-deploy:
@@ -44,15 +80,46 @@ jobs:
           ref: ${{ inputs.git_ref }}
           fetch-depth: 0
 
+      # Fail fast, before any build work: a waiver is only ever valid for a
+      # fully-resolved immutable commit plus a written reason. Passing the
+      # values through `env:` (rather than interpolating them into the script)
+      # keeps a crafted input from breaking out of the shell.
+      - name: Validate quality-gate waiver
+        if: ${{ inputs.skip_quality_gates }}
+        env:
+          WAIVER_REF: ${{ inputs.git_ref }}
+          WAIVER_REASON: ${{ inputs.quality_gate_waiver_reason }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          # 1. A full 40-char lowercase hex SHA only: `main` and branch names
+          #    are mutable, so waiving lint for them would turn this into a
+          #    permanent back door.
+          printf '%s' "$WAIVER_REF" | grep -qE '^[0-9a-f]{40}$' \
+            || fail "waiver requires a full 40-char commit SHA, got '$WAIVER_REF'"
+          # 2. A non-empty reason.
+          test -n "$WAIVER_REASON" \
+            || fail "quality_gate_waiver_reason is required when skip_quality_gates=true"
+          # 3. The checkout must resolve back to that exact SHA.
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "$WAIVER_REF" \
+            || fail "requested ref $WAIVER_REF resolved to $HEAD_SHA; waiver needs an exact match"
+          echo "waiver accepted for $WAIVER_REF"
+
       - name: Install Rust 1.94.1 toolchain (rustfmt + clippy)
         uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt, clippy
 
+      # Only these two lint gates are waivable. Everything below them
+      # (debug/release tests, release build, UCI probe, manifest validation,
+      # binary SHA, server-side install SHA) runs unconditionally.
       - name: cargo fmt --check
+        if: ${{ !inputs.skip_quality_gates }}
         run: cargo fmt --all -- --check
 
       - name: cargo clippy (deny warnings)
+        if: ${{ !inputs.skip_quality_gates }}
         run: cargo clippy --all-targets -- -D warnings
 
       - name: cargo test (debug)
@@ -66,8 +133,12 @@ jobs:
 
       - name: Compute build metadata
         id: meta
+        env:
+          SKIP_GATES: ${{ inputs.skip_quality_gates }}
+          WAIVER_REASON: ${{ inputs.quality_gate_waiver_reason }}
+          WAIVER_ACTOR: ${{ github.actor }}
+          REQUESTED_REF: ${{ inputs.git_ref }}
         run: |
-          BIN="target/release/chess-engine-demo"
           SHA256=$(sha256sum "$BIN" | cut -d' ' -f1)
           GIT_SHA=$(git rev-parse HEAD)
           RUSTC_VERSION=$(rustc --version)
@@ -78,40 +149,118 @@ jobs:
           echo "rustc_version=$RUSTC_VERSION" >> "$GITHUB_OUTPUT"
           echo "cargo_lock_sha256=$CARGO_LOCK_SHA" >> "$GITHUB_OUTPUT"
           echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          # The provenance block is emitted as a single pre-escaped line of
+          # JSON. Building it with json.dumps (rather than interpolating raw
+          # strings into the manifest heredoc below) means a waiver reason
+          # containing quotes or backslashes cannot corrupt the manifest.
+          # Reaching this step at all implies the mandatory debug/release test
+          # suites already passed.
+          RESOLVED_SHA="$GIT_SHA" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          skip = os.environ["SKIP_GATES"] == "true"
+          status = "waived" if skip else "passed"
+          provenance = {
+              "fmt": status,
+              "clippy": status,
+              "tests_debug": "passed",
+              "tests_release": "passed",
+              "waiver_reason": os.environ["WAIVER_REASON"] if skip else None,
+              "waiver_actor": os.environ["WAIVER_ACTOR"],
+              "requested_ref": os.environ["REQUESTED_REF"],
+              "resolved_git_sha": os.environ["RESOLVED_SHA"],
+          }
+          print("provenance=" + json.dumps(provenance, separators=(",", ":")))
+          PY
 
       - name: UCI identity probe
+        id: uci
         run: |
-          printf 'uci\nquit\n' | ./target/release/chess-engine-demo | tee /tmp/uci-probe.txt
+          printf 'uci\nquit\n' | "./$BIN" | tee /tmp/uci-probe.txt
           grep -q "uciok" /tmp/uci-probe.txt
           grep -q "id name" /tmp/uci-probe.txt
+          # The manifest carries the *probed* identity rather than a hard-coded
+          # string: `install_build.py --probe` compares `uci_id_name` against
+          # the binary's real `id name`, so a hard-coded value turns any
+          # version-string change into a deployment failure. Parsing it here
+          # removes that coupling.
+          UCI_ID_NAME=$(sed -n 's/^id name //p' /tmp/uci-probe.txt | head -n 1)
+          UCI_ID_AUTHOR=$(sed -n 's/^id author //p' /tmp/uci-probe.txt | head -n 1)
+          test -n "$UCI_ID_NAME" || { echo "probe produced no 'id name'"; exit 1; }
+          test -n "$UCI_ID_AUTHOR" || { echo "probe produced no 'id author'"; exit 1; }
+          echo "id_name=$UCI_ID_NAME" >> "$GITHUB_OUTPUT"
+          echo "id_author=$UCI_ID_AUTHOR" >> "$GITHUB_OUTPUT"
 
       - name: Stage immutable build directory
+        env:
+          BUILD_ID: ${{ steps.meta.outputs.build_id }}
+          GIT_SHA: ${{ steps.meta.outputs.git_sha }}
+          BINARY_SHA256: ${{ steps.meta.outputs.binary_sha256 }}
+          PLATFORM: ${{ inputs.build_label }}
+          RUSTC_VERSION: ${{ steps.meta.outputs.rustc_version }}
+          CARGO_LOCK_SHA: ${{ steps.meta.outputs.cargo_lock_sha256 }}
+          UCI_ID_NAME: ${{ steps.uci.outputs.id_name }}
+          UCI_ID_AUTHOR: ${{ steps.uci.outputs.id_author }}
+          PROVENANCE: ${{ steps.meta.outputs.provenance }}
         run: |
           mkdir -p /tmp/build-stage/engine
-          cp target/release/chess-engine-demo /tmp/build-stage/engine/engine
-          cat > /tmp/build-stage/engine/manifest.json <<EOF
-          {
-            "schema_version": 1,
-            "build_id": "${{ steps.meta.outputs.build_id }}",
-            "engine_name": "ChessEngineDemo",
-            "git_sha": "${{ steps.meta.outputs.git_sha }}",
-            "binary_sha256": "${{ steps.meta.outputs.binary_sha256 }}",
-            "platform": "${{ inputs.build_label }}",
-            "rustc_version": "${{ steps.meta.outputs.rustc_version }}",
-            "cargo_lock_sha256": "${{ steps.meta.outputs.cargo_lock_sha256 }}",
-            "supported_profiles": ["current-final", "current"],
-            "uci_id_name": "ChessEngineDemo",
-            "uci_id_author": "Rust-learner",
-            "created_utc": "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
+          cp "$BIN" /tmp/build-stage/engine/engine
+          # The manifest is assembled by json.dumps from values passed through
+          # `env:` rather than interpolated into a heredoc, for two reasons:
+          #   * an *unquoted* heredoc (<<EOF) makes bash perform parameter and
+          #     command substitution on the body, so a free-text value such as
+          #     the waiver reason or the requested ref containing `$(...)` or
+          #     a backtick would be executed;
+          #   * hand-written JSON breaks as soon as a value contains a quote
+          #     or a backslash.
+          # The assert is the upload-time fail-closed check: an empty probed
+          # identity would otherwise only surface as a confusing mismatch on
+          # the server.
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+
+          manifest = {
+              "schema_version": 1,
+              "build_id": os.environ["BUILD_ID"],
+              "engine_name": "Eureka",
+              "git_sha": os.environ["GIT_SHA"],
+              "binary_sha256": os.environ["BINARY_SHA256"],
+              "platform": os.environ["PLATFORM"],
+              "rustc_version": os.environ["RUSTC_VERSION"],
+              "cargo_lock_sha256": os.environ["CARGO_LOCK_SHA"],
+              "supported_profiles": [
+                  "current-final",
+                  "current",
+                  "current-final-nnue-v2q-full",
+                  "current-final-nnue-v2q",
+              ],
+              "uci_id_name": os.environ["UCI_ID_NAME"],
+              "uci_id_author": os.environ["UCI_ID_AUTHOR"],
+              "quality_gate_provenance": json.loads(os.environ["PROVENANCE"]),
+              "created_utc": datetime.datetime.now(datetime.timezone.utc).strftime(
+                  "%Y-%m-%dT%H:%M:%S+00:00"
+              ),
           }
-          EOF
+          assert manifest["uci_id_name"] and manifest["uci_id_author"], manifest
+          with open("/tmp/build-stage/engine/manifest.json", "w", encoding="utf-8") as fh:
+              json.dump(manifest, fh, indent=2)
+              fh.write("\n")
+          print("uci_id_name:", manifest["uci_id_name"])
+          print("provenance:", json.dumps(manifest["quality_gate_provenance"], separators=(",", ":")))
+          PY
           # Use the build_id for the tarball so the upload step and the SSH
           # install step reference the same file (P1.7).  The archive is
           # written into the repository workspace as a relative path: the
           # scp-action runs in a Docker container whose working directory is
           # /github/workspace, so a /tmp path on the runner host would be
           # invisible to it ("tar: empty archive").
-          ARCHIVE="build-${{ steps.meta.outputs.build_id }}.tar.gz"
+          # BUILD_ID is read from the env for the same reason: interpolating
+          # the free-text build label straight into a shell string would let a
+          # label containing `$(...)` run as a command.
+          ARCHIVE="build-$BUILD_ID.tar.gz"
           tar -C /tmp/build-stage -czf "$ARCHIVE" .
           test -s "$ARCHIVE"
           tar -tzf "$ARCHIVE" >/dev/null
