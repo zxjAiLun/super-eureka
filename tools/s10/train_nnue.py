@@ -61,9 +61,14 @@ DEFAULT_BATCH_SIZE = 256
 DEFAULT_MAX_EPOCHS = 100
 DEFAULT_PATIENCE = 15
 
-# S10-B3 frozen teacher provenance contract: the 300k Stockfish-18 labeling
-# run (see results/s10/s10-b2-closeout-report.md). Training fails closed if
-# the labels on disk were produced by any other teacher artifact.
+# S10-B3/E0 frozen teacher PROVENANCE contract. The teacher *artifact*
+# (engine identity, binary SHA, search options, audit mode) is frozen and
+# applies to every labeling run; the *dataset scale* (labeled_positions) and
+# labels SHA are per-run values: `labeled_positions` must equal the dataset
+# manifest's records_total, and `labels_sha256` is verified against the
+# labels.jsonl bytes on disk (see load_dataset). This generalization is what
+# allows the 1M (and later) data-scale probes to train under the same
+# fail-closed provenance without weakening any artifact check.
 FROZEN_TEACHER_CONTRACT = {
     "engine": "Stockfish 18",
     "binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
@@ -74,31 +79,32 @@ FROZEN_TEACHER_CONTRACT = {
         "MultiPV": "1",
         "UCI_ShowWDL": "true",
     },
-    "labeled_positions": 300000,
     "audit": {
         "ok": True,
         "mode": "fresh-second-pass",
         "checked": 1000,
         "mismatches": [],
     },
-    "labels_sha256": "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f",
+    # Historical reference for the 300k run (S10-B2); NOT enforced as a
+    # constant anymore -- the labels SHA is checked against the actual
+    # labels.jsonl hash in load_dataset.
+    "historical_labels_sha256_300k": (
+        "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f"
+    ),
 }
 
 
 def verify_teacher_contract(teacher_manifest: dict) -> None:
-    """Fail closed unless the teacher manifest matches the frozen S10-B2
-    provenance contract exactly (engine identity, binary SHA, options,
-    labeled count, audit result, labels SHA)."""
+    """Fail closed unless the teacher manifest matches the frozen provenance
+    contract (engine identity, binary SHA, options, audit result). The
+    dataset-scale fields (labeled_positions, labels_sha256) are per-run and
+    are cross-checked against the dataset itself in load_dataset."""
     tm = teacher_manifest
     checks = [
         ("engine", tm.get("engine"), FROZEN_TEACHER_CONTRACT["engine"]),
         ("binary_sha256", tm.get("binary_sha256"),
          FROZEN_TEACHER_CONTRACT["binary_sha256"]),
         ("nodes", tm.get("nodes"), FROZEN_TEACHER_CONTRACT["nodes"]),
-        ("labeled_positions", tm.get("labeled_positions"),
-         FROZEN_TEACHER_CONTRACT["labeled_positions"]),
-        ("labels_sha256", tm.get("labels_sha256"),
-         FROZEN_TEACHER_CONTRACT["labels_sha256"]),
     ]
     for field, actual, expected in checks:
         if actual != expected:
@@ -131,6 +137,16 @@ def verify_teacher_contract(teacher_manifest: dict) -> None:
         raise SystemExit(
             f"FAIL CLOSED: teacher manifest audit.mismatches "
             f"{audit.get('mismatches')!r} != {frozen_audit['mismatches']!r}"
+        )
+    # Per-run scale fields must still be PRESENT (load_dataset cross-checks
+    # them against the dataset bytes).
+    if not isinstance(tm.get("labeled_positions"), int):
+        raise SystemExit(
+            "FAIL CLOSED: teacher manifest labeled_positions missing/not int"
+        )
+    if not isinstance(tm.get("labels_sha256"), str):
+        raise SystemExit(
+            "FAIL CLOSED: teacher manifest labels_sha256 missing/not str"
         )
 
 
@@ -277,8 +293,17 @@ def load_dataset(dataset_dir: Path) -> dict:
             f"FAIL CLOSED: labels_sha256 mismatch {labels_sha} != {teacher_manifest.get('labels_sha256')}"
         )
 
-    # S10-B3: fail closed unless the teacher artifact is the frozen 300k
-    # Stockfish-18 labeling run (never train against other teacher labels).
+    # Per-run scale field: the teacher must have labeled EXACTLY this
+    # dataset (no more, no fewer).
+    if teacher_manifest.get("labeled_positions") != manifest["records_total"]:
+        raise SystemExit(
+            f"FAIL CLOSED: teacher manifest labeled_positions "
+            f"{teacher_manifest.get('labeled_positions')!r} != dataset "
+            f"records_total {manifest['records_total']!r}"
+        )
+
+    # S10-B3/E0: fail closed unless the teacher artifact matches the frozen
+    # provenance contract (engine identity, binary SHA, options, audit).
     verify_teacher_contract(teacher_manifest)
 
     return {

@@ -15,7 +15,7 @@ REAL_TEACHER_MANIFEST = {
     "labeled_positions": 300000,
     "audit": {"ok": True, "mode": "fresh-second-pass", "checked": 1000,
               "mismatches": []},
-    "labels_sha256": FROZEN_TEACHER_CONTRACT["labels_sha256"],
+    "labels_sha256": FROZEN_TEACHER_CONTRACT["historical_labels_sha256_300k"],
 }
 
 
@@ -70,8 +70,26 @@ class TestTeacherContractGate(unittest.TestCase):
             del t["options"]["UCI_ShowWDL"]
         self._assert_fails_closed(mutate)
 
-    def test_wrong_labeled_positions_fails_closed(self):
-        self._assert_fails_closed(lambda t: t.update(labeled_positions=299999))
+    def test_wrong_labeled_positions_still_present_but_per_run(self):
+        # S10-E0: labeled_positions is no longer pinned to 300000 in the
+        # contract (a 1M run must pass); it must still be an int and is
+        # cross-checked against the dataset manifest in load_dataset.
+        tm = json.loads(json.dumps(REAL_TEACHER_MANIFEST))
+        tm["labeled_positions"] = 1000000
+        verify_teacher_contract(tm)  # must NOT raise
+
+    def test_missing_labeled_positions_fails_closed(self):
+        self._assert_fails_closed(lambda t: t.pop("labeled_positions"))
+
+    def test_non_int_labeled_positions_fails_closed(self):
+        self._assert_fails_closed(
+            lambda t: t.update(labeled_positions="1000000"))
+
+    def test_missing_labels_sha_fails_closed(self):
+        self._assert_fails_closed(lambda t: t.pop("labels_sha256"))
+
+    def test_non_str_labels_sha_fails_closed(self):
+        self._assert_fails_closed(lambda t: t.update(labels_sha256=123))
 
     def test_audit_not_ok_fails_closed(self):
         self._assert_fails_closed(
@@ -85,8 +103,13 @@ class TestTeacherContractGate(unittest.TestCase):
         self._assert_fails_closed(
             lambda t: t["audit"].update(mismatches=["x"]))
 
-    def test_wrong_labels_sha_fails_closed(self):
-        self._assert_fails_closed(lambda t: t.update(labels_sha256="a" * 64))
+    def test_wrong_labels_sha_is_per_run_not_contract(self):
+        # S10-E0: labels_sha256 is verified against the actual labels.jsonl
+        # bytes in load_dataset, not pinned here; a different SHA value is
+        # structurally acceptable to the contract gate.
+        tm = json.loads(json.dumps(REAL_TEACHER_MANIFEST))
+        tm["labels_sha256"] = "b" * 64
+        verify_teacher_contract(tm)  # must NOT raise
 
     def test_missing_audit_fails_closed(self):
         self._assert_fails_closed(lambda t: t.pop("audit"))

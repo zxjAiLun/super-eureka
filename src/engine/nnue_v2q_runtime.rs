@@ -33,16 +33,22 @@ pub const NNUE_V2Q_DENSE_W_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_Z_SHIFT: u32 = 12;
 pub const NNUE_V2Q_QA: usize = 1 << 12;
 
-/// Frozen provenance: the EUNN2Q01 artifact must have been exported from
-/// the B3 production checkpoint (d59ad852...) via the B4 FP32 artifact
-/// (9bf7addd...). The loader rejects anything else.
-const EXPECTED_SOURCE_FP32_SHA: [u8; 32] = [
+/// Historical provenance reference: the S10-D 300k artifact's source chain
+/// (B3 checkpoint d59ad852... via B4 FP32 artifact 9bf7addd...). Since S10-E0
+/// the loader is a FORMAT-CONTRACT loader: it still fully validates magic /
+/// version / inputs=22528 / ft_width=128 / scales / quant shifts and the
+/// proven i32 MAC bounds, and still records the header's source SHAs for
+/// provenance output, but it no longer requires them to equal one specific
+/// training iteration — model IDENTITY is enforced by the consumer (the
+/// Arena D0 immutable model-artifact SHA gate), not by the binary.
+const HISTORICAL_SOURCE_FP32_SHA: [u8; 32] = [
     0x9b, 0xf7, 0xad, 0xdd, 0xf7, 0xb3, 0xb4, 0x4a,
     0xff, 0xa5, 0xe2, 0x6d, 0x22, 0x76, 0xb1, 0x3d,
     0x74, 0x56, 0x61, 0x91, 0xa4, 0xeb, 0x4d, 0x00,
     0x90, 0xfb, 0xde, 0x5a, 0x7a, 0xfb, 0xc9, 0xfc,
 ];
-const EXPECTED_SOURCE_CHECKPOINT_SHA: [u8; 32] = [
+#[allow(dead_code)]
+const HISTORICAL_SOURCE_CHECKPOINT_SHA: [u8; 32] = [
     0xd5, 0x9a, 0xd8, 0x52, 0x5c, 0x06, 0xab, 0xe8,
     0x03, 0x07, 0xbf, 0xfb, 0x12, 0x1f, 0xf4, 0x97,
     0xa3, 0x6e, 0x94, 0xb1, 0x91, 0xc3, 0xc9, 0xbb,
@@ -167,10 +173,12 @@ pub struct NnueV2QuantizedModel {
     l2_bias: Vec<i32>,     // [32]
     out_weight: Vec<i16>,  // [1][32]
     out_bias: Vec<i32>,    // [1]
-    /// Verified-equal to EXPECTED_SOURCE_FP32_SHA at load time.
+    /// Source FP32 artifact SHA from the artifact header (provenance only
+    /// since S10-E0; no longer required to equal one specific iteration).
     #[allow(dead_code)]
     source_fp32_artifact_sha256: [u8; 32],
-    /// Verified-equal to EXPECTED_SOURCE_CHECKPOINT_SHA at load time.
+    /// Source checkpoint SHA from the artifact header (provenance only
+    /// since S10-E0; no longer required to equal one specific iteration).
     #[allow(dead_code)]
     source_checkpoint_sha256: [u8; 32],
     /// S10-C3-C2: L1 dense backend (runtime-detected once at load).
@@ -235,18 +243,11 @@ impl NnueV2QuantizedModel {
         source_fp32_artifact_sha256.copy_from_slice(&data[44..76]);
         let mut source_checkpoint_sha256 = [0u8; 32];
         source_checkpoint_sha256.copy_from_slice(&data[76..108]);
-        // Fail-closed provenance: the artifact must have been exported from
-        // the frozen B3/B4 sources.
-        if source_fp32_artifact_sha256 != EXPECTED_SOURCE_FP32_SHA {
-            return Err(
-                "nnue-v2q-probe: source FP32 artifact SHA mismatch".to_string()
-            );
-        }
-        if source_checkpoint_sha256 != EXPECTED_SOURCE_CHECKPOINT_SHA {
-            return Err(
-                "nnue-v2q-probe: source checkpoint SHA mismatch".to_string()
-            );
-        }
+        // S10-E0: format-contract loader. The header's source SHAs are kept
+        // for provenance output but are NOT compared against one frozen
+        // training iteration anymore — model identity is enforced by the
+        // consumer (Arena D0's immutable model-artifact SHA gate pins the
+        // exact bytes a tournament may launch with).
 
         let ft_weights = read_i16s(data, FT_W_OFFSET, FT_W_COUNT)?;
         let ft_bias = read_i32s(data, FT_B_OFFSET, FT_B_COUNT)?;
@@ -845,8 +846,8 @@ mod tests {
         out.extend_from_slice(&NNUE_V2Q_DENSE_Z_SHIFT.to_le_bytes());
         out.extend_from_slice(&(NNUE_V2Q_QA as u32).to_le_bytes());
         out.extend_from_slice(&0u32.to_le_bytes()); // reserved
-        out.extend_from_slice(&EXPECTED_SOURCE_FP32_SHA);
-        out.extend_from_slice(&EXPECTED_SOURCE_CHECKPOINT_SHA);
+        out.extend_from_slice(&HISTORICAL_SOURCE_FP32_SHA);
+        out.extend_from_slice(&HISTORICAL_SOURCE_CHECKPOINT_SHA);
 
         // FT: active rows 16, bias 8 per lane.
         let mut ft = vec![0i16; FT_W_COUNT];
@@ -974,36 +975,47 @@ mod tests {
     }
 
     #[test]
-    fn rejects_tampered_source_fp32_sha() {
+    #[test]
+    fn tampered_source_fp32_sha_still_loads_under_format_contract() {
+        // S10-E0: a different source FP32 SHA is no longer a load error
+        // (format-contract loader); it loads and the header value is
+        // preserved for provenance.
         let mut data = synthetic_artifact_bytes(START_FEN);
         // Header source FP32 artifact SHA occupies bytes [44..76].
         data[44] ^= 0xff;
-        match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("source FP32 artifact SHA")),
-            Ok(_) => panic!("tampered source FP32 SHA was accepted"),
-        }
+        let model = NnueV2QuantizedModel::from_bytes(&data)
+            .expect("source SHA identity is not a format requirement");
+        assert_ne!(model.source_fp32_artifact_sha256, HISTORICAL_SOURCE_FP32_SHA);
     }
 
     #[test]
-    fn rejects_tampered_source_checkpoint_sha() {
-        let mut data = synthetic_artifact_bytes(START_FEN);
-        // Header source checkpoint SHA occupies bytes [76..108].
-        data[76] ^= 0xff;
-        match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("source checkpoint SHA")),
-            Ok(_) => panic!("tampered source checkpoint SHA was accepted"),
-        }
-    }
-
-    #[test]
-    fn accepts_exact_frozen_source_identities() {
-        // The synthetic builder writes the frozen SHAs; loading must succeed
-        // and expose them for inspection.
+    fn preserves_source_shas_as_provenance() {
+        // S10-E0: the loader no longer REQUIRES the historical SHAs, but it
+        // must still expose whatever the header carries for provenance.
         let model =
             NnueV2QuantizedModel::from_bytes(&synthetic_artifact_bytes(START_FEN))
                 .unwrap();
-        assert_eq!(model.source_fp32_artifact_sha256, EXPECTED_SOURCE_FP32_SHA);
-        assert_eq!(model.source_checkpoint_sha256, EXPECTED_SOURCE_CHECKPOINT_SHA);
+        assert_eq!(model.source_fp32_artifact_sha256, HISTORICAL_SOURCE_FP32_SHA);
+        assert_eq!(model.source_checkpoint_sha256, HISTORICAL_SOURCE_CHECKPOINT_SHA);
+    }
+
+    #[test]
+    fn accepts_future_training_iteration_source_shas() {
+        // S10-E0 format-contract loader: a structurally valid artifact with
+        // DIFFERENT source SHAs (i.e. a future training iteration, e.g. the
+        // 1M data-scale probe) must load. Identity pinning is the consumer's
+        // job (Arena D0 model-artifact SHA gate).
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        for byte in data[44..76].iter_mut() {
+            *byte ^= 0x5a;
+        }
+        for byte in data[76..108].iter_mut() {
+            *byte ^= 0xa5;
+        }
+        let model = NnueV2QuantizedModel::from_bytes(&data)
+            .expect("future-iteration source SHAs must load");
+        assert_ne!(model.source_fp32_artifact_sha256, HISTORICAL_SOURCE_FP32_SHA);
+        assert_ne!(model.source_checkpoint_sha256, HISTORICAL_SOURCE_CHECKPOINT_SHA);
     }
 
     #[test]

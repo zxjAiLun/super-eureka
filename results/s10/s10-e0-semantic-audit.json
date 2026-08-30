@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "sample": {
+    "n": 10000,
+    "seed": 2026083003,
+    "source_split": "validation",
+    "dataset": "data\\s10\\s10-eval-v1-300k01"
+  },
+  "abort_criteria": {
+    "direction_reversal_one_color": null,
+    "scale_error_x1000": null,
+    "one_color_broken": null
+  },
+  "stm_w": {
+    "teacher_vs_quantized": {
+      "n": 4921,
+      "mae_cp": 171.013,
+      "signed_bias_cp": 13.999,
+      "pearson": 0.73477,
+      "spearman": 0.705047,
+      "sign_agreement": 0.7726,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 47.5,
+      "pred_mean_cp": 33.5
+    },
+    "teacher_vs_fp32": {
+      "n": 4921,
+      "mae_cp": 171.011,
+      "signed_bias_cp": 14.04,
+      "pearson": 0.734759,
+      "spearman": 0.705062,
+      "sign_agreement": 0.7718,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 47.5,
+      "pred_mean_cp": 33.46
+    },
+    "fp32_vs_quantized": {
+      "n": 4921,
+      "mae_cp": 0.249,
+      "signed_bias_cp": -0.04,
+      "pearson": 0.999999,
+      "spearman": 0.999999,
+      "sign_agreement": 0.9992,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 33.46,
+      "pred_mean_cp": 33.5
+    }
+  },
+  "stm_b": {
+    "teacher_vs_quantized": {
+      "n": 5079,
+      "mae_cp": 162.841,
+      "signed_bias_cp": 9.489,
+      "pearson": 0.755989,
+      "spearman": 0.717826,
+      "sign_agreement": 0.7694,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 31.5,
+      "pred_mean_cp": 22.02
+    },
+    "teacher_vs_fp32": {
+      "n": 5079,
+      "mae_cp": 162.835,
+      "signed_bias_cp": 9.524,
+      "pearson": 0.755996,
+      "spearman": 0.717818,
+      "sign_agreement": 0.7694,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 31.5,
+      "pred_mean_cp": 21.98
+    },
+    "fp32_vs_quantized": {
+      "n": 5079,
+      "mae_cp": 0.253,
+      "signed_bias_cp": -0.035,
+      "pearson": 0.999999,
+      "spearman": 0.999999,
+      "sign_agreement": 1.0,
+      "predictions_at_clip": 0,
+      "teacher_mean_cp": 21.98,
+      "pred_mean_cp": 22.02
+    }
+  },
+  "verdict": "PASS"
+}
