@@ -17,10 +17,12 @@ Pipeline:
   1. deterministic sample of N validation positions (never holdout),
   2. each arm runs one fixed-depth search per position, per-depth
      bestmove/score parsed from the engine's `info depth` lines,
-  3. tactical_reversal = bestmove flips A@depth d -> B@depth d+k (k>=2)
-     AND the abandoned move's deeper score worsens by >= 200 cp
-     (measured by re-searching the abandoned move at the deeper depth
-     via --forced-root),
+  3. root_score_flip (EXPLORATORY, not the frozen tactical-reversal
+     definition): bestmove flips between depth d and d+2/3 together with
+     a >= 200cp drop in the ROOT score. The frozen definition would
+     additionally re-search the abandoned move at the deeper depth via
+     --forced-root; that was not run at scale, so this metric is kept
+     out of the authoritative verdict.
   4. one-move material blunder hard check: for every shallow NNUE
      bestmove, make the move, enumerate opponent captures; if one nets
      >= minor-piece material, decide whether qsearch SAW it
@@ -317,9 +319,9 @@ def main() -> int:
                     }
                 )
 
-    # tactical reversal detection (B only, A as control)
-    reversal_counts = {arm: 0 for arm in arms}
-    reversal_examples = {arm: [] for arm in arms}
+    # root-score flips (EXPLORATORY; see the header note)
+    flip_counts = {arm: 0 for arm in arms}
+    flip_examples = {arm: [] for arm in arms}
     by_pid = {
         arm: {e["position_id"]: e for e in entries}
         for arm, entries in results.items()
@@ -338,13 +340,13 @@ def main() -> int:
                         continue
                     b = iters[d2]
                     if a["bestmove"] != b["bestmove"]:
-                        # score drop of the abandoned move: approximate by
-                        # root score drop across the flip
+                        # EXPLORATORY root-score drop across the flip —
+                        # NOT the frozen per-move forced-root reversal.
                         drop = a["score"] - b["score"]
                         if drop >= 200:
-                            reversal_counts[arm] += 1
-                            if len(reversal_examples[arm]) < 20:
-                                reversal_examples[arm].append(
+                            flip_counts[arm] += 1
+                            if len(flip_examples[arm]) < 20:
+                                flip_examples[arm].append(
                                     {
                                         "position_id": pid,
                                         "fen": by_pid[arm][pid]["fen"]
@@ -366,7 +368,7 @@ def main() -> int:
         "n_positions": len(sample),
         "depth": args.depth,
         "seed": args.seed,
-        "reversal_counts": reversal_counts,
+        "root_score_flip_counts_exploratory": flip_counts,
         "blunders": {
             arm: {
                 "seen": v["seen"],
@@ -384,7 +386,7 @@ def main() -> int:
             {
                 "summary": summary,
                 "blunder_cases": blunders,
-                "reversal_examples": reversal_examples,
+                "root_score_flip_examples_exploratory": flip_examples,
             },
             indent=2,
         )

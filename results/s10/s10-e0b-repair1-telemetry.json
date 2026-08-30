@@ -1,0 +1,45 @@
+{
+  "n_positions": 400,
+  "depth": 7,
+  "seed": 2026083004,
+  "B_totals": {
+    "nodes": 118566619,
+    "null_move_attempts": 36410,
+    "null_move_fail_highs": 9626,
+    "futility_pruned": 38494594,
+    "futility_considered": 14136267,
+    "lmr_reductions": 119711,
+    "qsearch_nodes": 99035333,
+    "positions_with_null": 301,
+    "positions_with_futility": 307,
+    "n_ok": 400
+  },
+  "C_totals": {
+    "nodes": 170084616,
+    "null_move_attempts": 0,
+    "null_move_fail_highs": 0,
+    "futility_pruned": 0,
+    "futility_considered": 0,
+    "lmr_reductions": 121493,
+    "qsearch_nodes": 146768617,
+    "positions_with_null": 0,
+    "positions_with_futility": 0,
+    "n_ok": 400
+  },
+  "paired": {
+    "n": 400,
+    "bestmove_agreement": 385,
+    "bestmove_agreement_rate": 0.9625,
+    "nodes_changed": 307,
+    "nodes_ratio_C_over_B": {
+      "median": 1.288,
+      "p25": 1.0,
+      "p75": 1.676
+    }
+  },
+  "gates": {
+    "null_exercised_at_scale": true,
+    "futility_exercised_at_scale": true,
+    "workload_materially_changed": true
+  }
+}

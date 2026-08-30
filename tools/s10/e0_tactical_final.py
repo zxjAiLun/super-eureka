@@ -9,8 +9,9 @@ compare, per position and per depth:
     detector fixed);
   * how often each arm's FINAL bestmove agrees with the SF18 teacher
     bestmove (the 16k-node searched reference);
-  * reversal rates (frozen definition: bestmove flips between depth d
-    and d+2/3 with root-score drop >= 200cp).
+  * root-score flips (EXPLORATORY: bestmove flip across >=2 depths with
+    a >=200cp ROOT-score drop; NOT the frozen per-move forced-root
+    reversal definition — kept out of the authoritative verdict).
 """
 
 from __future__ import annotations
@@ -60,15 +61,15 @@ def main() -> int:
         arm: {
             "final_blunders": 0,
             "shallow_blunders": 0,
-            "teacher_agree_final": 0,
-            "reversals": 0,
+            "teacher_bestmove_agreement": 0,
+            "root_score_flips_exploratory": 0,
             "n": 0,
         }
         for arm in arms
     }
     agree_ab_final = 0
     agree_ac_final = 0
-    qsearch_miss_cases = []
+    refutation_cases = []
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -126,11 +127,12 @@ def main() -> int:
                 g1 = material_after_captures(b1.fen())
                 if g1 and g1[0] >= blunder_min:
                     s["shallow_blunders"] += 1
-            # teacher agreement (final bestmove == SF18 16k bestmove)
+            # teacher BESTMOVE agreement (exact match of the SF18 16k-node
+            # searched bestmove; NOT an SF-evaluation regret metric)
             if res["teacher_bestmove"]:
                 if last["bestmove"] == res["teacher_bestmove"]:
-                    s["teacher_agree_final"] += 1
-            # reversals: bestmove flip across >=2 depths with >=200cp drop
+                    s["teacher_bestmove_agreement"] += 1
+            # root-score flips (EXPLORATORY): bestmove flip across >=2 depths with >=200cp root-score drop
             depths = sorted(iters)
             for d in depths:
                 for d2 in (d + 2, d + 3):
@@ -141,7 +143,7 @@ def main() -> int:
                         a["bestmove"] != b["bestmove"]
                         and a["score"] - b["score"] >= 200
                     ):
-                        s["reversals"] += 1
+                        s["root_score_flips_exploratory"] += 1
                     break
                 break
         if "A_hce" in finals and "B_nnue" in finals:
@@ -151,8 +153,11 @@ def main() -> int:
             if finals["A_hce"] == finals["C_nnue_conservative"]:
                 agree_ac_final += 1
 
-        # qsearch miss check: B's shallow blunder move — does B's own
-        # deeper PV contain the refuting capture?
+        # deeper forced-root refutation check: for each of B's shallow
+        # material-hang moves, re-search that move forced at full depth
+        # and check whether the engine's own PV refutes it with the
+        # counter-capture. This is a forced-root PV check — it does NOT
+        # prove the depth-1 qsearch itself searched the capture.
         r = res["arms"].get("B_nnue")
         if r and r["iterations"]:
             iters = r["iterations"]
@@ -178,7 +183,7 @@ def main() -> int:
                     except RuntimeError:
                         pass
                     saw = bool(g[1]) and g[1] in deeper_pv
-                    qsearch_miss_cases.append(
+                    refutation_cases.append(
                         {
                             "fen": res["fen"],
                             "shallow_bm": first["bestmove"],
@@ -195,15 +200,20 @@ def main() -> int:
         "arms": stats,
         "agree_AB_final": agree_ab_final,
         "agree_AC_final": agree_ac_final,
-        "qsearch_cases": {
-            "seen": sum(1 for c in qsearch_miss_cases if c["saw"]),
-            "missed": sum(1 for c in qsearch_miss_cases if not c["saw"]),
+        "forced_root_refutation_cases": {
+            "seen": sum(1 for c in refutation_cases if c["saw"]),
+            "missed": sum(1 for c in refutation_cases if not c["saw"]),
+            "note": "forced-root PV membership; does not prove the "
+                    "depth-1 qsearch itself searched the capture",
         },
     }
     print(json.dumps(summary, indent=2))
     Path("results/s10/s10-e0-tactical-final.json").write_text(
         json.dumps(
-            {"summary": summary, "qsearch_cases": qsearch_miss_cases[:50]},
+            {
+                "summary": summary,
+                "forced_root_refutation_cases": refutation_cases[:50],
+            },
             indent=2,
         )
         + "\n",

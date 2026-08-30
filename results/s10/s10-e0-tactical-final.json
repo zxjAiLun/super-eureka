@@ -6,33 +6,34 @@
       "A_hce": {
         "final_blunders": 35,
         "shallow_blunders": 28,
-        "teacher_agree_final": 200,
-        "reversals": 1,
+        "teacher_bestmove_agreement": 200,
+        "root_score_flips_exploratory": 1,
         "n": 400
       },
       "B_nnue": {
         "final_blunders": 43,
         "shallow_blunders": 68,
-        "teacher_agree_final": 174,
-        "reversals": 19,
+        "teacher_bestmove_agreement": 174,
+        "root_score_flips_exploratory": 19,
         "n": 400
       },
       "C_nnue_conservative": {
         "final_blunders": 42,
         "shallow_blunders": 68,
-        "teacher_agree_final": 174,
-        "reversals": 19,
+        "teacher_bestmove_agreement": 174,
+        "root_score_flips_exploratory": 19,
         "n": 400
       }
     },
     "agree_AB_final": 188,
     "agree_AC_final": 187,
-    "qsearch_cases": {
+    "forced_root_refutation_cases": {
       "seen": 63,
-      "missed": 5
+      "missed": 5,
+      "note": "forced-root PV membership; does not prove the depth-1 qsearch itself searched the capture"
     }
   },
-  "qsearch_cases": [
+  "forced_root_refutation_cases": [
     {
       "fen": "1r1N1rk1/1bpnbppp/p3pn2/1p6/2PP1B2/2NB1Q2/PP4PP/R4RK1 b - - 0 13",
       "shallow_bm": "b7f3",
