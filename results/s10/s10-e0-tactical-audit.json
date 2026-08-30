@@ -1,0 +1,1326 @@
+{
+  "summary": {
+    "n_positions": 400,
+    "depth": 7,
+    "seed": 2026083004,
+    "reversal_counts": {
+      "A_hce": 8,
+      "B_nnue": 24,
+      "C_nnue_conservative": 24
+    },
+    "blunders": {
+      "B_nnue": {
+        "seen": 0,
+        "missed": 68,
+        "rate": 0.17
+      },
+      "C_nnue_conservative": {
+        "seen": 0,
+        "missed": 68,
+        "rate": 0.17
+      }
+    }
+  },
+  "blunder_cases": {
+    "B_nnue": {
+      "seen": 0,
+      "missed": 68,
+      "cases": [
+        {
+          "position_id": "1193451a6d90741b8b7b41477c12d6a3125449ddf606c1b6c9f78786cb58bcb5",
+          "bestmove": "b7f3",
+          "opp_capture": "f1f3",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "373093e06fb317597093c32373e03d9a1408356a631fe84151cbcb9faa619119",
+          "bestmove": "e2c4",
+          "opp_capture": "c8c4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2529a05870a3f444be262fcfed8aa65a12a3490158be7a80cd783a9229223596",
+          "bestmove": "f1f7",
+          "opp_capture": "f8f7",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3333992b5195e1a466a9748f748c92829733ead3e1b25f3742eb08b13acc44eb",
+          "bestmove": "f2g2",
+          "opp_capture": "g1g2",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "25632309f95a070893e418d26eda356cb2aec40c9a9895af300b10d6b0598c27",
+          "bestmove": "b2a3",
+          "opp_capture": "f8e7",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "081c87c3a83c72f9efea27f8cd7f578e32f96afa97b0e77c2f43ccf0e9aa06ab",
+          "bestmove": "d8d4",
+          "opp_capture": "e2d2",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0abc0b61c3081f34c1234551e0ecb8a703a7c8db7d422f708f660e00f94fa6fc",
+          "bestmove": "b4b3",
+          "opp_capture": "f5h6",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "21a537ef26de96b5921beb0629aefc8bc2a5e4cda19b317dd72c8a5efacc9d0d",
+          "bestmove": "h6h1",
+          "opp_capture": "g3h1",
+          "net_gain_cp": 580,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "356626fa88ce7d3e164bf69e13d2be92344daa239b8e0f87a2e0f61ed63cb2f3",
+          "bestmove": "d8e8",
+          "opp_capture": "f8e8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "172c617a5605a73fe6af91d1feac2c56165d5d99d4ecfb5a6b18950df1951c5e",
+          "bestmove": "g2c6",
+          "opp_capture": "b7c6",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2590a4d49dec574181886de85756b344a2b3a49308278a621b1208f1486ca3ff",
+          "bestmove": "h8d8",
+          "opp_capture": "e7d8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "36728517e6bf79ec0c0a82d7ddf48c68f52bbe6d68080d368c82e2446d47976b",
+          "bestmove": "c8h3",
+          "opp_capture": "g2h3",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1d298a4f8453afa96294b1599e57c8c594cc1985390a9d732cf610d0117532c6",
+          "bestmove": "h1h6",
+          "opp_capture": "g7h6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3cb599eb249e6bf2b09340fc533c26699419d016ac40cd231a3dc09819e65721",
+          "bestmove": "c7e5",
+          "opp_capture": "f6e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1a15fcd96608a17992ab9632f6acb99e1e3fd08122dc4877878e69b1a4735518",
+          "bestmove": "c6d5",
+          "opp_capture": "a7b7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "198658e0cdfd09d446e341d9e9d917c20a5387a6159bd6bc9a895231eb02bd22",
+          "bestmove": "d5f7",
+          "opp_capture": "g8f7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "167fdbd59eb2a7c5e20291f1b2574984f5315aca8de7b3b33b1a2d28071e29a3",
+          "bestmove": "c1c8",
+          "opp_capture": "e8c8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "11144206f18037dbcd34358dc183f1e736dcd0f7adb2454cbdedfb12681348a4",
+          "bestmove": "e1g1",
+          "opp_capture": "d7e5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0cb1b7a62b9f04a6ebaf0700e076e7f72c53c244a0d572db1e58e0067896d702",
+          "bestmove": "e7c5",
+          "opp_capture": "b4c5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "00e0a2b1f5adb889e6cf8a38b2c19bc328e8e231419a8f5d9536486a30855ef2",
+          "bestmove": "d6h2",
+          "opp_capture": "g1h2",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1e2c8d367798e3bf27ecfd0cb675f0d637e024e9914f62e2f0f6b07a5daba0c2",
+          "bestmove": "f2f4",
+          "opp_capture": "d4f4",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0c8f289301f31e71725e236b85f6e06d65a7719bfa1e43260c054a26bc995ac9",
+          "bestmove": "h4g5",
+          "opp_capture": "e3g5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1964ab5bcebb29d8a2e0bee21094304a6d94af55b1558cd1a91ea63e153abe5a",
+          "bestmove": "b8c8",
+          "opp_capture": "f4f6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0623c6fb629cb1fae32c818c2e47aef6458d2bdaa61fa4161c0b69fc9156ebf0",
+          "bestmove": "b2a1",
+          "opp_capture": "c4b4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3bb162664011607e1229e0ce2ea4a752fdad2c97fe48d0795f5c717730342cad",
+          "bestmove": "f8f4",
+          "opp_capture": "e3f4",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1d1a482baee7427a0fd4bf5cce8120919ae7356a49c2f0e5cf5d8dd687fff9a0",
+          "bestmove": "g7e5",
+          "opp_capture": "e1e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0fbed047eb62aa2e57d2ad65034731fddb6ce168e266f6b914acdce0e1cc72dd",
+          "bestmove": "b3b7",
+          "opp_capture": "c8b7",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1ce4ca855012429f9e8311b5dbad40bc7fbaf104d7f879292de70cf7cb541be2",
+          "bestmove": "a6c5",
+          "opp_capture": "d4c5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07ceb1fe9168bbdec9591f25b1089ea6c3fcc530ebf17915c8d36ed1a80a4599",
+          "bestmove": "d4f6",
+          "opp_capture": "f1f6",
+          "net_gain_cp": 400,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2ec8b6d3f61408c209d9bb673b7779f1aecc710099b21ddb4512dedf91d31c9a",
+          "bestmove": "g3f5",
+          "opp_capture": "g6f5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "053121b07fa64ccc3b09a1e55196d2217e56fa1457693c7fce7337a7f3b467ee",
+          "bestmove": "d6e5",
+          "opp_capture": "f3e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3286e671c0216565b88a9a9b1c7825e5bc62aa586df5f8f42f4557ee41c3a639",
+          "bestmove": "f2f4",
+          "opp_capture": "e7d7",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "28ae53ac6cfd9c0fbbf88477294a71c54136a517acc858605f44186eeca881b4",
+          "bestmove": "g5f6",
+          "opp_capture": "f8f6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07526c2ff097b4f81015ffea902ee856f2fa795f79ae32fdf689ab9190c4bdaf",
+          "bestmove": "e6c5",
+          "opp_capture": "e1e8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0a754d0664d94e06e7ca469a1673962df9da71487cb48fb7f4fa7cb90422c778",
+          "bestmove": "f8c5",
+          "opp_capture": "d4c5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3af24ac3cc4c6c8717b1dc090614266dc8491686b156e660a7ebf4dec5c97669",
+          "bestmove": "f3d5",
+          "opp_capture": "e6d5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2b46b53921d29d4a10e1621518d1aae21139fd158e459021a9376c6402753100",
+          "bestmove": "e1e2",
+          "opp_capture": "d3e2",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1434927aba8dadee911eeb14c1c05bbd4717cfa7223bd0ea308f2ed6763a6ee6",
+          "bestmove": "c8c3",
+          "opp_capture": "b3c3",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "06e923d3f844fd97777bda17c6a16bdd7c021802b27047da403be61b91c1c66b",
+          "bestmove": "c6b8",
+          "opp_capture": "e8b8",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1cb8c7b1fdbfa97bd8f9931c25d5543591f629abcb5ce4b98f147f0fbfb6f935",
+          "bestmove": "e2e1q",
+          "opp_capture": "e3e1",
+          "net_gain_cp": 400,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "102bf04efe314bf79a287908802b8752b6f041ed790eab3b6e2ea5043496dbed",
+          "bestmove": "c7c8",
+          "opp_capture": "a3b4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0f46c890d5f5abc0cce25bcc8844ee06578ee83340c3774cc7c02c00399b3d6a",
+          "bestmove": "f6g5",
+          "opp_capture": "f5g5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1829af4ca0feca7c7abb13b118887c752456a71b4b0e99d0a2ec4f21537c8978",
+          "bestmove": "c8c1",
+          "opp_capture": "b2c1",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "292ae68992df84c78ce95a703d5f1c3f1cdb81cb3709574d0499199071a216c6",
+          "bestmove": "e5g7",
+          "opp_capture": "h6g7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "36e375c712eaa2b9067ff6a6b63cfcb78c92ab0edfadae07c2ebe37ee3f44ac1",
+          "bestmove": "b3e6",
+          "opp_capture": "e7e6",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07f9547d472fdef1e3d624f1590148f97f98500df62a3d4fa8c83d3dfc604f2a",
+          "bestmove": "d4e5",
+          "opp_capture": "e8e5",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "15845cedcb2a3f3977f93fbbf5d576bbdcb423b5b5f2d41d69096e619c7705e4",
+          "bestmove": "h3f1",
+          "opp_capture": "g1f1",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "00e9a1ae130d1d9dc92f44e4a922382f3c833cc829e3a0535b09901b0c7e3d31",
+          "bestmove": "d7f5",
+          "opp_capture": "f3f5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "37fdee68513a951bed8ef6fd63d62adf0f1b44c7e4b0ec93a58dac8052558131",
+          "bestmove": "d3b4",
+          "opp_capture": "c6b4",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0f9956f7af261f2f35ee4e201cb3ae38b4130109805ad5bb6520372db7413ea6",
+          "bestmove": "e6g6",
+          "opp_capture": "h7g6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        }
+      ]
+    },
+    "C_nnue_conservative": {
+      "seen": 0,
+      "missed": 68,
+      "cases": [
+        {
+          "position_id": "1193451a6d90741b8b7b41477c12d6a3125449ddf606c1b6c9f78786cb58bcb5",
+          "bestmove": "b7f3",
+          "opp_capture": "f1f3",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "373093e06fb317597093c32373e03d9a1408356a631fe84151cbcb9faa619119",
+          "bestmove": "e2c4",
+          "opp_capture": "c8c4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2529a05870a3f444be262fcfed8aa65a12a3490158be7a80cd783a9229223596",
+          "bestmove": "f1f7",
+          "opp_capture": "f8f7",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3333992b5195e1a466a9748f748c92829733ead3e1b25f3742eb08b13acc44eb",
+          "bestmove": "f2g2",
+          "opp_capture": "g1g2",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "25632309f95a070893e418d26eda356cb2aec40c9a9895af300b10d6b0598c27",
+          "bestmove": "b2a3",
+          "opp_capture": "f8e7",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "081c87c3a83c72f9efea27f8cd7f578e32f96afa97b0e77c2f43ccf0e9aa06ab",
+          "bestmove": "d8d4",
+          "opp_capture": "e2d2",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0abc0b61c3081f34c1234551e0ecb8a703a7c8db7d422f708f660e00f94fa6fc",
+          "bestmove": "b4b3",
+          "opp_capture": "f5h6",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "21a537ef26de96b5921beb0629aefc8bc2a5e4cda19b317dd72c8a5efacc9d0d",
+          "bestmove": "h6h1",
+          "opp_capture": "g3h1",
+          "net_gain_cp": 580,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "356626fa88ce7d3e164bf69e13d2be92344daa239b8e0f87a2e0f61ed63cb2f3",
+          "bestmove": "d8e8",
+          "opp_capture": "f8e8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "172c617a5605a73fe6af91d1feac2c56165d5d99d4ecfb5a6b18950df1951c5e",
+          "bestmove": "g2c6",
+          "opp_capture": "b7c6",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2590a4d49dec574181886de85756b344a2b3a49308278a621b1208f1486ca3ff",
+          "bestmove": "h8d8",
+          "opp_capture": "e7d8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "36728517e6bf79ec0c0a82d7ddf48c68f52bbe6d68080d368c82e2446d47976b",
+          "bestmove": "c8h3",
+          "opp_capture": "g2h3",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1d298a4f8453afa96294b1599e57c8c594cc1985390a9d732cf610d0117532c6",
+          "bestmove": "h1h6",
+          "opp_capture": "g7h6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3cb599eb249e6bf2b09340fc533c26699419d016ac40cd231a3dc09819e65721",
+          "bestmove": "c7e5",
+          "opp_capture": "f6e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1a15fcd96608a17992ab9632f6acb99e1e3fd08122dc4877878e69b1a4735518",
+          "bestmove": "c6d5",
+          "opp_capture": "a7b7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "198658e0cdfd09d446e341d9e9d917c20a5387a6159bd6bc9a895231eb02bd22",
+          "bestmove": "d5f7",
+          "opp_capture": "g8f7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "167fdbd59eb2a7c5e20291f1b2574984f5315aca8de7b3b33b1a2d28071e29a3",
+          "bestmove": "c1c8",
+          "opp_capture": "e8c8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "11144206f18037dbcd34358dc183f1e736dcd0f7adb2454cbdedfb12681348a4",
+          "bestmove": "e1g1",
+          "opp_capture": "d7e5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0cb1b7a62b9f04a6ebaf0700e076e7f72c53c244a0d572db1e58e0067896d702",
+          "bestmove": "e7c5",
+          "opp_capture": "b4c5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "00e0a2b1f5adb889e6cf8a38b2c19bc328e8e231419a8f5d9536486a30855ef2",
+          "bestmove": "d6h2",
+          "opp_capture": "g1h2",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1e2c8d367798e3bf27ecfd0cb675f0d637e024e9914f62e2f0f6b07a5daba0c2",
+          "bestmove": "f2f4",
+          "opp_capture": "d4f4",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0c8f289301f31e71725e236b85f6e06d65a7719bfa1e43260c054a26bc995ac9",
+          "bestmove": "h4g5",
+          "opp_capture": "e3g5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1964ab5bcebb29d8a2e0bee21094304a6d94af55b1558cd1a91ea63e153abe5a",
+          "bestmove": "b8c8",
+          "opp_capture": "f4f6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0623c6fb629cb1fae32c818c2e47aef6458d2bdaa61fa4161c0b69fc9156ebf0",
+          "bestmove": "b2a1",
+          "opp_capture": "c4b4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3bb162664011607e1229e0ce2ea4a752fdad2c97fe48d0795f5c717730342cad",
+          "bestmove": "f8f4",
+          "opp_capture": "e3f4",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1d1a482baee7427a0fd4bf5cce8120919ae7356a49c2f0e5cf5d8dd687fff9a0",
+          "bestmove": "g7e5",
+          "opp_capture": "e1e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0fbed047eb62aa2e57d2ad65034731fddb6ce168e266f6b914acdce0e1cc72dd",
+          "bestmove": "b3b7",
+          "opp_capture": "c8b7",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1ce4ca855012429f9e8311b5dbad40bc7fbaf104d7f879292de70cf7cb541be2",
+          "bestmove": "a6c5",
+          "opp_capture": "d4c5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07ceb1fe9168bbdec9591f25b1089ea6c3fcc530ebf17915c8d36ed1a80a4599",
+          "bestmove": "d4f6",
+          "opp_capture": "f1f6",
+          "net_gain_cp": 400,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2ec8b6d3f61408c209d9bb673b7779f1aecc710099b21ddb4512dedf91d31c9a",
+          "bestmove": "g3f5",
+          "opp_capture": "g6f5",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "053121b07fa64ccc3b09a1e55196d2217e56fa1457693c7fce7337a7f3b467ee",
+          "bestmove": "d6e5",
+          "opp_capture": "f3e5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3286e671c0216565b88a9a9b1c7825e5bc62aa586df5f8f42f4557ee41c3a639",
+          "bestmove": "f2f4",
+          "opp_capture": "e7d7",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "28ae53ac6cfd9c0fbbf88477294a71c54136a517acc858605f44186eeca881b4",
+          "bestmove": "g5f6",
+          "opp_capture": "f8f6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07526c2ff097b4f81015ffea902ee856f2fa795f79ae32fdf689ab9190c4bdaf",
+          "bestmove": "e6c5",
+          "opp_capture": "e1e8",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0a754d0664d94e06e7ca469a1673962df9da71487cb48fb7f4fa7cb90422c778",
+          "bestmove": "f8c5",
+          "opp_capture": "d4c5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "3af24ac3cc4c6c8717b1dc090614266dc8491686b156e660a7ebf4dec5c97669",
+          "bestmove": "f3d5",
+          "opp_capture": "e6d5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "2b46b53921d29d4a10e1621518d1aae21139fd158e459021a9376c6402753100",
+          "bestmove": "e1e2",
+          "opp_capture": "d3e2",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1434927aba8dadee911eeb14c1c05bbd4717cfa7223bd0ea308f2ed6763a6ee6",
+          "bestmove": "c8c3",
+          "opp_capture": "b3c3",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "06e923d3f844fd97777bda17c6a16bdd7c021802b27047da403be61b91c1c66b",
+          "bestmove": "c6b8",
+          "opp_capture": "e8b8",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1cb8c7b1fdbfa97bd8f9931c25d5543591f629abcb5ce4b98f147f0fbfb6f935",
+          "bestmove": "e2e1q",
+          "opp_capture": "e3e1",
+          "net_gain_cp": 400,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "102bf04efe314bf79a287908802b8752b6f041ed790eab3b6e2ea5043496dbed",
+          "bestmove": "c7c8",
+          "opp_capture": "a3b4",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0f46c890d5f5abc0cce25bcc8844ee06578ee83340c3774cc7c02c00399b3d6a",
+          "bestmove": "f6g5",
+          "opp_capture": "f5g5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "1829af4ca0feca7c7abb13b118887c752456a71b4b0e99d0a2ec4f21537c8978",
+          "bestmove": "c8c1",
+          "opp_capture": "b2c1",
+          "net_gain_cp": 500,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "292ae68992df84c78ce95a703d5f1c3f1cdb81cb3709574d0499199071a216c6",
+          "bestmove": "e5g7",
+          "opp_capture": "h6g7",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "36e375c712eaa2b9067ff6a6b63cfcb78c92ab0edfadae07c2ebe37ee3f44ac1",
+          "bestmove": "b3e6",
+          "opp_capture": "e7e6",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "07f9547d472fdef1e3d624f1590148f97f98500df62a3d4fa8c83d3dfc604f2a",
+          "bestmove": "d4e5",
+          "opp_capture": "e8e5",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "15845cedcb2a3f3977f93fbbf5d576bbdcb423b5b5f2d41d69096e619c7705e4",
+          "bestmove": "h3f1",
+          "opp_capture": "g1f1",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "00e9a1ae130d1d9dc92f44e4a922382f3c833cc829e3a0535b09901b0c7e3d31",
+          "bestmove": "d7f5",
+          "opp_capture": "f3f5",
+          "net_gain_cp": 330,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "37fdee68513a951bed8ef6fd63d62adf0f1b44c7e4b0ec93a58dac8052558131",
+          "bestmove": "d3b4",
+          "opp_capture": "c6b4",
+          "net_gain_cp": 320,
+          "saw": false,
+          "shallow_depth": 1
+        },
+        {
+          "position_id": "0f9956f7af261f2f35ee4e201cb3ae38b4130109805ad5bb6520372db7413ea6",
+          "bestmove": "e6g6",
+          "opp_capture": "h7g6",
+          "net_gain_cp": 900,
+          "saw": false,
+          "shallow_depth": 1
+        }
+      ]
+    }
+  },
+  "reversal_examples": {
+    "A_hce": [
+      {
+        "position_id": "2ead27c000f5c4503b4caf700f7f55717d563713815e31a0d2177355c23e8c5c",
+        "fen": "4k3/6K1/4P3/5P2/1p6/8/8/8 b - - 0 55",
+        "from_depth": 3,
+        "to_depth": 5,
+        "move_a": "e8e7",
+        "move_b": "b4b3",
+        "score_a": -177,
+        "score_b": -672
+      },
+      {
+        "position_id": "2ead27c000f5c4503b4caf700f7f55717d563713815e31a0d2177355c23e8c5c",
+        "fen": "4k3/6K1/4P3/5P2/1p6/8/8/8 b - - 0 55",
+        "from_depth": 4,
+        "to_depth": 6,
+        "move_a": "e8e7",
+        "move_b": "b4b3",
+        "score_a": -200,
+        "score_b": -672
+      },
+      {
+        "position_id": "10492531723f00a938c37dd9eb8025386c040d525fc48ede07b3759ab32cf79a",
+        "fen": "5k2/RP6/2P2B1p/3P2p1/8/p5PP/1r3PK1/8 b - - 0 48",
+        "from_depth": 4,
+        "to_depth": 6,
+        "move_a": "b2b3",
+        "move_b": "b2b6",
+        "score_a": -1360,
+        "score_b": -1708
+      },
+      {
+        "position_id": "101952da99421774770093437346dcdd3832f6ef244b486765e6b6c88382c937",
+        "fen": "r2r3k/1b3B2/p3N1p1/4P2p/8/1P5Q/5qPP/5R1K w - - 3 31",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f1f2",
+        "move_b": "h3f3",
+        "score_a": 898,
+        "score_b": -43
+      },
+      {
+        "position_id": "101952da99421774770093437346dcdd3832f6ef244b486765e6b6c88382c937",
+        "fen": "r2r3k/1b3B2/p3N1p1/4P2p/8/1P5Q/5qPP/5R1K w - - 3 31",
+        "from_depth": 2,
+        "to_depth": 4,
+        "move_a": "h3h5",
+        "move_b": "f1g1",
+        "score_a": 101,
+        "score_b": -284
+      },
+      {
+        "position_id": "101952da99421774770093437346dcdd3832f6ef244b486765e6b6c88382c937",
+        "fen": "r2r3k/1b3B2/p3N1p1/4P2p/8/1P5Q/5qPP/5R1K w - - 3 31",
+        "from_depth": 3,
+        "to_depth": 5,
+        "move_a": "h3f3",
+        "move_b": "f1g1",
+        "score_a": -43,
+        "score_b": -251
+      },
+      {
+        "position_id": "3faa52286f95a0cf91371916171abecd5288b153a5ec17b00e5dcf238cf3b27b",
+        "fen": "r7/2R2Rb1/6pk/7p/1p1PP2P/6P1/r4P2/6K1 b - - 3 35",
+        "from_depth": 2,
+        "to_depth": 4,
+        "move_a": "a2a1",
+        "move_b": "a8g8",
+        "score_a": 225,
+        "score_b": -13
+      },
+      {
+        "position_id": "3faa52286f95a0cf91371916171abecd5288b153a5ec17b00e5dcf238cf3b27b",
+        "fen": "r7/2R2Rb1/6pk/7p/1p1PP2P/6P1/r4P2/6K1 b - - 3 35",
+        "from_depth": 3,
+        "to_depth": 5,
+        "move_a": "a2a1",
+        "move_b": "a8g8",
+        "score_a": 225,
+        "score_b": 6
+      }
+    ],
+    "B_nnue": [
+      {
+        "position_id": "34b32f1512946d595bed40d27595f9124e7fb6eaa192f5118e248cbe8a262647",
+        "fen": "4rr2/pR6/6p1/4k3/8/4p3/PP3PPP/5R1K w - - 0 24",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b7g7",
+        "move_b": "b7a7",
+        "score_a": 512,
+        "score_b": 304
+      },
+      {
+        "position_id": "31e9c5b4acb42e63314b61ca17b903010c574048bcd2da856f3ad966e9e477f7",
+        "fen": "3Q4/5k2/2r1qp2/8/8/3KP3/8/8 w - - 6 57",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "d3d2",
+        "move_b": "d8b8",
+        "score_a": -24,
+        "score_b": -545
+      },
+      {
+        "position_id": "1a11595c6f34ca3de0e90915ad8338cf66c9d27dc8c25f008e20d4bed58aab45",
+        "fen": "8/6p1/4p1k1/4P2p/2pP1K1P/B1P5/6b1/8 w - - 8 52",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "a3d6",
+        "move_b": "a3e7",
+        "score_a": 446,
+        "score_b": 76
+      },
+      {
+        "position_id": "05aac3d3f5bb14364ca65706cd5dbfb6f468bade66255b0734dba5d12c0a8845",
+        "fen": "8/8/1p6/5b1P/4kN2/8/3p4/3K4 w - - 8 64",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f4e2",
+        "move_b": "d1d2",
+        "score_a": 244,
+        "score_b": -39
+      },
+      {
+        "position_id": "0b32c401a9f3cd19db2a6271930713eb9a4e715e5744b2c82e3692724f2671e2",
+        "fen": "8/8/p7/Pk3p2/6b1/7p/7K/8 w - - 3 56",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h2h1",
+        "move_b": "h2g1",
+        "score_a": -288,
+        "score_b": -718
+      },
+      {
+        "position_id": "1403f2bddc6a98429395157afe83db5a57147444e09fdaec64588e9d9b8e4b0b",
+        "fen": "8/b3k2p/2p3p1/p2p4/N7/1PPB3P/P4rP1/7K w - - 1 31",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b3b4",
+        "move_b": "d3g6",
+        "score_a": -150,
+        "score_b": -361
+      },
+      {
+        "position_id": "0623c6fb629cb1fae32c818c2e47aef6458d2bdaa61fa4161c0b69fc9156ebf0",
+        "fen": "8/8/5P2/5K2/pbQ5/8/1k6/8 b - - 2 62",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b2a1",
+        "move_b": "b2a3",
+        "score_a": -339,
+        "score_b": -586
+      },
+      {
+        "position_id": "101952da99421774770093437346dcdd3832f6ef244b486765e6b6c88382c937",
+        "fen": "r2r3k/1b3B2/p3N1p1/4P2p/8/1P5Q/5qPP/5R1K w - - 3 31",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f1f2",
+        "move_b": "f1g1",
+        "score_a": 484,
+        "score_b": -95
+      },
+      {
+        "position_id": "125de4d740ccc05ca484896c0408cc4cd499a4835db988fbf563ed23dd6f2af9",
+        "fen": "1b1k4/3n4/1p5R/3p4/P2Ppp2/BP2P2P/2r2P2/5NK1 w - - 0 32",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h3h4",
+        "move_b": "h6h8",
+        "score_a": 490,
+        "score_b": 159
+      },
+      {
+        "position_id": "14070bf52276b4d2f3be6a4e1ff180e15d30060e14380de10d576ecfc11b3f74",
+        "fen": "1R6/8/1p3k2/6p1/6P1/1r6/5K2/8 w - - 4 53",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f2e1",
+        "move_b": "b8b6",
+        "score_a": 95,
+        "score_b": -119
+      },
+      {
+        "position_id": "702327883e07e5a3f362dc69ba4e988c9db48589a0f7f6ab11e01156795677fc",
+        "fen": "8/8/8/1p1p2kp/1P1P4/5K2/8/8 w - - 0 50",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f3g3",
+        "move_b": "f3f2",
+        "score_a": -253,
+        "score_b": -489
+      },
+      {
+        "position_id": "702327883e07e5a3f362dc69ba4e988c9db48589a0f7f6ab11e01156795677fc",
+        "fen": "8/8/8/1p1p2kp/1P1P4/5K2/8/8 w - - 0 50",
+        "from_depth": 4,
+        "to_depth": 6,
+        "move_a": "f3g3",
+        "move_b": "f3e2",
+        "score_a": -309,
+        "score_b": -526
+      },
+      {
+        "position_id": "75d3caf6fd577fd4874d803cf082178a6e68ea4093c12e1a4fc7f1caed4a44a4",
+        "fen": "8/1p3pp1/pPp4p/4P3/4KPkP/4P3/1P6/8 b - - 3 58",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "g4h3",
+        "move_b": "f7f5",
+        "score_a": 292,
+        "score_b": 62
+      },
+      {
+        "position_id": "ab76e9b3306239df5e3f4e671b5f16a0ec2c2936263f00fe87fddcd8f4868552",
+        "fen": "8/p6p/2k5/2p3p1/2K3P1/1P5P/P7/8 b - - 0 37",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "a7a6",
+        "move_b": "c6d6",
+        "score_a": 119,
+        "score_b": -85
+      },
+      {
+        "position_id": "3321097217ac47e576365142d943139b3f5d1f10d7e3b04c5259ce5760bd921e",
+        "fen": "8/3P3p/1p2Qppk/8/8/p5PP/3q4/7K w - - 0 46",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "g3g4",
+        "move_b": "e6f7",
+        "score_a": 532,
+        "score_b": 22
+      },
+      {
+        "position_id": "3321097217ac47e576365142d943139b3f5d1f10d7e3b04c5259ce5760bd921e",
+        "fen": "8/3P3p/1p2Qppk/8/8/p5PP/3q4/7K w - - 0 46",
+        "from_depth": 2,
+        "to_depth": 4,
+        "move_a": "e6f7",
+        "move_b": "h3h4",
+        "score_a": 91,
+        "score_b": -174
+      },
+      {
+        "position_id": "1e2fa07d0dd32c4e16f5ae00a661c1a107e6707481b65dadc62ee6f9743985bd",
+        "fen": "7k/6p1/7p/3Q3P/1qP3P1/5P2/6K1/8 b - - 6 54",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b4b1",
+        "move_b": "b4b2",
+        "score_a": 25,
+        "score_b": -235
+      },
+      {
+        "position_id": "1a409e06347f8d0072485ba388060c633046ac5ca23967db91baa4848ce21746",
+        "fen": "8/4b1k1/4Pq2/p1pQ2pp/2Pp4/1P1K4/P6P/8 w - - 0 42",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "d3e4",
+        "move_b": "h2h4",
+        "score_a": 363,
+        "score_b": -131
+      },
+      {
+        "position_id": "294c89db7a0f33acd85b8b792201b4f6011f87b46a20160da940b7a336069739",
+        "fen": "1k6/1ppq4/6p1/8/2PQ4/3K4/4R3/8 b - - 4 46",
+        "from_depth": 3,
+        "to_depth": 5,
+        "move_a": "d7d4",
+        "move_b": "b8c8",
+        "score_a": 312,
+        "score_b": -63
+      },
+      {
+        "position_id": "1ec24caa8587a7a0391ff7cfcbfba2cd2d40548e1eebf8f4ef5627cd27c852a5",
+        "fen": "6B1/1p6/1Bk4p/4K3/1n5P/8/8/8 b - - 0 49",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h6h5",
+        "move_b": "c6b6",
+        "score_a": 512,
+        "score_b": 311
+      }
+    ],
+    "C_nnue_conservative": [
+      {
+        "position_id": "34b32f1512946d595bed40d27595f9124e7fb6eaa192f5118e248cbe8a262647",
+        "fen": "4rr2/pR6/6p1/4k3/8/4p3/PP3PPP/5R1K w - - 0 24",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b7g7",
+        "move_b": "b7a7",
+        "score_a": 512,
+        "score_b": 304
+      },
+      {
+        "position_id": "31e9c5b4acb42e63314b61ca17b903010c574048bcd2da856f3ad966e9e477f7",
+        "fen": "3Q4/5k2/2r1qp2/8/8/3KP3/8/8 w - - 6 57",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "d3d2",
+        "move_b": "d8b8",
+        "score_a": -24,
+        "score_b": -545
+      },
+      {
+        "position_id": "1a11595c6f34ca3de0e90915ad8338cf66c9d27dc8c25f008e20d4bed58aab45",
+        "fen": "8/6p1/4p1k1/4P2p/2pP1K1P/B1P5/6b1/8 w - - 8 52",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "a3d6",
+        "move_b": "a3e7",
+        "score_a": 446,
+        "score_b": 76
+      },
+      {
+        "position_id": "05aac3d3f5bb14364ca65706cd5dbfb6f468bade66255b0734dba5d12c0a8845",
+        "fen": "8/8/1p6/5b1P/4kN2/8/3p4/3K4 w - - 8 64",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f4e2",
+        "move_b": "d1d2",
+        "score_a": 244,
+        "score_b": -39
+      },
+      {
+        "position_id": "0b32c401a9f3cd19db2a6271930713eb9a4e715e5744b2c82e3692724f2671e2",
+        "fen": "8/8/p7/Pk3p2/6b1/7p/7K/8 w - - 3 56",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h2h1",
+        "move_b": "h2g1",
+        "score_a": -288,
+        "score_b": -718
+      },
+      {
+        "position_id": "1403f2bddc6a98429395157afe83db5a57147444e09fdaec64588e9d9b8e4b0b",
+        "fen": "8/b3k2p/2p3p1/p2p4/N7/1PPB3P/P4rP1/7K w - - 1 31",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b3b4",
+        "move_b": "d3g6",
+        "score_a": -150,
+        "score_b": -361
+      },
+      {
+        "position_id": "0623c6fb629cb1fae32c818c2e47aef6458d2bdaa61fa4161c0b69fc9156ebf0",
+        "fen": "8/8/5P2/5K2/pbQ5/8/1k6/8 b - - 2 62",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b2a1",
+        "move_b": "b2a3",
+        "score_a": -339,
+        "score_b": -586
+      },
+      {
+        "position_id": "101952da99421774770093437346dcdd3832f6ef244b486765e6b6c88382c937",
+        "fen": "r2r3k/1b3B2/p3N1p1/4P2p/8/1P5Q/5qPP/5R1K w - - 3 31",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f1f2",
+        "move_b": "f1g1",
+        "score_a": 484,
+        "score_b": -95
+      },
+      {
+        "position_id": "125de4d740ccc05ca484896c0408cc4cd499a4835db988fbf563ed23dd6f2af9",
+        "fen": "1b1k4/3n4/1p5R/3p4/P2Ppp2/BP2P2P/2r2P2/5NK1 w - - 0 32",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h3h4",
+        "move_b": "h6h8",
+        "score_a": 490,
+        "score_b": 159
+      },
+      {
+        "position_id": "14070bf52276b4d2f3be6a4e1ff180e15d30060e14380de10d576ecfc11b3f74",
+        "fen": "1R6/8/1p3k2/6p1/6P1/1r6/5K2/8 w - - 4 53",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f2e1",
+        "move_b": "b8b6",
+        "score_a": 95,
+        "score_b": -119
+      },
+      {
+        "position_id": "702327883e07e5a3f362dc69ba4e988c9db48589a0f7f6ab11e01156795677fc",
+        "fen": "8/8/8/1p1p2kp/1P1P4/5K2/8/8 w - - 0 50",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "f3g3",
+        "move_b": "f3f2",
+        "score_a": -253,
+        "score_b": -489
+      },
+      {
+        "position_id": "702327883e07e5a3f362dc69ba4e988c9db48589a0f7f6ab11e01156795677fc",
+        "fen": "8/8/8/1p1p2kp/1P1P4/5K2/8/8 w - - 0 50",
+        "from_depth": 4,
+        "to_depth": 6,
+        "move_a": "f3g3",
+        "move_b": "f3e2",
+        "score_a": -309,
+        "score_b": -526
+      },
+      {
+        "position_id": "75d3caf6fd577fd4874d803cf082178a6e68ea4093c12e1a4fc7f1caed4a44a4",
+        "fen": "8/1p3pp1/pPp4p/4P3/4KPkP/4P3/1P6/8 b - - 3 58",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "g4h3",
+        "move_b": "f7f5",
+        "score_a": 292,
+        "score_b": 62
+      },
+      {
+        "position_id": "ab76e9b3306239df5e3f4e671b5f16a0ec2c2936263f00fe87fddcd8f4868552",
+        "fen": "8/p6p/2k5/2p3p1/2K3P1/1P5P/P7/8 b - - 0 37",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "a7a6",
+        "move_b": "c6d6",
+        "score_a": 119,
+        "score_b": -85
+      },
+      {
+        "position_id": "3321097217ac47e576365142d943139b3f5d1f10d7e3b04c5259ce5760bd921e",
+        "fen": "8/3P3p/1p2Qppk/8/8/p5PP/3q4/7K w - - 0 46",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "g3g4",
+        "move_b": "e6f7",
+        "score_a": 532,
+        "score_b": 22
+      },
+      {
+        "position_id": "3321097217ac47e576365142d943139b3f5d1f10d7e3b04c5259ce5760bd921e",
+        "fen": "8/3P3p/1p2Qppk/8/8/p5PP/3q4/7K w - - 0 46",
+        "from_depth": 2,
+        "to_depth": 4,
+        "move_a": "e6f7",
+        "move_b": "h3h4",
+        "score_a": 91,
+        "score_b": -174
+      },
+      {
+        "position_id": "1e2fa07d0dd32c4e16f5ae00a661c1a107e6707481b65dadc62ee6f9743985bd",
+        "fen": "7k/6p1/7p/3Q3P/1qP3P1/5P2/6K1/8 b - - 6 54",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "b4b1",
+        "move_b": "b4b2",
+        "score_a": 25,
+        "score_b": -235
+      },
+      {
+        "position_id": "1a409e06347f8d0072485ba388060c633046ac5ca23967db91baa4848ce21746",
+        "fen": "8/4b1k1/4Pq2/p1pQ2pp/2Pp4/1P1K4/P6P/8 w - - 0 42",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "d3e4",
+        "move_b": "h2h4",
+        "score_a": 363,
+        "score_b": -131
+      },
+      {
+        "position_id": "294c89db7a0f33acd85b8b792201b4f6011f87b46a20160da940b7a336069739",
+        "fen": "1k6/1ppq4/6p1/8/2PQ4/3K4/4R3/8 b - - 4 46",
+        "from_depth": 3,
+        "to_depth": 5,
+        "move_a": "d7d4",
+        "move_b": "b8c8",
+        "score_a": 312,
+        "score_b": -63
+      },
+      {
+        "position_id": "1ec24caa8587a7a0391ff7cfcbfba2cd2d40548e1eebf8f4ef5627cd27c852a5",
+        "fen": "6B1/1p6/1Bk4p/4K3/1n5P/8/8/8 b - - 0 49",
+        "from_depth": 1,
+        "to_depth": 3,
+        "move_a": "h6h5",
+        "move_b": "c6b6",
+        "score_a": 512,
+        "score_b": 311
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "summary": {
+    "n_positions": 60,
+    "depth": 7,
+    "seed": 2026083004,
+    "reversal_counts": {
+      "A_hce": 0,
+      "B_nnue": 0,
+      "C_nnue_conservative": 0
+    },
+    "blunders": {
+      "B_nnue": {
+        "seen": 0,
+        "missed": 0,
+        "rate": 0.0
+      },
+      "C_nnue_conservative": {
+        "seen": 0,
+        "missed": 0,
+        "rate": 0.0
+      }
+    }
+  },
+  "blunder_cases": {
+    "B_nnue": {
+      "seen": 0,
+      "missed": 0,
+      "cases": []
+    },
+    "C_nnue_conservative": {
+      "seen": 0,
+      "missed": 0,
+      "cases": []
+    }
+  },
+  "reversal_examples": {
+    "A_hce": [],
+    "B_nnue": [],
+    "C_nnue_conservative": []
+  }
+}
