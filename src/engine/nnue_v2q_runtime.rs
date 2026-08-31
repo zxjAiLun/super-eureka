@@ -25,13 +25,88 @@ use crate::engine::nnue::{
 
 /// Fixed S10-B5 artifact constants (must match export_quantized.py).
 pub const NNUE_V2Q_MAGIC: [u8; 8] = *b"EUNN2Q01";
-pub const NNUE_V2Q_VERSION: u32 = 1;
+/// v2: the header field at offset 40 (a reserved zero u32 in v1) is now
+/// `target_mode` (see `NnueV2TargetMode`). v1 artifacts implicitly carry
+/// mode `Cp`. The payload layout is unchanged.
+pub const NNUE_V2Q_VERSION: u32 = 2;
 pub const NNUE_V2Q_FT_WIDTH: usize = 128;
 pub const NNUE_V2Q_TARGET_SCALE: f32 = 1000.0;
 pub const NNUE_V2Q_FT_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_W_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_Z_SHIFT: u32 = 12;
 pub const NNUE_V2Q_QA: usize = 1 << 12;
+
+/// Semantic meaning of the network output (S10-F1). Two artifacts with the
+/// identical network shape mean completely different things: a `Cp` model's
+/// output IS the eval; a `MaterialResidual` model's output must be composed
+/// with the canonical material term at runtime. The loader fail-closes on
+/// mismatches so a residual artifact can never silently masquerade as a
+/// pure evaluator (or vice versa).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NnueV2TargetMode {
+    /// Output is the full eval in cp (the B3/B5 recipe).
+    Cp,
+    /// Output is a cp residual; runtime eval = material_cp_stm + output.
+    /// Uses the canonical piece values from `PieceType::value`
+    /// (P=100 N=320 B=330 R=500 Q=900, king 0).
+    MaterialResidual,
+}
+
+impl NnueV2TargetMode {
+    /// Wire encoding (artifact header offset 40, u32 LE).
+    pub const CP_U32: u32 = 0;
+    pub const MATERIAL_RESIDUAL_U32: u32 = 1;
+
+    pub fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            Self::CP_U32 => Some(NnueV2TargetMode::Cp),
+            Self::MATERIAL_RESIDUAL_U32 => {
+                Some(NnueV2TargetMode::MaterialResidual)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn to_u32(self) -> u32 {
+        match self {
+            NnueV2TargetMode::Cp => Self::CP_U32,
+            NnueV2TargetMode::MaterialResidual => Self::MATERIAL_RESIDUAL_U32,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            NnueV2TargetMode::Cp => "cp",
+            NnueV2TargetMode::MaterialResidual => "material_residual",
+        }
+    }
+}
+
+/// Raw stm-perspective material balance from the engine's canonical piece
+/// values (`PieceType::value`; kings contribute 0). This is the SINGLE
+/// source of truth for `NnueV2TargetMode::MaterialResidual` composition —
+/// the trainer cross-checks its Python twin against `bench material-batch`
+/// (which emits exactly this function's output) on every record.
+pub fn material_cp_stm(pos: &Position) -> i32 {
+    let mut white = 0i32;
+    let mut black = 0i32;
+    for piece in pos.board().iter().flatten() {
+        let v = match piece.piece_type {
+            crate::chess::types::PieceType::King => 0,
+            pt => pt.value(),
+        };
+        if piece.color == crate::chess::types::Color::White {
+            white += v;
+        } else {
+            black += v;
+        }
+    }
+    if pos.side == crate::chess::types::Color::White {
+        white - black
+    } else {
+        black - white
+    }
+}
 
 /// Historical provenance reference: the S10-D 300k artifact's source chain
 /// (B3 checkpoint d59ad852... via B4 FP32 artifact 9bf7addd...). Since S10-E0
@@ -183,6 +258,10 @@ pub struct NnueV2QuantizedModel {
     source_checkpoint_sha256: [u8; 32],
     /// S10-C3-C2: L1 dense backend (runtime-detected once at load).
     l1_backend: L1Backend,
+    /// S10-F1: semantic meaning of the network output. `MaterialResidual`
+    /// models must be composed with `material_cp_stm` by the caller; the
+    /// loader refuses to guess.
+    target_mode: NnueV2TargetMode,
 }
 
 impl NnueV2QuantizedModel {
@@ -193,7 +272,9 @@ impl NnueV2QuantizedModel {
         Self::from_bytes(&data)
     }
 
-    /// Parse and fully validate an `EUNN2Q01` v1 artifact (little-endian).
+    /// Parse and fully validate an `EUNN2Q01` artifact (little-endian).
+    /// v1 artifacts are read with `target_mode = Cp`; v2 artifacts carry an
+    /// explicit semantic mode in the header (the v1 reserved u32 slot).
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
         if data.len() != TOTAL_BYTES {
             return Err(format!(
@@ -215,7 +296,25 @@ impl NnueV2QuantizedModel {
         let dense_z_shift =
             u32::from_le_bytes(data[32..36].try_into().unwrap());
         let qa = u32::from_le_bytes(data[36..40].try_into().unwrap());
-        if version != NNUE_V2Q_VERSION {
+        let mode_raw = u32::from_le_bytes(data[40..44].try_into().unwrap());
+        let target_mode = match version {
+            1 => {
+                if mode_raw != 0 {
+                    return Err(format!(
+                        "nnue-v2q-probe: v1 artifact has non-zero reserved \
+                         field {mode_raw}"
+                    ));
+                }
+                NnueV2TargetMode::Cp
+            }
+            2 => NnueV2TargetMode::from_u32(mode_raw).ok_or_else(|| {
+                format!("nnue-v2q-probe: bad target_mode {mode_raw}")
+            })?,
+            other => {
+                return Err(format!("nnue-v2q-probe: bad version {other}"));
+            }
+        };
+        if version != NNUE_V2Q_VERSION && version != 1 {
             return Err(format!("nnue-v2q-probe: bad version {version}"));
         }
         if inputs != NNUE_INPUTS_V2 as u32 {
@@ -304,7 +403,15 @@ impl NnueV2QuantizedModel {
             source_fp32_artifact_sha256,
             source_checkpoint_sha256,
             l1_backend,
+            target_mode,
         })
+    }
+
+    /// S10-F1: semantic mode carried by this artifact. Callers MUST check
+    /// this before interpreting the network output (a `MaterialResidual`
+    /// model's raw output is NOT an eval).
+    pub fn target_mode(&self) -> NnueV2TargetMode {
+        self.target_mode
     }
 
     /// Current L1 backend (test visibility).
@@ -831,6 +938,14 @@ mod tests {
     /// l1 weights 256 rows of all 1s? Too big to hand-build in full; instead
     /// build the FULL byte array programmatically like the V1 probe tests.
     pub(super) fn synthetic_artifact_bytes(fen: &str) -> Vec<u8> {
+        synthetic_artifact_bytes_with_mode(fen, NnueV2TargetMode::Cp)
+    }
+
+    /// Same synthetic artifact, but with an explicit semantic target mode.
+    pub(super) fn synthetic_artifact_bytes_with_mode(
+        fen: &str,
+        mode: NnueV2TargetMode,
+    ) -> Vec<u8> {
         let pos = parse_fen(fen).unwrap();
         let white = active_features_v2(&pos, NnuePerspective::White);
         let black = active_features_v2(&pos, NnuePerspective::Black);
@@ -845,7 +960,7 @@ mod tests {
         out.extend_from_slice(&NNUE_V2Q_DENSE_W_SHIFT.to_le_bytes());
         out.extend_from_slice(&NNUE_V2Q_DENSE_Z_SHIFT.to_le_bytes());
         out.extend_from_slice(&(NNUE_V2Q_QA as u32).to_le_bytes());
-        out.extend_from_slice(&0u32.to_le_bytes()); // reserved
+        out.extend_from_slice(&mode.to_u32().to_le_bytes());
         out.extend_from_slice(&HISTORICAL_SOURCE_FP32_SHA);
         out.extend_from_slice(&HISTORICAL_SOURCE_CHECKPOINT_SHA);
 
@@ -953,7 +1068,8 @@ mod tests {
         data[0] = b'X';
         assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
         let mut data = synthetic_artifact_bytes(START_FEN);
-        data[8..12].copy_from_slice(&2u32.to_le_bytes());
+        // v1 and v2 are both loadable now; v3 does not exist yet.
+        data[8..12].copy_from_slice(&3u32.to_le_bytes());
         assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
         // tamper dense_w_shift
         let mut data = synthetic_artifact_bytes(START_FEN);
@@ -1568,5 +1684,81 @@ mod tests {
         assert!(transitions > 1000, "too few transitions: {transitions}");
         assert!(refreshes > 0);
         assert!(deltas > 0);
+    }
+
+    /// S10-F1: v2 artifacts carry an explicit target mode; the loader must
+    /// surface it and reject unknown encodings.
+    #[test]
+    fn f1_target_mode_roundtrip_and_rejection() {
+        let cp = NnueV2QuantizedModel::from_bytes(
+            &synthetic_artifact_bytes_with_mode(START_FEN, NnueV2TargetMode::Cp),
+        )
+        .unwrap();
+        assert_eq!(cp.target_mode(), NnueV2TargetMode::Cp);
+
+        let res = NnueV2QuantizedModel::from_bytes(
+            &synthetic_artifact_bytes_with_mode(
+                START_FEN,
+                NnueV2TargetMode::MaterialResidual,
+            ),
+        )
+        .unwrap();
+        assert_eq!(res.target_mode(), NnueV2TargetMode::MaterialResidual);
+
+        // Unknown mode encoding must fail closed.
+        let mut bad =
+            synthetic_artifact_bytes_with_mode(START_FEN, NnueV2TargetMode::Cp);
+        bad[40..44].copy_from_slice(&7u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&bad).is_err());
+    }
+
+    /// S10-F1: a v1 artifact (version=1, reserved=0) loads as target Cp —
+    /// the legacy frozen B5 artifact keeps working.
+    #[test]
+    fn f1_v1_artifact_loads_as_cp_mode() {
+        let mut v1 = synthetic_artifact_bytes_with_mode(
+            START_FEN,
+            NnueV2TargetMode::Cp,
+        );
+        v1[8..12].copy_from_slice(&1u32.to_le_bytes());
+        let model = NnueV2QuantizedModel::from_bytes(&v1).unwrap();
+        assert_eq!(model.target_mode(), NnueV2TargetMode::Cp);
+
+        // v1 with a non-zero reserved field is malformed.
+        let mut bad = v1.clone();
+        bad[40..44].copy_from_slice(&1u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&bad).is_err());
+    }
+
+    /// S10-F1: `material_cp_stm` matches the frozen forensic fixtures and
+    /// the canonical piece values.
+    #[test]
+    fn f1_material_cp_stm_fixtures() {
+        // Balanced opening position, black to move.
+        let p0 = parse_fen(
+            "r1bqkbnr/ppp1pp1p/2np2p1/3P4/2P5/2N5/\
+             PP2PPPP/R1BQKBNR b KQkq - 0 4",
+        )
+        .unwrap();
+        assert_eq!(material_cp_stm(&p0), 0);
+
+        // Black is down a knight, black to move: -320.
+        let dxc6 = parse_fen(
+            "r1bqk1nr/ppp1ppbp/2Pp2p1/8/2P5/2N5/\
+             PP2PPPP/R1BQKBNR b KQkq - 0 5",
+        )
+        .unwrap();
+        assert_eq!(material_cp_stm(&dxc6), -320);
+
+        // White is up N for P, white to move: +220.
+        let bxc6 = parse_fen(
+            "r1bqk1nr/p1p1ppbp/2pp2p1/8/2P5/2N5/\
+             PP2PPPP/R1BQKBNR w KQkq - 0 6",
+        )
+        .unwrap();
+        assert_eq!(material_cp_stm(&bxc6), 220);
+
+        // Startpos: 0 either way; kings contribute nothing.
+        assert_eq!(material_cp_stm(&Position::startpos()), 0);
     }
 }

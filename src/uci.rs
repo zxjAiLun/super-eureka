@@ -6,6 +6,7 @@
 //! from a GUI or the command line.
 
 use std::io::{self, BufRead, Write};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -35,6 +36,85 @@ const DEFAULT_HASH_MB: usize = 16;
 const MIN_HASH_MB: usize = 1;
 /// Largest legal `Hash` value. Anything larger is clamped down to this.
 const MAX_HASH_MB: usize = 1024;
+
+const DEFAULT_EVAL_FILE_NAME: &str = "nnue-v2-q01.bin";
+
+type NnueModel = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel;
+
+/// S10-D GUI: UCI-selectable NNUE delivery mode. This is intentionally
+/// orthogonal to the process-fixed startup profile: it changes evaluator
+/// delivery only, never search policy or the reported profile identity.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum NnueMode {
+    #[default]
+    Off,
+    V2q,
+    V2qFull,
+}
+
+impl NnueMode {
+    fn parse(value: &str) -> Option<Self> {
+        if value.eq_ignore_ascii_case("off") {
+            Some(Self::Off)
+        } else if value.eq_ignore_ascii_case("nnue-v2q") {
+            Some(Self::V2q)
+        } else if value.eq_ignore_ascii_case("nnue-v2q-full") {
+            Some(Self::V2qFull)
+        } else {
+            None
+        }
+    }
+
+    fn search_mode(self) -> Option<crate::engine::nnue_search::NnueSearchMode> {
+        match self {
+            Self::Off => None,
+            Self::V2q => Some(crate::engine::nnue_search::NnueSearchMode::Incremental),
+            Self::V2qFull => Some(crate::engine::nnue_search::NnueSearchMode::FullRefresh),
+        }
+    }
+}
+
+/// S10-D GUI evaluation-backend configuration. `mode = Off` is the exact
+/// pre-S10-D path. A loaded model is retained while off so a GUI can configure
+/// `EvalFile` and `NnueMode` in either order without a transient fallback.
+#[derive(Default)]
+struct EvalBackendConfig {
+    mode: NnueMode,
+    eval_file: String,
+    model: Option<Arc<NnueModel>>,
+}
+
+impl EvalBackendConfig {
+    fn auto_discover() -> Self {
+        let Some(path) = resolve_default_eval_file() else {
+            return Self::default();
+        };
+        match NnueModel::load(&path) {
+            Ok(model) => Self {
+                mode: NnueMode::Off,
+                eval_file: path.to_string_lossy().into_owned(),
+                model: Some(Arc::new(model)),
+            },
+            // Auto-discovery is optional while the default mode is off. An
+            // invalid neighbor is treated as unconfigured and becomes a
+            // fail-closed diagnostic only if NNUE is explicitly enabled.
+            Err(_) => Self::default(),
+        }
+    }
+}
+
+fn resolve_default_eval_file() -> Option<PathBuf> {
+    let path = std::env::current_exe()
+        .ok()?
+        .parent()?
+        .join(DEFAULT_EVAL_FILE_NAME);
+    path.is_file().then_some(path)
+}
+
+struct SearchNnueBackend {
+    model: Arc<NnueModel>,
+    mode: crate::engine::nnue_search::NnueSearchMode,
+}
 
 /// Parse a UCI time token (milliseconds) into a `Duration`, clamping to
 /// `MAX_UCI_TIME_MS`. Returns `None` if the token is missing or not a
@@ -95,32 +175,22 @@ fn spawn_search(
     budget: TimeBudget,
     tt: Arc<Mutex<TranspositionTable>>,
     profile: search::SearchProfile,
-    // S10-D preview: NNUE model for the NNUE candidate profiles (loaded
-    // once at startup, Arc-shared per search). None for classical profiles.
-    nnue_model: Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+    // S10-D: NNUE may be selected either by a startup candidate profile or by
+    // the orthogonal UCI evaluation-backend config. The immutable model is
+    // loaded at startup or through UCI and Arc-shared per search.
+    nnue_backend: Option<SearchNnueBackend>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let ctx = search::SearchContext::with_budget(stop.clone(), budget);
         let (mut pos, game_history) = game.into_search_parts();
         // Acquire the (only) mutable TT guard and keep it for the whole run.
         let mut guard = lock_tt_recover(&tt);
-        // Build the search-local NNUE state when the profile requires it
-        // (fail-closed: an NNUE profile without a model never searches).
-        let nnue_state = if profile.uses_nnue_eval() {
-            Some(crate::engine::nnue_search::NnueSearchState::new(
-                nnue_model.expect(
-                    "NNUE profile requires --nnue-model at startup (fail closed)"
-                ),
-                if profile.uses_nnue_incremental_stack() {
-                    crate::engine::nnue_search::NnueSearchMode::Incremental
-                } else {
-                    crate::engine::nnue_search::NnueSearchMode::FullRefresh
-                },
-                &pos,
-            ))
-        } else {
-            None
-        };
+        // Build a search-local state whenever an NNUE backend was selected.
+        // Its presence controls evaluator dispatch; `profile` still controls
+        // every search-policy branch.
+        let nnue_state = nnue_backend.map(|backend| {
+            crate::engine::nnue_search::NnueSearchState::new(backend.model, backend.mode, &pos)
+        });
         match search::search_best_move_with_history_tt_and_profile(
             &mut pos,
             &game_history,
@@ -196,6 +266,11 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
             "current-final-no-development-space"
         }
         search::SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
+        search::SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
+        search::SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
+        search::SearchProfile::CurrentFinalNnueV2QMaterial => {
+            "current-final-nnue-v2q-material"
+        }
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -211,6 +286,7 @@ fn write_uci_handshake_with_profile<W: Write>(
     out: &mut W,
     startup_tt_failed: bool,
     profile: search::SearchProfile,
+    eval_backend: &EvalBackendConfig,
 ) -> io::Result<()> {
     writeln!(out, "id name Eureka v{}", crate::version::version_string())?;
     writeln!(out, "id author zxjAiLun")?;
@@ -218,6 +294,19 @@ fn write_uci_handshake_with_profile<W: Write>(
         out,
         "option name Hash type spin default {} min {} max {}",
         DEFAULT_HASH_MB, MIN_HASH_MB, MAX_HASH_MB
+    )?;
+    writeln!(
+        out,
+        "option name EvalFile type string default {}",
+        if eval_backend.eval_file.is_empty() {
+            "<empty>"
+        } else {
+            &eval_backend.eval_file
+        }
+    )?;
+    writeln!(
+        out,
+        "option name NnueMode type combo default off var off var nnue-v2q var nnue-v2q-full"
     )?;
     if startup_tt_failed {
         writeln!(
@@ -253,6 +342,14 @@ fn write_uci_handshake_with_profile<W: Write>(
         }
     )?;
     writeln!(out, "info string network none")?;
+    if eval_backend.model.is_some() && !eval_backend.eval_file.is_empty() {
+        let path = Path::new(&eval_backend.eval_file);
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy())
+            .unwrap_or_else(|| path.as_os_str().to_string_lossy());
+        writeln!(out, "info string evalfile {name}")?;
+    }
     writeln!(out, "info string dirty {}", crate::version::is_dirty())?;
     writeln!(out, "uciok")?;
     Ok(())
@@ -261,7 +358,12 @@ fn write_uci_handshake_with_profile<W: Write>(
 /// Compatibility wrapper for tests and callers that use the default profile.
 #[cfg(test)]
 fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
-    write_uci_handshake_with_profile(out, startup_tt_failed, search::PRODUCTION_PROFILE)
+    write_uci_handshake_with_profile(
+        out,
+        startup_tt_failed,
+        search::PRODUCTION_PROFILE,
+        &EvalBackendConfig::default(),
+    )
 }
 
 /// Consumable variant used by `run()`. It takes a mutable `startup_tt_notice_pending`
@@ -282,9 +384,10 @@ fn write_pending_uci_handshake_with_profile<W: Write>(
     out: &mut W,
     startup_tt_notice_pending: &mut bool,
     profile: search::SearchProfile,
+    eval_backend: &EvalBackendConfig,
 ) -> io::Result<()> {
     let report_failure = std::mem::take(startup_tt_notice_pending);
-    write_uci_handshake_with_profile(out, report_failure, profile)
+    write_uci_handshake_with_profile(out, report_failure, profile, eval_backend)
 }
 
 /// Write the `isready` reply. Deliberately takes **no** TT parameter: it
@@ -319,6 +422,39 @@ enum SetoptionOutcome {
     Invalid,
     Resized,
     ResizeFailed,
+    EvalUpdated,
+}
+
+/// Split a UCI `setoption` command into its case-normalized option name and
+/// optional value. The value joins every token after `value`, so Windows paths
+/// containing spaces survive the parser (whitespace itself is normalized).
+fn split_setoption_name_value(tokens: &[&str]) -> Option<(String, Option<String>)> {
+    if !tokens
+        .first()
+        .is_some_and(|token| token.eq_ignore_ascii_case("setoption"))
+    {
+        return None;
+    }
+
+    let name_marker = tokens
+        .iter()
+        .position(|token| token.eq_ignore_ascii_case("name"))?;
+    let value_marker = tokens[name_marker + 1..]
+        .iter()
+        .position(|token| token.eq_ignore_ascii_case("value"))
+        .map(|offset| name_marker + 1 + offset);
+    let name_end = value_marker.unwrap_or(tokens.len());
+    if name_end <= name_marker + 1 {
+        return None;
+    }
+    let name = tokens[name_marker + 1..name_end]
+        .iter()
+        .map(|token| token.to_ascii_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let value = value_marker
+        .and_then(|marker| (marker + 1 < tokens.len()).then(|| tokens[marker + 1..].join(" ")));
+    Some((name, value))
 }
 
 /// Parse a `setoption name Hash value N` line.
@@ -337,50 +473,18 @@ enum SetoptionOutcome {
 /// * The accepted magnitude is clamped: `0 -> 1`, `1..=1024` kept,
 ///   `>1024` clamped to `1024`.
 fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
-    if tokens.first() != Some(&"setoption") {
+    let Some((opt_name, value)) = split_setoption_name_value(tokens) else {
         return HashOptionCommand::Unknown;
-    }
-
-    let mut name_start: Option<usize> = None;
-    let mut name_end: Option<usize> = None;
-    let mut value: Option<&str> = None;
-    let mut i = 1;
-    while i < tokens.len() {
-        let tok = tokens[i];
-        if tok.eq_ignore_ascii_case("name") {
-            // Collect every token after `name` up to (but not including)
-            // `value` as the option name.
-            name_start = Some(i + 1);
-            let mut j = i + 1;
-            while j < tokens.len() && !tokens[j].eq_ignore_ascii_case("value") {
-                j += 1;
-            }
-            name_end = Some(j);
-            i = j;
-        } else if tok.eq_ignore_ascii_case("value") {
-            value = tokens.get(i + 1).copied();
-            i = tokens.len();
-        } else {
-            i += 1;
-        }
-    }
-
-    // Recover the option name (lowercased) between name..value.
-    let opt_name = match (name_start, name_end) {
-        (Some(s), Some(e)) if e > s => tokens[s..e]
-            .iter()
-            .map(|t| t.to_ascii_lowercase())
-            .collect::<Vec<_>>()
-            .join(" "),
-        _ => return HashOptionCommand::Unknown,
     };
     if opt_name != "hash" {
         return HashOptionCommand::Unknown;
     }
 
     // `Hash` recognized. A missing value is invalid.
-    let raw = match value {
-        Some(v) => v,
+    let raw = match value.as_deref() {
+        // Preserve the pre-refactor Hash behavior: only the first value token
+        // participates, even though string options consume the full remainder.
+        Some(v) => v.split_ascii_whitespace().next().unwrap_or(""),
         None => return HashOptionCommand::Invalid,
     };
     // Empty or any non-digit (signs, letters, etc.) is invalid.
@@ -402,6 +506,101 @@ fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
         usize::try_from(v).unwrap_or(MAX_HASH_MB)
     };
     HashOptionCommand::Resize(clamped)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum EvalOptionCommand {
+    Unknown,
+    EvalFile(Option<String>),
+    NnueMode(Option<NnueMode>),
+}
+
+fn parse_eval_setoption(tokens: &[&str]) -> EvalOptionCommand {
+    let Some((name, value)) = split_setoption_name_value(tokens) else {
+        return EvalOptionCommand::Unknown;
+    };
+    match name.as_str() {
+        "evalfile" => EvalOptionCommand::EvalFile(value),
+        "nnuemode" => EvalOptionCommand::NnueMode(value.as_deref().and_then(NnueMode::parse)),
+        _ => EvalOptionCommand::Unknown,
+    }
+}
+
+fn load_eval_file_transactionally(
+    eval_backend: &mut EvalBackendConfig,
+    requested: Option<&str>,
+) -> Result<String, String> {
+    let path = match requested {
+        Some(value) if !value.is_empty() && value != "<empty>" => PathBuf::from(value),
+        _ => resolve_default_eval_file().ok_or_else(|| {
+            format!("no {DEFAULT_EVAL_FILE_NAME} found next to the engine executable")
+        })?,
+    };
+    let model = NnueModel::load(&path)?;
+    let display_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned());
+    eval_backend.eval_file = path.to_string_lossy().into_owned();
+    eval_backend.model = Some(Arc::new(model));
+    Ok(display_name)
+}
+
+fn handle_uci_setoption(
+    tokens: &[&str],
+    active: &mut Option<ActiveSearch>,
+    tt: &Arc<Mutex<TranspositionTable>>,
+    profile: search::SearchProfile,
+    eval_backend: &mut EvalBackendConfig,
+) -> SetoptionOutcome {
+    match parse_eval_setoption(tokens) {
+        EvalOptionCommand::Unknown => handle_setoption(tokens, active, tt),
+        EvalOptionCommand::EvalFile(requested) => {
+            if profile.uses_nnue_eval() {
+                println!(
+                    "info string EvalFile is fixed by the startup NNUE profile; option ignored"
+                );
+                let _ = io::stdout().flush();
+                return SetoptionOutcome::Ignored;
+            }
+            stop_and_join(active);
+            match load_eval_file_transactionally(eval_backend, requested.as_deref()) {
+                Ok(name) => {
+                    println!("info string EvalFile loaded: {name}");
+                    let _ = io::stdout().flush();
+                    SetoptionOutcome::EvalUpdated
+                }
+                Err(err) => {
+                    // Transactional loader: retain both the prior path and
+                    // prior model so a bad edit cannot silently change play.
+                    println!("info string EvalFile load failed: {err}");
+                    let _ = io::stdout().flush();
+                    SetoptionOutcome::Invalid
+                }
+            }
+        }
+        EvalOptionCommand::NnueMode(mode) => {
+            if profile.uses_nnue_eval() {
+                println!(
+                    "info string NnueMode is fixed by the startup NNUE profile; option ignored"
+                );
+                let _ = io::stdout().flush();
+                return SetoptionOutcome::Ignored;
+            }
+            stop_and_join(active);
+            match mode {
+                Some(mode) => {
+                    eval_backend.mode = mode;
+                    SetoptionOutcome::EvalUpdated
+                }
+                None => {
+                    println!("info string invalid NnueMode value");
+                    let _ = io::stdout().flush();
+                    SetoptionOutcome::Invalid
+                }
+            }
+        }
+    }
 }
 
 /// Handle a `setoption` line. The handler owns the lifecycle rules:
@@ -544,6 +743,12 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-nnue-v2q" => {
                         search::SearchProfile::CurrentFinalNnueV2QIncremental
                     }
+                    // S10-F1: material-anchored residual NNUE candidate
+                    // (requires a v2 artifact with target_mode =
+                    // material_residual; fail-closed otherwise).
+                    "current-final-nnue-v2q-material" => {
+                        search::SearchProfile::CurrentFinalNnueV2QMaterial
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
@@ -574,12 +779,31 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
 
     // S10-D preview: load the quantized model ONCE at startup (fail
     // closed when an NNUE profile has no model, or the model fails to
-    // load/verify).
+    // load/verify). S10-F1: the artifact's semantic target mode must match
+    // the profile — a material-residual artifact under a pure NNUE profile
+    // (or the reverse) is refused instead of silently mis-evaluating.
     let nnue_model = if let Some(path) = nnue_model_path.as_deref() {
         match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
             std::path::Path::new(path),
         ) {
-            Ok(model) => Some(Arc::new(model)),
+            Ok(model) => {
+                let mode = model.target_mode();
+                let required =
+                    if profile.uses_nnue_material_residual() {
+                        crate::engine::nnue_v2q_runtime::NnueV2TargetMode::MaterialResidual
+                    } else {
+                        crate::engine::nnue_v2q_runtime::NnueV2TargetMode::Cp
+                    };
+                if profile.uses_nnue_eval() && mode != required {
+                    return Err(format!(
+                        "--nnue-model: artifact target_mode '{}' does not \
+                         match profile (requires '{}') (fail closed)",
+                        mode.name(),
+                        required.name()
+                    ));
+                }
+                Some(Arc::new(model))
+            }
             Err(e) => return Err(format!("--nnue-model: {e}")),
         }
     } else {
@@ -625,21 +849,45 @@ pub fn run() {
 ///
 /// The profile is fixed for the process lifetime, which makes the executable
 /// directly usable by fastchess/OpenBench as either the promoted default
-/// binary or an explicitly selected historical/candidate profile.
+/// binary or an explicitly selected historical/candidate profile. The UCI
+/// evaluation backend is the sole orthogonal configurable dimension: it can
+/// replace static evaluation, but never profile identity or search policy.
 pub fn run_with_args(args: &[String]) -> Result<(), String> {
     match parse_startup_profile(args)? {
-        StartupCommand::Run((profile, nnue_model)) => {
-            run_with_profile(profile, nnue_model)
-        }
+        StartupCommand::Run((profile, nnue_model)) => run_with_profile(profile, nnue_model),
         StartupCommand::Help => print_startup_help(),
     }
     Ok(())
 }
 
-fn run_with_profile(
+fn select_search_nnue_backend(
     profile: search::SearchProfile,
-    nnue_model: Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
-) {
+    startup_nnue_model: &Option<Arc<NnueModel>>,
+    eval_backend: &EvalBackendConfig,
+) -> Result<Option<SearchNnueBackend>, &'static str> {
+    if profile.uses_nnue_eval() {
+        let model = startup_nnue_model
+            .clone()
+            .ok_or("startup NNUE profile has no loaded model; refusing to search")?;
+        let mode = if profile.uses_nnue_incremental_stack() {
+            crate::engine::nnue_search::NnueSearchMode::Incremental
+        } else {
+            crate::engine::nnue_search::NnueSearchMode::FullRefresh
+        };
+        return Ok(Some(SearchNnueBackend { model, mode }));
+    }
+
+    let Some(mode) = eval_backend.mode.search_mode() else {
+        return Ok(None);
+    };
+    let model = eval_backend
+        .model
+        .clone()
+        .ok_or("NnueMode requires a loadable EvalFile; refusing to search")?;
+    Ok(Some(SearchNnueBackend { model, mode }))
+}
+
+fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<Arc<NnueModel>>) {
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -649,6 +897,14 @@ fn run_with_profile(
     let mut gs = GameState::startpos();
     // The active background search, if any. `None` while idle.
     let mut active: Option<ActiveSearch> = None;
+    // CLI NNUE profiles retain their startup-owned model and reject UCI eval
+    // options. Classical profiles auto-discover a verified neighbor model but
+    // remain bit-identical because the default mode is Off.
+    let mut eval_backend = if profile.uses_nnue_eval() {
+        EvalBackendConfig::default()
+    } else {
+        EvalBackendConfig::auto_discover()
+    };
 
     // Persistent transposition table, shared across every `go` and owned
     // independently of `gs` and `active`. It is created once here, survives
@@ -689,6 +945,7 @@ fn run_with_profile(
                     &mut io::stdout(),
                     &mut startup_tt_notice_pending,
                     profile,
+                    &eval_backend,
                 );
             }
             "isready" => {
@@ -717,10 +974,11 @@ fn run_with_profile(
             }
             "setoption" => {
                 // Route through the lifecycle-aware handler. Unknown options
-                // are ignored; `Hash` stops/joins any search, then resizes.
+                // are ignored; Hash and evaluator mutations stop/join first.
                 // A successful (re)enable also clears any unsent startup
                 // notice: the table is now live, so "TT disabled" would lie.
-                let outcome = handle_setoption(&tokens, &mut active, &tt);
+                let outcome =
+                    handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut eval_backend);
                 if outcome == SetoptionOutcome::Resized {
                     startup_tt_notice_pending = false;
                 }
@@ -737,6 +995,16 @@ fn run_with_profile(
                 let params = parse_go_params(&tokens);
                 let (limits, budget) =
                     build_limits_and_budget(&params, gs.position().side_to_move());
+                let nnue_backend =
+                    match select_search_nnue_backend(profile, &startup_nnue_model, &eval_backend) {
+                        Ok(backend) => backend,
+                        Err(message) => {
+                            println!("info string {message}");
+                            println!("bestmove 0000");
+                            let _ = io::stdout().flush();
+                            continue;
+                        }
+                    };
                 let stop = Arc::new(AtomicBool::new(false));
                 // Hand the thread a *clone* of the live game and the shared
                 // TT; the search splits `gs` via `into_search_parts` and
@@ -749,7 +1017,7 @@ fn run_with_profile(
                     budget,
                     tt.clone(),
                     profile,
-                    nnue_model.clone(),
+                    nnue_backend,
                 );
                 active = Some(ActiveSearch { stop, handle });
             }
@@ -1455,6 +1723,46 @@ mod tests {
     }
 
     #[test]
+    fn s10d_handshake_reports_eval_options_before_uciok() {
+        let mut buf = Vec::new();
+        write_uci_handshake(&mut buf, false).unwrap();
+        let text = String::from_utf8(buf).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        let eval_file_idx = lines
+            .iter()
+            .position(|line| *line == "option name EvalFile type string default <empty>")
+            .expect("EvalFile option present");
+        let mode_idx = lines
+            .iter()
+            .position(|line| {
+                *line
+                    == "option name NnueMode type combo default off var off var nnue-v2q var nnue-v2q-full"
+            })
+            .expect("NnueMode option present");
+        let uciok_idx = lines.iter().position(|line| *line == "uciok").unwrap();
+        assert!(eval_file_idx < mode_idx);
+        assert!(mode_idx < uciok_idx);
+    }
+
+    #[test]
+    fn s10d_handshake_reports_auto_discovered_filename() {
+        let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
+        let config = EvalBackendConfig {
+            mode: NnueMode::Off,
+            eval_file: "C:\\engines\\nnue-v2-q01.bin".to_string(),
+            model: Some(Arc::new(NnueModel::from_bytes(&bytes).unwrap())),
+        };
+        let mut buf = Vec::new();
+        write_uci_handshake_with_profile(&mut buf, false, search::PRODUCTION_PROFILE, &config)
+            .unwrap();
+        let text = String::from_utf8(buf).unwrap();
+        assert!(text
+            .contains("option name EvalFile type string default C:\\engines\\nnue-v2-q01.bin\n"));
+        assert!(text.contains("info string evalfile nnue-v2-q01.bin\n"));
+        assert!(text.contains("info string profile current-final\n"));
+    }
+
+    #[test]
     fn handshake_reports_startup_failure_before_uciok() {
         // When the default table could not be allocated, the diagnostic is
         // emitted after the option line but before `uciok`.
@@ -1600,6 +1908,114 @@ mod tests {
                 tokens
             );
         }
+    }
+
+    #[test]
+    fn s10d_setoption_parser_matrix() {
+        let cases = [
+            (
+                "setoption name NnueMode value NNUE-V2Q",
+                EvalOptionCommand::NnueMode(Some(NnueMode::V2q)),
+            ),
+            (
+                "setoption NAME NNUEMODE VALUE nnue-v2q-full",
+                EvalOptionCommand::NnueMode(Some(NnueMode::V2qFull)),
+            ),
+            (
+                "setoption name NnueMode value off",
+                EvalOptionCommand::NnueMode(Some(NnueMode::Off)),
+            ),
+            ("setoption name NnueMode", EvalOptionCommand::NnueMode(None)),
+            (
+                "setoption name NnueMode value surprise",
+                EvalOptionCommand::NnueMode(None),
+            ),
+            (
+                "setoption name Unknown value nnue-v2q",
+                EvalOptionCommand::Unknown,
+            ),
+        ];
+        for (line, expected) in cases {
+            let tokens: Vec<&str> = line.split_whitespace().collect();
+            assert_eq!(parse_eval_setoption(&tokens), expected, "{line}");
+        }
+
+        let path_tokens: Vec<&str> =
+            "setoption name EvalFile value C:\\Program Files\\Eureka\\network.bin"
+                .split_whitespace()
+                .collect();
+        assert_eq!(
+            parse_eval_setoption(&path_tokens),
+            EvalOptionCommand::EvalFile(Some("C:\\Program Files\\Eureka\\network.bin".to_string()))
+        );
+    }
+
+    #[test]
+    fn s10d_enabled_mode_without_model_fails_closed() {
+        let config = EvalBackendConfig {
+            mode: NnueMode::V2q,
+            ..EvalBackendConfig::default()
+        };
+        let result = select_search_nnue_backend(search::PRODUCTION_PROFILE, &None, &config);
+        assert_eq!(
+            result.err(),
+            Some("NnueMode requires a loadable EvalFile; refusing to search")
+        );
+    }
+
+    #[test]
+    fn s10d_startup_nnue_profile_keeps_identity_and_rejects_uci_mode() {
+        let profile = search::SearchProfile::CurrentFinalNnueV2QIncremental;
+        assert_eq!(startup_profile_name(profile), "current-final-nnue-v2q");
+        assert_eq!(
+            startup_profile_name(search::SearchProfile::CurrentFinalNnueV2QFull),
+            "current-final-nnue-v2q-full"
+        );
+
+        let mut config = EvalBackendConfig::default();
+        let tt = Arc::new(Mutex::new(TranspositionTable::disabled()));
+        let mut active = None;
+        let tokens: Vec<&str> = "setoption name NnueMode value off"
+            .split_whitespace()
+            .collect();
+        let outcome = handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut config);
+        assert_eq!(outcome, SetoptionOutcome::Ignored);
+        assert_eq!(config.mode, NnueMode::Off);
+        assert!(config.model.is_none());
+    }
+
+    #[test]
+    fn s10d_failed_evalfile_load_preserves_previous_model_and_path() {
+        let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
+        let original_model = Arc::new(NnueModel::from_bytes(&bytes).unwrap());
+        let mut config = EvalBackendConfig {
+            mode: NnueMode::V2q,
+            eval_file: "known-good.bin".to_string(),
+            model: Some(original_model.clone()),
+        };
+        let missing = std::env::temp_dir().join(format!(
+            "eureka-definitely-missing-{}-nnue.bin",
+            std::process::id()
+        ));
+        let result = load_eval_file_transactionally(&mut config, missing.to_str());
+        assert!(result.is_err());
+        assert_eq!(config.eval_file, "known-good.bin");
+        assert!(Arc::ptr_eq(config.model.as_ref().unwrap(), &original_model));
+        assert_eq!(config.mode, NnueMode::V2q);
+    }
+
+    #[test]
+    fn s10d_ucinewgame_reset_does_not_clear_eval_backend() {
+        let mut game = GameState::startpos();
+        let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
+        let config = EvalBackendConfig {
+            mode: NnueMode::V2qFull,
+            eval_file: "configured.bin".to_string(),
+            model: None,
+        };
+        ucinewgame_reset(&mut game, &tt);
+        assert_eq!(config.mode, NnueMode::V2qFull);
+        assert_eq!(config.eval_file, "configured.bin");
     }
 
     #[test]

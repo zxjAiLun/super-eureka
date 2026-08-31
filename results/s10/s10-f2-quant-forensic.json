@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "quantized_artifact": "data\\s10\\f1\\seed-20260820\\nnue-v2-q01-material.bin",
+  "forensic_composed_cp": {
+    "P0": -15.14,
+    "after_Bg7": 4.64,
+    "after_dxc6": -261.16,
+    "after_bxc6": 208.53
+  },
+  "counterfactual_groups": {
+    "minor_removal": {
+      "n": 214,
+      "median_abs_delta": 319.63,
+      "direction_accuracy": 1.0
+    },
+    "rook_removal": {
+      "n": 139,
+      "median_abs_delta": 486.82,
+      "direction_accuracy": 1.0
+    },
+    "queen_removal": {
+      "n": 84,
+      "median_abs_delta": 871.68,
+      "direction_accuracy": 1.0
+    }
+  },
+  "gates": {
+    "forensic_after_dxc6": {
+      "value": -261.16,
+      "gate_max": -150.0,
+      "pass": true
+    },
+    "minor_removal": {
+      "stats": {
+        "n": 214,
+        "median_abs_delta": 319.63,
+        "direction_accuracy": 1.0
+      },
+      "median_gate": 250.0,
+      "direction_gate": 0.99,
+      "pass": true
+    },
+    "rook_removal": {
+      "stats": {
+        "n": 139,
+        "median_abs_delta": 486.82,
+        "direction_accuracy": 1.0
+      },
+      "median_gate": 400.0,
+      "direction_gate": 0.99,
+      "pass": true
+    },
+    "queen_removal": {
+      "stats": {
+        "n": 84,
+        "median_abs_delta": 871.68,
+        "direction_accuracy": 1.0
+      },
+      "median_gate": 700.0,
+      "direction_gate": 0.99,
+      "pass": true
+    }
+  },
+  "all_gates_pass": true,
+  "sample": {
+    "n_bases": 100,
+    "base_seed": 2026083102,
+    "n_variants": 437
+  }
+}

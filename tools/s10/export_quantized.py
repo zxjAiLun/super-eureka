@@ -72,7 +72,11 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 MAGIC = b"EUNN2Q01"
-FORMAT_VERSION = 1
+# v2: the reserved u32 after QA is `target_mode` (0=cp, 1=material_residual).
+# v1 artifacts implicitly carry mode cp.
+FORMAT_VERSION = 2
+TARGET_MODE_CP = 0
+TARGET_MODE_MATERIAL_RESIDUAL = 1
 INPUTS = 22528
 FT_WIDTH = 128
 TARGET_SCALE = 1000.0
@@ -159,14 +163,15 @@ def build_quantized_arrays(sd: dict) -> dict:
     }
 
 
-def artifact_bytes(q: dict, src_fp32_sha: str, src_ckpt_sha: str) -> bytes:
+def artifact_bytes(q: dict, src_fp32_sha: str, src_ckpt_sha: str,
+                   target_mode: int = TARGET_MODE_CP) -> bytes:
     import struct
     header = bytearray()
     header += MAGIC
     header += struct.pack(
         "<IIIfIIIII", FORMAT_VERSION, INPUTS, FT_WIDTH, TARGET_SCALE,
         FT_SHIFT, DENSE_W_SHIFT, DENSE_Z_SHIFT, QA,
-        0)  # last u32 reserved (0)
+        target_mode)
     header += bytes.fromhex(src_fp32_sha)
     header += bytes.fromhex(src_ckpt_sha)
     payload = bytearray()
@@ -181,23 +186,26 @@ def artifact_bytes(q: dict, src_fp32_sha: str, src_ckpt_sha: str) -> bytes:
     return bytes(header) + bytes(payload)
 
 
-def load_frozen_sd() -> tuple[dict, str]:
-    data = FROZEN_CHECKPOINT.read_bytes()
+def load_frozen_sd(checkpoint: Path, checkpoint_sha: str) -> tuple[dict, str]:
+    data = checkpoint.read_bytes()
     sha = hashlib.sha256(data).hexdigest()
-    if sha != FROZEN_CHECKPOINT_SHA:
+    if checkpoint_sha is not None and sha != checkpoint_sha:
         raise SystemExit(f"PIPELINE_FAILURE: checkpoint SHA {sha} != frozen")
-    ckpt = torch.load(FROZEN_CHECKPOINT, map_location="cpu",
+    ckpt = torch.load(checkpoint, map_location="cpu",
                       weights_only=False)
     return ckpt["model_state_dict"], sha
 
 
-def export(out_path: Path) -> dict:
-    sd, ckpt_sha = load_frozen_sd()
-    fp32_sha = hashlib.sha256(FROZEN_FP32_ARTIFACT.read_bytes()).hexdigest()
-    if fp32_sha != FROZEN_FP32_ARTIFACT_SHA:
+def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
+           checkpoint_sha: str | None = None,
+           fp32_sha_expected: str | None = None,
+           target_mode: int = TARGET_MODE_CP) -> dict:
+    sd, ckpt_sha = load_frozen_sd(checkpoint, checkpoint_sha)
+    fp32_sha = hashlib.sha256(fp32_artifact.read_bytes()).hexdigest()
+    if fp32_sha_expected is not None and fp32_sha != fp32_sha_expected:
         raise SystemExit("PIPELINE_FAILURE: FP32 artifact SHA mismatch")
     q = build_quantized_arrays(sd)
-    blob = artifact_bytes(q, fp32_sha, ckpt_sha)
+    blob = artifact_bytes(q, fp32_sha, ckpt_sha, target_mode)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(blob)
     return {
@@ -206,6 +214,7 @@ def export(out_path: Path) -> dict:
         "total_bytes": len(blob),
         "magic": MAGIC.decode(),
         "format_version": FORMAT_VERSION,
+        "target_mode": target_mode,
         "inputs": INPUTS,
         "ft_width": FT_WIDTH,
         "shifts": {
@@ -235,8 +244,26 @@ def main() -> int:
     ap.add_argument("--out", type=Path,
                     default=Path("data/s10/b3/seed-20260818/nnue-v2-q01.bin"))
     ap.add_argument("--layout", type=Path, default=None)
+    ap.add_argument("--checkpoint", type=Path, default=FROZEN_CHECKPOINT,
+                    help="torch checkpoint to quantize")
+    ap.add_argument("--fp32-artifact", type=Path, default=FROZEN_FP32_ARTIFACT,
+                    help="source FP32 artifact (SHA recorded in the header)")
+    ap.add_argument("--checkpoint-sha", default=FROZEN_CHECKPOINT_SHA,
+                    help="fail-closed checkpoint SHA (empty string disables)")
+    ap.add_argument("--fp32-sha", default=FROZEN_FP32_ARTIFACT_SHA,
+                    help="fail-closed FP32 artifact SHA (empty disables)")
+    ap.add_argument("--target-mode", choices=["cp", "material-residual"],
+                    default="cp",
+                    help="semantic mode recorded in the v2 header")
     args = ap.parse_args()
-    info = export(args.out)
+    mode = (TARGET_MODE_CP if args.target_mode == "cp"
+            else TARGET_MODE_MATERIAL_RESIDUAL)
+    info = export(
+        args.out, args.checkpoint, args.fp32_artifact,
+        checkpoint_sha=args.checkpoint_sha or None,
+        fp32_sha_expected=args.fp32_sha or None,
+        target_mode=mode,
+    )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)
         args.layout.write_text(json.dumps(info, indent=2) + "\n",

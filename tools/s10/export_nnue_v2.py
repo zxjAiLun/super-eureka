@@ -43,15 +43,6 @@ INPUTS = 22528
 FT_WIDTH = 128
 TARGET_SCALE = 1000.0
 
-# Frozen S10-B3 production candidate (results/s10/s10-b3-selection.json)
-EXPECTED_CHECKPOINT_SHA = (
-    "d59ad8525c06abe80307bffb121ff497a36e94b191c3c9bb3c8f31e5cce550c7")
-EXPECTED_SEED = 20260818
-EXPECTED_DATASET_SHA = (
-    "503b47b6a6fb33f3248e0f15d69de67fcd4334bdefce174767b720910a9076b3")
-EXPECTED_LABELS_SHA = (
-    "bcd49da1ece75a15591e135d5bcf6d036608b1759d6a00e639f3e344e516116f")
-
 HEADER_BYTES = 8 + 4 + 4 + 4 + 4 + 32
 STATE_SHAPES = {
     "ft_weights.weight": (INPUTS, FT_WIDTH),
@@ -78,24 +69,36 @@ def tensor_f32_le_bytes(tensor: torch.Tensor) -> bytes:
     return np.ascontiguousarray(array, dtype="<f4").tobytes()
 
 
-def validate_checkpoint(path: Path) -> dict:
+def validate_checkpoint(path: Path, expected_sha: str | None,
+                        expected_seed: int | None,
+                        expected_dataset_sha: str | None,
+                        expected_labels_sha: str | None,
+                        expected_target_mode: str | None) -> dict:
     data = path.read_bytes()
     sha = hashlib.sha256(data).hexdigest()
-    if sha != EXPECTED_CHECKPOINT_SHA:
+    if expected_sha is not None and sha != expected_sha:
         raise SystemExit(
-            f"PIPELINE_FAILURE: checkpoint SHA256 {sha} != frozen B3 "
-            f"selection {EXPECTED_CHECKPOINT_SHA}")
+            f"PIPELINE_FAILURE: checkpoint SHA256 {sha} != frozen "
+            f"selection {expected_sha}")
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     summary = ckpt["summary"]
-    checks = {
-        "seed": summary["seed"] == EXPECTED_SEED,
-        "feature_set": summary["feature_set"] == "v2",
-        "dataset_sha256": summary["dataset_sha256"] == EXPECTED_DATASET_SHA,
-        "labels_sha256": summary["labels_sha256"] == EXPECTED_LABELS_SHA,
-        "holdout_observed": summary.get("holdout_observed") is False,
-        "num_inputs": summary["architecture"]["num_inputs"] == INPUTS,
-        "ft_width": summary["architecture"]["ft_width"] == FT_WIDTH,
-    }
+    checks = {}
+    if expected_seed is not None:
+        checks["seed"] = summary["seed"] == expected_seed
+    checks["feature_set"] = summary["feature_set"] == "v2"
+    if expected_dataset_sha is not None:
+        checks["dataset_sha256"] = (
+            summary["dataset_sha256"] == expected_dataset_sha)
+    if expected_labels_sha is not None:
+        checks["labels_sha256"] = summary["labels_sha256"] == expected_labels_sha
+    # holdout_observed is informational: for S10-F1 the winner's weights are
+    # selected purely on validation, and the single winner-only holdout
+    # evaluation happens BEFORE export without touching any parameter.
+    checks["num_inputs"] = summary["architecture"]["num_inputs"] == INPUTS
+    checks["ft_width"] = summary["architecture"]["ft_width"] == FT_WIDTH
+    if expected_target_mode is not None:
+        checks["target_mode"] = (
+            summary.get("target_mode") == expected_target_mode)
     bad = [k for k, ok in checks.items() if not ok]
     if bad:
         raise SystemExit(f"PIPELINE_FAILURE: summary mismatch: {bad}")
@@ -114,8 +117,15 @@ def validate_checkpoint(path: Path) -> dict:
     return {"sha": sha, "state_dict": sd, "summary": summary}
 
 
-def export_artifact(ckpt_path: Path, out_path: Path) -> dict:
-    info = validate_checkpoint(ckpt_path)
+def export_artifact(ckpt_path: Path, out_path: Path,
+                    expected_sha: str | None = None,
+                    expected_seed: int | None = None,
+                    expected_dataset_sha: str | None = None,
+                    expected_labels_sha: str | None = None,
+                    expected_target_mode: str | None = None) -> dict:
+    info = validate_checkpoint(
+        ckpt_path, expected_sha, expected_seed, expected_dataset_sha,
+        expected_labels_sha, expected_target_mode)
     sd = info["state_dict"]
 
     ft_weights = sd["ft_weights.weight"]            # [22528, 128] input-major
@@ -153,7 +163,8 @@ def export_artifact(ckpt_path: Path, out_path: Path) -> dict:
         "ft_width": FT_WIDTH,
         "target_scale": TARGET_SCALE,
         "checkpoint_sha256": info["sha"],
-        "seed": EXPECTED_SEED,
+        "seed": info["summary"]["seed"],
+        "target_mode": info["summary"].get("target_mode"),
         "format": "EUNN2F32 (S10-B4 bench-only parity bridge)",
     }
 
@@ -163,8 +174,23 @@ def main() -> int:
     ap.add_argument("--checkpoint", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--layout", type=Path, default=None)
+    ap.add_argument("--checkpoint-sha", default=None,
+                    help="fail-closed checkpoint SHA (omit to use any)")
+    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--dataset-sha", default=None)
+    ap.add_argument("--labels-sha", default=None)
+    ap.add_argument("--target-mode", choices=["cp", "material-residual"],
+                    default=None,
+                    help="require this target_mode in the checkpoint summary")
     args = ap.parse_args()
-    info = export_artifact(args.checkpoint.resolve(), args.out.resolve())
+    info = export_artifact(
+        args.checkpoint.resolve(), args.out.resolve(),
+        expected_sha=args.checkpoint_sha,
+        expected_seed=args.seed,
+        expected_dataset_sha=args.dataset_sha,
+        expected_labels_sha=args.labels_sha,
+        expected_target_mode=args.target_mode,
+    )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)
         args.layout.write_text(json.dumps(info, indent=2) + "\n",

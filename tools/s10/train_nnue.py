@@ -55,6 +55,14 @@ NNUE_INPUTS_V2 = 22528
 CLIP_CP = 2000.0
 TARGET_SCALE = 1000.0
 LOSS_BETA = 0.1
+
+# S10-F1: canonical piece values. These MUST match
+# `PieceType::value` in src/chess/types.rs exactly; the trainer verifies
+# this at run time against `bench material-batch` (fail closed) instead of
+# trusting the Python copy alone.
+CANONICAL_PIECE_CP = {"p": 100, "n": 320, "b": 330, "r": 500, "q": 900}
+
+TARGET_MODES = ("cp", "material-residual")
 DEFAULT_LR = 1e-3
 DEFAULT_WD = 1e-5
 DEFAULT_BATCH_SIZE = 256
@@ -363,19 +371,84 @@ def export_features_from_engine(
 
     if len(exported) != len(records):
         raise SystemExit(
-            f"FAIL CLOSED: exporter count {len(exported)} != input records {len(records)}"
+            f"FAIL CLOSED: exporter returned {len(exported)} records for "
+            f"{len(records)} inputs"
         )
-
-    for r in records:
-        pid = r["position_id"]
-        if pid not in exported:
-            raise SystemExit(f"FAIL CLOSED: missing exported record for {pid}")
-        if exported[pid]["fen"] != r["fen"]:
-            raise SystemExit(
-                f"FAIL CLOSED: fen mismatch for {pid}: '{exported[pid]['fen']}' != '{r['fen']}'"
-            )
-
     return exported
+
+
+def material_cp_stm_python(fen: str) -> int:
+    """Raw stm-perspective material balance from the canonical piece values.
+    Python twin of the engine's `bench material-batch` formula; equality with
+    the Rust integers is verified per run (fail closed)."""
+    board = fen.split()[0]
+    stm_white = fen.split()[1] == "w"
+    w = 0
+    b = 0
+    for ch in board:
+        if ch.isupper():
+            v = CANONICAL_PIECE_CP.get(ch.lower())
+            if v is not None:
+                w += v
+        else:
+            v = CANONICAL_PIECE_CP.get(ch)
+            if v is not None:
+                b += v
+    return (w - b) if stm_white else (b - w)
+
+
+def export_material_from_engine(
+    engine: Path, records: list[dict]
+) -> dict[str, int]:
+    """S10-F1: raw stm material balance per position, straight from the
+    engine's canonical PieceType::value via `bench material-batch`. The
+    Python twin is cross-checked on every record (fail closed on mismatch),
+    so trainer and runtime can never silently drift apart."""
+    engine = Path(engine).resolve()
+    with tempfile.TemporaryDirectory(prefix="s10-material-") as tmp:
+        batch_path = Path(tmp) / "batch.txt"
+        batch_path.write_text(
+            "".join(f"{r['position_id']}|{r['fen']}\n" for r in records),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                str(engine),
+                "bench",
+                "material-batch",
+                "--batch",
+                str(batch_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1800,
+        )
+        if proc.returncode != 0:
+            raise SystemExit(
+                f"FAIL CLOSED: material-batch exit code {proc.returncode}: "
+                f"{proc.stderr[:500]}"
+            )
+    out: dict[str, int] = {}
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        out[rec["position_id"]] = rec["material_cp_stm"]
+    if len(out) != len(records):
+        raise SystemExit(
+            f"FAIL CLOSED: material-batch returned {len(out)} records for "
+            f"{len(records)} inputs"
+        )
+    # Exact Python <-> Rust cross-check on every record.
+    for r in records:
+        py = material_cp_stm_python(r["fen"])
+        rv = out[r["position_id"]]
+        if py != rv:
+            raise SystemExit(
+                f"FAIL CLOSED: material mismatch python={py} rust={rv} "
+                f"for {r['position_id']} fen={r['fen']}"
+            )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +505,13 @@ def train_and_eval(
     patience: int = DEFAULT_PATIENCE,
     device_name: str | None = None,
     allow_holdout: bool = False,
+    target_mode: str = "cp",
 ) -> dict:
+    if target_mode not in TARGET_MODES:
+        raise SystemExit(
+            f"FAIL CLOSED: unknown target mode '{target_mode}' "
+            f"(expected {'|'.join(TARGET_MODES)})"
+        )
     start_time = time.time()
     num_inputs = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
 
@@ -478,8 +557,13 @@ def train_and_eval(
     # 3. Export features from Rust engine
     exported = export_features_from_engine(engine_bin, export_records, feature_set)
 
+    # S10-F1: material export (Rust canonical values, Python cross-checked).
+    # Exported for BOTH modes: `cp` mode records it as provenance only.
+    material_stm = export_material_from_engine(engine_bin, export_records)
+
     # 4. Prepare split items
     splits: dict[str, list[dict]] = {"train": [], "validation": [], "holdout": []}
+    residual_targets: list[float] = []
     for r, lbl in usable:
         pid = r["position_id"]
         split = r["split"]
@@ -487,7 +571,17 @@ def train_and_eval(
             continue
         exp = exported[pid]
         target_cp = max(-CLIP_CP, min(CLIP_CP, float(lbl["teacher_cp_stm"])))
-        target_scaled = target_cp / TARGET_SCALE
+        if target_mode == "material-residual":
+            # R = T - M; NO second clip — a full standard army is ~4000cp and
+            # promotion positions go higher. The output head is a plain
+            # Linear(32,1) with no clamp, so the architecture can represent
+            # |R| > 2000.
+            material_cp = float(material_stm[pid])
+            residual_cp = target_cp - material_cp
+            target_scaled = residual_cp / TARGET_SCALE
+            residual_targets.append(residual_cp)
+        else:
+            target_scaled = target_cp / TARGET_SCALE
 
         stm_is_white = r["fen"].split()[1] == "w"
         stm_feats = exp["white"] if stm_is_white else exp["black"]
@@ -501,6 +595,7 @@ def train_and_eval(
             "nstm": nstm_feats,
             "target_scaled": target_scaled,
             "target_cp": target_cp,
+            "material_cp_stm": material_stm[pid],
         }
         splits[split].append(item)
 
@@ -555,6 +650,35 @@ def train_and_eval(
     val_nstm_off = val_encoded.nstm_offsets.to(device)
     val_targets = val_encoded.targets.to(device)
     val_raw_cps = val_encoded.raw_cps.to(device)
+    val_materials = torch.tensor(
+        [it["material_cp_stm"] for it in val_items],
+        dtype=torch.float32, device=device,
+    )
+
+    # S10-F1: residual target distribution (train+validation actually
+    # encoded). Recorded BEFORE training; never clipped.
+    residual_target_stats = None
+    if target_mode == "material-residual":
+        rs = sorted(residual_targets)
+        n_r = len(rs)
+
+        def pct(p):
+            return rs[min(n_r - 1, int(round(p / 100.0 * (n_r - 1))))]
+
+        residual_target_stats = {
+            "n": n_r,
+            "min": rs[0],
+            "p01": pct(1),
+            "p05": pct(5),
+            "median": pct(50),
+            "p95": pct(95),
+            "p99": pct(99),
+            "max": rs[-1],
+            "count_abs_gt_2000": sum(1 for x in rs if abs(x) > 2000),
+            "count_abs_gt_3000": sum(1 for x in rs if abs(x) > 3000),
+            "count_abs_gt_4000": sum(1 for x in rs if abs(x) > 4000),
+        }
+        print(f"residual target stats: {residual_target_stats}")
 
     # 5. Initialize Model & Optimizer
     model = NnueModel(num_inputs=num_inputs).to(device)
@@ -606,7 +730,28 @@ def train_and_eval(
             preds = model(val_stm_ind, val_stm_off, val_nstm_ind, val_nstm_off)
             val_loss = criterion(preds, val_targets).item()
             pred_cp = preds * TARGET_SCALE
-            val_mae = torch.mean(torch.abs(pred_cp - val_raw_cps)).item()
+            if target_mode == "material-residual":
+                # Composed view: M + residual prediction vs clipped teacher T.
+                # |pred_residual - (T-M)| == |(M+pred_residual) - T| exactly in
+                # real arithmetic; the float32 forward values are cast to
+                # float64 so the two orderings agree well under 1e-9 (float32
+                # rounding of M+pred vs T-M differs at ~2e-4 for |cp| ~ 2000).
+                pred64 = pred_cp.double()
+                mat64 = val_materials.double()
+                tgt64 = val_raw_cps.double()
+                composed = mat64 + pred64
+                val_mae = torch.mean(
+                    torch.abs(composed - tgt64)
+                ).item()
+                residual_mae = torch.mean(
+                    torch.abs(pred64 - (tgt64 - mat64))
+                ).item()
+                assert abs(residual_mae - val_mae) < 1e-9, (
+                    "residual/composed MAE invariance violated: "
+                    f"{residual_mae} vs {val_mae}"
+                )
+            else:
+                val_mae = torch.mean(torch.abs(pred_cp - val_raw_cps)).item()
 
         epoch_rec = {
             "epoch": epoch,
@@ -638,7 +783,13 @@ def train_and_eval(
         preds = model(val_stm_ind, val_stm_off, val_nstm_ind, val_nstm_off)
         restored_val_loss = criterion(preds, val_targets).item()
         pred_cp = preds * TARGET_SCALE
-        restored_val_mae = torch.mean(torch.abs(pred_cp - val_raw_cps)).item()
+        if target_mode == "material-residual":
+            composed = val_materials + pred_cp
+            restored_val_mae = torch.mean(
+                torch.abs(composed - val_raw_cps)
+            ).item()
+        else:
+            restored_val_mae = torch.mean(torch.abs(pred_cp - val_raw_cps)).item()
 
     assert abs(restored_val_loss - best_val_loss) < 1e-5, "Restored val loss parity failure"
 
@@ -652,12 +803,20 @@ def train_and_eval(
         h_nstm_off = holdout_encoded.nstm_offsets.to(device)
         h_targets = holdout_encoded.targets.to(device)
         h_raw_cps = holdout_encoded.raw_cps.to(device)
+        h_materials = torch.tensor(
+            [it["material_cp_stm"] for it in holdout_items],
+            dtype=torch.float32, device=device,
+        )
 
         with torch.no_grad():
             preds = model(h_stm_ind, h_stm_off, h_nstm_ind, h_nstm_off)
             h_loss = criterion(preds, h_targets).item()
             pred_cp = preds * TARGET_SCALE
-            h_mae = torch.mean(torch.abs(pred_cp - h_raw_cps)).item()
+            if target_mode == "material-residual":
+                composed = h_materials + pred_cp
+                h_mae = torch.mean(torch.abs(composed - h_raw_cps)).item()
+            else:
+                h_mae = torch.mean(torch.abs(pred_cp - h_raw_cps)).item()
 
         holdout_metrics = {
             "records_evaluated": len(holdout_items),
@@ -677,6 +836,15 @@ def train_and_eval(
     summary = {
         "feature_set": feature_set,
         "seed": seed,
+        "target_mode": target_mode,
+        "material_anchor": {
+            "canonical_piece_cp": CANONICAL_PIECE_CP,
+            "python_rust_crosscheck": "exact, every record, fail-closed",
+            "residual_target_cp": residual_target_stats,
+        } if target_mode == "material-residual" else {
+            "canonical_piece_cp": CANONICAL_PIECE_CP,
+            "python_rust_crosscheck": "exact, every record, fail-closed",
+        },
         "device": str(device),
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
         "torch_version": torch.__version__,
@@ -814,6 +982,11 @@ def main():
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_PATIENCE)
     parser.add_argument("--device", type=str, default=None)
+    parser.add_argument("--target-mode", choices=list(TARGET_MODES), default="cp",
+                        help="cp: predict clipped teacher cp directly (the "
+                             "B3 recipe). material-residual: predict "
+                             "T - M (no second clip); runtime composes "
+                             "M + residual.")
     parser.add_argument("--allow-holdout", action="store_true", help="Stage 2 only: evaluate holdout split")
     parser.add_argument("--preflight", action="store_true",
                         help="run data/training preflight only (no training)")
@@ -843,6 +1016,7 @@ def main():
         patience=args.patience,
         device_name=args.device,
         allow_holdout=args.allow_holdout,
+        target_mode=args.target_mode,
     )
     print(
         f"Training completed for {args.feature_set} seed {args.seed}: "

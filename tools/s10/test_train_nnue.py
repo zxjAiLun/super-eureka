@@ -115,5 +115,71 @@ class TestTeacherContractGate(unittest.TestCase):
         self._assert_fails_closed(lambda t: t.pop("audit"))
 
 
+class TestMaterialResidualTargetMode(unittest.TestCase):
+    """S10-F1: material-anchored residual target construction."""
+
+    def test_canonical_piece_values_match_engine(self):
+        # The Python twin must carry the engine's canonical values
+        # (src/chess/types.rs PieceType::value). The full Python<->Rust
+        # cross-check runs in the trainer itself; this pins the constants.
+        from tools.s10.train_nnue import CANONICAL_PIECE_CP
+        self.assertEqual(
+            CANONICAL_PIECE_CP,
+            {"p": 100, "n": 320, "b": 330, "r": 500, "q": 900},
+        )
+
+    def test_material_cp_stm_python_signs(self):
+        from tools.s10.train_nnue import material_cp_stm_python
+        # Equal material, black to move -> 0
+        self.assertEqual(
+            material_cp_stm_python(
+                "r1bqkbnr/ppp1pp1p/2np2p1/3P4/2P5/2N5/"
+                "PP2PPPP/R1BQKBNR b KQkq - 0 4"),
+            0,
+        )
+        # Black down a knight, black to move -> -320
+        self.assertEqual(
+            material_cp_stm_python(
+                "r1bqk1nr/ppp1ppbp/2Pp2p1/8/2P5/2N5/"
+                "PP2PPPP/R1BQKBNR b KQkq - 0 5"),
+            -320,
+        )
+        # Same material flipped: white up N for P, white to move -> +220
+        self.assertEqual(
+            material_cp_stm_python(
+                "r1bqk1nr/p1p1ppbp/2pp2p1/8/2P5/2N5/"
+                "PP2PPPP/R1BQKBNR w KQkq - 0 6"),
+            220,
+        )
+        # Symmetric board, white to move -> 0; kings contribute nothing.
+        self.assertEqual(
+            material_cp_stm_python(
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+            0,
+        )
+
+    def test_residual_target_no_second_clip(self):
+        # R = T - M with T already clamped once; a position with T=+2000
+        # and M=-2000 yields R=+4000 and must NOT be re-clamped.
+        from tools.s10.train_nnue import CLIP_CP, TARGET_SCALE
+        T = max(-CLIP_CP, min(CLIP_CP, 2500.0))  # -> 2000
+        M = -2000.0
+        residual_scaled = (T - M) / TARGET_SCALE
+        self.assertEqual(residual_scaled, 4.0)
+
+    def test_residual_composed_mae_invariance(self):
+        # |pred - (T-M)| == |(M+pred) - T| for every sample (float math).
+        M = -320.0
+        T = 250.0
+        pred = -900.0
+        self.assertAlmostEqual(
+            abs(pred - (T - M)), abs((M + pred) - T), places=12
+        )
+
+    def test_target_modes_frozen(self):
+        from tools.s10.train_nnue import TARGET_MODES
+        self.assertEqual(TARGET_MODES, ("cp", "material-residual"))
+
+
 if __name__ == '__main__':
     unittest.main()

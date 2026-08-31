@@ -256,6 +256,16 @@ pub(crate) enum SearchProfile {
     /// A/B parity gate (vs CurrentFinalNnueV2QFull) must be exact. Never
     /// a production default - Arena decides.
     CurrentFinalNnueV2QIncremental,
+    /// S10-F1 candidate: EXACTLY CurrentFinal search policy with the
+    /// material-anchored residual NNUE evaluator. The artifact's network
+    /// predicts a cp residual (`target_mode = material_residual` in the
+    /// EUNN2Q01 v2 header); the evaluator composes
+    /// `material_cp_stm(pos) + residual`. The material term uses ONLY the
+    /// canonical piece values (P=100 N=320 B=330 R=500 Q=900) — no Eval2
+    /// positional term is mixed in. The loader fail-closes unless the
+    /// artifact carries the matching semantic mode. Never a production
+    /// default - Arena decides.
+    CurrentFinalNnueV2QMaterial,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -312,6 +322,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -345,6 +356,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -374,6 +386,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -405,6 +418,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -448,6 +462,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -478,6 +493,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -519,6 +535,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -595,6 +612,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -629,6 +647,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -663,6 +682,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -723,11 +743,22 @@ impl SearchProfile {
     /// S10-C2B: the two NNUE candidate profiles use the frozen quantized
     /// NNUE evaluator (NOT Eval2 — they are deliberately excluded from
     /// `uses_eval2` so evaluator selection stays single-choice).
+    /// S10-F1: the material-residual profile is an NNUE evaluator too (the
+    /// network is the same shape; the composition happens in
+    /// `evaluate_profiled`).
     pub(crate) const fn uses_nnue_eval(self) -> bool {
         matches!(
             self,
-            Self::CurrentFinalNnueV2QFull | Self::CurrentFinalNnueV2QIncremental
+            Self::CurrentFinalNnueV2QFull
+                | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
+    }
+
+    /// S10-F1: true when the NNUE evaluator output is a cp RESIDUAL that
+    /// must be composed with `material_cp_stm` (vs being the eval itself).
+    pub(crate) const fn uses_nnue_material_residual(self) -> bool {
+        matches!(self, Self::CurrentFinalNnueV2QMaterial)
     }
 
     /// S10-C2B: true when the NNUE evaluator must deliver accumulator
@@ -771,6 +802,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNoKingSafety
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterial
         )
     }
 
@@ -2604,12 +2636,24 @@ fn evaluate_profiled(
 ) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
     let start = ctx.sample_begin(&ctx.timing_eval);
-    let result = if profile.uses_nnue_eval() {
-        // S10-C2B: exact KQK/KRK mop-up override first (mirrors the Eval2
-        // early-exit), then the frozen quantized NNUE evaluator.
-        let nnue = nnue.expect(
-            "NNUE profile requires a loaded NnueSearchState (fail closed)");
-        let base = nnue.evaluate_cp_i32_audited(pos);
+    // S10-D GUI: evaluator dispatch is determined by whether the caller
+    // supplied a search-local NNUE state. The startup profile remains the
+    // sole source of every search-policy decision; a UCI-configured state can
+    // therefore replace only the evaluator without changing profile identity.
+    let result = if let Some(nnue) = nnue {
+        // Exact KQK/KRK mop-up override first (mirrors the Eval2 early-exit),
+        // then the NNUE evaluator.
+        let base = if profile.uses_nnue_material_residual() {
+            // S10-F1: the artifact predicts a cp residual; compose with the
+            // canonical material term. The mode match itself is enforced
+            // fail-closed at model-load time (a material artifact cannot be
+            // attached to a pure profile or vice versa).
+            nnue.evaluate_cp_i32_audited(pos).saturating_add(
+                crate::engine::nnue_v2q_runtime::material_cp_stm(pos),
+            )
+        } else {
+            nnue.evaluate_cp_i32_audited(pos)
+        };
         crate::engine::eval::exact_mop_up_for_search(pos, base)
             .unwrap_or(base)
     } else if profile.uses_phase_affine_eval() {
@@ -10364,15 +10408,24 @@ mod tests {
     #[test]
     fn s10c2b_nnue_profiles_inherit_current_final_policy() {
         use SearchProfile::{CurrentFinal, CurrentFinalNnueV2QFull,
-            CurrentFinalNnueV2QIncremental};
+            CurrentFinalNnueV2QIncremental, CurrentFinalNnueV2QMaterial};
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QFull);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QIncremental);
+        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterial);
         for cand in [CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental] {
             assert!(cand.uses_nnue_eval(), "{cand:?} must use NNUE eval");
             assert!(!cand.uses_eval2(), "{cand:?} must NOT use Eval2");
             assert!(!cand.uses_phase_affine_eval());
             assert!(!cand.uses_threat_aware_eval());
         }
+        // S10-F1: the material-residual profile is an NNUE evaluator whose
+        // output must be composed with the material anchor — and it uses the
+        // FULL-refresh path (the incremental stack is a pure-speed C2B
+        // optimization gated to the two original profiles).
+        assert!(CurrentFinalNnueV2QMaterial.uses_nnue_eval());
+        assert!(CurrentFinalNnueV2QMaterial.uses_nnue_material_residual());
+        assert!(!CurrentFinalNnueV2QMaterial.uses_eval2());
+        assert!(!CurrentFinalNnueV2QMaterial.uses_nnue_incremental_stack());
         assert!(
             CurrentFinalNnueV2QFull.uses_nnue_incremental_stack() == false
         );
@@ -10435,9 +10488,10 @@ mod tests {
                 SearchProfile::CurrentFinalNoKingSafety => (),
                 SearchProfile::CurrentFinalNnueV2QFull => (),
                 SearchProfile::CurrentFinalNnueV2QIncremental => (),
+                SearchProfile::CurrentFinalNnueV2QMaterial => (),
             }
         }
-        let all: [SearchProfile; 44] = [
+        let all: [SearchProfile; 45] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -10482,6 +10536,7 @@ mod tests {
             SearchProfile::CurrentFinalNoKingSafety,
             SearchProfile::CurrentFinalNnueV2QFull,
             SearchProfile::CurrentFinalNnueV2QIncremental,
+            SearchProfile::CurrentFinalNnueV2QMaterial,
         ];
         for profile in all {
             assert_exhaustive(profile);

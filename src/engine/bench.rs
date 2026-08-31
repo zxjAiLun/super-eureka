@@ -220,6 +220,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
         SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
         SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
+        SearchProfile::CurrentFinalNnueV2QMaterial => "current-final-nnue-v2q-material",
     }
 }
 
@@ -491,9 +492,12 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-no-king-safety" => SearchProfile::CurrentFinalNoKingSafety,
                     "current-final-nnue-v2q-full" => SearchProfile::CurrentFinalNnueV2QFull,
                     "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
+                    "current-final-nnue-v2q-material" => {
+                        SearchProfile::CurrentFinalNnueV2QMaterial
+                    }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material)",
                             other
                         ));
                     }
@@ -1764,6 +1768,26 @@ fn run_one(
         })?;
         let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
             std::path::Path::new(path))?;
+        // S10-F1: fail-closed semantic-mode match between the artifact and
+        // the requested profile (a material-residual artifact under a pure
+        // profile, or the reverse, is refused).
+        {
+            use crate::engine::nnue_v2q_runtime::NnueV2TargetMode;
+            let required = if cfg.profile.uses_nnue_material_residual() {
+                NnueV2TargetMode::MaterialResidual
+            } else {
+                NnueV2TargetMode::Cp
+            };
+            if model.target_mode() != required {
+                return Err(format!(
+                    "bench: --nnue-model artifact target_mode '{}' does not \
+                     match profile '{}' (requires '{}') (fail closed)",
+                    model.target_mode().name(),
+                    profile_str(cfg.profile),
+                    required.name()
+                ));
+            }
+        }
         let state = crate::engine::nnue_search::NnueSearchState::with_options(
             std::sync::Arc::new(model),
             if cfg.profile.uses_nnue_incremental_stack() {
@@ -2559,6 +2583,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-features-batch" {
         return run_nnue_features_batch(&args[1..]);
     }
+    if args[0] == "material-batch" {
+        return run_material_batch(&args[1..]);
+    }
     if args[0] == "nnue-feature-cost" {
         return run_nnue_feature_cost(&args[1..]);
     }
@@ -2893,6 +2920,80 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
     let text = std::fs::read_to_string(&batch)
         .map_err(|e| format!("nnue-features-batch: cannot read {batch}: {e}"))?;
     print!("{}", nnue_features_batch_from_text(&text, feature_set)?);
+    Ok(())
+}
+
+/// S10-F1: `bench material-batch --batch <file>` — one JSON line per input
+/// record (`position_id|fen` or plain FEN), emitting the raw stm-perspective
+/// material balance computed from the engine's canonical piece values
+/// (`PieceType::value`: P=100 N=320 B=330 R=500 Q=900, king=0). This is the
+/// SINGLE source of truth for the material-anchored residual NNUE target:
+/// the Python trainer cross-checks its own implementation against these
+/// integers (fail closed on any mismatch) instead of duplicating the values.
+fn run_material_batch(args: &[String]) -> Result<(), String> {
+    let mut batch: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--batch" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| "material-batch: --batch requires a value".to_string())?
+                    .clone();
+                batch = Some(value);
+            }
+            other => {
+                return Err(format!(
+                    "material-batch: unknown argument '{}' (expected --batch <file>)",
+                    other
+                ));
+            }
+        }
+    }
+    let batch = batch.ok_or_else(|| "material-batch: --batch is required".to_string())?;
+    let text = std::fs::read_to_string(&batch)
+        .map_err(|e| format!("material-batch: cannot read {batch}: {e}"))?;
+    let mut out = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (position_id, fen) = match line.split_once('|') {
+            Some((id, fen)) => (Some(id.trim()), fen.trim()),
+            None => (None, line),
+        };
+        let pos = parse_fen(fen).map_err(|e| format!("material-batch: {e}: '{fen}'"))?;
+        let mut white_cp = 0i32;
+        let mut black_cp = 0i32;
+        for piece in pos.board().iter().flatten() {
+            let v = match piece.piece_type {
+                crate::chess::types::PieceType::King => 0,
+                pt => pt.value(),
+            };
+            if piece.color == crate::chess::types::Color::White {
+                white_cp += v;
+            } else {
+                black_cp += v;
+            }
+        }
+        let stm_cp = if pos.side == crate::chess::types::Color::White {
+            white_cp - black_cp
+        } else {
+            black_cp - white_cp
+        };
+        let escaped_fen = json_escape(fen);
+        let escaped_id = json_escape(position_id.unwrap_or(""));
+        out.push_str("{");
+        if position_id.is_some() {
+            out.push_str(&format!("\"position_id\":\"{escaped_id}\","));
+        }
+        out.push_str(&format!(
+            "\"fen\":\"{escaped_fen}\",\"white_material_cp\":{white_cp},\
+             \"black_material_cp\":{black_cp},\"material_cp_stm\":{stm_cp}}}\n"
+        ));
+    }
+    print!("{out}");
     Ok(())
 }
 
