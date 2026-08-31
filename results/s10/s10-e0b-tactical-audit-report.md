@@ -55,7 +55,7 @@ B totals (400 searches):   null_move_attempts   36,410  (301/400 positions)
                            futility_pruned   38,494,594  (307/400 positions)
                            nodes            118,566,619
 C totals:                  null/futility       0 / 0    (0/400 positions)
-                           nodes            170,084,617
+                           nodes            170,084,616
 paired:                    bestmove agreement   385/400 (96.25%)
                            nodes ratio C/B     median 1.288  (p25 1.00, p75 1.676)
                            nodes changed        307/400

@@ -1,0 +1,115 @@
+{
+  "sources": 24,
+  "candidates_seen": 1879773,
+  "duplicates_removed": 19707,
+  "unique_positions": 1860066,
+  "kept_by_split": {
+    "train": 1489874,
+    "validation": 185086,
+    "holdout": 185106
+  },
+  "cell_matrix": {
+    "train/high": {
+      "available": 678182,
+      "target": 200000,
+      "margin": 478182,
+      "status": "OK"
+    },
+    "train/mid": {
+      "available": 429819,
+      "target": 360000,
+      "margin": 69819,
+      "status": "OK"
+    },
+    "train/low": {
+      "available": 355330,
+      "target": 160000,
+      "margin": 195330,
+      "status": "OK"
+    },
+    "train/zero": {
+      "available": 26543,
+      "target": 80000,
+      "margin": -53457,
+      "status": "DEFICIT"
+    },
+    "validation/high": {
+      "available": 83861,
+      "target": 25000,
+      "margin": 58861,
+      "status": "OK"
+    },
+    "validation/mid": {
+      "available": 54064,
+      "target": 45000,
+      "margin": 9064,
+      "status": "OK"
+    },
+    "validation/low": {
+      "available": 44010,
+      "target": 20000,
+      "margin": 24010,
+      "status": "OK"
+    },
+    "validation/zero": {
+      "available": 3151,
+      "target": 10000,
+      "margin": -6849,
+      "status": "DEFICIT"
+    },
+    "holdout/high": {
+      "available": 84787,
+      "target": 25000,
+      "margin": 59787,
+      "status": "OK"
+    },
+    "holdout/mid": {
+      "available": 52926,
+      "target": 45000,
+      "margin": 7926,
+      "status": "OK"
+    },
+    "holdout/low": {
+      "available": 44048,
+      "target": 20000,
+      "margin": 24048,
+      "status": "OK"
+    },
+    "holdout/zero": {
+      "available": 3345,
+      "target": 10000,
+      "margin": -6655,
+      "status": "DEFICIT"
+    }
+  },
+  "deficits": {
+    "train/zero": 53457,
+    "validation/zero": 6849,
+    "holdout/zero": 6655
+  },
+  "feasible": false,
+  "per_source_kept": {
+    "lichess-standard-rated-v2": 555031,
+    "lichess-standard-rated-v4": 473901,
+    "lichess-standard-rated-v3": 791553,
+    "lichess-standard-rated-v1": 15977,
+    "arena-s44c-single-buffer-200pairs": 3089,
+    "lichess-standard-rated-confirm-v1-g1400": 11198,
+    "arena-s43c-legality-fast-200pairs": 3182,
+    "arena-s43b-legality-fast-screen": 798,
+    "arena-s43d-formal-sprt": 4178,
+    "arena-smoke-normal-complete": 63,
+    "arena-08110310": 797,
+    "arena-smoke-blitz": 32,
+    "arena-smoke-foundation-prod-8moves-v2": 32,
+    "arena-smoke-p412-live": 16,
+    "arena-sf-smoke3-1800": 32,
+    "arena-sf-smoke3-2400": 32,
+    "arena-sf-smoke3-2000": 32,
+    "arena-smoke-live-1pair": 14,
+    "arena-smoke-rapid_5_3": 32,
+    "arena-sf-smoke3-2200": 32,
+    "arena-smoke-restart-recovery": 29,
+    "arena-smoke-c3-live": 16
+  }
+}
