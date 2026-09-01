@@ -108,6 +108,65 @@ def verify(args) -> int:
                 if games[a] & games[b]:
                     failures.append(f"cross-split game overlap {a}/{b}")
 
+    # 5b. split counts vs manifest (S10-E1 Repair 1: the manifest's
+    # `splits` map must match the ACTUAL per-split record counts).
+    if "splits" in manifest:
+        actual_split_counts = {s: len(v) for s, v in splits.items()}
+        if actual_split_counts != manifest["splits"]:
+            failures.append(
+                f"split counts {actual_split_counts} != manifest "
+                f"{manifest['splits']}")
+
+    # 5c. 12-cell matrix (S10-E1 Repair 1): when the manifest carries
+    # `phase_split_counts`, every split x phase cell must match exactly.
+    if "phase_split_counts" in manifest:
+        actual_cells = {s: {} for s in splits}
+        for r in records:
+            b = bucket_of(r["phase"])
+            actual_cells[r["split"]][b] = (
+                actual_cells[r["split"]].get(b, 0) + 1
+            )
+        for split, phases in manifest["phase_split_counts"].items():
+            for phase, expected in phases.items():
+                actual = actual_cells.get(split, {}).get(phase, 0)
+                if actual != expected:
+                    failures.append(
+                        f"cell {split}/{phase}: {actual} != manifest "
+                        f"{expected}")
+        # also every observed split must be declared
+        for split in actual_cells:
+            if split not in manifest["phase_split_counts"]:
+                failures.append(f"split {split} missing from phase_split_counts")
+
+    # 5d. shard integrity (S10-E1 Repair 1): when the manifest carries
+    # `shard_hashes`, verify every shard file. Supports BOTH the legacy
+    # list form (one SHA per shard in sorted part order) and the Repair-1
+    # dict form {shard_name: sha}.
+    if "shard_hashes" in manifest:
+        shards_sorted = sorted(dataset_dir.glob("part-*.jsonl"))
+        declared = manifest["shard_hashes"]
+        if isinstance(declared, list):
+            if len(declared) != len(shards_sorted):
+                failures.append(
+                    f"shard count {len(shards_sorted)} != manifest "
+                    f"{len(declared)}")
+            for shard_path, expected in zip(shards_sorted, declared):
+                actual = hashlib.sha256(
+                    shard_path.read_bytes()).hexdigest()
+                if actual != expected:
+                    failures.append(
+                        f"shard SHA mismatch: {shard_path.name}")
+        else:
+            for name, expected in declared.items():
+                shard_path = dataset_dir / name
+                if not shard_path.is_file():
+                    failures.append(f"shard missing: {name}")
+                    continue
+                actual = hashlib.sha256(
+                    shard_path.read_bytes()).hexdigest()
+                if actual != expected:
+                    failures.append(f"shard SHA mismatch: {name}")
+
     # 6. phase quotas
     buckets = {name: 0 for name in PHASE_BUCKETS}
     for r in records:

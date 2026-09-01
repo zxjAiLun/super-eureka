@@ -590,11 +590,12 @@ def _write_dataset(records, stats, target_dir, shard_size):
     shard_hashes = []
     for i in range(0, n, shard_size):
         part = records[i:i + shard_size]
-        lines = "".join(
-            json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in part)
+        data = "".join(
+            json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+            for r in part).encode("utf-8")
         shard_path = target_dir / f"part-{i // shard_size:04d}.jsonl"
-        shard_path.write_text(lines, encoding="utf-8")
-        shard_hashes.append(sha256_text(lines))
+        shard_path.write_bytes(data)
+        shard_hashes.append(hashlib.sha256(data).hexdigest())
     stats["shards"] = [f"part-{i:04d}.jsonl"
                        for i in range(math.ceil(n / shard_size))]
     stats["shard_hashes"] = shard_hashes

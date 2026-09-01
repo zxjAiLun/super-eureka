@@ -4,17 +4,21 @@ Uses the header-gated fast selector (e1_fast_select_lib, equivalence
 proven 300/300 vs the original loop at 64x) over the locally verified
 July 2026 lichess standard-rated archive.
 
-v5 contract (S10-E1 zero-phase expansion):
+v5 contract (S10-E1 zero-phase expansion, post Repair 1):
   * all selected games are LONG games (>= 100 plies) — long_fraction
     1.0, long_min_plies 100 — to maximize endgame (zero-phase) yield;
   * every game in the B1 sources v1/confirm/v2/v3/v4 is excluded by
     game fingerprint;
-  * selection seed 20260830, accept_byte 0x05 (same hash gate as the
-    original tool; the selection ORDER therefore matches what the
-    original tool would have produced);
-  * target 200,000 games (>= the ~67k zero-phase shortfall with a wide
-    margin; extra non-zero positions are simply not used by the nested
-    builder, which fills high/mid/low ONLY from the old pool);
+  * selection seed 2026083002 (the FROZEN S10-E1 source-extraction
+    seed), accept_byte 0x1F, target 350,000 games. Capacity
+    adaptation note: the first attempt (seed 20260830, accept 0x05,
+    target 200k) yielded only 58k long games / ~14.7k zero positions
+    against a 66,961-position zero shortfall — zero-phase yield is
+    ~0.25/game even for all-long games — so the accept byte was
+    widened and the target raised; the seed was then corrected to the
+    frozen 2026083002 in E1 Repair 1 (supersedes the pre-repair v5);
+  * extra non-zero positions are simply not used by the nested
+    builder, which fills high/mid/low ONLY from the old B1 pool;
   * output: data/s6/sources/lichess-standard-rated-v5/<id>.pgn +
     source-manifest.json in the same schema as v4's manifest.
 """
@@ -47,7 +51,7 @@ ZST = Path(r"E:\ubuntudownload\lichess_db_standard_rated_2026-07.pgn.zst")
 ZST_SHA = (
     "68738b1c448f051dc8d42db645d5b01749988a3bc1c24981adfe44ea92060dc7"
 )
-SEED = 20260830
+SEED = 2026083002
 ACCEPT_BYTE = 0x1F
 MIN_PLIES = 40
 LONG_PLIES = 100
