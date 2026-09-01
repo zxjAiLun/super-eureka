@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "corpus_id": "s10-e2-w0-crossplatform-2048",
+  "corpus_sha256": "results\\s10\\s10-e2-w0-corpus.jsonl",
+  "n": 2048,
+  "linux_sha": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+  "windows_exe_sha": "c86215fa1977d53b82ed854540a4c7b025be4cd042276c85ba3de53fb9118911",
+  "windows_zip_sha": "6f6c272ebd6ea594377715235c8a7326f75940ef4f4f856f45106028fe6ae900",
+  "gate1_windows_self_determinism": {
+    "checked": 2048,
+    "mismatches": 0,
+    "pass": true
+  },
+  "gate2_cross_platform": {
+    "bestmove_agreement": 1.0,
+    "mate_class_mismatches": 0,
+    "cp_positions": 1960,
+    "cp_median_abs": 0,
+    "cp_p95_abs": 0,
+    "cp_p99_abs": 0,
+    "cp_max_abs": 0,
+    "cp_mean_signed": 0.0,
+    "sign_flips_ge50": 0,
+    "wdl_exact": 1.0,
+    "tuple_exact": 1.0,
+    "pass": true
+  },
+  "overall_pass": true
+}

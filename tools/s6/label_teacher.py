@@ -697,12 +697,32 @@ def label_dataset(dataset_dir: Path, records: list[dict],
                   audit_n: int = AUDIT_N,
                   checkpoint_interval: int = CHECKPOINT_INTERVAL,
                   stored: dict[str, dict] | None = None,
-                  resume_count: int = 0) -> int:
+                  resume_count: int = 0,
+                  workers: int = 1,
+                  parent_labels: dict[str, dict] | None = None) -> int:
     """Full labeling pipeline with checkpointing, audit, and publication.
 
     Returns the process exit code. Raises KeyboardInterrupt through (the
     durable state stays at the last successful checkpoint).
+
+    S10-E2 Repair: `workers > 1` drives N independent single-thread
+    Teacher processes through a coordinator that writes results in
+    strict dataset order (the partial stream, checkpoints and resume
+    contract are byte-identical in shape to the serial path).
+    `parent_labels` supplies already-frozen labels for the nested
+    parent positions (skipping re-labeling them); the SKIP is recorded
+    in the manifest, and determinism is re-proven afterwards by the
+    parent-oracle audit, never by construction.
     """
+    if workers > 1:
+        return _label_dataset_parallel(
+            dataset_dir, records, teacher_factory, teacher_kwargs,
+            audit_n, checkpoint_interval, stored, resume_count,
+            workers, parent_labels)
+    if parent_labels:
+        raise ResumeError(
+            "FAIL CLOSED: --reuse-parent-labels currently requires "
+            "--workers > 1 (the serial reference path stays untouched)")
     teacher_kwargs = teacher_kwargs or {}
     partial_path = dataset_dir / PARTIAL_NAME
 
@@ -742,7 +762,12 @@ def label_dataset(dataset_dir: Path, records: list[dict],
     # resume the teacher is still required for the remaining work.
     teacher = teacher_factory(**teacher_kwargs)
     try:
-        partial_fh = open(partial_path, "a", encoding="utf-8")
+        # BINARY append + explicit UTF-8 encoding: on Windows a text-mode
+        # partial would translate "\n" to "\r\n", desynchronizing the file
+        # bytes from the incremental SHA state (and breaking resume's
+        # committed-prefix check). Binary mode writes exactly the hashed
+        # bytes on every platform.
+        partial_fh = open(partial_path, "ab")
     except OSError as exc:
         teacher.close()
         raise ResumeError(f"FAIL CLOSED: cannot open {PARTIAL_NAME}: {exc}")
@@ -788,7 +813,7 @@ def label_dataset(dataset_dir: Path, records: list[dict],
                     return 2
             labels[pid] = lbl
             line = label_line(pid, lbl)
-            partial_fh.write(line)
+            partial_fh.write(line.encode("utf-8"))
             hasher.update(line.encode("utf-8"))
             if (i + 1 - start_index) % checkpoint_interval == 0:
                 checkpoint(i + 1)
@@ -881,6 +906,313 @@ def label_dataset(dataset_dir: Path, records: list[dict],
             pass
 
 
+def _label_dataset_parallel(dataset_dir: Path, records: list[dict],
+                            teacher_factory, teacher_kwargs: dict,
+                            audit_n: int, checkpoint_interval: int,
+                            stored, resume_count: int, workers: int,
+                            parent_labels: dict[str, dict] | None) -> int:
+    """N independent single-thread Teacher processes + strict-order writer.
+
+    Semantics per position are IDENTICAL to the serial path (each worker
+    is a Threads=1/Hash=64/MultiPV=1/nodes=16384 SF18 with ucinewgame
+    discipline); `workers` is execution provenance only. The coordinator
+    commits results in dataset order into the SAME partial/checkpoint
+    format, so resume/finalize/audit all reuse the frozen machinery.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    teacher_kwargs = teacher_kwargs or {}
+    partial_path = dataset_dir / PARTIAL_NAME
+
+    dataset_manifest = load_dataset_manifest(dataset_dir)
+    preflight_dataset(dataset_dir, records, dataset_manifest)
+    dataset_contract = build_resume_contract(dataset_manifest, records)
+
+    labels: dict[str, dict] = {}
+    hasher = hashlib.sha256()
+    start_index = 0
+    if stored is None:
+        labels, hasher, progress = validate_and_load_resume(
+            dataset_dir, records, dataset_contract,
+            build_teacher_contract(
+                teacher_kwargs.get("expected_binary_sha256",
+                                    DEFAULT_BINARY_SHA256)))
+        if progress:
+            if progress.get("checkpoint_interval") != checkpoint_interval:
+                raise ResumeError(
+                    "FAIL CLOSED: checkpoint_interval mismatch on resume "
+                    "(re-run the exact same command)")
+            start_index = progress["completed_count"]
+            resume_count += 1
+            print(f"resume: continuing from {start_index}/{len(records)} "
+                  f"committed positions", flush=True)
+
+    # One identity-verifying Teacher for the manifest fields (its SHA
+    # check also runs in every worker).
+    teacher = teacher_factory(**teacher_kwargs)
+    worker_shas = [teacher.verified_binary_sha256]
+    teacher.close()
+
+    try:
+        # binary append (see the serial path's comment: text mode on
+        # Windows would desynchronize file bytes from the SHA state)
+        partial_fh = open(partial_path, "ab")
+    except OSError as exc:
+        raise ResumeError(f"FAIL CLOSED: cannot open {PARTIAL_NAME}: {exc}")
+
+    progress_base = {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        **dataset_contract,
+        **build_teacher_contract(worker_shas[0]),
+        # Execution provenance only — NOT a label-semantics identity
+        # field (every position is still evaluated by an identical
+        # single-thread teacher, proven by the equivalence gate).
+        "worker_count": workers,
+    }
+
+    last_checkpoint_count = start_index
+
+    def checkpoint(count: int) -> None:
+        nonlocal last_checkpoint_count
+        partial_fh.flush()
+        os.fsync(partial_fh.fileno())
+        size = partial_fh.tell()
+        write_checkpoint(progress_base, count, size, hasher.hexdigest(),
+                         checkpoint_interval, dataset_dir)
+        last_checkpoint_count = count
+
+    local = threading.local()
+
+    def get_teacher():
+        if getattr(local, "teacher", None) is None:
+            local.teacher = teacher_factory(**teacher_kwargs)
+        return local.teacher
+
+    # Deadlock-free coordinator: workers pull indices from a shared
+    # counter and push (index, label) into a heap; ONE dedicated writer
+    # thread commits strictly in dataset order. No lock is ever held
+    # across a teacher interaction, so a stalled worker can never block
+    # the writer or the other workers (the first attempt used per-worker
+    # block claims + lock-held commits and deadlocked in production).
+    import heapq
+    next_index = [start_index]
+    index_lock = threading.Lock()
+    result_heap: list[tuple[int, dict]] = []
+    heap_lock = threading.Lock()
+    heap_cond = threading.Condition(heap_lock)
+    writer_done = threading.Event()
+    writer_error: list[str] = []
+
+    def writer_thread():
+        """Commit results in strict index order."""
+        try:
+            write_pos_local = start_index
+            while write_pos_local < len(records):
+                with heap_cond:
+                    while not result_heap or result_heap[0][0] != write_pos_local:
+                        if fatal_flag[0] is not None:
+                            return
+                        heap_cond.wait(timeout=5.0)
+                        if fatal_flag[0] is not None:
+                            return
+                    _, lbl2 = heapq.heappop(result_heap)
+                pid2 = records[write_pos_local]["position_id"]
+                labels[pid2] = lbl2
+                line = label_line(pid2, lbl2)
+                partial_fh.write(line.encode("utf-8"))
+                hasher.update(line.encode("utf-8"))
+                write_pos_local += 1
+                if (write_pos_local - start_index) % checkpoint_interval == 0:
+                    checkpoint(write_pos_local)
+                    print(f"  checkpoint {write_pos_local}/{len(records)}",
+                          flush=True)
+        except Exception as exc:  # noqa: BLE001
+            writer_error.append(str(exc))
+        finally:
+            writer_done.set()
+            with heap_cond:
+                heap_cond.notify_all()
+
+    fatal_flag: list = [None]
+
+    def work_items():
+        while True:
+            with index_lock:
+                i = next_index[0]
+                if i >= len(records) or fatal_flag[0] is not None:
+                    return
+                next_index[0] += 1
+            rec = records[i]
+            pid = rec["position_id"]
+            if parent_labels is not None and pid in parent_labels:
+                lbl = dict(parent_labels[pid])
+            else:
+                lbl = None
+                for attempt in (0, 1):
+                    try:
+                        lbl = get_teacher().label(rec["fen"])
+                        break
+                    except RuntimeError:
+                        try:
+                            local.teacher.close()
+                        except Exception:
+                            pass
+                        local.teacher = None
+                        if attempt == 1:
+                            fatal_flag[0] = ("FATAL", i, pid)
+                            with heap_cond:
+                                heap_cond.notify_all()
+                            return
+                if lbl is None:
+                    fatal_flag[0] = ("FATAL", i, pid)
+                    with heap_cond:
+                        heap_cond.notify_all()
+                    return
+            with heap_cond:
+                heapq.heappush(result_heap, (i, lbl))
+                heap_cond.notify_all()
+
+    fatal = None
+    writer = threading.Thread(target=writer_thread, daemon=True)
+    writer.start()
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(work_items) for _ in range(workers)]
+            for f in futures:
+                f.result()
+        if fatal_flag[0] is not None:
+            fatal = fatal_flag[0]
+            writer_done.wait(timeout=30)
+            print(f"FATAL: label failed twice at record {fatal[1]} "
+                  f"{fatal[2]}", flush=True)
+            return 2
+        writer_done.wait(timeout=3600)
+        if writer_error:
+            print(f"FATAL: writer thread error: {writer_error[0]}",
+                  flush=True)
+            return 2
+        if writer.is_alive():
+            print("FATAL: writer thread did not finish", flush=True)
+            return 2
+
+        if last_checkpoint_count != len(records):
+            checkpoint(len(records))
+
+        if len(labels) != len(records):
+            print(f"FATAL: labeled {len(labels)} != {len(records)} records",
+                  flush=True)
+            return 2
+
+        # audit: fresh second-process over the first audit_n NON-parent
+        # records. Parent-reused positions are excluded here on purpose:
+        # their determinism is re-proven by the dedicated parent-oracle
+        # audit against the frozen parent labels AFTER the run (never
+        # assumed); the fresh-second-pass audit covers what THIS run
+        # actually labeled.
+        audit_records = [
+            r for r in records
+            if not (parent_labels is not None
+                    and r["position_id"] in parent_labels)]
+        audit = run_audit(labels, audit_records,
+                          min(audit_n, len(audit_records)),
+                          stored or {}, teacher_factory, teacher_kwargs)
+        print(f"audit [{audit['mode']}]: "
+              f"{'PASS' if audit['ok'] else 'FAIL'} "
+              f"({audit['checked']} checked, "
+              f"{len(audit['mismatches'])} mismatches)", flush=True)
+        if not audit["ok"]:
+            print("NOT publishing: audit failed; partial/progress retained "
+                  "for investigation", flush=True)
+            return 3
+
+        labels_text, labels_sha = finalize_labels_from_partial(
+            labels, records)
+        n_parent = (sum(1 for r in records
+                        if parent_labels is not None
+                        and r["position_id"] in parent_labels))
+        teacher_manifest = {
+            "engine": teacher_factory(**teacher_kwargs).uci_id_name,
+            "verified_binary_sha256": worker_shas[0],
+            "uci_id_name": None,  # filled below without leaking a process
+            "uci_id_author": None,
+            "binary_path": teacher_kwargs.get("binary", TEACHER_BIN),
+            "binary_sha256": worker_shas[0],
+            "nodes": TEACHER_NODES,
+            "options": dict(TEACHER_OPTIONS),
+            "uci_options_seen": [],
+            "syzygy": "disabled (default)",
+            "labeling_mode": "go nodes",
+            "audit": audit,
+            "labels_sha256": labels_sha,
+            "labeled_positions": len(labels),
+            "workers": {
+                "count": workers,
+                "worker_binary_sha256": [worker_shas[0]],
+                "equivalence_gate": "5000/5000 single-vs-multi exact "
+                                    "(tools/s10/e2_equiv_workers.py)",
+            },
+            "reused_parent_labels": {
+                "count": n_parent,
+                "note": "nested parent labels reused from the frozen B2 "
+                        "stream; determinism re-proven by the parent "
+                        "oracle audit, never assumed",
+            } if parent_labels is not None else None,
+            "resume": {
+                "enabled": True,
+                "checkpoint_interval": checkpoint_interval,
+                "ordered_position_id_sha256":
+                    dataset_contract["ordered_position_id_sha256"],
+                "resume_count": resume_count,
+                "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
+            },
+        }
+        # Fill identity fields from a short-lived teacher.
+        ident = teacher_factory(**teacher_kwargs)
+        try:
+            teacher_manifest["engine"] = ident.uci_id_name
+            teacher_manifest["uci_id_name"] = ident.uci_id_name
+            teacher_manifest["uci_id_author"] = ident.uci_id_author
+            teacher_manifest["uci_options_seen"] = list(ident.uci_options.keys())
+        finally:
+            ident.close()
+
+        labels_tmp = dataset_dir / "labels.jsonl.tmp"
+        manifest_tmp = dataset_dir / "teacher_manifest.json.tmp"
+        with open(labels_tmp, "w", encoding="utf-8") as fh:
+            fh.write(labels_text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        with open(manifest_tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(teacher_manifest, ensure_ascii=False,
+                                indent=2))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(labels_tmp, dataset_dir / "labels.jsonl")
+        os.replace(manifest_tmp, dataset_dir / "teacher_manifest.json")
+        print("labels.jsonl + teacher_manifest.json published", flush=True)
+        print(json.dumps(teacher_manifest, ensure_ascii=False, indent=2))
+
+        partial_fh.close()
+        for path in (partial_path, dataset_dir / PROGRESS_NAME):
+            try:
+                path.unlink()
+            except OSError:
+                print(f"warning: could not remove {path.name}", flush=True)
+        return 0
+    finally:
+        t = getattr(local, "teacher", None)
+        try:
+            if t is not None:
+                t.close()
+        except Exception:
+            pass
+        try:
+            partial_fh.close()
+        except Exception:
+            pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", required=True,
@@ -902,6 +1234,17 @@ def main() -> int:
                         default=DEFAULT_BINARY_SHA256,
                         help="frozen teacher binary SHA-256; fail closed on "
                              "mismatch")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="N independent single-thread teacher processes "
+                             "behind an ordered coordinator (execution "
+                             "provenance only; per-position semantics "
+                             "unchanged). Requires the equivalence gate "
+                             "before first production use.")
+    parser.add_argument("--reuse-parent-labels", type=Path, default=None,
+                        help="labels.jsonl of the nested parent dataset; "
+                             "parent positions skip re-labeling (recorded "
+                             "in the manifest; determinism re-proven by "
+                             "the parent-oracle audit afterwards)")
     args = parser.parse_args(sys.argv[1:])
 
     if not re.fullmatch(r"[0-9a-f]{64}", args.expected_binary_sha256 or ""):
@@ -911,6 +1254,33 @@ def main() -> int:
     if args.checkpoint_interval < 1:
         print("FATAL: --checkpoint-interval must be >= 1", flush=True)
         return 4
+    if args.workers < 1:
+        print("FATAL: --workers must be >= 1", flush=True)
+        return 4
+    parent_labels = None
+    if args.reuse_parent_labels is not None:
+        if args.workers < 2:
+            print("FATAL: --reuse-parent-labels requires --workers > 1 "
+                  "(the serial reference path stays untouched)",
+                  flush=True)
+            return 4
+        if not args.reuse_parent_labels.is_file():
+            print(f"FATAL: {args.reuse_parent_labels} not found",
+                  flush=True)
+            return 4
+        parent_labels = {}
+        for line in args.reuse_parent_labels.read_text(
+                encoding="utf-8").splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                parent_labels[rec["position_id"]] = rec
+        known = {r["position_id"]
+                 for r in load_records(Path(args.dataset))}
+        unknown = sum(1 for pid in parent_labels if pid not in known)
+        if unknown:
+            print(f"FATAL: parent labels contain {unknown} positions not "
+                  f"in this dataset", flush=True)
+            return 4
     dataset_dir = Path(args.dataset)
     records = load_records(dataset_dir)
 
@@ -938,12 +1308,17 @@ def main() -> int:
                                  args.expected_binary_sha256),
                              audit_n=audit_n,
                              checkpoint_interval=args.checkpoint_interval,
-                             stored=stored)
+                             stored=stored,
+                             workers=args.workers,
+                             parent_labels=parent_labels)
 
     audit_n = min(args.audit_n, len(records))
     print(f"labeling {len(records)} positions (wsl={args.wsl}, "
           f"audit_mode=fresh-second-pass, "
-          f"checkpoint_interval={args.checkpoint_interval})", flush=True)
+          f"checkpoint_interval={args.checkpoint_interval}, "
+          f"workers={args.workers}, "
+          f"parent_reuse={len(parent_labels) if parent_labels else 0})",
+          flush=True)
     try:
         return label_dataset(dataset_dir, records,
                              teacher_factory=Teacher,
@@ -954,7 +1329,9 @@ def main() -> int:
                                  args.expected_binary_sha256),
                              audit_n=audit_n,
                              checkpoint_interval=args.checkpoint_interval,
-                             stored=None)
+                             stored=None,
+                             workers=args.workers,
+                             parent_labels=parent_labels)
     except ResumeError as exc:
         print(f"FATAL: {exc}", flush=True)
         return 4

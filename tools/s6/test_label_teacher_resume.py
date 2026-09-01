@@ -158,6 +158,13 @@ class FakeTeacher:
         self.closed = True
 
 
+def _sub_dataset(parent: Path, name: str) -> Path:
+    """make_dataset into a NAMED subdirectory (it hardcodes 'ds')."""
+    sub = parent / name
+    sub.mkdir(parents=True, exist_ok=True)
+    return make_dataset(sub)
+
+
 def run_label(dataset: Path, checkpoint_interval: int = INTERVAL,
               audit_n: int = N) -> int:
     FakeTeacher.instances = 0
@@ -660,6 +667,132 @@ class PreflightTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             tm = json.loads((d / "teacher_manifest.json").read_text())
             self.assertEqual(tm["resume"]["resume_count"], 1)
+
+
+class ParallelWorkersTests(unittest.TestCase):
+    """S10-E2 Repair: N-worker coordinator equivalence + resume + reuse."""
+
+    def _run(self, d: Path, workers: int = 3,
+             checkpoint_interval: int = INTERVAL,
+             parent_labels: Path | None = None) -> int:
+        FakeTeacher.instances = 0
+        FakeTeacher.fail_at = None
+        FakeTeacher.audit_mismatch = False
+        argv = ["label_teacher.py", "--dataset", str(d), "--native",
+                "--checkpoint-interval", str(checkpoint_interval),
+                "--audit-n", str(N),
+                "--expected-binary-sha256", FAKE_SHA,
+                "--workers", str(workers)]
+        if parent_labels is not None:
+            argv += ["--reuse-parent-labels", str(parent_labels)]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(lt, "Teacher", FakeTeacher):
+            try:
+                return lt.main()
+            except lt.ResumeError:
+                return 4
+
+    def test_parallel_equals_serial_labels(self):
+        with tempfile.TemporaryDirectory(prefix="s10-e2-par-") as tmp:
+            serial_d = _sub_dataset(Path(tmp), "serial")
+            rc = run_label(serial_d)
+            self.assertEqual(rc, 0)
+            par_d = _sub_dataset(Path(tmp), "parallel")
+            rc = self._run(par_d, workers=3)
+            self.assertEqual(rc, 0)
+            self.assertEqual(
+                (serial_d / "labels.jsonl").read_bytes(),
+                (par_d / "labels.jsonl").read_bytes())
+            tm = json.loads(
+                (par_d / "teacher_manifest.json").read_text())
+            self.assertEqual(tm["workers"]["count"], 3)
+
+    def test_parallel_resume_after_interrupt(self):
+        with tempfile.TemporaryDirectory(prefix="s10-e2-parres-") as tmp:
+            d = make_dataset(Path(tmp))
+            make_committed_state(d, n_commit=8)  # serial crash state
+            # resume the SAME partial with the parallel coordinator
+            rc = self._run(d, workers=3)
+            self.assertEqual(rc, 0)
+            ref = _sub_dataset(Path(tempfile.mkdtemp(prefix="s10-e2-ref-")), "ref")
+            run_label(ref)
+            self.assertEqual((d / "labels.jsonl").read_bytes(),
+                             (ref / "labels.jsonl").read_bytes())
+
+    def test_parent_reuse_skips_and_records(self):
+        with tempfile.TemporaryDirectory(prefix="s10-e2-reuse-") as tmp:
+            # build a "parent" dataset (first 10 records), label it serially
+            parent_d = _sub_dataset(Path(tmp), "parent")
+            rc = run_label(parent_d)
+            self.assertEqual(rc, 0)
+            parent_labels = parent_d / "labels.jsonl"
+            # full dataset shares the first records' ids? make_dataset
+            # generates unique ids per dir, so craft the overlap manually:
+            # label the full dataset with reuse pointing at a labels file
+            # covering a SUBSET of its ids.
+            full_d = _sub_dataset(Path(tmp), "full")
+            recs = lt.load_records(full_d)
+            subset_ids = {r["position_id"] for r in recs[:6]}
+            kept = [json.loads(l) for l in
+                    parent_labels.read_text(encoding="utf-8").splitlines()
+                    if l.strip()]
+            fake_subset = [
+                {"position_id": pid,
+                 "teacher_cp_stm": 1, "teacher_mate": None,
+                 "teacher_bestmove": "e2e4",
+                 "teacher_wdl_stm": [None, None, None],
+                 "nodes": lt.TEACHER_NODES}
+                for pid in subset_ids]
+            sub_path = Path(tmp) / "subset_labels.jsonl"
+            sub_path.write_text("".join(
+                json.dumps(r, sort_keys=True) + "\n"
+                for r in fake_subset), encoding="utf-8")
+            rc = self._run(full_d, workers=3, parent_labels=sub_path)
+            self.assertEqual(rc, 0)
+            tm = json.loads((full_d / "teacher_manifest.json").read_text())
+            self.assertEqual(tm["reused_parent_labels"]["count"], 6)
+            # reused positions carry the subset values verbatim
+            out = {json.loads(l)["position_id"]: json.loads(l) for l in
+                   (full_d / "labels.jsonl").read_text(
+                       encoding="utf-8").splitlines() if l.strip()}
+            for pid in subset_ids:
+                self.assertEqual(out[pid]["teacher_cp_stm"], 1)
+                self.assertEqual(out[pid]["teacher_bestmove"], "e2e4")
+            # non-parent positions were really labeled
+            other = [r for r in recs if r["position_id"] not in subset_ids]
+            for r in other:
+                self.assertNotEqual(
+                    out[r["position_id"]]["teacher_cp_stm"], 1)
+
+    def test_parent_reuse_rejects_unknown_positions(self):
+        with tempfile.TemporaryDirectory(prefix="s10-e2-rej-") as tmp:
+            d = make_dataset(Path(tmp))
+            bad = Path(tmp) / "bad.jsonl"
+            bad.write_text(json.dumps({
+                "position_id": "f" * 64, "teacher_cp_stm": 0,
+                "teacher_mate": None, "teacher_bestmove": "a1a1",
+                "teacher_wdl_stm": [None, None, None],
+                "nodes": lt.TEACHER_NODES}) + "\n", encoding="utf-8")
+            rc = self._run(d, workers=2, parent_labels=bad)
+            self.assertEqual(rc, 4)
+
+    def test_parent_reuse_requires_workers(self):
+        with tempfile.TemporaryDirectory(prefix="s10-e2-ser-") as tmp:
+            d = make_dataset(Path(tmp))
+            parent_d = _sub_dataset(Path(tmp), "p")
+            run_label(parent_d)
+            FakeTeacher.instances = 0
+            argv = ["label_teacher.py", "--dataset", str(d), "--native",
+                    "--checkpoint-interval", str(INTERVAL),
+                    "--audit-n", str(N),
+                    "--expected-binary-sha256", FAKE_SHA,
+                    "--workers", "1",
+                    "--reuse-parent-labels",
+                    str(parent_d / "labels.jsonl")]
+            with mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(lt, "Teacher", FakeTeacher):
+                rc = lt.main()
+            self.assertEqual(rc, 4)
 
 
 if __name__ == "__main__":
