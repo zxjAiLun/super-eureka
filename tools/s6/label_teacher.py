@@ -871,8 +871,11 @@ def label_dataset(dataset_dir: Path, records: list[dict],
         # manifest renamed LAST as the commit point.
         labels_tmp = dataset_dir / "labels.jsonl.tmp"
         manifest_tmp = dataset_dir / "teacher_manifest.json.tmp"
-        with open(labels_tmp, "w", encoding="utf-8") as fh:
-            fh.write(labels_text)
+        # binary write: the manifest SHA is over UTF-8 bytes with LF
+        # newlines; text mode on Windows would silently translate to CRLF
+        # and desynchronize the published file from its recorded SHA.
+        with open(labels_tmp, "wb") as fh:
+            fh.write(labels_text.encode("utf-8"))
             fh.flush()
             os.fsync(fh.fileno())
         with open(manifest_tmp, "w", encoding="utf-8") as fh:
@@ -1179,8 +1182,11 @@ def _label_dataset_parallel(dataset_dir: Path, records: list[dict],
 
         labels_tmp = dataset_dir / "labels.jsonl.tmp"
         manifest_tmp = dataset_dir / "teacher_manifest.json.tmp"
-        with open(labels_tmp, "w", encoding="utf-8") as fh:
-            fh.write(labels_text)
+        # binary write: the manifest SHA is over UTF-8 bytes with LF
+        # newlines; text mode on Windows would silently translate to CRLF
+        # and desynchronize the published file from its recorded SHA.
+        with open(labels_tmp, "wb") as fh:
+            fh.write(labels_text.encode("utf-8"))
             fh.flush()
             os.fsync(fh.fileno())
         with open(manifest_tmp, "w", encoding="utf-8") as fh:
