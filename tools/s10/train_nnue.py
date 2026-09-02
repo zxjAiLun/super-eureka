@@ -77,9 +77,20 @@ DEFAULT_PATIENCE = 15
 # labels.jsonl bytes on disk (see load_dataset). This generalization is what
 # allows the 1M (and later) data-scale probes to train under the same
 # fail-closed provenance without weakening any artifact check.
+#
+# S10-E2-W0 teacher rotation: the production teacher is now the official
+# SF18 Windows x86-64 AVX2 build (exe c86215fa...). The E2-W0
+# cross-platform qualification (2048 independent FENs, results/s10/
+# s10-e2-w0-report.json) found the Windows and Linux builds
+# byte-identical on every field, and the Windows relabel of the full
+# nested parent 300k reproduced the old Linux B2 labels.jsonl
+# byte-for-byte (SHA bcd49da1... both sides) — same teacher semantics,
+# new production binary. The historical Linux SHA stays recorded below
+# as the B2-era reference.
 FROZEN_TEACHER_CONTRACT = {
     "engine": "Stockfish 18",
-    "binary_sha256": "6b087694916228c905a5e14db74cca8c7e5643602226af1fa5d42353c455b9f9",
+    "binary_sha256": (
+        "c86215fa1977d53b82ed854540a4c7b025be4cd042276c85ba3de53fb9118911"),
     "nodes": 16384,
     "options": {
         "Threads": "1",

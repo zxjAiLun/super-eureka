@@ -362,6 +362,9 @@ impl NnueV2QuantizedModel {
         // abs of i16::MIN/i32::MIN is not representable in the source
         // type) and refuse any artifact whose MACs could exceed i32 range.
         // The frozen artifact's bounds are ~1.45e9 max, far below i32::MAX.
+        // S10-E3: the L1 MAC now accumulates in i64 (see
+        // evaluate_raw_from_accumulator), so the l1 gate uses the i64
+        // construction bound instead of i32::MAX. ft/l2/out stay i32.
         let ft_bound = max_abs_i32(&ft_bias)
             + MAX_FEATURES_PER_PERSPECTIVE * max_abs_i16(&ft_weights);
         let l1_bound = max_abs_i32(&l1_bias)
@@ -370,13 +373,15 @@ impl NnueV2QuantizedModel {
             + 32 * max_abs_i16(&l2_weight) * NNUE_V2Q_QA as i64;
         let out_bound = max_abs_i32(&out_bias)
             + 32 * max_abs_i16(&out_weight) * NNUE_V2Q_QA as i64;
+        let l1_bound_i64 = max_abs_i32(&l1_bias) as i64
+            + 256i64 * 32768i64 * NNUE_V2Q_QA as i64;
         if ft_bound > i32::MAX as i64
-            || l1_bound > i32::MAX as i64
+            || l1_bound_i64 > i64::MAX
             || l2_bound > i32::MAX as i64
             || out_bound > i32::MAX as i64
         {
             return Err(format!(
-                "nnue-v2q-probe: payload exceeds proven i32 MAC bounds \
+                "nnue-v2q-probe: payload exceeds proven MAC bounds \
                  (ft={ft_bound}, l1={l1_bound}, l2={l2_bound}, out={out_bound})"
             ));
         }
@@ -687,24 +692,29 @@ impl NnueV2QuantizedModel {
                 clamp_i(opp_acc[i], 0, NNUE_V2Q_QA as i32);
         }
 
-        // l1: 256 -> 32 (MAC at accumulator precision; proven bound
-        // 256 * 1387 * 4096 + |q_b| ≈ 1.45e9 < i32::MAX).
-        // S10-C3-C2: backend dispatch (detected once at load). Both
-        // backends are bit-exact: integer MAC in this proven range has no
-        // intermediate rounding, so the AVX2 lane re-grouping cannot
-        // change the final integer.
+        // l1: 256 -> 32 (MAC at accumulator precision).
+        // S10-E3: the 1M-trained model's L1 weights push the worst-case
+        // |b| + 256*|w|*QA product past i32::MAX (2.77e9), so the scalar
+        // path now accumulates in i64 and narrows after shift_round —
+        // bit-identical to the previous i32 path for every artifact that
+        // never overflowed (integer arithmetic has no intermediate
+        // rounding), and provably safe for larger-trained artifacts. The
+        // construction cannot overflow i64: 256 * 32767 * 4096 + 2^31
+        // << 2^63. S10-C3-C2 backend dispatch stays; both backends are
+        // bit-exact within the (now i64-proven) range.
         let mut a1 = [0i32; 32];
         #[allow(unused_mut)]
         match self.l1_backend {
             L1Backend::Scalar => {
                 for o in 0..32 {
-                    let mut z = self.l1_bias[o];
+                    let mut z = self.l1_bias[o] as i64;
                     let row = o * 256;
                     for i in 0..256 {
-                        z += (self.l1_weight[row + i] as i32) * acts[i];
+                        z += (self.l1_weight[row + i] as i64) * acts[i] as i64;
                     }
-                    a1[o] = clamp_i(shift_round(z, NNUE_V2Q_DENSE_Z_SHIFT),
-                                    0, NNUE_V2Q_QA as i32);
+                    a1[o] = clamp_i(
+                        shift_round64(z, NNUE_V2Q_DENSE_Z_SHIFT) as i32,
+                        0, NNUE_V2Q_QA as i32);
                 }
             }
             #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
@@ -833,29 +843,42 @@ unsafe fn l1_dense_avx2(
         a16[i] = acts[i] as i16;
     }
 
+    // S10-E3: the 1M-trained L1 weights exceed the old i32 worst-case MAC
+    // bound (256*|w|*4096 up to 2.77e9 > i32::MAX), so the pair products
+    // are widened to i64 lanes every 32 weights (two madd results per
+    // widen) and accumulated there — bit-identical to the scalar i64 path
+    // (integer arithmetic, no intermediate rounding).
     for o in 0..32 {
         let row = o * 256;
-        let mut vacc = _mm256_setzero_si256();
+        // 8 i64 accumulator lanes (4 per 128-bit half).
+        let mut vacc_lo = _mm256_setzero_si256(); // i64 x4
         let mut i = 0;
         while i < 256 {
             let wv = _mm256_loadu_si256(
                 w.as_ptr().add(row + i) as *const __m256i);
             let av = _mm256_loadu_si256(
                 a16.as_ptr().add(i) as *const __m256i);
-            // 16 i16 x i16 -> 8 i32 pair products, summed pairwise.
+            // 16 i16 x i16 -> 8 i32 pair products.
             let pairs = _mm256_madd_epi16(wv, av);
-            vacc = _mm256_add_epi32(vacc, pairs);
+            // Sign-extend the 8 i32 products to i64 and add into the i64
+            // accumulator (two 4-lane groups).
+            let ext_lo = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(pairs));
+            let ext_hi = _mm256_cvtepi32_epi64(
+                _mm256_extracti128_si256(pairs, 1));
+            vacc_lo = _mm256_add_epi64(vacc_lo, ext_lo);
+            vacc_lo = _mm256_add_epi64(vacc_lo, ext_hi);
             i += 16;
         }
-        // Horizontal sum of the 8 i32 lanes.
-        let mut sums = [0i32; 8];
-        _mm256_storeu_si256(sums.as_mut_ptr() as *mut __m256i, vacc);
-        let mut z = bias[o];
+        // Horizontal sum of the 4 i64 lanes + bias.
+        let mut sums = [0i64; 4];
+        _mm256_storeu_si256(sums.as_mut_ptr() as *mut __m256i, vacc_lo);
+        let mut z = bias[o] as i64;
         for s in sums {
             z += s;
         }
-        out[o] = clamp_i(shift_round(z, NNUE_V2Q_DENSE_Z_SHIFT), 0,
-                         NNUE_V2Q_QA as i32);
+        out[o] = clamp_i(
+            shift_round64(z, NNUE_V2Q_DENSE_Z_SHIFT) as i32,
+            0, NNUE_V2Q_QA as i32);
     }
 }
 
@@ -866,6 +889,18 @@ fn shift_round(x: i32, shift: u32) -> i32 {
         (x + (1 << (shift - 1))) >> shift
     } else {
         -((-x + (1 << (shift - 1))) >> shift)
+    }
+}
+
+/// S10-E3: i64 twin of `shift_round` for the L1 MAC accumulator (the
+/// 1M-trained weights exceed the old i32 worst-case bound). Same rounding
+/// semantics; the result is narrowed to i32 by the caller after clamping.
+#[inline]
+fn shift_round64(x: i64, shift: u32) -> i64 {
+    if x >= 0 {
+        (x + (1i64 << (shift - 1))) >> shift
+    } else {
+        -((-x + (1i64 << (shift - 1))) >> shift)
     }
 }
 
@@ -1137,16 +1172,35 @@ mod tests {
     #[test]
     fn rejects_payload_exceeding_proven_bounds() {
         // Valid header (frozen source SHAs, dims, shifts) but out-of-range
-        // dense weights: l1 MAC bound 256 * 32767 * 4096 >> i32::MAX.
+        // L2 weights: 32 * 32767 * 4096 >> i32::MAX. (S10-E3: the L1 MAC
+        // now accumulates in i64 and legitimately accepts artifacts whose
+        // old i32 bound would have failed — see
+        // accepts_l1_bound_beyond_i32; the L2/out/ft gates stay i32.)
         let mut data = synthetic_artifact_bytes(START_FEN);
-        // Fill 1024 bytes of l1 weight payload with i16::MAX pattern.
+        let base = L2_W_OFFSET;
+        for chunk in data[base..base + 64].chunks_exact_mut(2) {
+            chunk.copy_from_slice(&i16::MAX.to_le_bytes());
+        }
+        match NnueV2QuantizedModel::from_bytes(&data) {
+            Err(err) => assert!(err.contains("proven MAC bounds"), "err: {err}"),
+            Ok(_) => panic!("out-of-bounds payload was accepted"),
+        }
+    }
+
+    #[test]
+    fn accepts_l1_bound_beyond_i32() {
+        // S10-E3: an L1 payload whose old i32 worst-case bound exceeded
+        // i32::MAX is now VALID — the scalar L1 MAC accumulates in i64
+        // (bound 256*32767*4096 + 2^31 << 2^63) and narrows after
+        // shift_round. This is exactly the 1M-trained artifact's regime.
+        let mut data = synthetic_artifact_bytes(START_FEN);
         let base = L1_W_OFFSET;
         for chunk in data[base..base + 1024].chunks_exact_mut(2) {
             chunk.copy_from_slice(&i16::MAX.to_le_bytes());
         }
         match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
-            Ok(_) => panic!("out-of-bounds payload was accepted"),
+            Ok(_) => {}
+            Err(err) => panic!("i64 L1 MAC artifact was rejected: {err}"),
         }
     }
 
@@ -1161,7 +1215,7 @@ mod tests {
             chunk.copy_from_slice(&i32::MAX.to_le_bytes());
         }
         match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Err(err) => assert!(err.contains("proven MAC bounds"), "err: {err}"),
             Ok(_) => panic!("runaway FT bias was accepted"),
         }
     }
@@ -1190,22 +1244,24 @@ mod tests {
             chunk.copy_from_slice(&i32::MIN.to_le_bytes());
         }
         match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Err(err) => assert!(err.contains("proven MAC bounds"), "err: {err}"),
             Ok(_) => panic!("i32::MIN bias was accepted"),
         }
     }
 
     #[test]
     fn rejects_i16_min_dense_weight_without_panicking() {
-        // i16::MIN in the l1 weights: bound = 256 * 32768 * 4096 >> 2^31,
+        // i16::MIN in the L2 weights: bound = 32 * 32768 * 4096 >> 2^31,
         // must fail closed (not panic, not silently underestimate).
+        // (S10-E3: L1 i16::MIN is now LEGAL — the i64 MAC — see
+        // accepts_l1_bound_beyond_i32.)
         let mut data = synthetic_artifact_bytes(START_FEN);
-        let base = L1_W_OFFSET;
-        for chunk in data[base..base + 1024].chunks_exact_mut(2) {
+        let base = L2_W_OFFSET;
+        for chunk in data[base..base + 64].chunks_exact_mut(2) {
             chunk.copy_from_slice(&i16::MIN.to_le_bytes());
         }
         match NnueV2QuantizedModel::from_bytes(&data) {
-            Err(err) => assert!(err.contains("proven i32 MAC bounds"), "err: {err}"),
+            Err(err) => assert!(err.contains("proven MAC bounds"), "err: {err}"),
             Ok(_) => panic!("i16::MIN dense weight was accepted"),
         }
     }

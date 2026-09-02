@@ -147,7 +147,11 @@ def build_quantized_arrays(sd: dict) -> dict:
         "out_mac_bound": out_bound,
         "i32_max": (1 << 31) - 1,
         "ft_overflow": ft_bound > (1 << 31) - 1,
-        "l1_overflow": l1_bound > (1 << 31) - 1,
+        # S10-E3: the runtime L1 MAC now accumulates in i64 (scalar) with
+        # i64-widened AVX2 lanes, so an l1 bound beyond i32 is LEGAL; the
+        # construction bound 256*32768*4096 + 2^31 << 2^63 can never
+        # overflow. ft/l2/out keep the strict i32 gate.
+        "l1_overflow": l1_bound > (1 << 63) - 1,
         "l2_overflow": l2_bound > (1 << 31) - 1,
         "out_overflow": out_bound > (1 << 31) - 1,
     }
