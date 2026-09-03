@@ -517,11 +517,18 @@ def train_and_eval(
     device_name: str | None = None,
     allow_holdout: bool = False,
     target_mode: str = "cp",
+    ft_width: int = 128,
 ) -> dict:
     if target_mode not in TARGET_MODES:
         raise SystemExit(
             f"FAIL CLOSED: unknown target mode '{target_mode}' "
             f"(expected {'|'.join(TARGET_MODES)})"
+        )
+    if ft_width not in (128, 256):
+        raise SystemExit(
+            f"FAIL CLOSED: unsupported ft_width {ft_width} "
+            "(expected 128 | 256; the G1 capacity probe is frozen to "
+            "these two widths)"
         )
     start_time = time.time()
     num_inputs = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
@@ -692,7 +699,7 @@ def train_and_eval(
         print(f"residual target stats: {residual_target_stats}")
 
     # 5. Initialize Model & Optimizer
-    model = NnueModel(num_inputs=num_inputs).to(device)
+    model = NnueModel(num_inputs=num_inputs, ft_width=ft_width).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.SmoothL1Loss(beta=LOSS_BETA)
 
@@ -836,8 +843,9 @@ def train_and_eval(
         }
 
     # Parameter footprint calculation
-    ft_param_count = num_inputs * 128 + 128
-    dense_param_count = (256 * 32 + 32) + (32 * 32 + 32) + (32 * 1 + 1)
+    l1_in = ft_width * 2
+    ft_param_count = num_inputs * ft_width + ft_width
+    dense_param_count = (l1_in * 32 + 32) + (32 * 32 + 32) + (32 * 1 + 1)
     total_param_count = ft_param_count + dense_param_count
     ft_fp32_bytes = ft_param_count * 4
     total_fp32_bytes = total_param_count * 4
@@ -847,6 +855,7 @@ def train_and_eval(
     summary = {
         "feature_set": feature_set,
         "seed": seed,
+        "ft_width": ft_width,
         "target_mode": target_mode,
         "material_anchor": {
             "canonical_piece_cp": CANONICAL_PIECE_CP,
@@ -872,8 +881,8 @@ def train_and_eval(
         "records_with_teacher_mate": sum(mate_only_by_split.values()),
         "architecture": {
             "num_inputs": num_inputs,
-            "ft_width": 128,
-            "dense_layers": [256, 32, 32, 1],
+            "ft_width": ft_width,
+            "dense_layers": [l1_in, 32, 32, 1],
             "ft_param_count": ft_param_count,
             "dense_param_count": dense_param_count,
             "total_param_count": total_param_count,
@@ -998,6 +1007,10 @@ def main():
                              "B3 recipe). material-residual: predict "
                              "T - M (no second clip); runtime composes "
                              "M + residual.")
+    parser.add_argument("--ft-width", type=int, choices=[128, 256], default=128,
+                        help="feature-transformer width (S10-G1 capacity "
+                             "probe; 128 is the frozen production width, "
+                             "256 doubles only the FT capacity)")
     parser.add_argument("--allow-holdout", action="store_true", help="Stage 2 only: evaluate holdout split")
     parser.add_argument("--preflight", action="store_true",
                         help="run data/training preflight only (no training)")
@@ -1028,9 +1041,11 @@ def main():
         device_name=args.device,
         allow_holdout=args.allow_holdout,
         target_mode=args.target_mode,
+        ft_width=args.ft_width,
     )
     print(
-        f"Training completed for {args.feature_set} seed {args.seed}: "
+        f"Training completed for {args.feature_set} seed {args.seed} "
+        f"ft_width {summary['ft_width']}: "
         f"best_epoch={summary['training']['best_epoch']} "
         f"best_val_mae={summary['training']['best_val_mae']:.3f} cp "
         f"(elapsed: {summary['training']['elapsed_seconds']:.1f}s)"
