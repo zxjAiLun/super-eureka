@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "quantized_artifact": "data\\s10\\g1\\ft256-1m\\seed-20260819\\nnue-v2-q01-material-256.bin",
+  "n": 1000,
+  "seed": 2026083102,
+  "layer1_raw_residual_parity": {
+    "mismatches": 0,
+    "pass": true
+  },
+  "layer2_composed_parity": {
+    "mismatches": 0,
+    "pass": true
+  },
+  "fp32_vs_quantized_residual_cp": {
+    "mean": 0.116,
+    "p95": 0.297,
+    "p99": 0.437,
+    "max": 1.095
+  },
+  "composed_validation_mae_cp": 107.306
+}

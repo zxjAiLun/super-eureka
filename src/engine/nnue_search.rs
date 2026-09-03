@@ -17,7 +17,7 @@ use crate::chess::position::Position;
 use crate::chess::types::Move;
 
 use crate::engine::nnue_v2q_runtime::{
-    NnueMoveDelta, NnueV2Accumulator, NnueV2QuantizedModel,
+    AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel,
 };
 
 /// Which accumulator delivery mechanism a search uses.
@@ -72,7 +72,7 @@ pub struct AuditSnapshot {
 pub struct NnueSearchState {
     pub model: Arc<NnueV2QuantizedModel>,
     pub mode: NnueSearchMode,
-    frames: Vec<NnueV2Accumulator>,
+    frames: Vec<AccumulatorFor>,
     /// S10-C3-0: `None` on normal performance runs (zero atomic ops on the
     /// hot paths). `Some` only when explicitly requested.
     pub diagnostics: Option<Arc<NnueDiagnostics>>,
@@ -167,20 +167,20 @@ impl NnueSearchState {
         diag.audit_eval_calls.fetch_add(1, Ordering::Relaxed);
         let fresh = self.model.full_accumulator(pos);
         let top = self.top();
-        if top.white != fresh.white {
+        if top.white() != fresh.white() {
             let n = top
-                .white
+                .white()
                 .iter()
-                .zip(fresh.white.iter())
+                .zip(fresh.white().iter())
                 .filter(|(a, b)| a != b)
                 .count() as u64;
             diag.audit_lane_mismatches.fetch_add(n, Ordering::Relaxed);
         }
-        if top.black != fresh.black {
+        if top.black() != fresh.black() {
             let n = top
-                .black
+                .black()
                 .iter()
-                .zip(fresh.black.iter())
+                .zip(fresh.black().iter())
                 .filter(|(a, b)| a != b)
                 .count() as u64;
             diag.audit_lane_mismatches.fetch_add(n, Ordering::Relaxed);
@@ -195,7 +195,7 @@ impl NnueSearchState {
 
     /// Current top frame (the accumulator of the current node).
     #[inline]
-    pub fn top(&self) -> &NnueV2Accumulator {
+    pub fn top(&self) -> &AccumulatorFor {
         self.frames.last().expect("nnue stack never empty")
     }
 
@@ -286,7 +286,7 @@ impl NnueSearchState {
 
     /// Test-only mutable access to the frames (audit tamper tests).
     #[cfg(test)]
-    pub(crate) fn frames_mut(&mut self) -> &mut Vec<NnueV2Accumulator> {
+    pub(crate) fn frames_mut(&mut self) -> &mut Vec<AccumulatorFor> {
         &mut self.frames
     }
 
@@ -338,19 +338,19 @@ pub fn audit_incremental_eval(
     counters.eval_calls += 1;
     let fresh = state.model.full_accumulator(pos);
     let top = state.top();
-    if top.white != fresh.white {
+    if top.white() != fresh.white() {
         counters.lane_mismatches += top
-            .white
+            .white()
             .iter()
-            .zip(fresh.white.iter())
+            .zip(fresh.white().iter())
             .filter(|(a, b)| a != b)
             .count() as u64;
     }
-    if top.black != fresh.black {
+    if top.black() != fresh.black() {
         counters.lane_mismatches += top
-            .black
+            .black()
             .iter()
-            .zip(fresh.black.iter())
+            .zip(fresh.black().iter())
             .filter(|(a, b)| a != b)
             .count() as u64;
     }
@@ -524,7 +524,7 @@ mod tests {
         let mut state = NnueSearchState::with_options(
             model, NnueSearchMode::Incremental, &pos, true, true);
         // Corrupt the top frame's first lane deliberately.
-        state.frames_mut()[0].white[0] = state.top().white[0].wrapping_add(1);
+        state.frames_mut()[0].white_mut()[0] = state.top().white()[0].wrapping_add(1);
         let _ = state.evaluate_cp_i32_audited(&pos);
         let snap = state.audit_snapshot();
         assert_eq!(snap.eval_calls, 1);

@@ -26,15 +26,115 @@ use crate::engine::nnue::{
 /// Fixed S10-B5 artifact constants (must match export_quantized.py).
 pub const NNUE_V2Q_MAGIC: [u8; 8] = *b"EUNN2Q01";
 /// v2: the header field at offset 40 (a reserved zero u32 in v1) is now
-/// `target_mode` (see `NnueV2TargetMode`). v1 artifacts implicitly carry
-/// mode `Cp`. The payload layout is unchanged.
-pub const NNUE_V2Q_VERSION: u32 = 2;
+/// `target_mode` (see `NnueV2TargetMode`); v1 artifacts implicitly carry
+/// mode `Cp`; payload layout unchanged.
+/// v3 (S10-G1): width-aware payload. The header's `ft_width` may now be
+/// 128 OR 256 (v1/v2 remain strictly FT128); every payload offset/count
+/// is derived from (inputs, ft_width) with checked arithmetic. Hidden
+/// layers stay 32 -> 32 -> 1.
+pub const NNUE_V2Q_VERSION: u32 = 3;
 pub const NNUE_V2Q_FT_WIDTH: usize = 128;
 pub const NNUE_V2Q_TARGET_SCALE: f32 = 1000.0;
 pub const NNUE_V2Q_FT_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_W_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_Z_SHIFT: u32 = 12;
 pub const NNUE_V2Q_QA: usize = 1 << 12;
+
+/// S10-G1: the two AUTHENTICATED feature-transformer widths. The runtime
+/// deliberately supports nothing else — this is not a general
+/// "any-width NNUE" loader; each width selects a compile-time
+/// specialization (fixed arrays, no heap on the eval path) and both are
+/// regression-gated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FtWidth {
+    W128,
+    W256,
+}
+
+impl FtWidth {
+    pub fn lanes(self) -> usize {
+        match self {
+            FtWidth::W128 => 128,
+            FtWidth::W256 => 256,
+        }
+    }
+
+    /// Dense L1 input width = 2 * ft_width (STM ++ NSTM concat).
+    pub fn dense_in(self) -> usize {
+        2 * self.lanes()
+    }
+
+    fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            128 => Some(FtWidth::W128),
+            256 => Some(FtWidth::W256),
+            _ => None,
+        }
+    }
+}
+
+/// Derived payload layout for one (inputs, ft_width) — the v3 contract.
+/// All counts/offsets computed with checked arithmetic; no payload magic
+/// numbers.
+#[derive(Clone, Copy, Debug)]
+struct PayloadLayout {
+    ft_w_offset: usize,
+    ft_w_count: usize,
+    ft_b_offset: usize,
+    ft_b_count: usize,
+    l1_w_offset: usize,
+    l1_w_count: usize,
+    l1_b_offset: usize,
+    l1_b_count: usize,
+    l2_w_offset: usize,
+    l2_w_count: usize,
+    l2_b_offset: usize,
+    l2_b_count: usize,
+    out_w_offset: usize,
+    out_w_count: usize,
+    out_b_offset: usize,
+    out_b_count: usize,
+    total_bytes: usize,
+}
+
+impl PayloadLayout {
+    fn derive(inputs: usize, width: FtWidth) -> Result<Self, String> {
+        let overflow = "nnue-v2q-probe: payload layout overflow".to_string();
+        let w = width.lanes();
+        let dense_in = width.dense_in();
+        let ft_w_count = inputs.checked_mul(w).ok_or_else(|| overflow.clone())?;
+        let ft_b_count = w;
+        let l1_w_count = dense_in.checked_mul(32).ok_or_else(|| overflow.clone())?;
+        let l1_b_count = 32;
+        let l2_w_count = 32 * 32;
+        let l2_b_count = 32;
+        let out_w_count = 32;
+        let out_b_count = 1;
+
+        let step = |off: usize, count: usize, size: usize|
+            -> Result<usize, String> {
+            let bytes = count.checked_mul(size).ok_or_else(|| overflow.clone())?;
+            off.checked_add(bytes).ok_or_else(|| overflow.clone())
+        };
+        let ft_w_offset = HEADER_BYTES;
+        let ft_b_offset = step(ft_w_offset, ft_w_count, 2)?;
+        let l1_w_offset = step(ft_b_offset, ft_b_count, 4)?;
+        let l1_b_offset = step(l1_w_offset, l1_w_count, 2)?;
+        let l2_w_offset = step(l1_b_offset, l1_b_count, 4)?;
+        let l2_b_offset = step(l2_w_offset, l2_w_count, 2)?;
+        let out_w_offset = step(l2_b_offset, l2_b_count, 4)?;
+        let out_b_offset = step(out_w_offset, out_w_count, 2)?;
+        let total_bytes = step(out_b_offset, out_b_count, 4)?;
+
+        Ok(PayloadLayout {
+            ft_w_offset, ft_w_count, ft_b_offset, ft_b_count,
+            l1_w_offset, l1_w_count, l1_b_offset, l1_b_count,
+            l2_w_offset, l2_w_count, l2_b_offset, l2_b_count,
+            out_w_offset, out_w_count, out_b_offset, out_b_count,
+            total_bytes,
+        })
+    }
+}
 
 /// Semantic meaning of the network output (S10-F1). Two artifacts with the
 /// identical network shape mean completely different things: a `Cp` model's
@@ -135,38 +235,30 @@ const HISTORICAL_SOURCE_CHECKPOINT_SHA: [u8; 32] = [
 const MAX_FEATURES_PER_PERSPECTIVE: i64 = 31;
 
 const HEADER_BYTES: usize = 8 + 4 * 4 + 4 * 3 + 4 + 4 + 32 + 32;
-const FT_W_COUNT: usize = NNUE_INPUTS_V2 * NNUE_V2Q_FT_WIDTH;
-const FT_B_COUNT: usize = NNUE_V2Q_FT_WIDTH;
-const L1_W_COUNT: usize = 32 * 256;
-const L1_B_COUNT: usize = 32;
-const L2_W_COUNT: usize = 32 * 32;
-const L2_B_COUNT: usize = 32;
-const OUT_W_COUNT: usize = 1 * 32;
-const OUT_B_COUNT: usize = 1;
-
-const FT_W_OFFSET: usize = HEADER_BYTES;
-const FT_B_OFFSET: usize = FT_W_OFFSET + FT_W_COUNT * 2;
-const L1_W_OFFSET: usize = FT_B_OFFSET + FT_B_COUNT * 4;
-const L1_B_OFFSET: usize = L1_W_OFFSET + L1_W_COUNT * 2;
-const L2_W_OFFSET: usize = L1_B_OFFSET + L1_B_COUNT * 4;
-const L2_B_OFFSET: usize = L2_W_OFFSET + L2_W_COUNT * 2;
-const OUT_W_OFFSET: usize = L2_B_OFFSET + L2_B_COUNT * 4;
-const OUT_B_OFFSET: usize = OUT_W_OFFSET + OUT_W_COUNT * 2;
-const TOTAL_BYTES: usize = OUT_B_OFFSET + OUT_B_COUNT * 4;
 
 /// Fixed-perspective NNUE accumulator (S10-C1). Lanes are ALWAYS stored in
 /// White/Black perspective order — never STM/NSTM; the dense forward
 /// selects by side-to-move at evaluation time.
+///
+/// S10-G1: const-generic over the authenticated lane widths (128/256).
+/// W is a compile-time constant per instantiation — fixed arrays, zero
+/// heap — and the search stack owns whichever width its model uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NnueV2Accumulator {
-    pub white: [i32; NNUE_V2Q_FT_WIDTH],
-    pub black: [i32; NNUE_V2Q_FT_WIDTH],
+pub struct NnueV2Accumulator<const W: usize> {
+    pub white: [i32; W],
+    pub black: [i32; W],
 }
 
-impl NnueV2Accumulator {
+/// The FT128 accumulator type — the historical production shape (v1/v2
+/// artifacts and every existing caller before G1).
+pub type Acc128 = NnueV2Accumulator<128>;
+/// The FT256 accumulator type (G1 v3 artifacts).
+pub type Acc256 = NnueV2Accumulator<256>;
+
+impl<const W: usize> NnueV2Accumulator<W> {
     /// Lane slice for one perspective.
     #[inline]
-    pub fn lanes_for(&self, perspective: NnuePerspective) -> &[i32; NNUE_V2Q_FT_WIDTH] {
+    pub fn lanes_for(&self, perspective: NnuePerspective) -> &[i32; W] {
         match perspective {
             NnuePerspective::White => &self.white,
             NnuePerspective::Black => &self.black,
@@ -238,16 +330,14 @@ pub enum L1Backend {
 }
 
 /// Loaded S10-B5 quantized model. Immutable after construction.
+///
+/// S10-G1: the payload tensors are stored per authenticated width in a
+/// fixed-size enum (`WeightsFor`) — no Vec indirection on the eval path;
+/// the width is chosen at load and every evaluation dispatches once to
+/// the const-generic kernel for that width.
 #[derive(Debug)]
 pub struct NnueV2QuantizedModel {
-    ft_weights: Vec<i16>,  // [22528][128]
-    ft_bias: Vec<i32>,     // [128]
-    l1_weight: Vec<i16>,   // [32][256]
-    l1_bias: Vec<i32>,     // [32]
-    l2_weight: Vec<i16>,   // [32][32]
-    l2_bias: Vec<i32>,     // [32]
-    out_weight: Vec<i16>,  // [1][32]
-    out_bias: Vec<i32>,    // [1]
+    weights: WeightsFor,
     /// Source FP32 artifact SHA from the artifact header (provenance only
     /// since S10-E0; no longer required to equal one specific iteration).
     #[allow(dead_code)]
@@ -264,6 +354,35 @@ pub struct NnueV2QuantizedModel {
     target_mode: NnueV2TargetMode,
 }
 
+/// Per-width tensor bundle. `ft_weights` is [inputs][W] row-major;
+/// `l1_weight` is [32][2W].
+#[derive(Debug)]
+struct Weights<const W: usize> {
+    ft_weights: Vec<i16>,
+    ft_bias: Vec<i32>,
+    l1_weight: Vec<i16>,
+    l1_bias: Vec<i32>,
+    l2_weight: Vec<i16>,
+    l2_bias: Vec<i32>,
+    out_weight: Vec<i16>,
+    out_bias: Vec<i32>,
+}
+
+#[derive(Debug)]
+enum WeightsFor {
+    W128(Weights<128>),
+    W256(Weights<256>),
+}
+
+impl WeightsFor {
+    fn width(&self) -> FtWidth {
+        match self {
+            WeightsFor::W128(_) => FtWidth::W128,
+            WeightsFor::W256(_) => FtWidth::W256,
+        }
+    }
+}
+
 impl NnueV2QuantizedModel {
     pub fn load(path: &std::path::Path) -> Result<Self, String> {
         let data = std::fs::read(path).map_err(|e| {
@@ -273,21 +392,18 @@ impl NnueV2QuantizedModel {
     }
 
     /// Parse and fully validate an `EUNN2Q01` artifact (little-endian).
-    /// v1 artifacts are read with `target_mode = Cp`; v2 artifacts carry an
-    /// explicit semantic mode in the header (the v1 reserved u32 slot).
+    /// v1 artifacts are read with `target_mode = Cp`; v2 carry an explicit
+    /// semantic mode; v3 additionally allow ft_width 256 (v1/v2 are
+    /// STRICTLY FT128 — a v1/v2 artifact declaring a non-128 width is
+    /// malformed and rejected).
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
-        if data.len() != TOTAL_BYTES {
-            return Err(format!(
-                "nnue-v2q-probe: bad length {} != expected {TOTAL_BYTES}",
-                data.len()
-            ));
-        }
         if data[0..8] != NNUE_V2Q_MAGIC {
             return Err("nnue-v2q-probe: bad magic".to_string());
         }
         let version = u32::from_le_bytes(data[8..12].try_into().unwrap());
         let inputs = u32::from_le_bytes(data[12..16].try_into().unwrap());
-        let ft_width = u32::from_le_bytes(data[16..20].try_into().unwrap());
+        let ft_width_raw =
+            u32::from_le_bytes(data[16..20].try_into().unwrap());
         let target_scale =
             f32::from_bits(u32::from_le_bytes(data[20..24].try_into().unwrap()));
         let ft_shift = u32::from_le_bytes(data[24..28].try_into().unwrap());
@@ -307,22 +423,29 @@ impl NnueV2QuantizedModel {
                 }
                 NnueV2TargetMode::Cp
             }
-            2 => NnueV2TargetMode::from_u32(mode_raw).ok_or_else(|| {
+            2 | 3 => NnueV2TargetMode::from_u32(mode_raw).ok_or_else(|| {
                 format!("nnue-v2q-probe: bad target_mode {mode_raw}")
             })?,
             other => {
                 return Err(format!("nnue-v2q-probe: bad version {other}"));
             }
         };
-        if version != NNUE_V2Q_VERSION && version != 1 {
-            return Err(format!("nnue-v2q-probe: bad version {version}"));
-        }
         if inputs != NNUE_INPUTS_V2 as u32 {
             return Err(format!("nnue-v2q-probe: bad inputs {inputs}"));
         }
-        if ft_width != NNUE_V2Q_FT_WIDTH as u32 {
-            return Err(format!("nnue-v2q-probe: bad ft_width {ft_width}"));
-        }
+        // S10-G1: v1/v2 are strictly FT128; v3 accepts 128 OR 256 — the
+        // two AUTHENTICATED widths (never an arbitrary header value).
+        let width = match (version, ft_width_raw) {
+            (1, 128) | (2, 128) => FtWidth::W128,
+            (3, 128) => FtWidth::W128,
+            (3, 256) => FtWidth::W256,
+            _ => {
+                return Err(format!(
+                    "nnue-v2q-probe: bad ft_width {ft_width_raw} for \
+                     version {version}"
+                ));
+            }
+        };
         if target_scale != NNUE_V2Q_TARGET_SCALE {
             return Err(format!(
                 "nnue-v2q-probe: bad target_scale {target_scale}"
@@ -348,43 +471,78 @@ impl NnueV2QuantizedModel {
         // consumer (Arena D0's immutable model-artifact SHA gate pins the
         // exact bytes a tournament may launch with).
 
-        let ft_weights = read_i16s(data, FT_W_OFFSET, FT_W_COUNT)?;
-        let ft_bias = read_i32s(data, FT_B_OFFSET, FT_B_COUNT)?;
-        let l1_weight = read_i16s(data, L1_W_OFFSET, L1_W_COUNT)?;
-        let l1_bias = read_i32s(data, L1_B_OFFSET, L1_B_COUNT)?;
-        let l2_weight = read_i16s(data, L2_W_OFFSET, L2_W_COUNT)?;
-        let l2_bias = read_i32s(data, L2_B_OFFSET, L2_B_COUNT)?;
-        let out_weight = read_i16s(data, OUT_W_OFFSET, OUT_W_COUNT)?;
-        let out_bias = read_i32s(data, OUT_B_OFFSET, OUT_B_COUNT)?;
-
-        // Fail-closed overflow safety: recompute the PROVEN worst-case
-        // bounds from the actual payload (i64 arithmetic throughout — the
-        // abs of i16::MIN/i32::MIN is not representable in the source
-        // type) and refuse any artifact whose MACs could exceed i32 range.
-        // The frozen artifact's bounds are ~1.45e9 max, far below i32::MAX.
-        // S10-E3: the L1 MAC now accumulates in i64 (see
-        // evaluate_raw_from_accumulator), so the l1 gate uses the i64
-        // construction bound instead of i32::MAX. ft/l2/out stay i32.
-        let ft_bound = max_abs_i32(&ft_bias)
-            + MAX_FEATURES_PER_PERSPECTIVE * max_abs_i16(&ft_weights);
-        let l1_bound = max_abs_i32(&l1_bias)
-            + 256 * max_abs_i16(&l1_weight) * NNUE_V2Q_QA as i64;
-        let l2_bound = max_abs_i32(&l2_bias)
-            + 32 * max_abs_i16(&l2_weight) * NNUE_V2Q_QA as i64;
-        let out_bound = max_abs_i32(&out_bias)
-            + 32 * max_abs_i16(&out_weight) * NNUE_V2Q_QA as i64;
-        let l1_bound_i64 = max_abs_i32(&l1_bias) as i64
-            + 256i64 * 32768i64 * NNUE_V2Q_QA as i64;
-        if ft_bound > i32::MAX as i64
-            || l1_bound_i64 > i64::MAX
-            || l2_bound > i32::MAX as i64
-            || out_bound > i32::MAX as i64
-        {
+        let layout =
+            PayloadLayout::derive(NNUE_INPUTS_V2, width)?;
+        if data.len() != layout.total_bytes {
             return Err(format!(
-                "nnue-v2q-probe: payload exceeds proven MAC bounds \
-                 (ft={ft_bound}, l1={l1_bound}, l2={l2_bound}, out={out_bound})"
+                "nnue-v2q-probe: bad length {} != expected {}",
+                data.len(), layout.total_bytes
             ));
         }
+
+        macro_rules! load_weights {
+            ($w:literal) => {{
+                let ft_weights =
+                    read_i16s(data, layout.ft_w_offset, layout.ft_w_count)?;
+                let ft_bias =
+                    read_i32s(data, layout.ft_b_offset, layout.ft_b_count)?;
+                let l1_weight =
+                    read_i16s(data, layout.l1_w_offset, layout.l1_w_count)?;
+                let l1_bias =
+                    read_i32s(data, layout.l1_b_offset, layout.l1_b_count)?;
+                let l2_weight =
+                    read_i16s(data, layout.l2_w_offset, layout.l2_w_count)?;
+                let l2_bias =
+                    read_i32s(data, layout.l2_b_offset, layout.l2_b_count)?;
+                let out_weight =
+                    read_i16s(data, layout.out_w_offset, layout.out_w_count)?;
+                let out_bias =
+                    read_i32s(data, layout.out_b_offset, layout.out_b_count)?;
+
+                // Fail-closed overflow safety: recompute the PROVEN
+                // worst-case bounds from the actual payload (i64
+                // arithmetic throughout — the abs of i16::MIN/i32::MIN is
+                // not representable in the source type) and refuse any
+                // artifact whose MACs could exceed the accumulator range.
+                // S10-E3: the L1 MAC accumulates in i64, so the l1 gate
+                // uses the i64 construction bound (dense_in * 32768 * QA
+                // + 2^31 << 2^63 for both widths). ft/l2/out stay i32.
+                let dense_in: i64 = (2 * $w) as i64;
+                let ft_bound = max_abs_i32(&ft_bias)
+                    + MAX_FEATURES_PER_PERSPECTIVE
+                        * max_abs_i16(&ft_weights);
+                let l1_bound = max_abs_i32(&l1_bias)
+                    + dense_in * max_abs_i16(&l1_weight)
+                        * NNUE_V2Q_QA as i64;
+                let l2_bound = max_abs_i32(&l2_bias)
+                    + 32 * max_abs_i16(&l2_weight) * NNUE_V2Q_QA as i64;
+                let out_bound = max_abs_i32(&out_bias)
+                    + 32 * max_abs_i16(&out_weight) * NNUE_V2Q_QA as i64;
+                let l1_bound_i64 = max_abs_i32(&l1_bias) as i64
+                    + dense_in * 32768i64 * NNUE_V2Q_QA as i64;
+                if ft_bound > i32::MAX as i64
+                    || l1_bound_i64 > i64::MAX
+                    || l2_bound > i32::MAX as i64
+                    || out_bound > i32::MAX as i64
+                {
+                    return Err(format!(
+                        "nnue-v2q-probe: payload exceeds proven MAC bounds \
+                         (ft={ft_bound}, l1={l1_bound}, l2={l2_bound}, \
+                         out={out_bound})"
+                    ));
+                }
+
+                Weights {
+                    ft_weights, ft_bias, l1_weight, l1_bias,
+                    l2_weight, l2_bias, out_weight, out_bias,
+                }
+            }};
+        }
+
+        let weights = match width {
+            FtWidth::W128 => WeightsFor::W128(load_weights!(128)),
+            FtWidth::W256 => WeightsFor::W256(load_weights!(256)),
+        };
 
         // S10-C3-C2: runtime L1 backend detection (once per load).
         #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
@@ -397,19 +555,17 @@ impl NnueV2QuantizedModel {
         let l1_backend = L1Backend::Scalar;
 
         Ok(NnueV2QuantizedModel {
-            ft_weights,
-            ft_bias,
-            l1_weight,
-            l1_bias,
-            l2_weight,
-            l2_bias,
-            out_weight,
-            out_bias,
+            weights,
             source_fp32_artifact_sha256,
             source_checkpoint_sha256,
             l1_backend,
             target_mode,
         })
+    }
+
+    /// S10-G1: the authenticated FT width of this model.
+    pub fn ft_width(&self) -> FtWidth {
+        self.weights.width()
     }
 
     /// S10-F1: semantic mode carried by this artifact. Callers MUST check
@@ -424,40 +580,33 @@ impl NnueV2QuantizedModel {
         self.l1_backend
     }
 
-    /// Integer accumulator: `q_bias + sum(active feature rows)` (A units).
-    fn accumulate(&self, indices: &[u16]) -> [i32; NNUE_V2Q_FT_WIDTH] {
-        let mut acc = [0i32; NNUE_V2Q_FT_WIDTH];
-        for i in 0..NNUE_V2Q_FT_WIDTH {
-            acc[i] = self.ft_bias[i];
-        }
-        for &idx in indices {
-            let base = (idx as usize) * NNUE_V2Q_FT_WIDTH;
-            for (i, slot) in acc.iter_mut().enumerate() {
-                // i32 accumulation; proven bound 1,016,721 << i32::MAX.
-                *slot = slot
-                    .wrapping_add(self.ft_weights[base + i] as i32);
-            }
-        }
-        acc
-    }
-
     /// Full integer forward pass; returns the raw integer output (A units).
     /// Single fact path: full_accumulator -> evaluate_raw_from_accumulator.
     pub fn evaluate_raw(&self, pos: &Position) -> i32 {
-        let acc = self.full_accumulator(pos);
-        self.evaluate_raw_from_accumulator(pos, &acc)
+        match &self.weights {
+            WeightsFor::W128(w) => {
+                let acc = full_acc::<128>(w, pos);
+                dense_forward::<128>(w, pos, &acc, self.l1_backend)
+            }
+            WeightsFor::W256(w) => {
+                let acc = full_acc::<256>(w, pos);
+                dense_forward::<256>(w, pos, &acc, self.l1_backend)
+            }
+        }
     }
 
     /// Full-refresh accumulator for both perspectives of `pos`.
     ///
     /// Stored ALWAYS in White/Black perspective order (never STM/NSTM);
     /// the dense forward swaps by side-to-move at evaluation time.
-    pub fn full_accumulator(&self, pos: &Position) -> NnueV2Accumulator {
-        NnueV2Accumulator {
-            white: self.full_accumulator_for_perspective(
-                pos, NnuePerspective::White),
-            black: self.full_accumulator_for_perspective(
-                pos, NnuePerspective::Black),
+    pub fn full_accumulator(&self, pos: &Position) -> AccumulatorFor {
+        match &self.weights {
+            WeightsFor::W128(w) => {
+                AccumulatorFor::W128(full_acc::<128>(w, pos))
+            }
+            WeightsFor::W256(w) => {
+                AccumulatorFor::W256(full_acc::<256>(w, pos))
+            }
         }
     }
 
@@ -467,80 +616,49 @@ impl NnueV2QuantizedModel {
         &self,
         pos: &Position,
         perspective: NnuePerspective,
-    ) -> [i32; NNUE_V2Q_FT_WIDTH] {
+    ) -> LanesFor {
         let features = active_features_v2(pos, perspective);
-        self.accumulate(&features)
+        match &self.weights {
+            WeightsFor::W128(w) => {
+                LanesFor::W128(accumulate_lanes::<128>(w, &features))
+            }
+            WeightsFor::W256(w) => {
+                LanesFor::W256(accumulate_lanes::<256>(w, &features))
+            }
+        }
     }
 
     /// S10-C3-A microcost shim: FT accumulate from PRECOMPUTED feature
     /// indices (isolates the accumulator math from feature extraction).
-    pub fn accumulate_public(
-        &self,
-        indices: &[u16],
-    ) -> [i32; NNUE_V2Q_FT_WIDTH] {
-        self.accumulate(indices)
+    pub fn accumulate_public(&self, indices: &[u16]) -> LanesFor {
+        match &self.weights {
+            WeightsFor::W128(w) => {
+                LanesFor::W128(accumulate_lanes::<128>(w, indices))
+            }
+            WeightsFor::W256(w) => {
+                LanesFor::W256(accumulate_lanes::<256>(w, indices))
+            }
+        }
     }
 
     /// Incrementally update `acc` across the transition `before -> after`.
     ///
-    /// Frozen S10-C1 rules:
-    /// - For each perspective, if its OWN king square changed, that
-    ///   perspective is fully refreshed (the V2 own-king conditioning
-    ///   controls orientation, horizontal mirror, and bucket; a king move
-    ///   can flip the mirror regime of the whole perspective).
-    /// - Otherwise only changed squares are applied: subtract the FT row
-    ///   of the before-piece's feature, add the FT row of the after-
-    ///   piece's feature. The opponent king participates normally as
-    ///   channel 10.
-    /// - Changed squares are found by a 64-square board diff (correctness
-    ///   first; Move-aware dirty extraction is C2/C3 work).
+    /// Frozen S10-C1 rules (see the per-width kernel for details).
     pub fn update_accumulator(
         &self,
-        acc: &mut NnueV2Accumulator,
+        acc: &mut AccumulatorFor,
         before: &Position,
         after: &Position,
     ) -> UpdateStats {
-        let mut stats = UpdateStats::default();
-        for (perspective, lanes) in [
-            (NnuePerspective::White, &mut acc.white),
-            (NnuePerspective::Black, &mut acc.black),
-        ] {
-            let own_king_moved = before.king_square(perspective.color())
-                != after.king_square(perspective.color());
-            if own_king_moved {
-                let fresh_lanes =
-                    self.full_accumulator_for_perspective(after, perspective);
-                lanes.copy_from_slice(&fresh_lanes);
-                stats.full_refreshes += 1;
-                continue;
+        match (&self.weights, acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                update_acc(w, a, before, after)
             }
-            let mut deltas = 0usize;
-            for sq in 0..64 {
-                let old_piece = before.board()[sq];
-                let new_piece = after.board()[sq];
-                if old_piece == new_piece {
-                    continue;
-                }
-                if let Some(piece) = old_piece {
-                    if let Some(f) = v2_feature_for_piece(
-                        before, perspective, sq as Square, piece)
-                    {
-                        self.apply_feature(lanes, f, -1);
-                        deltas += 1;
-                    }
-                }
-                if let Some(piece) = new_piece {
-                    if let Some(f) = v2_feature_for_piece(
-                        after, perspective, sq as Square, piece)
-                    {
-                        self.apply_feature(lanes, f, 1);
-                        deltas += 1;
-                    }
-                }
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                update_acc(w, a, before, after)
             }
-            stats.delta_updates += deltas;
+            _ => panic!("accumulator width does not match model"),
         }
-        stats
     }
 
     /// Build the fixed-size move description for `mv` played from `pos`
@@ -624,52 +742,22 @@ impl NnueV2QuantizedModel {
     /// Move-aware incremental update (C2A production path).
     ///
     /// `delta` was prepared against the PARENT position; `child` is the
-    /// position AFTER the move. For every perspective whose own king did
-    /// not move, the king context is identical in parent and child, so
-    /// old AND new feature indices are computed with the CHILD's king
-    /// context — no parent position copy is needed on the search hot path.
-    /// The perspective whose king moved is fully refreshed (its feature
-    /// indices are undefined under the old context).
+    /// position AFTER the move. See the per-width kernel for the rules.
     pub fn update_accumulator_for_move(
         &self,
-        acc: &mut NnueV2Accumulator,
+        acc: &mut AccumulatorFor,
         delta: &NnueMoveDelta,
         child: &Position,
     ) -> UpdateStats {
-        let mut stats = UpdateStats::default();
-        for (perspective, lanes) in [
-            (NnuePerspective::White, &mut acc.white),
-            (NnuePerspective::Black, &mut acc.black),
-        ] {
-            if delta.moved_king == Some(perspective.color()) {
-                let fresh =
-                    self.full_accumulator_for_perspective(child, perspective);
-                lanes.copy_from_slice(&fresh);
-                stats.full_refreshes += 1;
-                continue;
+        match (&self.weights, acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                update_acc_for_move(w, a, delta, child)
             }
-            let mut deltas = 0usize;
-            for entry in delta.removed.iter().flatten() {
-                let (sq, piece) = *entry;
-                if let Some(f) =
-                    v2_feature_for_piece(child, perspective, sq, piece)
-                {
-                    self.apply_feature(lanes, f, -1);
-                    deltas += 1;
-                }
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                update_acc_for_move(w, a, delta, child)
             }
-            for entry in delta.added.iter().flatten() {
-                let (sq, piece) = *entry;
-                if let Some(f) =
-                    v2_feature_for_piece(child, perspective, sq, piece)
-                {
-                    self.apply_feature(lanes, f, 1);
-                    deltas += 1;
-                }
-            }
-            stats.delta_updates += deltas;
+            _ => panic!("accumulator width does not match model"),
         }
-        stats
     }
 
     /// Dense forward pass from an (incremental or fresh) accumulator.
@@ -677,91 +765,16 @@ impl NnueV2QuantizedModel {
     pub fn evaluate_raw_from_accumulator(
         &self,
         pos: &Position,
-        acc: &NnueV2Accumulator,
+        acc: &AccumulatorFor,
     ) -> i32 {
-        let (own_acc, opp_acc) = match pos.side_to_move() {
-            Color::White => (&acc.white, &acc.black),
-            Color::Black => (&acc.black, &acc.white),
-        };
-
-        // ClippedReLU(0, QA) -> 256 activations.
-        let mut acts = [0i32; 256];
-        for i in 0..NNUE_V2Q_FT_WIDTH {
-            acts[i] = clamp_i(own_acc[i], 0, NNUE_V2Q_QA as i32);
-            acts[NNUE_V2Q_FT_WIDTH + i] =
-                clamp_i(opp_acc[i], 0, NNUE_V2Q_QA as i32);
-        }
-
-        // l1: 256 -> 32 (MAC at accumulator precision).
-        // S10-E3: the 1M-trained model's L1 weights push the worst-case
-        // |b| + 256*|w|*QA product past i32::MAX (2.77e9), so the scalar
-        // path now accumulates in i64 and narrows after shift_round —
-        // bit-identical to the previous i32 path for every artifact that
-        // never overflowed (integer arithmetic has no intermediate
-        // rounding), and provably safe for larger-trained artifacts. The
-        // construction cannot overflow i64: 256 * 32767 * 4096 + 2^31
-        // << 2^63. S10-C3-C2 backend dispatch stays; both backends are
-        // bit-exact within the (now i64-proven) range.
-        let mut a1 = [0i32; 32];
-        #[allow(unused_mut)]
-        match self.l1_backend {
-            L1Backend::Scalar => {
-                for o in 0..32 {
-                    let mut z = self.l1_bias[o] as i64;
-                    let row = o * 256;
-                    for i in 0..256 {
-                        z += (self.l1_weight[row + i] as i64) * acts[i] as i64;
-                    }
-                    a1[o] = clamp_i(
-                        shift_round64(z, NNUE_V2Q_DENSE_Z_SHIFT) as i32,
-                        0, NNUE_V2Q_QA as i32);
-                }
+        match (&self.weights, acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                dense_forward::<128>(w, pos, a, self.l1_backend)
             }
-            #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
-            L1Backend::Avx2 => unsafe {
-                l1_dense_avx2(
-                    &self.l1_weight, &self.l1_bias, &acts, &mut a1,
-                );
-            },
-            #[cfg(any(not(target_arch = "x86_64"), feature = "force_scalar_l1"))]
-            L1Backend::Avx2 => unreachable!(
-                "Avx2 backend cannot be selected in this configuration"
-            ),
-        }
-
-        // l2: 32 -> 32
-        let mut a2 = [0i32; 32];
-        for o in 0..32 {
-            let mut z = self.l2_bias[o];
-            let row = o * 32;
-            for i in 0..32 {
-                z += (self.l2_weight[row + i] as i32) * a1[i];
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                dense_forward::<256>(w, pos, a, self.l1_backend)
             }
-            a2[o] = clamp_i(shift_round(z, NNUE_V2Q_DENSE_Z_SHIFT), 0,
-                             NNUE_V2Q_QA as i32);
-        }
-
-        // out: 32 -> 1
-        let mut z_out = self.out_bias[0];
-        for i in 0..32 {
-            z_out += (self.out_weight[i] as i32) * a2[i];
-        }
-        shift_round(z_out, NNUE_V2Q_DENSE_Z_SHIFT)
-    }
-
-    /// Apply one feature row (`+1` add / `-1` subtract) to a lane set.
-    fn apply_feature(&self, lanes: &mut [i32; NNUE_V2Q_FT_WIDTH],
-                     feature: u16, sign: i32) {
-        debug_assert!(sign == 1 || sign == -1);
-        let base = (feature as usize) * NNUE_V2Q_FT_WIDTH;
-        for (i, slot) in lanes.iter_mut().enumerate() {
-            if sign > 0 {
-                *slot = slot
-                    .wrapping_add(self.ft_weights[base + i] as i32);
-            } else {
-                *slot = slot
-                    .wrapping_sub(self.ft_weights[base + i] as i32);
-            }
+            _ => panic!("accumulator width does not match model"),
         }
     }
 
@@ -790,7 +803,7 @@ impl NnueV2QuantizedModel {
     pub fn evaluate_cp_i32_from_accumulator(
         &self,
         pos: &Position,
-        acc: &NnueV2Accumulator,
+        acc: &AccumulatorFor,
     ) -> i32 {
         let raw = self.evaluate_raw_from_accumulator(pos, acc);
         Self::cp_i32_from_raw(raw)
@@ -801,6 +814,264 @@ impl NnueV2QuantizedModel {
     pub fn evaluate_cp_i32(&self, pos: &Position) -> i32 {
         Self::cp_i32_from_raw(self.evaluate_raw(pos))
     }
+}
+
+// ---------------------------------------------------------------------------
+// S10-G1 const-generic kernels (one specialization per authenticated width)
+// ---------------------------------------------------------------------------
+
+/// Width-erased accumulator owned by the model's width. The search stack
+/// stores this; no heap, both variants are fixed arrays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccumulatorFor {
+    W128(NnueV2Accumulator<128>),
+    W256(NnueV2Accumulator<256>),
+}
+
+impl AccumulatorFor {
+    pub fn white(&self) -> &[i32] {
+        match self {
+            AccumulatorFor::W128(a) => &a.white,
+            AccumulatorFor::W256(a) => &a.white,
+        }
+    }
+
+    pub fn black(&self) -> &[i32] {
+        match self {
+            AccumulatorFor::W128(a) => &a.black,
+            AccumulatorFor::W256(a) => &a.black,
+        }
+    }
+
+    pub fn white_mut(&mut self) -> &mut [i32] {
+        match self {
+            AccumulatorFor::W128(a) => &mut a.white,
+            AccumulatorFor::W256(a) => &mut a.white,
+        }
+    }
+
+    pub fn black_mut(&mut self) -> &mut [i32] {
+        match self {
+            AccumulatorFor::W128(a) => &mut a.black,
+            AccumulatorFor::W256(a) => &mut a.black,
+        }
+    }
+}
+
+/// Width-erased single-perspective lanes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LanesFor {
+    W128([i32; 128]),
+    W256([i32; 256]),
+}
+
+/// FT accumulate: `q_bias + sum(active feature rows)` (A units), i32
+/// accumulation (proven bound far below i32::MAX for both widths).
+fn accumulate_lanes<const W: usize>(w: &Weights<W>, indices: &[u16])
+    -> [i32; W] {
+    let mut acc = [0i32; W];
+    acc[..].copy_from_slice(&w.ft_bias[..W]);
+    for &idx in indices {
+        let base = (idx as usize) * W;
+        for (i, slot) in acc.iter_mut().enumerate() {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        }
+    }
+    acc
+}
+
+fn full_acc<const W: usize>(w: &Weights<W>, pos: &Position)
+    -> NnueV2Accumulator<W> {
+    NnueV2Accumulator {
+        white: accumulate_lanes(
+            w, &active_features_v2(pos, NnuePerspective::White)),
+        black: accumulate_lanes(
+            w, &active_features_v2(pos, NnuePerspective::Black)),
+    }
+}
+
+/// Apply one feature row (`+1` add / `-1` subtract) to a lane set.
+#[inline]
+fn apply_feature_row<const W: usize>(
+    w: &Weights<W>, lanes: &mut [i32; W], feature: u16, sign: i32,
+) {
+    debug_assert!(sign == 1 || sign == -1);
+    let base = (feature as usize) * W;
+    for (i, slot) in lanes.iter_mut().enumerate() {
+        if sign > 0 {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        } else {
+            *slot = slot.wrapping_sub(w.ft_weights[base + i] as i32);
+        }
+    }
+}
+
+/// Position-diff incremental update (S10-C1 rules; see the historical
+/// doc comment — own-king move refreshes that perspective, otherwise
+/// changed squares are applied as feature-row deltas).
+fn update_acc<const W: usize>(
+    w: &Weights<W>,
+    acc: &mut NnueV2Accumulator<W>,
+    before: &Position,
+    after: &Position,
+) -> UpdateStats {
+    let mut stats = UpdateStats::default();
+    for (perspective, lanes) in [
+        (NnuePerspective::White, &mut acc.white),
+        (NnuePerspective::Black, &mut acc.black),
+    ] {
+        let own_king_moved = before.king_square(perspective.color())
+            != after.king_square(perspective.color());
+        if own_king_moved {
+            let fresh = accumulate_lanes(
+                w, &active_features_v2(after, perspective));
+            lanes.copy_from_slice(&fresh);
+            stats.full_refreshes += 1;
+            continue;
+        }
+        let mut deltas = 0usize;
+        for sq in 0..64 {
+            let old_piece = before.board()[sq];
+            let new_piece = after.board()[sq];
+            if old_piece == new_piece {
+                continue;
+            }
+            if let Some(piece) = old_piece {
+                if let Some(f) = v2_feature_for_piece(
+                    before, perspective, sq as Square, piece)
+                {
+                    apply_feature_row(w, lanes, f, -1);
+                    deltas += 1;
+                }
+            }
+            if let Some(piece) = new_piece {
+                if let Some(f) = v2_feature_for_piece(
+                    after, perspective, sq as Square, piece)
+                {
+                    apply_feature_row(w, lanes, f, 1);
+                    deltas += 1;
+                }
+            }
+        }
+        stats.delta_updates += deltas;
+    }
+    stats
+}
+
+/// Move-aware incremental update (C2A production path; rules unchanged
+/// from the historical implementation).
+fn update_acc_for_move<const W: usize>(
+    w: &Weights<W>,
+    acc: &mut NnueV2Accumulator<W>,
+    delta: &NnueMoveDelta,
+    child: &Position,
+) -> UpdateStats {
+    let mut stats = UpdateStats::default();
+    for (perspective, lanes) in [
+        (NnuePerspective::White, &mut acc.white),
+        (NnuePerspective::Black, &mut acc.black),
+    ] {
+        if delta.moved_king == Some(perspective.color()) {
+            let fresh = accumulate_lanes(
+                w, &active_features_v2(child, perspective));
+            lanes.copy_from_slice(&fresh);
+            stats.full_refreshes += 1;
+            continue;
+        }
+        let mut deltas = 0usize;
+        for entry in delta.removed.iter().flatten() {
+            let (sq, piece) = *entry;
+            if let Some(f) =
+                v2_feature_for_piece(child, perspective, sq, piece)
+            {
+                apply_feature_row(w, lanes, f, -1);
+                deltas += 1;
+            }
+        }
+        for entry in delta.added.iter().flatten() {
+            let (sq, piece) = *entry;
+            if let Some(f) =
+                v2_feature_for_piece(child, perspective, sq, piece)
+            {
+                apply_feature_row(w, lanes, f, 1);
+                deltas += 1;
+            }
+        }
+        stats.delta_updates += deltas;
+    }
+    stats
+}
+
+/// Dense forward pass (ClippedReLU -> L1 -> L2 -> out). L1 accumulates
+/// in i64 on the scalar path (S10-E3; the 1M L1 weights exceed the i32
+/// worst-case bound at BOTH widths — 256 and 512 inputs) and the AVX2
+/// path widens madd pair-products to i64 lanes every 16 weights.
+fn dense_forward<const W: usize>(
+    w: &Weights<W>,
+    pos: &Position,
+    acc: &NnueV2Accumulator<W>,
+    backend: L1Backend,
+) -> i32 {
+    let (own_acc, opp_acc) = match pos.side_to_move() {
+        Color::White => (&acc.white, &acc.black),
+        Color::Black => (&acc.black, &acc.white),
+    };
+
+    // ClippedReLU(0, QA) -> 2W activations.
+    let mut acts = [0i32; 2 * 256];
+    for i in 0..W {
+        acts[i] = clamp_i(own_acc[i], 0, NNUE_V2Q_QA as i32);
+        acts[W + i] = clamp_i(opp_acc[i], 0, NNUE_V2Q_QA as i32);
+    }
+
+    // l1: 2W -> 32
+    let mut a1 = [0i32; 32];
+    let dense_in = 2 * W;
+    #[allow(unused_mut)]
+    match backend {
+        L1Backend::Scalar => {
+            for o in 0..32 {
+                let mut z = w.l1_bias[o] as i64;
+                let row = o * dense_in;
+                for i in 0..dense_in {
+                    z += (w.l1_weight[row + i] as i64) * acts[i] as i64;
+                }
+                a1[o] = clamp_i(
+                    shift_round64(z, NNUE_V2Q_DENSE_Z_SHIFT) as i32,
+                    0, NNUE_V2Q_QA as i32);
+            }
+        }
+        #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
+        L1Backend::Avx2 => unsafe {
+            l1_dense_avx2(
+                &w.l1_weight, &w.l1_bias,
+                &acts[..dense_in], dense_in, &mut a1,
+            );
+        },
+        #[cfg(any(not(target_arch = "x86_64"), feature = "force_scalar_l1"))]
+        L1Backend::Avx2 => unreachable!(
+            "Avx2 backend cannot be selected in this configuration"
+        ),
+    }
+
+    // l2: 32 -> 32
+    let mut a2 = [0i32; 32];
+    for o in 0..32 {
+        let mut z = w.l2_bias[o];
+        let row = o * 32;
+        for i in 0..32 {
+            z += (w.l2_weight[row + i] as i32) * a1[i];
+        }
+        a2[o] = clamp_i(shift_round(z, NNUE_V2Q_DENSE_Z_SHIFT), 0,
+                         NNUE_V2Q_QA as i32);
+    }
+
+    // out: 32 -> 1
+    let mut z_out = w.out_bias[0];
+    for i in 0..32 {
+        z_out += (w.out_weight[i] as i32) * a2[i];
+    }
+    shift_round(z_out, NNUE_V2Q_DENSE_Z_SHIFT)
 }
 
 /// One-time AVX2 detection (S10-C3-C2). cfg'd to a constant on non-x86_64.
@@ -829,31 +1100,34 @@ fn is_avx2_detected() -> bool {
 /// i16 for the madd path.
 #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
 #[target_feature(enable = "avx2")]
+/// S10-G1: the AVX2 L1 kernel takes the activation SLICE (length
+/// dense_in = 2*W: 256 for FT128, 512 for FT256) plus the row stride.
+/// Same i64-widened accumulation as S10-E3.
 unsafe fn l1_dense_avx2(
-    w: &[i16],       // [32][256] output-major
+    w: &[i16],       // [32][dense_in] output-major
     bias: &[i32],    // [32]
-    acts: &[i32; 256],
+    acts: &[i32],    // [dense_in] (already clamped to [0, QA])
+    dense_in: usize,
     out: &mut [i32; 32],
 ) {
     use std::arch::x86_64::*;
 
+    debug_assert_eq!(acts.len(), dense_in);
+    debug_assert_eq!(w.len(), 32 * dense_in);
+    debug_assert!(dense_in % 16 == 0, "dense_in must be 16-lane aligned");
+
     // Activations are already clamped to [0, 4096]: pack to i16 once.
-    let mut a16 = [0i16; 256];
-    for i in 0..256 {
+    let mut a16 = [0i16; 512];
+    for i in 0..dense_in {
         a16[i] = acts[i] as i16;
     }
 
-    // S10-E3: the 1M-trained L1 weights exceed the old i32 worst-case MAC
-    // bound (256*|w|*4096 up to 2.77e9 > i32::MAX), so the pair products
-    // are widened to i64 lanes every 32 weights (two madd results per
-    // widen) and accumulated there — bit-identical to the scalar i64 path
-    // (integer arithmetic, no intermediate rounding).
     for o in 0..32 {
-        let row = o * 256;
-        // 8 i64 accumulator lanes (4 per 128-bit half).
+        let row = o * dense_in;
+        // 4 i64 accumulator lanes.
         let mut vacc_lo = _mm256_setzero_si256(); // i64 x4
         let mut i = 0;
-        while i < 256 {
+        while i < dense_in {
             let wv = _mm256_loadu_si256(
                 w.as_ptr().add(row + i) as *const __m256i);
             let av = _mm256_loadu_si256(
@@ -968,6 +1242,15 @@ mod tests {
 
     use super::*;
 
+    fn layout128() -> PayloadLayout {
+        PayloadLayout::derive(22528, FtWidth::W128)
+            .expect("ft128 layout")
+    }
+    fn layout256() -> PayloadLayout {
+        PayloadLayout::derive(22528, FtWidth::W256)
+            .expect("ft256 layout")
+    }
+
     /// Synthetic EUNN2Q01 artifact with deterministic weights: every active
     /// startpos feature row is [16; 128] (= 0.00390625 float), ft_bias 8,
     /// l1 weights 256 rows of all 1s? Too big to hand-build in full; instead
@@ -985,7 +1268,7 @@ mod tests {
         let white = active_features_v2(&pos, NnuePerspective::White);
         let black = active_features_v2(&pos, NnuePerspective::Black);
 
-        let mut out = Vec::with_capacity(TOTAL_BYTES);
+        let mut out = Vec::with_capacity(layout128().total_bytes);
         out.extend_from_slice(&NNUE_V2Q_MAGIC);
         out.extend_from_slice(&NNUE_V2Q_VERSION.to_le_bytes());
         out.extend_from_slice(&(NNUE_INPUTS_V2 as u32).to_le_bytes());
@@ -1000,7 +1283,7 @@ mod tests {
         out.extend_from_slice(&HISTORICAL_SOURCE_CHECKPOINT_SHA);
 
         // FT: active rows 16, bias 8 per lane.
-        let mut ft = vec![0i16; FT_W_COUNT];
+        let mut ft = vec![0i16; layout128().ft_w_count];
         for &idx in white.iter().chain(black.iter()) {
             let base = (idx as usize) * NNUE_V2Q_FT_WIDTH;
             for i in 0..NNUE_V2Q_FT_WIDTH {
@@ -1010,14 +1293,14 @@ mod tests {
         for v in &ft {
             out.extend_from_slice(&v.to_le_bytes());
         }
-        for _ in 0..FT_B_COUNT {
+        for _ in 0..layout128().ft_b_count {
             out.extend_from_slice(&8i32.to_le_bytes());
         }
         // l1: all weights 2 (float 2/4096), bias 0.
-        for _ in 0..L1_W_COUNT {
+        for _ in 0..layout128().l1_w_count {
             out.extend_from_slice(&2i16.to_le_bytes());
         }
-        for _ in 0..L1_B_COUNT {
+        for _ in 0..layout128().l1_b_count {
             out.extend_from_slice(&0i32.to_le_bytes());
         }
         // l2: identity * 2, bias 0.
@@ -1027,15 +1310,15 @@ mod tests {
                 out.extend_from_slice(&v.to_le_bytes());
             }
         }
-        for _ in 0..L2_B_COUNT {
+        for _ in 0..layout128().l2_b_count {
             out.extend_from_slice(&0i32.to_le_bytes());
         }
         // out: all 2, bias 0.
-        for _ in 0..OUT_W_COUNT {
+        for _ in 0..layout128().out_w_count {
             out.extend_from_slice(&2i16.to_le_bytes());
         }
         out.extend_from_slice(&0i32.to_le_bytes());
-        assert_eq!(out.len(), TOTAL_BYTES);
+        assert_eq!(out.len(), layout128().total_bytes);
         out
     }
 
@@ -1052,31 +1335,12 @@ mod tests {
             NnueV2QuantizedModel::from_bytes(&synthetic_artifact_bytes(START_FEN))
                 .unwrap();
         let mut pos = Position::startpos();
-        // Walk a few moves; every eval must match the scalar reference.
+        // Walk a few moves; every eval must match the model's own
+        // from-accumulator path (the AVX2/scalar dispatch happens inside).
         for m in generate_legal_moves(&mut pos.clone()).into_iter().take(8) {
             let undo = pos.make_move(m);
             let avx_raw = model.evaluate_raw(&pos);
-            // scalar reference: recompute l1 by hand from the same
-            // accumulator (mirrors the Scalar arm of the dispatch).
             let acc = model.full_accumulator(&pos);
-            let (own_acc, opp_acc) = match pos.side_to_move() {
-                Color::White => (&acc.white, &acc.black),
-                Color::Black => (&acc.black, &acc.white),
-            };
-            let mut acts = [0i32; 256];
-            for i in 0..NNUE_V2Q_FT_WIDTH {
-                acts[i] = clamp_i(own_acc[i], 0, NNUE_V2Q_QA as i32);
-                acts[NNUE_V2Q_FT_WIDTH + i] =
-                    clamp_i(opp_acc[i], 0, NNUE_V2Q_QA as i32);
-            }
-            let mut z1 = [0i32; 32];
-            for o in 0..32 {
-                z1[o] = model.l1_bias[o];
-                for i in 0..256 {
-                    z1[o] += (model.l1_weight[o * 256 + i] as i32) * acts[i];
-                }
-            }
-            let _ = z1; // l2/out reuse the model's own path below
             let ref_raw = model.evaluate_raw_from_accumulator(&pos, &acc);
             assert_eq!(avx_raw, ref_raw, "backend mismatch after {m:?}");
             pos.unmake_move(undo);
@@ -1095,6 +1359,7 @@ mod tests {
         // z_out = 0 -> raw = 0
         assert_eq!(model.evaluate_raw(&pos), 0);
         assert_eq!(model.evaluate_cp(&pos), 0.0);
+        assert_eq!(model.ft_width(), FtWidth::W128);
     }
 
     #[test]
@@ -1103,8 +1368,8 @@ mod tests {
         data[0] = b'X';
         assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
         let mut data = synthetic_artifact_bytes(START_FEN);
-        // v1 and v2 are both loadable now; v3 does not exist yet.
-        data[8..12].copy_from_slice(&3u32.to_le_bytes());
+        // v1/v2/v3 loadable; v4 does not exist.
+        data[8..12].copy_from_slice(&4u32.to_le_bytes());
         assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
         // tamper dense_w_shift
         let mut data = synthetic_artifact_bytes(START_FEN);
@@ -1113,6 +1378,15 @@ mod tests {
         // tamper inputs
         let mut data = synthetic_artifact_bytes(START_FEN);
         data[12..16].copy_from_slice(&40960u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
+        // v2 declaring ft_width 256 must be REJECTED (v2 is strictly FT128)
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        data[8..12].copy_from_slice(&2u32.to_le_bytes());
+        data[16..20].copy_from_slice(&256u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
+        // v3 declaring an unauthenticated width (192) must be rejected
+        let mut data = synthetic_artifact_bytes(START_FEN);
+        data[16..20].copy_from_slice(&192u32.to_le_bytes());
         assert!(NnueV2QuantizedModel::from_bytes(&data).is_err());
     }
 
@@ -1177,7 +1451,7 @@ mod tests {
         // old i32 bound would have failed — see
         // accepts_l1_bound_beyond_i32; the L2/out/ft gates stay i32.)
         let mut data = synthetic_artifact_bytes(START_FEN);
-        let base = L2_W_OFFSET;
+        let base = layout128().l2_w_offset;
         for chunk in data[base..base + 64].chunks_exact_mut(2) {
             chunk.copy_from_slice(&i16::MAX.to_le_bytes());
         }
@@ -1194,7 +1468,7 @@ mod tests {
         // (bound 256*32767*4096 + 2^31 << 2^63) and narrows after
         // shift_round. This is exactly the 1M-trained artifact's regime.
         let mut data = synthetic_artifact_bytes(START_FEN);
-        let base = L1_W_OFFSET;
+        let base = layout128().l1_w_offset;
         for chunk in data[base..base + 1024].chunks_exact_mut(2) {
             chunk.copy_from_slice(&i16::MAX.to_le_bytes());
         }
@@ -1210,7 +1484,7 @@ mod tests {
         // huge bias to violate it.
         let mut data = synthetic_artifact_bytes(START_FEN);
         // Overwrite the first 128 biases with i32::MAX.
-        let base = FT_B_OFFSET;
+        let base = layout128().ft_b_offset;
         for chunk in data[base..base + 128 * 4].chunks_exact_mut(4) {
             chunk.copy_from_slice(&i32::MAX.to_le_bytes());
         }
@@ -1239,7 +1513,7 @@ mod tests {
         // rejected by the bound scan (|MIN| = 2^31 > i32::MAX), never
         // panic or wrap.
         let mut data = synthetic_artifact_bytes(START_FEN);
-        let base = FT_B_OFFSET;
+        let base = layout128().ft_b_offset;
         for chunk in data[base..base + 128 * 4].chunks_exact_mut(4) {
             chunk.copy_from_slice(&i32::MIN.to_le_bytes());
         }
@@ -1256,7 +1530,7 @@ mod tests {
         // (S10-E3: L1 i16::MIN is now LEGAL — the i64 MAC — see
         // accepts_l1_bound_beyond_i32.)
         let mut data = synthetic_artifact_bytes(START_FEN);
-        let base = L2_W_OFFSET;
+        let base = layout128().l2_w_offset;
         for chunk in data[base..base + 64].chunks_exact_mut(2) {
             chunk.copy_from_slice(&i16::MIN.to_le_bytes());
         }
@@ -1309,17 +1583,17 @@ mod tests {
         model: &NnueV2QuantizedModel,
         before: &Position,
         after: &Position,
-        mut acc: NnueV2Accumulator,
+        mut acc: AccumulatorFor,
         context: &str,
     ) -> UpdateStats {
         let stats = model.update_accumulator(&mut acc, before, after);
         let fresh = model.full_accumulator(after);
         assert_eq!(
-            acc.white, fresh.white,
+            acc.white(), fresh.white(),
             "white lanes mismatch ({context})"
         );
         assert_eq!(
-            acc.black, fresh.black,
+            acc.black(), fresh.black(),
             "black lanes mismatch ({context})"
         );
         let inc_raw = model.evaluate_raw_from_accumulator(after, &acc);
@@ -1494,15 +1768,15 @@ mod tests {
             let mut acc = parent_acc;
             model.update_accumulator(&mut acc, &before, &pos);
             let fresh = model.full_accumulator(&pos);
-            assert_eq!(acc.white, fresh.white, "make {m:?}");
-            assert_eq!(acc.black, fresh.black, "make {m:?}");
+            assert_eq!(acc.white(), fresh.white(), "make {m:?}");
+            assert_eq!(acc.black(), fresh.black(), "make {m:?}");
 
             // Unmake and verify the PARENT accumulator snapshot still
             // matches a fresh full refresh of the restored position.
             pos.unmake_move(undo);
             let parent_fresh = model.full_accumulator(&pos);
-            assert_eq!(parent_acc.white, parent_fresh.white);
-            assert_eq!(parent_acc.black, parent_fresh.black);
+            assert_eq!(parent_acc.white(), parent_fresh.white());
+            assert_eq!(parent_acc.black(), parent_fresh.black());
         }
     }
 
@@ -1639,10 +1913,10 @@ mod tests {
                 // C: full refresh.
                 let c = model.full_accumulator(&pos);
 
-                assert_eq!(a.white, b.white, "A!=B white for {m:?} in {fen}");
-                assert_eq!(a.black, b.black, "A!=B black for {m:?} in {fen}");
-                assert_eq!(a.white, c.white, "A!=C white for {m:?} in {fen}");
-                assert_eq!(a.black, c.black, "A!=C black for {m:?} in {fen}");
+                assert_eq!(a.white(), b.white(), "A!=B white for {m:?} in {fen}");
+                assert_eq!(a.black(), b.black(), "A!=B black for {m:?} in {fen}");
+                assert_eq!(a.white(), c.white(), "A!=C white for {m:?} in {fen}");
+                assert_eq!(a.black(), c.black(), "A!=C black for {m:?} in {fen}");
                 assert_eq!(
                     model.evaluate_raw_from_accumulator(&pos, &a),
                     model.evaluate_raw(&pos),
@@ -1669,8 +1943,8 @@ mod tests {
         let flipped = parse_fen(&fen.replace(" w KQkq", " b KQkq")).unwrap();
         let acc2 = model.full_accumulator(&flipped);
         // Accumulator lanes bit-identical across the null-move shape.
-        assert_eq!(acc.white, acc2.white);
-        assert_eq!(acc.black, acc2.black);
+        assert_eq!(acc.white(), acc2.white());
+        assert_eq!(acc.black(), acc2.black());
         // Dense forward sees the SAME accumulator but swaps STM/NSTM.
         let raw_w = model.evaluate_raw_from_accumulator(&pos, &acc);
         let raw_b = model.evaluate_raw_from_accumulator(&flipped, &acc);
@@ -1723,10 +1997,10 @@ mod tests {
                 model.update_accumulator(&mut b, &before, &pos);
                 let c = model.full_accumulator(&pos);
 
-                assert_eq!(a.white, b.white, "A!=B white @ {m:?}");
-                assert_eq!(a.black, b.black, "A!=B black @ {m:?}");
-                assert_eq!(a.white, c.white, "A!=C white @ {m:?}");
-                assert_eq!(a.black, c.black, "A!=C black @ {m:?}");
+                assert_eq!(a.white(), b.white(), "A!=B white @ {m:?}");
+                assert_eq!(a.black(), b.black(), "A!=B black @ {m:?}");
+                assert_eq!(a.white(), c.white(), "A!=C white @ {m:?}");
+                assert_eq!(a.black(), c.black(), "A!=C black @ {m:?}");
                 assert_eq!(
                     model.evaluate_raw_from_accumulator(&pos, &a),
                     model.evaluate_raw(&pos)

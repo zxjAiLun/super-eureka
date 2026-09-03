@@ -4002,25 +4002,26 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             // of the move-aware path).
             let mut reference = acc;
             model.update_accumulator(&mut reference, &before, &pos);
-            if inc.white != reference.white || inc.black != reference.black {
+            if inc.white() != reference.white() || inc.black() != reference.black() {
                 reference_mismatches += 1;
             }
 
             let fresh = model.full_accumulator(&pos);
-            lanes_checked += 256;
-            if inc.white != fresh.white {
+            lanes_checked += (fresh.white().len() + fresh.black().len())
+                as u64;
+            if inc.white() != fresh.white() {
                 white_lane_mismatches += inc
-                    .white
+                    .white()
                     .iter()
-                    .zip(fresh.white.iter())
+                    .zip(fresh.white().iter())
                     .filter(|(a, b)| a != b)
                     .count() as u64;
             }
-            if inc.black != fresh.black {
+            if inc.black() != fresh.black() {
                 black_lane_mismatches += inc
-                    .black
+                    .black()
                     .iter()
-                    .zip(fresh.black.iter())
+                    .zip(fresh.black().iter())
                     .filter(|(a, b)| a != b)
                     .count() as u64;
             }
@@ -4197,7 +4198,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
     // Pre-compute per-transition fixtures (untimed): parent accumulator,
     // prepared delta.
     struct IncrementalFixture {
-        parent_acc: crate::engine::nnue_v2q_runtime::NnueV2Accumulator,
+        parent_acc: crate::engine::nnue_v2q_runtime::AccumulatorFor,
         delta: crate::engine::nnue_v2q_runtime::NnueMoveDelta,
         #[allow(dead_code)]
         parent: Position,
@@ -4304,7 +4305,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
     }
 
     // 4. Dense forward (from precomputed accumulators).
-    let accs: Vec<crate::engine::nnue_v2q_runtime::NnueV2Accumulator> =
+    let accs: Vec<crate::engine::nnue_v2q_runtime::AccumulatorFor> =
         positions
             .iter()
             .map(|pos| model_arc.full_accumulator(pos))

@@ -40,20 +40,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 MAGIC = b"EUNN2F32"
 FORMAT_VERSION = 1
 INPUTS = 22528
-FT_WIDTH = 128
+FT_WIDTH = 128  # default; --ft-width overrides (S10-G1)
 TARGET_SCALE = 1000.0
 
 HEADER_BYTES = 8 + 4 + 4 + 4 + 4 + 32
-STATE_SHAPES = {
-    "ft_weights.weight": (INPUTS, FT_WIDTH),
-    "ft_bias": (FT_WIDTH,),
-    "l1.weight": (32, FT_WIDTH * 2),
-    "l1.bias": (32,),
-    "l2.weight": (32, 32),
-    "l2.bias": (32,),
-    "out.weight": (1, 32),
-    "out.bias": (1,),
-}
+def state_shapes(ft_width: int) -> dict:
+    return {
+        "ft_weights.weight": (INPUTS, ft_width),
+        "ft_bias": (ft_width,),
+        "l1.weight": (32, ft_width * 2),
+        "l1.bias": (32,),
+        "l2.weight": (32, 32),
+        "l2.bias": (32,),
+        "out.weight": (1, 32),
+        "out.bias": (1,),
+    }
 
 
 def tensor_f32_le_bytes(tensor: torch.Tensor) -> bytes:
@@ -73,7 +74,8 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
                         expected_seed: int | None,
                         expected_dataset_sha: str | None,
                         expected_labels_sha: str | None,
-                        expected_target_mode: str | None) -> dict:
+                        expected_target_mode: str | None,
+                        expected_ft_width: int | None = None) -> dict:
     data = path.read_bytes()
     sha = hashlib.sha256(data).hexdigest()
     if expected_sha is not None and sha != expected_sha:
@@ -95,7 +97,10 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
     # selected purely on validation, and the single winner-only holdout
     # evaluation happens BEFORE export without touching any parameter.
     checks["num_inputs"] = summary["architecture"]["num_inputs"] == INPUTS
-    checks["ft_width"] = summary["architecture"]["ft_width"] == FT_WIDTH
+    ft_w = summary["architecture"]["ft_width"]
+    checks["ft_width"] = summary["architecture"]["ft_width"] == FT_WIDTH \
+        if expected_ft_width is None else \
+        summary["architecture"]["ft_width"] == expected_ft_width
     if expected_target_mode is not None:
         checks["target_mode"] = (
             summary.get("target_mode") == expected_target_mode)
@@ -103,11 +108,12 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
     if bad:
         raise SystemExit(f"PIPELINE_FAILURE: summary mismatch: {bad}")
     sd = ckpt["model_state_dict"]
-    if set(sd) != set(STATE_SHAPES):
+    shapes = state_shapes(summary["architecture"]["ft_width"])
+    if set(sd) != set(shapes):
         raise SystemExit(
             f"PIPELINE_FAILURE: state-dict keys {sorted(sd)} != "
-            f"{sorted(STATE_SHAPES)}")
-    for key, shape in STATE_SHAPES.items():
+            f"{sorted(shapes)}")
+    for key, shape in shapes.items():
         if tuple(sd[key].shape) != shape:
             raise SystemExit(
                 f"PIPELINE_FAILURE: tensor {key} shape {tuple(sd[key].shape)}"
@@ -122,10 +128,11 @@ def export_artifact(ckpt_path: Path, out_path: Path,
                     expected_seed: int | None = None,
                     expected_dataset_sha: str | None = None,
                     expected_labels_sha: str | None = None,
-                    expected_target_mode: str | None = None) -> dict:
+                    expected_target_mode: str | None = None,
+                    expected_ft_width: int | None = None) -> dict:
     info = validate_checkpoint(
         ckpt_path, expected_sha, expected_seed, expected_dataset_sha,
-        expected_labels_sha, expected_target_mode)
+        expected_labels_sha, expected_target_mode, expected_ft_width)
     sd = info["state_dict"]
 
     ft_weights = sd["ft_weights.weight"]            # [22528, 128] input-major
@@ -140,7 +147,8 @@ def export_artifact(ckpt_path: Path, out_path: Path,
     header = bytearray()
     header += MAGIC
     header += __import__("struct").pack(
-        "<IIIf", FORMAT_VERSION, INPUTS, FT_WIDTH, TARGET_SCALE)
+        "<IIIf", FORMAT_VERSION, INPUTS,
+        int(sd["ft_bias"].shape[0]), TARGET_SCALE)
     header += bytes.fromhex(info["sha"])
 
     payload = bytearray()
@@ -160,7 +168,7 @@ def export_artifact(ckpt_path: Path, out_path: Path,
         "magic": MAGIC.decode(),
         "format_version": FORMAT_VERSION,
         "inputs": INPUTS,
-        "ft_width": FT_WIDTH,
+        "ft_width": int(sd["ft_bias"].shape[0]),
         "target_scale": TARGET_SCALE,
         "checkpoint_sha256": info["sha"],
         "seed": info["summary"]["seed"],
@@ -182,6 +190,8 @@ def main() -> int:
     ap.add_argument("--target-mode", choices=["cp", "material-residual"],
                     default=None,
                     help="require this target_mode in the checkpoint summary")
+    ap.add_argument("--ft-width", type=int, choices=[128, 256], default=None,
+                    help="require this ft_width in the checkpoint summary")
     args = ap.parse_args()
     info = export_artifact(
         args.checkpoint.resolve(), args.out.resolve(),
@@ -190,6 +200,7 @@ def main() -> int:
         expected_dataset_sha=args.dataset_sha,
         expected_labels_sha=args.labels_sha,
         expected_target_mode=args.target_mode,
+        expected_ft_width=args.ft_width,
     )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)

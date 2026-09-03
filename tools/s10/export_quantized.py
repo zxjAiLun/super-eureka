@@ -74,7 +74,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 MAGIC = b"EUNN2Q01"
 # v2: the reserved u32 after QA is `target_mode` (0=cp, 1=material_residual).
 # v1 artifacts implicitly carry mode cp.
-FORMAT_VERSION = 2
+# v3 (S10-G1): width-aware payload; ft_width may be 128 OR 256 (the two
+# AUTHENTICATED widths); v1/v2 are strictly FT128.
+FORMAT_VERSION = 3
 TARGET_MODE_CP = 0
 TARGET_MODE_MATERIAL_RESIDUAL = 1
 INPUTS = 22528
@@ -136,7 +138,8 @@ def build_quantized_arrays(sd: dict) -> dict:
     q_w_absmax_l1 = int(np.abs(l1_w_q).max())
     q_w_absmax_l2 = int(np.abs(l2_w_q).max())
     q_w_absmax_out = int(np.abs(out_w_q).max())
-    l1_bound = int(np.abs(l1_b_q).max()) + 256 * q_w_absmax_l1 * QA
+    dense_in = 2 * int(sd["ft_bias"].shape[0])
+    l1_bound = int(np.abs(l1_b_q).max()) + dense_in * q_w_absmax_l1 * QA
     l2_bound = int(np.abs(l2_b_q).max()) + 32 * q_w_absmax_l2 * QA
     out_bound = int(np.abs(out_b_q).max()) + 32 * q_w_absmax_out * QA
 
@@ -168,12 +171,13 @@ def build_quantized_arrays(sd: dict) -> dict:
 
 
 def artifact_bytes(q: dict, src_fp32_sha: str, src_ckpt_sha: str,
-                   target_mode: int = TARGET_MODE_CP) -> bytes:
+                   target_mode: int = TARGET_MODE_CP,
+                   ft_width: int = FT_WIDTH) -> bytes:
     import struct
     header = bytearray()
     header += MAGIC
     header += struct.pack(
-        "<IIIfIIIII", FORMAT_VERSION, INPUTS, FT_WIDTH, TARGET_SCALE,
+        "<IIIfIIIII", FORMAT_VERSION, INPUTS, ft_width, TARGET_SCALE,
         FT_SHIFT, DENSE_W_SHIFT, DENSE_Z_SHIFT, QA,
         target_mode)
     header += bytes.fromhex(src_fp32_sha)
@@ -203,13 +207,18 @@ def load_frozen_sd(checkpoint: Path, checkpoint_sha: str) -> tuple[dict, str]:
 def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
            checkpoint_sha: str | None = None,
            fp32_sha_expected: str | None = None,
-           target_mode: int = TARGET_MODE_CP) -> dict:
+           target_mode: int = TARGET_MODE_CP,
+           ft_width: int = FT_WIDTH) -> dict:
     sd, ckpt_sha = load_frozen_sd(checkpoint, checkpoint_sha)
     fp32_sha = hashlib.sha256(fp32_artifact.read_bytes()).hexdigest()
     if fp32_sha_expected is not None and fp32_sha != fp32_sha_expected:
         raise SystemExit("PIPELINE_FAILURE: FP32 artifact SHA mismatch")
+    if int(sd["ft_bias"].shape[0]) != ft_width:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: checkpoint ft_width "
+            f"{sd['ft_bias'].shape[0]} != requested {ft_width}")
     q = build_quantized_arrays(sd)
-    blob = artifact_bytes(q, fp32_sha, ckpt_sha, target_mode)
+    blob = artifact_bytes(q, fp32_sha, ckpt_sha, target_mode, ft_width)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(blob)
     return {
@@ -220,7 +229,7 @@ def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
         "format_version": FORMAT_VERSION,
         "target_mode": target_mode,
         "inputs": INPUTS,
-        "ft_width": FT_WIDTH,
+        "ft_width": ft_width,
         "shifts": {
             "ft": FT_SHIFT,
                         "dense_w": DENSE_W_SHIFT,
@@ -259,6 +268,8 @@ def main() -> int:
     ap.add_argument("--target-mode", choices=["cp", "material-residual"],
                     default="cp",
                     help="semantic mode recorded in the v2 header")
+    ap.add_argument("--ft-width", type=int, choices=[128, 256], default=128,
+                    help="feature-transformer width (v3 width-aware payload)")
     args = ap.parse_args()
     mode = (TARGET_MODE_CP if args.target_mode == "cp"
             else TARGET_MODE_MATERIAL_RESIDUAL)
@@ -267,6 +278,7 @@ def main() -> int:
         checkpoint_sha=args.checkpoint_sha or None,
         fp32_sha_expected=args.fp32_sha or None,
         target_mode=mode,
+        ft_width=args.ft_width,
     )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)

@@ -53,16 +53,17 @@ def load_quantized(path: Path):
     inputs = int.from_bytes(data[12:16], "little")
     ft_width = int.from_bytes(data[16:20], "little")
     mode = int.from_bytes(data[40:44], "little")
-    assert version == 2, f"expected v2, got {version}"
+    assert version in (2, 3), f"expected v2/v3, got {version}"
     assert mode == 1, f"expected target_mode=material_residual, got {mode}"
-    assert inputs == 22528 and ft_width == 128
+    assert inputs == 22528 and ft_width in (128, 256)
 
     off = 108
+    dense_in = 2 * ft_width
     ft_w = np.frombuffer(data, dtype="<i2", count=inputs * ft_width, offset=off)
     off += ft_w.nbytes
     ft_b = np.frombuffer(data, dtype="<i4", count=ft_width, offset=off)
     off += ft_b.nbytes
-    l1_w = np.frombuffer(data, dtype="<i2", count=32 * 256, offset=off)
+    l1_w = np.frombuffer(data, dtype="<i2", count=32 * dense_in, offset=off)
     off += l1_w.nbytes
     l1_b = np.frombuffer(data, dtype="<i4", count=32, offset=off)
     off += l1_b.nbytes
@@ -76,7 +77,7 @@ def load_quantized(path: Path):
     return {
         "ft_w": ft_w.reshape(inputs, ft_width),
         "ft_b": ft_b,
-        "l1_w": l1_w.reshape(32, 256),
+        "l1_w": l1_w.reshape(32, dense_in),
         "l1_b": l1_b,
         "l2_w": l2_w.reshape(32, 32),
         "l2_b": l2_b,
@@ -107,16 +108,18 @@ def py_quant_forward(q, features_stm: list[int], features_nstm: list[int]) -> in
     for idx in features_nstm:
         opp = opp + ft_w[idx].astype(object)
 
-    acts = [0] * 256
-    for i in range(128):
+    width = int(q["ft_b"].shape[0])
+    dense_in = 2 * width
+    acts = [0] * dense_in
+    for i in range(width):
         acts[i] = clamp_i(int(own[i]), 0, QA)
-        acts[128 + i] = clamp_i(int(opp[i]), 0, QA)
+        acts[width + i] = clamp_i(int(opp[i]), 0, QA)
 
     a1 = [0] * 32
     for o in range(32):
         z = int(q["l1_b"][o])
         row = q["l1_w"][o]
-        for i in range(256):
+        for i in range(dense_in):
             z += int(row[i]) * acts[i]
         a1[o] = clamp_i(shift_round(z, DENSE_Z_SHIFT), 0, QA)
 
@@ -243,7 +246,8 @@ def main() -> int:
     # FP32 vs quantized residual error + composed validation MAE
     ckpt = torch.load(args.checkpoint, map_location="cpu",
                       weights_only=False)
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2)
+    ft_w = int(ckpt["model_state_dict"]["ft_bias"].shape[0])
+    model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
     items = []
