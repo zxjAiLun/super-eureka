@@ -397,6 +397,15 @@ impl NnueV2QuantizedModel {
     /// STRICTLY FT128 — a v1/v2 artifact declaring a non-128 width is
     /// malformed and rejected).
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
+        // Fail closed on short/malformed inputs BEFORE any header slice
+        // (the dynamic-layout refactor previously read the version word
+        // before the length check; a 4-byte artifact would panic).
+        if data.len() < HEADER_BYTES {
+            return Err(format!(
+                "nnue-v2q-probe: bad length {} < header {HEADER_BYTES}",
+                data.len()
+            ));
+        }
         if data[0..8] != NNUE_V2Q_MAGIC {
             return Err("nnue-v2q-probe: bad magic".to_string());
         }
@@ -1397,6 +1406,12 @@ mod tests {
         let mut trailing = full.clone();
         trailing.push(0);
         assert!(NnueV2QuantizedModel::from_bytes(&trailing).is_err());
+        // S10-G1-B: SHORT inputs (even 4-byte garbage) must fail closed
+        // with Err, never panic on the header slice.
+        for n in (0..HEADER_BYTES).step_by(7) {
+            assert!(NnueV2QuantizedModel::from_bytes(&full[..n]).is_err());
+        }
+        assert!(NnueV2QuantizedModel::from_bytes(b"XX").is_err());
     }
 
     #[test]
