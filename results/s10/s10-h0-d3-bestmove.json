@@ -1,0 +1,38 @@
+{
+ "both": 230,
+ "a_only": 4,
+ "b_only": 1,
+ "neither": 265,
+ "net": -3,
+ "per_phase": {
+  "mid": {
+   "both": 98,
+   "a_only": 4,
+   "b_only": 1,
+   "neither": 102,
+   "n": 205
+  },
+  "high": {
+   "both": 61,
+   "a_only": 0,
+   "b_only": 0,
+   "neither": 65,
+   "n": 126
+  },
+  "low": {
+   "both": 43,
+   "a_only": 0,
+   "b_only": 0,
+   "neither": 65,
+   "n": 108
+  },
+  "zero": {
+   "both": 28,
+   "a_only": 0,
+   "b_only": 0,
+   "neither": 33,
+   "n": 61
+  }
+ },
+ "verdict": "FAIL (no Arena)"
+}

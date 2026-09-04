@@ -271,6 +271,9 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalNnueV2QMaterial => {
             "current-final-nnue-v2q-material"
         }
+        search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
+            "current-final-nnue-v2q-material-cal-fut"
+        }
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -748,6 +751,9 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     // material_residual; fail-closed otherwise).
                     "current-final-nnue-v2q-material" => {
                         search::SearchProfile::CurrentFinalNnueV2QMaterial
+                    }
+                    "current-final-nnue-v2q-material-cal-fut" => {
+                        search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut
                     }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {

@@ -266,6 +266,12 @@ pub(crate) enum SearchProfile {
     /// artifact carries the matching semantic mode. Never a production
     /// default - Arena decides.
     CurrentFinalNnueV2QMaterial,
+    /// S10-H0-D3: EXACTLY CurrentFinalNnueV2QMaterial with a single
+    /// additive futility-margin calibration K* = +75cp (derived from the
+    /// D2 bidirectional shadow records; see results/s10/
+    /// s10-h0-d3-replay-gate.json). One scalar, no slope/phase/depth
+    /// changes; every other gate untouched.
+    CurrentFinalNnueV2QMaterialCalFut,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -323,6 +329,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -357,6 +364,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -387,6 +395,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -419,6 +428,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -463,6 +473,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -494,6 +505,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -536,6 +548,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -613,6 +626,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -648,6 +662,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -683,6 +698,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -752,13 +768,18 @@ impl SearchProfile {
             Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
     /// S10-F1: true when the NNUE evaluator output is a cp RESIDUAL that
     /// must be composed with `material_cp_stm` (vs being the eval itself).
     pub(crate) const fn uses_nnue_material_residual(self) -> bool {
-        matches!(self, Self::CurrentFinalNnueV2QMaterial)
+        matches!(
+            self,
+            Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
+        )
     }
 
     /// S10-C2B: true when the NNUE evaluator must deliver accumulator
@@ -803,6 +824,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QFull
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
+                | Self::CurrentFinalNnueV2QMaterialCalFut
         )
     }
 
@@ -4850,7 +4872,16 @@ fn negamax_entered_impl_with_null_and_extensions(
     let mut s72_cutoff_happened = false;
     for (move_idx, m) in moves.into_iter().enumerate() {
         if let Some(static_eval) = futility_base {
-            let margin = 100 + depth as i32 * 100;
+            let margin = 100 + depth as i32 * 100
+                // S10-H0-D3: single additive calibration K* = +75cp for the
+                // NNUE-material futility margin (derived offline; replay gate
+                // -28.1%/-21.7% disagreement both trees).
+                + if _profile
+                    == SearchProfile::CurrentFinalNnueV2QMaterialCalFut {
+                    75
+                } else {
+                    0
+                };
             // S10-H0-D shadow: opportunity = all non-eval prerequisites pass.
             #[cfg(feature = "diagnostic_search_calibration")]
             if move_idx > 0
@@ -10439,10 +10470,13 @@ mod tests {
     #[test]
     fn s10c2b_nnue_profiles_inherit_current_final_policy() {
         use SearchProfile::{CurrentFinal, CurrentFinalNnueV2QFull,
-            CurrentFinalNnueV2QIncremental, CurrentFinalNnueV2QMaterial};
+            CurrentFinalNnueV2QIncremental, CurrentFinalNnueV2QMaterial,
+            CurrentFinalNnueV2QMaterialCalFut};
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QFull);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QIncremental);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterial);
+        assert_inherits_current_final_search_policy(
+            CurrentFinalNnueV2QMaterialCalFut);
         for cand in [CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental] {
             assert!(cand.uses_nnue_eval(), "{cand:?} must use NNUE eval");
             assert!(!cand.uses_eval2(), "{cand:?} must NOT use Eval2");
@@ -10455,6 +10489,8 @@ mod tests {
         // optimization gated to the two original profiles).
         assert!(CurrentFinalNnueV2QMaterial.uses_nnue_eval());
         assert!(CurrentFinalNnueV2QMaterial.uses_nnue_material_residual());
+        assert!(CurrentFinalNnueV2QMaterialCalFut.uses_nnue_eval());
+        assert!(CurrentFinalNnueV2QMaterialCalFut.uses_nnue_material_residual());
         assert!(!CurrentFinalNnueV2QMaterial.uses_eval2());
         assert!(!CurrentFinalNnueV2QMaterial.uses_nnue_incremental_stack());
         assert!(
@@ -10520,9 +10556,10 @@ mod tests {
                 SearchProfile::CurrentFinalNnueV2QFull => (),
                 SearchProfile::CurrentFinalNnueV2QIncremental => (),
                 SearchProfile::CurrentFinalNnueV2QMaterial => (),
+                SearchProfile::CurrentFinalNnueV2QMaterialCalFut => (),
             }
         }
-        let all: [SearchProfile; 45] = [
+        let all: [SearchProfile; 46] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -10568,6 +10605,7 @@ mod tests {
             SearchProfile::CurrentFinalNnueV2QFull,
             SearchProfile::CurrentFinalNnueV2QIncremental,
             SearchProfile::CurrentFinalNnueV2QMaterial,
+            SearchProfile::CurrentFinalNnueV2QMaterialCalFut,
         ];
         for profile in all {
             assert_exhaustive(profile);

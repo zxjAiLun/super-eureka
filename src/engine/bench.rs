@@ -221,6 +221,9 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
         SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
         SearchProfile::CurrentFinalNnueV2QMaterial => "current-final-nnue-v2q-material",
+        SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
+            "current-final-nnue-v2q-material-cal-fut"
+        }
     }
 }
 
@@ -494,6 +497,9 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
                     "current-final-nnue-v2q-material" => {
                         SearchProfile::CurrentFinalNnueV2QMaterial
+                    }
+                    "current-final-nnue-v2q-material-cal-fut" => {
+                        SearchProfile::CurrentFinalNnueV2QMaterialCalFut
                     }
                     other => {
                         return Err(format!(
