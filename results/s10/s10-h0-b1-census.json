@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "records": 1000000,
+  "groups": 996049,
+  "covered": 6765,
+  "coverage_pct": 0.6765,
+  "max_group_size": 4,
+  "group_size_histogram": {
+    "2": 1965,
+    "3": 561,
+    "4": 288
+  },
+  "cp_groups": 2719,
+  "global_collision_mae_floor_cp": 0.0866,
+  "collision_subset_mae_floor_cp": 12.8,
+  "dispersion": {
+    "median": 16,
+    "p90": 79,
+    "p95": 109,
+    "max": 948
+  },
+  "sign_disagree_groups": 0,
+  "bestmove_disagree_pairs": 5376,
+  "wdl_disagree_pairs": 1097,
+  "total_pairs": 5376,
+  "class_counts": {
+    "C": 1955,
+    "B": 859
+  },
+  "class_examples": {
+    "C:unexplained": [
+      {
+        "a": "r2qk2r/pp1n1ppp/2pbpn2/3p2B1/3P4/2PQPN2/PP3PPP/RN2K2R w KQkq - 4 9",
+        "b": "rn2k2r/pp3ppp/2pqpn2/3p4/3P2b1/2PBPN2/PP1N1PPP/R2QK2R b KQkq - 0 8",
+        "size": 2
+      },
+      {
+        "a": "r2qk2r/pp2bppp/4pn2/3p4/2PQ2b1/6P1/PP2PPBP/RNB2RK1 w kq - 1 10",
+        "b": "rnb2rk1/pp2ppbp/6p1/2pq2B1/3P4/4PN2/PP2BPPP/R2QK2R b KQ - 1 9",
+        "size": 2
+      },
+      {
+        "a": "r1bq1rk1/pp1nbpp1/2p2B1p/3p4/3P4/2NBPN2/PP3PPP/R2Q1RK1 b - - 0 10",
+        "b": "r2q1rk1/pp3ppp/2nbpn2/3p4/3P4/2P2b1P/PP1NBPP1/R1BQ1RK1 w - - 0 11",
+        "size": 2
+      },
+      {
+        "a": "r1bqk2r/pp3ppp/2n2n2/1Bbp4/8/2N2N2/PPP2PPP/R1BQ1RK1 b kq - 1 8",
+        "b": "r1bq1rk1/ppp2ppp/2n2n2/8/1bBP4/2N2N2/PP3PPP/R1BQK2R w KQ - 1 9",
+        "size": 2
+      },
+      {
+        "a": "r2qk2r/ppp2ppp/2nbpn2/8/2BP2b1/2N1PN2/PP3PPP/R1BQK2R w KQkq - 1 8",
+        "b": "r1bqk2r/pp3ppp/2n1pn2/2bp2B1/8/2NBPN2/PPP2PPP/R2QK2R b KQkq - 1 7",
+        "size": 2
+      }
+    ],
+    "B:mirror": [
+      {
+        "a": "8/8/8/8/8/2k5/3q4/K7 w - - 14 75",
+        "b": "8/8/8/8/8/5k2/4q3/7K w - - 24 77",
+        "size": 2
+      },
+      {
+        "a": "8/8/8/8/8/k1K5/1pQ5/8 w - - 4 63",
+        "b": "8/8/8/8/8/5K1k/5Qp1/8 w - - 4 60",
+        "size": 2
+      },
+      {
+        "a": "8/5k1K/8/8/6q1/8/8/8 w - - 22 77",
+        "b": "8/K1k5/8/8/1q6/8/8/8 w - - 11 62",
+        "size": 2
+      },
+      {
+        "a": "8/8/8/4K3/8/8/2k5/3q4 b - - 1 63",
+        "b": "8/8/8/3K4/8/8/5k2/4q3 b - - 3 60",
+        "size": 2
+      },
+      {
+        "a": "6Q1/8/5K2/7k/8/8/8/8 w - - 1 60",
+        "b": "1Q6/8/2K5/k7/8/8/8/8 w - - 3 53",
+        "size": 2
+      }
+    ]
+  }
+}
