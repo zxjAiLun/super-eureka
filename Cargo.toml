@@ -15,3 +15,8 @@ codegen-units = 1
 # S10-C3-C2 test hook: force the scalar L1 backend even on AVX2-capable
 # machines (used by the backend-parity tests to compare both paths).
 force_scalar_l1 = []
+# S10-H0-C: compile the diagnostic eval-call-site collector into the
+# search. OFF by default: the production release carries ZERO capture
+# code on the evaluator hot path (no mutex, no branch). Diagnostic
+# builds (bench eval-site-capture) enable it explicitly.
+diagnostic_eval_site_capture = []

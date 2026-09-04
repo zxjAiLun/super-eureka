@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "search_site_mae": 194.2,
+  "five_control_sets": [
+    {
+      "seed": 2026090501,
+      "control_mae": 155.0,
+      "R": 1.252,
+      "delta": 39.1
+    },
+    {
+      "seed": 2026090502,
+      "control_mae": 161.8,
+      "R": 1.2,
+      "delta": 32.4
+    },
+    {
+      "seed": 2026090503,
+      "control_mae": 159.8,
+      "R": 1.215,
+      "delta": 34.4
+    },
+    {
+      "seed": 2026090504,
+      "control_mae": 164.1,
+      "R": 1.184,
+      "delta": 30.1
+    },
+    {
+      "seed": 2026090505,
+      "control_mae": 155.9,
+      "R": 1.246,
+      "delta": 38.3
+    }
+  ],
+  "min_R": 1.184,
+  "min_delta": 30.1,
+  "verdict": "SUPPORTED",
+  "per_root": {
+    "median": 198.6,
+    "p25": 157.4,
+    "p75": 253.2,
+    "max": 505.0,
+    "top5_error_share_pct": 3.6,
+    "mae_excl_top5": 190.5
+  }
+}

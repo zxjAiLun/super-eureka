@@ -2613,6 +2613,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-accumulator-audit" {
         return run_nnue_v2q_accumulator_audit(&args[1..]);
     }
+    #[cfg(feature = "diagnostic_eval_site_capture")]
     if args[0] == "eval-site-capture" {
         return run_eval_site_capture(&args[1..]);
     }
@@ -3891,6 +3892,7 @@ fn nnue_v2q_probe_line(
 ///   {"fen":..., "site":"main_static|qsearch_standpat"}
 /// Capture is enabled around the search and disabled immediately after;
 /// the production search path is untouched (identity when disabled).
+#[cfg(feature = "diagnostic_eval_site_capture")]
 fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
     let mut fen: Option<String> = None;
     let mut nodes: u64 = 50_000;

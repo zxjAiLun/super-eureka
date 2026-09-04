@@ -2636,10 +2636,10 @@ fn evaluate_profiled(
 ) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
     let start = ctx.sample_begin(&ctx.timing_eval);
-    // S10-H0-C: diagnostic eval-call-site capture. Enabled ONLY by the
-    // bench harness (`search::set_eval_site_capture`); when the collector
-    // is absent this compiles to a single thread_local load + branch and
-    // the search tree is byte-identical (no policy decision reads it).
+    // S10-H0-C: diagnostic eval-call-site capture. Compiled ONLY into
+    // diagnostic builds (cargo feature diagnostic_eval_site_capture);
+    // the production release carries zero capture code on this hot path.
+    #[cfg(feature = "diagnostic_eval_site_capture")]
     crate::engine::search::eval_site_capture::record_site(pos, ctx);
     // S10-D GUI: evaluator dispatch is determined by whether the caller
     // supplied a search-local NNUE state. The startup profile remains the
@@ -6956,9 +6956,11 @@ fn quiescence_entered_impl_with_profile(
             if lazy {
                 ctx.add_profile_counter(&ctx.qsearch_lazy_qply_returns_before_movegen, 1);
             }
+            #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::push_site(
                 eval_site_capture::SiteKind::QsearchStandpat);
             let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
+            #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::pop_site();
             if stand_pat >= beta {
                 return Some(beta);
@@ -6977,9 +6979,11 @@ fn quiescence_entered_impl_with_profile(
     } else {
         // Rule 2 (stalemate) already handled. Stand-pat is the lower bound:
         // the side to move is never forced to make a capture.
+        #[cfg(feature = "diagnostic_eval_site_capture")]
         crate::engine::search::eval_site_capture::push_site(
             eval_site_capture::SiteKind::QsearchStandpat);
         let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
+        #[cfg(feature = "diagnostic_eval_site_capture")]
         crate::engine::search::eval_site_capture::pop_site();
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
@@ -16943,6 +16947,7 @@ mod tests {
 // when disabled, `record_site` is one thread-local load + branch and the
 // search tree is bit-identical (no policy decision reads this state).
 // ---------------------------------------------------------------------------
+#[cfg(feature = "diagnostic_eval_site_capture")]
 pub mod eval_site_capture {
     use std::cell::RefCell;
     use std::sync::Mutex;
