@@ -2613,6 +2613,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-accumulator-audit" {
         return run_nnue_v2q_accumulator_audit(&args[1..]);
     }
+    if args[0] == "eval-site-capture" {
+        return run_eval_site_capture(&args[1..]);
+    }
     if args[0] == "nnue-v2q-cost" {
         return run_nnue_v2q_cost(&args[1..]);
     }
@@ -3879,6 +3882,138 @@ fn nnue_v2q_probe_line(
         "\"fen\":\"{escaped_fen}\",\"raw_output\":{raw},\"prediction_cp\":{cp}}}"
     ));
     out
+}
+
+/// S10-H0-C: `bench eval-site-capture --fen <fen> [--nodes N]
+/// --profile P [--nnue-model M] [--hash-mb MB]` — run ONE fixed-node
+/// search with the diagnostic eval-call-site collector enabled and emit
+/// one JSON line per evaluator call site:
+///   {"fen":..., "site":"main_static|qsearch_standpat"}
+/// Capture is enabled around the search and disabled immediately after;
+/// the production search path is untouched (identity when disabled).
+fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
+    let mut fen: Option<String> = None;
+    let mut nodes: u64 = 50_000;
+    let mut profile: Option<SearchProfile> = None;
+    let mut nnue_model: Option<String> = None;
+    let mut hash_mb: Option<u64> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => {
+                fen = Some(it.next().ok_or(
+                    "eval-site-capture: --fen requires a value")?
+                    .clone());
+            }
+            "--nodes" => {
+                nodes = it.next()
+                    .ok_or("eval-site-capture: --nodes requires a value")?
+                    .parse::<u64>()
+                    .map_err(|_| "eval-site-capture: bad --nodes")?;
+            }
+            "--profile" => {
+                let v = it.next().ok_or(
+                    "eval-site-capture: --profile requires a value")?;
+                profile = Some(match v.as_str() {
+                    "current-final-nnue-v2q-material" =>
+                        SearchProfile::CurrentFinalNnueV2QMaterial,
+                    "current-final-nnue-v2q" =>
+                        SearchProfile::CurrentFinalNnueV2QIncremental,
+                    "current-final" => SearchProfile::CurrentFinal,
+                    other => return Err(format!(
+                        "eval-site-capture: unsupported profile '{other}'")),
+                });
+            }
+            "--nnue-model" => {
+                nnue_model = Some(it.next().ok_or(
+                    "eval-site-capture: --nnue-model requires a value")?
+                    .clone());
+            }
+            "--hash-mb" => {
+                hash_mb = Some(it.next()
+                    .ok_or("eval-site-capture: --hash-mb requires a value")?
+                    .parse::<u64>()
+                    .map_err(|_| "eval-site-capture: bad --hash-mb")?);
+            }
+            other => {
+                return Err(format!(
+                    "eval-site-capture: unknown argument '{other}'"));
+            }
+        }
+    }
+    let fen = fen.ok_or("eval-site-capture: --fen is required")?;
+    let profile = profile
+        .ok_or("eval-site-capture: --profile is required")?;
+    let mut pos = parse_fen(&fen)
+        .map_err(|e| format!("eval-site-capture: invalid FEN: {e}"))?;
+    let hist = vec![pos.zobrist_key()];
+
+    let mut tt = match hash_mb {
+        Some(mb) => TranspositionTable::new_mb(mb as usize)
+            .map_err(|e| format!("eval-site-capture: TT alloc: {e}"))?,
+        None => TranspositionTable::new_mb(32)
+            .map_err(|e| format!("eval-site-capture: TT alloc: {e}"))?,
+    };
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let ctx = SearchContext::new_with_profiling(stop, false);
+    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+
+    let nnue_state = if profile.uses_nnue_eval() {
+        let path = nnue_model.as_deref().ok_or(
+            "eval-site-capture: NNUE profile requires --nnue-model")?;
+        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+            std::path::Path::new(path))?;
+        {
+            use crate::engine::nnue_v2q_runtime::NnueV2TargetMode;
+            let required = if profile.uses_nnue_material_residual() {
+                NnueV2TargetMode::MaterialResidual
+            } else {
+                NnueV2TargetMode::Cp
+            };
+            if model.target_mode() != required {
+                return Err(format!(
+                    "eval-site-capture: artifact target_mode '{}' does not \
+                     match profile (requires '{}') (fail closed)",
+                    model.target_mode().name(), required.name()));
+            }
+        }
+        Some(crate::engine::nnue_search::NnueSearchState::with_options(
+            Arc::new(model),
+            if profile.uses_nnue_incremental_stack() {
+                crate::engine::nnue_search::NnueSearchMode::Incremental
+            } else {
+                crate::engine::nnue_search::NnueSearchMode::FullRefresh
+            },
+            &pos,
+            false,
+            false,
+        ))
+    } else {
+        None
+    };
+
+    crate::engine::search::eval_site_capture::enable(400_000);
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
+                             profile, nnue_state);
+    let records = crate::engine::search::eval_site_capture::disable_and_take();
+    if outcome.is_none() {
+        return Err("eval-site-capture: no legal moves (terminal root)"
+            .to_string());
+    }
+
+    let mut main_n = 0usize;
+    let mut qs_n = 0usize;
+    for (f, kind, _ply) in &records {
+        let site = if *kind == 0 { "main_static" } else { "qsearch_standpat" };
+        if *kind == 0 { main_n += 1; } else { qs_n += 1; }
+        println!("{{\"fen\":\"{}\",\"site\":\"{}\"}}",
+                 json_escape(f), site);
+    }
+    eprintln!(
+        "eval_site_capture total={} main_static={} qsearch_standpat={}",
+        records.len(), main_n, qs_n);
+    Ok(())
 }
 
 /// S10-C1: `bench nnue-v2q-accumulator-audit --model <bin> [--games N]

@@ -2636,6 +2636,11 @@ fn evaluate_profiled(
 ) -> i32 {
     ctx.add_profile_counter(&ctx.eval_calls, 1);
     let start = ctx.sample_begin(&ctx.timing_eval);
+    // S10-H0-C: diagnostic eval-call-site capture. Enabled ONLY by the
+    // bench harness (`search::set_eval_site_capture`); when the collector
+    // is absent this compiles to a single thread_local load + branch and
+    // the search tree is byte-identical (no policy decision reads it).
+    crate::engine::search::eval_site_capture::record_site(pos, ctx);
     // S10-D GUI: evaluator dispatch is determined by whether the caller
     // supplied a search-local NNUE state. The startup profile remains the
     // sole source of every search-policy decision; a UCI-configured state can
@@ -6951,7 +6956,10 @@ fn quiescence_entered_impl_with_profile(
             if lazy {
                 ctx.add_profile_counter(&ctx.qsearch_lazy_qply_returns_before_movegen, 1);
             }
+            crate::engine::search::eval_site_capture::push_site(
+                eval_site_capture::SiteKind::QsearchStandpat);
             let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
+            crate::engine::search::eval_site_capture::pop_site();
             if stand_pat >= beta {
                 return Some(beta);
             }
@@ -6969,7 +6977,10 @@ fn quiescence_entered_impl_with_profile(
     } else {
         // Rule 2 (stalemate) already handled. Stand-pat is the lower bound:
         // the side to move is never forced to make a capture.
+        crate::engine::search::eval_site_capture::push_site(
+            eval_site_capture::SiteKind::QsearchStandpat);
         let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
+        crate::engine::search::eval_site_capture::pop_site();
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
             if lazy {
@@ -16922,5 +16933,82 @@ mod tests {
     /// Tiny helper: the stable fallback is the first move of a root list.
     fn root_moves_fallback(moves: &[Move]) -> Move {
         moves[0]
+    }
+}
+
+// ---------------------------------------------------------------------------
+// S10-H0-C: diagnostic eval-call-site capture (bench-only).
+//
+// Enabled exclusively by the bench harness via `set_eval_site_capture`;
+// when disabled, `record_site` is one thread-local load + branch and the
+// search tree is bit-identical (no policy decision reads this state).
+// ---------------------------------------------------------------------------
+pub mod eval_site_capture {
+    use std::cell::RefCell;
+    use std::sync::Mutex;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum SiteKind {
+        MainStatic,
+        QsearchStandpat,
+    }
+
+    thread_local! {
+        /// Site tag stack: empty (or MainStatic) in the main search; the
+        /// qsearch stand-pat call sites push their tag around evaluate().
+        static SITE: RefCell<Vec<SiteKind>> = const { RefCell::new(Vec::new()) };
+    }
+
+    struct Shared {
+        enabled: bool,
+        records: Vec<(String, u8, u32)>,  // (fen, site_kind, search_ply)
+    }
+
+    static SHARED: Mutex<Option<Shared>> = Mutex::new(None);
+
+    /// Enable capture with a preallocated buffer (bench harness only).
+    pub fn enable(capacity: usize) {
+        let mut g = SHARED.lock().unwrap();
+        *g = Some(Shared { enabled: true,
+                           records: Vec::with_capacity(capacity) });
+    }
+
+    /// Disable capture and take the collected records.
+    pub fn disable_and_take() -> Vec<(String, u8, u32)> {
+        let mut g = SHARED.lock().unwrap();
+        match g.take() {
+            Some(s) => s.records,
+            None => Vec::new(),
+        }
+    }
+
+    pub fn push_site(kind: SiteKind) {
+        SITE.with(|s| s.borrow_mut().push(kind));
+    }
+
+    pub fn pop_site() {
+        SITE.with(|s| { s.borrow_mut().pop(); });
+    }
+
+    fn current_site() -> SiteKind {
+        SITE.with(|s| {
+            s.borrow().last().copied().unwrap_or(SiteKind::MainStatic)
+        })
+    }
+
+    /// Called from `evaluate_profiled`. Cheap no-op when disabled.
+    pub fn record_site(pos: &crate::chess::position::Position,
+                       _ctx: &super::SearchContext) {
+        let mut g = match SHARED.try_lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let Some(shared) = g.as_mut() else { return };
+        if !shared.enabled {
+            return;
+        }
+        let kind = current_site();
+        let fen = crate::chess::fen::to_fen(pos);
+        shared.records.push((fen, kind as u8, 0));
     }
 }
