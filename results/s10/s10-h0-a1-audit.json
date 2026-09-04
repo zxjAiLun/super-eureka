@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "corpus": {
+    "n": 500,
+    "seed": 2026090401
+  },
+  "matrix": {
+    "y16<->y20": {
+      "n": 500,
+      "mae": 96.8,
+      "median": 28,
+      "p90": 247,
+      "p95": 535,
+      "mean_signed": 7.4,
+      "pearson": 0.87,
+      "spearman": 0.9598,
+      "sign_agree_ge50": 1.0
+    },
+    "sfse<->y16": {
+      "n": 500,
+      "mae": 76.4,
+      "median": 40,
+      "p90": 187,
+      "p95": 293,
+      "mean_signed": -3.4,
+      "pearson": 0.9208,
+      "spearman": 0.9423,
+      "sign_agree_ge50": 0.9833
+    },
+    "sfse<->y20": {
+      "n": 500,
+      "mae": 145.9,
+      "median": 56,
+      "p90": 460,
+      "p95": 614,
+      "mean_signed": 4.0,
+      "pearson": 0.8033,
+      "spearman": 0.9022,
+      "sign_agree_ge50": 0.9853
+    },
+    "f128<->y16": {
+      "n": 500,
+      "mae": 137.8,
+      "median": 93,
+      "p90": 292,
+      "p95": 431,
+      "mean_signed": 6.1,
+      "pearson": 0.818,
+      "spearman": 0.812,
+      "sign_agree_ge50": 0.9055
+    },
+    "f128<->y20": {
+      "n": 500,
+      "mae": 202.3,
+      "median": 115,
+      "p90": 490,
+      "p95": 660,
+      "mean_signed": 13.6,
+      "pearson": 0.6725,
+      "spearman": 0.7727,
+      "sign_agree_ge50": 0.898
+    },
+    "f256<->y16": {
+      "n": 500,
+      "mae": 140.9,
+      "median": 92,
+      "p90": 305,
+      "p95": 425,
+      "mean_signed": 12.4,
+      "pearson": 0.8177,
+      "spearman": 0.8152,
+      "sign_agree_ge50": 0.9308
+    },
+    "f256<->y20": {
+      "n": 500,
+      "mae": 206.5,
+      "median": 126,
+      "p90": 506,
+      "p95": 712,
+      "mean_signed": 19.9,
+      "pearson": 0.6783,
+      "spearman": 0.7787,
+      "sign_agree_ge50": 0.9322
+    }
+  },
+  "class_stats": {
+    "both_cp": 500,
+    "y16_mate_y20_cp": 0,
+    "y16_cp_y20_mate": 0,
+    "both_mate": 0,
+    "n": 500
+  },
+  "deep_correction_corr": {
+    "f128": -0.1907,
+    "f256": -0.1662
+  },
+  "affine_f128_to_y20": {
+    "a": 0.9008,
+    "b": 10.7,
+    "test_mae_raw": 197.6,
+    "test_mae_calibrated": 200.2
+  },
+  "strata": {
+    "phase": {
+      "high": {
+        "n": 126,
+        "y16_y20_mae": 21.9,
+        "f128_y16_mae": 99.3,
+        "f128_y20_mae": 103.8,
+        "sfse_y20_mae": 52.3
+      },
+      "low": {
+        "n": 108,
+        "y16_y20_mae": 133.3,
+        "f128_y16_mae": 148.4,
+        "f128_y20_mae": 245.5,
+        "sfse_y20_mae": 178.3
+      },
+      "mid": {
+        "n": 205,
+        "y16_y20_mae": 65.6,
+        "f128_y16_mae": 146.6,
+        "f128_y20_mae": 177.9,
+        "sfse_y20_mae": 117.6
+      },
+      "zero": {
+        "n": 61,
+        "y16_y20_mae": 291.6,
+        "f128_y16_mae": 169.2,
+        "f128_y20_mae": 411.2,
+        "sfse_y20_mae": 376.8
+      }
+    },
+    "material": {
+      "251-500": {
+        "n": 74,
+        "y16_y20_mae": 107.2,
+        "f128_y16_mae": 144.6,
+        "f128_y20_mae": 218.9,
+        "sfse_y20_mae": 185.2
+      },
+      "51-250": {
+        "n": 221,
+        "y16_y20_mae": 91.5,
+        "f128_y16_mae": 143.9,
+        "f128_y20_mae": 204.0,
+        "sfse_y20_mae": 138.6
+      },
+      "<=50": {
+        "n": 167,
+        "y16_y20_mae": 60.6,
+        "f128_y16_mae": 97.3,
+        "f128_y20_mae": 139.1,
+        "sfse_y20_mae": 103.5
+      },
+      ">500": {
+        "n": 38,
+        "y16_y20_mae": 266.2,
+        "f128_y16_mae": 267.1,
+        "f128_y20_mae": 437.4,
+        "sfse_y20_mae": 297.8
+      }
+    }
+  },
+  "drift_buckets": {
+    "0-50": {
+      "n": 330,
+      "f128_y16_mae": 107.4
+    },
+    "51-150": {
+      "n": 98,
+      "f128_y16_mae": 177.9
+    },
+    "151-300": {
+      "n": 28,
+      "f128_y16_mae": 206.2
+    },
+    ">300": {
+      "n": 44,
+      "f128_y16_mae": 232.7
+    }
+  },
+  "notes": {
+    "y16_y20_clamp_sensitivity": {
+      "unclamped_mae": 133.5,
+      "clamped_2000_mae": 96.8,
+      "explanation": "3 positions have |Y20| in the 7000-7600 range; the audit clamps every evaluator to the training-time +-2000 clip, under which the network was actually trained. Both numbers reported; the clamped one is the consistent view."
+    },
+    "sfse_note": "SFSE = Stockfish 18's own production NNUE static evaluation (NOT handcrafted HCE - classical eval was removed in 2023). The 76.4cp SFSE<->Y16 agreement is partially explained by the search using this same NNUE at its leaves."
+  }
+}
