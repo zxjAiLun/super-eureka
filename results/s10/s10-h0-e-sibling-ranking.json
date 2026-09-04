@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "corpus": {
+    "ordered_sha256": "a02f91cc59fb3e9059dc9d3119ff8e1f30f40fbee6b90ce52a6492483a8111fa",
+    "n": 256
+  },
+  "results": {
+    "HCE_static": {
+      "n": 256,
+      "mean_regret": 224.4,
+      "median_regret": 58,
+      "p90_regret": 536,
+      "acc20": 37.5,
+      "acc50": 48.0,
+      "top1": 29.3,
+      "pairwise_acc": 48.8,
+      "pairwise_n": 75818
+    },
+    "F128_static": {
+      "n": 256,
+      "mean_regret": 210.1,
+      "median_regret": 47,
+      "p90_regret": 543,
+      "acc20": 42.6,
+      "acc50": 53.1,
+      "top1": 30.9,
+      "pairwise_acc": 58.1,
+      "pairwise_n": 75818
+    },
+    "HCE_search100k": {
+      "n": 256,
+      "mean_regret": 77.6,
+      "median_regret": 2,
+      "p90_regret": 117,
+      "acc20": 62.5,
+      "acc50": 77.3,
+      "top1": 48.8
+    },
+    "F128_search100k": {
+      "n": 256,
+      "mean_regret": 69.6,
+      "median_regret": 0,
+      "p90_regret": 93,
+      "acc20": 67.2,
+      "acc50": 81.6,
+      "top1": 53.1
+    }
+  },
+  "teacher_gap_buckets": {
+    "<20": 94,
+    "20-50": 64,
+    "50-100": 32,
+    ">=100": 66
+  },
+  "verdict": "MIXED"
+}
