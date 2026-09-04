@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "seed": 2026090411,
+  "primary": {
+    "A": 235.2,
+    "B": 233.6,
+    "delta": -1.6,
+    "rel_pct": -0.7
+  },
+  "secondary_validation": {
+    "A": 155.9,
+    "B": 159.3,
+    "deg": 3.3
+  },
+  "verdict": "FAIL"
+}
