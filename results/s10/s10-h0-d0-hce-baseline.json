@@ -1,5 +1,7 @@
 {
   "hce_mae": 268.5,
   "f128_mae": 202.1,
-  "n": 984
+  "n": 984,
+  "corpus_note": "frozen H0-C corpus 1024 positions; CP-comparable subset n=984 (mate positions excluded from CP-MAE)",
+  "phrasing_note": "F128 202.1 vs HCE 268.5 means: on these search sites, F128 is better ALIGNED to the Y16 distillation teacher (which F128 was trained on and HCE never was). This rejects 'F128 fits the search workload worse than HCE' but does NOT establish F128 as the stronger true evaluator (Y16 is a shallow teacher)."
 }

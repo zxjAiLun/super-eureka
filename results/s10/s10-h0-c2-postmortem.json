@@ -1,4 +1,5 @@
 {
   "A_own_sites_mae": 242.7,
-  "B_own_sites_mae": 112.0
+  "B_own_sites_mae": 112.0,
+  "phrasing_note": "B fitting its own 20k training sites to 112cp rejects absorption failure on SEEN sites; it does not establish capacity sufficiency for generalization over the search-site manifold."
 }
