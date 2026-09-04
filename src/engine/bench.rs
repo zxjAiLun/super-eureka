@@ -2617,6 +2617,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "eval-site-capture" {
         return run_eval_site_capture(&args[1..]);
     }
+    #[cfg(feature = "diagnostic_search_calibration")]
+    if args[0] == "search-calibration" {
+        return run_search_calibration(&args[1..]);
+    }
     if args[0] == "nnue-v2q-cost" {
         return run_nnue_v2q_cost(&args[1..]);
     }
@@ -4015,6 +4019,111 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
     eprintln!(
         "eval_site_capture total={} main_static={} qsearch_standpat={}",
         records.len(), main_n, qs_n);
+    Ok(())
+}
+
+
+/// S10-H0-D: `bench search-calibration --fen <fen> --root-id N
+/// --active hce|nnue [--nnue-model M] [--nodes N]` — one fixed-node
+/// search with the calibration shadow enabled. Active evaluator per
+/// --active; the shadow is the OTHER evaluator (full-refresh, zero
+/// search-state interaction). Emits one JSON line per gate opportunity:
+///   {"root_id":N,"gate":"futility|qsearch_standpat",
+///    "active_slack":I32,"shadow_slack":I32}
+/// (slack >= 0 means the gate triggers with that evaluator).
+/// Also prints the D1 normalized search-rate counters on stderr.
+#[cfg(feature = "diagnostic_search_calibration")]
+fn run_search_calibration(args: &[String]) -> Result<(), String> {
+    use crate::engine::search::search_calibration_shadow::{
+        self, ActiveKind};
+    let mut fen: Option<String> = None;
+    let mut root_id: u32 = 0;
+    let mut active = "hce";
+    let mut nnue_model: Option<String> = None;
+    let mut nodes: u64 = 50_000;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => fen = Some(it.next()
+                .ok_or("search-calibration: --fen requires a value")?.clone()),
+            "--root-id" => root_id = it.next()
+                .ok_or("search-calibration: --root-id requires a value")?
+                .parse().map_err(|_|
+                "search-calibration: bad --root-id")?,
+            "--active" => active = it.next()
+                .ok_or("search-calibration: --active requires a value")?,
+            "--nnue-model" => nnue_model = Some(it.next()
+                .ok_or("search-calibration: --nnue-model requires a value")?
+                .clone()),
+            "--nodes" => nodes = it.next()
+                .ok_or("search-calibration: --nodes requires a value")?
+                .parse().map_err(|_| "search-calibration: bad --nodes")?,
+            other => return Err(format!(
+                "search-calibration: unknown argument '{other}'")),
+        }
+    }
+    let fen = fen.ok_or("search-calibration: --fen is required")?;
+    let (active_kind, profile) = match active {
+        "hce" => (ActiveKind::Hce, SearchProfile::CurrentFinal),
+        "nnue" => (ActiveKind::NnueMaterial,
+                   SearchProfile::CurrentFinalNnueV2QMaterial),
+        other => return Err(format!(
+            "search-calibration: --active must be hce|nnue, got '{other}'")),
+    };
+
+    let mut pos = parse_fen(&fen)
+        .map_err(|e| format!("search-calibration: invalid FEN: {e}"))?;
+    let hist = vec![pos.zobrist_key()];
+    let mut tt = TranspositionTable::new_mb(32)
+        .map_err(|e| format!("search-calibration: TT alloc: {e}"))?;
+
+    let nnue_state = if profile.uses_nnue_eval() {
+        let path = nnue_model.as_deref().ok_or(
+            "search-calibration: nnue active requires --nnue-model")?;
+        Some(crate::engine::nnue_search::NnueSearchState::with_options(
+            std::sync::Arc::new(
+                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+                    std::path::Path::new(path))?),
+            crate::engine::nnue_search::NnueSearchMode::Incremental,
+            &pos, false, false))
+    } else {
+        None
+    };
+    // shadow model: always the material-residual F128 (needed when active
+    // is HCE; also required for the enable() signature when active is NNUE)
+    let shadow_path = nnue_model.as_deref().ok_or(
+        "search-calibration: --nnue-model is required (shadow model)")?;
+    let shadow_model = std::sync::Arc::new(
+        crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+            std::path::Path::new(shadow_path))?);
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let ctx = SearchContext::new_with_profiling(stop, true);
+    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+
+    search_calibration_shadow::enable(active_kind, Some(shadow_model));
+    search_calibration_shadow::set_root_id(root_id);
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
+                             profile, nnue_state);
+    let (futility, qsearch) = search_calibration_shadow::disable_and_take();
+    outcome.ok_or("search-calibration: no legal moves (terminal root)")?;
+
+    for (gate, recs) in [("futility", &futility), ("qsearch", &qsearch)] {
+        for r in recs {
+            println!("{{\"root_id\":{},\"gate\":\"{}\",\"active_slack\":{},\"shadow_slack\":{}}}",
+                     r.root_id, gate, r.active_slack, r.shadow_slack);
+        }
+    }
+    // D1 normalized-rate counters to stderr
+    let stats = ctx.stats();
+    eprintln!(
+        "d1_rates nodes={} eval_calls={} null_attempts={} null_fail_highs={}          futility_considered={} futility_pruned={} qsearch_nodes={}          standpat_cutoffs={} lmr_reductions={} lmr_researches={}          aspiration_fail_low={} aspiration_fail_high={}",
+        ctx.nodes.load(Ordering::Relaxed), stats.eval_calls,
+        stats.null_move_attempts, stats.null_move_fail_highs,
+        0, stats.futility_pruned, stats.qsearch_nodes,
+        stats.qsearch_standpat_cutoffs, stats.lmr_reductions,
+        stats.lmr_researches, stats.aspiration_fail_low,
+        stats.aspiration_fail_high);
     Ok(())
 }
 

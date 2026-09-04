@@ -4851,6 +4851,16 @@ fn negamax_entered_impl_with_null_and_extensions(
     for (move_idx, m) in moves.into_iter().enumerate() {
         if let Some(static_eval) = futility_base {
             let margin = 100 + depth as i32 * 100;
+            // S10-H0-D shadow: opportunity = all non-eval prerequisites pass.
+            #[cfg(feature = "diagnostic_search_calibration")]
+            if move_idx > 0
+                && !is_tactical(pos, m)
+                && !move_gives_check(pos, m)
+                && !is_pawn_promotion_threat(pos, m)
+            {
+                crate::engine::search::search_calibration_shadow::
+                    shadow_futility(pos, static_eval, margin, alpha);
+            }
             if move_idx > 0
                 && !is_tactical(pos, m)
                 && !move_gives_check(pos, m)
@@ -6962,6 +6972,9 @@ fn quiescence_entered_impl_with_profile(
             let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
             #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::pop_site();
+            #[cfg(feature = "diagnostic_search_calibration")]
+            crate::engine::search::search_calibration_shadow::
+                shadow_qsearch(pos, stand_pat, beta);
             if stand_pat >= beta {
                 return Some(beta);
             }
@@ -6985,6 +6998,9 @@ fn quiescence_entered_impl_with_profile(
         let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
         #[cfg(feature = "diagnostic_eval_site_capture")]
         crate::engine::search::eval_site_capture::pop_site();
+        #[cfg(feature = "diagnostic_search_calibration")]
+        crate::engine::search::search_calibration_shadow::
+            shadow_qsearch(pos, stand_pat, beta);
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
             if lazy {
@@ -17015,5 +17031,132 @@ pub mod eval_site_capture {
         let kind = current_site();
         let fen = crate::chess::fen::to_fen(pos);
         shared.records.push((fen, kind as u8, 0));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// S10-H0-D: diagnostic search-calibration shadow (bench-only).
+//
+// Compiled ONLY under the `diagnostic_search_calibration` cargo feature.
+// The shadow evaluator NEVER participates in search decisions, never
+// touches TT/history/accumulators/SearchContext counters, and never adds
+// nodes: it is a full-refresh static evaluation of the current Position,
+// evaluated at the exact production predicate sites (futility move-gate,
+// qsearch stand-pat) with the same alpha/beta/margin the active search
+// uses. Production builds carry ZERO shadow code.
+// ---------------------------------------------------------------------------
+#[cfg(feature = "diagnostic_search_calibration")]
+pub mod search_calibration_shadow {
+    use std::cell::RefCell;
+    use std::sync::Mutex;
+
+    /// Which evaluator the ACTIVE search uses (set by the bench harness).
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub enum ActiveKind {
+        Hce,
+        NnueMaterial,
+    }
+
+    struct Shared {
+        active: ActiveKind,
+        // shadow model (when the shadow is the NNUE)
+        shadow_model: Option<
+            std::sync::Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+        // per-gate opportunity records
+        futility: Vec<GateRecord>,
+        qsearch: Vec<GateRecord>,
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct GateRecord {
+        pub root_id: u32,
+        pub active_slack: i32,   // signed; >= 0 means the gate TRIGGERS
+        pub shadow_slack: i32,
+    }
+
+    static SHARED: Mutex<Option<Shared>> = Mutex::new(None);
+    thread_local! {
+        static ROOT_ID: RefCell<u32> = const { RefCell::new(0) };
+    }
+
+    pub fn enable(active: ActiveKind,
+                  shadow_model: Option<std::sync::Arc<
+                      crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>) {
+        let mut g = SHARED.lock().unwrap();
+        *g = Some(Shared { active, shadow_model, futility: Vec::new(),
+                           qsearch: Vec::new() });
+    }
+
+    pub fn set_root_id(id: u32) {
+        ROOT_ID.with(|r| *r.borrow_mut() = id);
+    }
+
+    pub fn disable_and_take()
+        -> (Vec<GateRecord>, Vec<GateRecord>) {
+        let mut g = SHARED.lock().unwrap();
+        match g.take() {
+            Some(s) => (s.futility, s.qsearch),
+            None => (Vec::new(), Vec::new()),
+        }
+    }
+
+    fn is_active_hce() -> bool {
+        SHARED.lock().map(|g| g.as_ref()
+            .map(|s| s.active == ActiveKind::Hce)
+            .unwrap_or(false)).unwrap_or(false)
+    }
+
+    /// Shadow static evaluation, stm perspective, cp.
+    /// - Active HCE  -> shadow = NNUE material-residual full refresh
+    /// - Active NNUE -> shadow = CurrentFinal HCE (evaluate_integrated_positional)
+    fn shadow_eval(pos: &crate::chess::position::Position) -> Option<i32> {
+        let g = SHARED.lock().ok()?;
+        let s = g.as_ref()?;
+        if s.active == ActiveKind::Hce {
+            let model = s.shadow_model.as_ref()?;
+            // full-refresh raw + material compose (no search state touched)
+            let base = model.evaluate_cp_i32(pos);
+            let composed = base.saturating_add(
+                crate::engine::nnue_v2q_runtime::material_cp_stm(pos));
+            // mirror the production mop-up override
+            Some(crate::engine::eval::exact_mop_up_for_search(pos, composed)
+                .unwrap_or(composed))
+        } else {
+            Some(crate::engine::eval::evaluate_integrated_positional(pos))
+        }
+    }
+
+    fn record(gate: fn(&mut Shared, GateRecord), pos: &crate::chess::position::Position,
+              active_eval: i32, threshold: i32) {
+        let Some(shadow) = shadow_eval(pos) else { return };
+        let rec = GateRecord {
+            root_id: ROOT_ID.with(|r| *r.borrow()),
+            active_slack: active_eval.saturating_sub(threshold),
+            shadow_slack: shadow.saturating_sub(threshold),
+        };
+        let mut g = match SHARED.lock() { Ok(g) => g, Err(_) => return };
+        if let Some(s) = g.as_mut() {
+            gate(s, rec);
+        }
+    }
+
+    fn push_futility(s: &mut Shared, r: GateRecord) { s.futility.push(r); }
+    fn push_qsearch(s: &mut Shared, r: GateRecord) { s.qsearch.push(r); }
+
+    /// Futility move-gate shadow: called AFTER all non-eval prerequisites
+    /// pass (move_idx > 0, quiet, non-checking, non-promo-threat) with the
+    /// exact production margin/alpha. `active_eval` is the node static eval
+    /// the production predicate uses.
+    pub fn shadow_futility(pos: &crate::chess::position::Position,
+                           active_eval: i32, margin: i32, alpha: i32) {
+        record(push_futility, pos, active_eval,
+               alpha.saturating_sub(margin));
+    }
+
+    /// Qsearch stand-pat shadow: called at both stand-pat sites with the
+    /// production beta.
+    pub fn shadow_qsearch(pos: &crate::chess::position::Position,
+                          active_eval: i32, beta: i32) {
+        record(push_qsearch, pos, active_eval, beta);
     }
 }

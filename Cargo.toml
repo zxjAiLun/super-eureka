@@ -20,3 +20,7 @@ force_scalar_l1 = []
 # code on the evaluator hot path (no mutex, no branch). Diagnostic
 # builds (bench eval-site-capture) enable it explicitly.
 diagnostic_eval_site_capture = []
+# S10-H0-D: compile the search-calibration shadow evaluator
+# (bidirectional gate-decision telemetry at the production predicate
+# sites). Production builds carry zero shadow code.
+diagnostic_search_calibration = []

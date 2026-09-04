@@ -1,0 +1,88 @@
+{
+ "hce_active": {
+  "gates": {
+   "futility": {
+    "n": 3022290,
+    "both_trigger": 864675,
+    "active_only": 33283,
+    "shadow_only": 500977,
+    "neither": 1623355,
+    "disagreement": 17.68,
+    "hard_disagreement": 9.29,
+    "median_abs_slack_delta": 130,
+    "p95_abs_slack_delta": 724
+   },
+   "qsearch": {
+    "n": 4577152,
+    "both_trigger": 2631493,
+    "active_only": 266776,
+    "shadow_only": 360910,
+    "neither": 1317973,
+    "disagreement": 13.71,
+    "hard_disagreement": 5.21,
+    "median_abs_slack_delta": 108,
+    "p95_abs_slack_delta": 439
+   }
+  },
+  "d1": {
+   "null_attempt_per_node_%": 0.035,
+   "null_fail_high_%": 40.32,
+   "futility_pruned_per_eval": 0.4222,
+   "standpat_cutoff_%": 57.49,
+   "lmr_research_%": 3.06,
+   "aspiration_fail_low_total": 75,
+   "aspiration_fail_high_total": 78
+  }
+ },
+ "nnue_active": {
+  "gates": {
+   "futility": {
+    "n": 2939445,
+    "both_trigger": 919940,
+    "active_only": 385437,
+    "shadow_only": 50363,
+    "neither": 1583705,
+    "disagreement": 14.83,
+    "hard_disagreement": 6.68,
+    "median_abs_slack_delta": 114,
+    "p95_abs_slack_delta": 755
+   },
+   "qsearch": {
+    "n": 4633686,
+    "both_trigger": 2794198,
+    "active_only": 588090,
+    "shadow_only": 135485,
+    "neither": 1115913,
+    "disagreement": 15.62,
+    "hard_disagreement": 7.81,
+    "median_abs_slack_delta": 112,
+    "p95_abs_slack_delta": 443
+   }
+  },
+  "d1": {
+   "null_attempt_per_node_%": 0.023,
+   "null_fail_high_%": 45.91,
+   "futility_pruned_per_eval": 0.3225,
+   "standpat_cutoff_%": 67.36,
+   "lmr_research_%": 1.67,
+   "aspiration_fail_low_total": 170,
+   "aspiration_fail_high_total": 151
+  }
+ },
+ "d1_median_per_root": {
+  "hce": {
+   "null_attempt_per_node_%": 0.0,
+   "null_fail_high_%": 40.0,
+   "futility_pruned_per_eval": 3.57,
+   "standpat_cutoff_%": 58.33,
+   "lmr_research_%": 1.82
+  },
+  "nnue": {
+   "null_attempt_per_node_%": 0.0,
+   "null_fail_high_%": 48.48,
+   "futility_pruned_per_eval": 4.19,
+   "standpat_cutoff_%": 68.29,
+   "lmr_research_%": 1.03
+  }
+ }
+}
