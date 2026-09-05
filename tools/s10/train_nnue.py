@@ -518,6 +518,7 @@ def train_and_eval(
     allow_holdout: bool = False,
     target_mode: str = "cp",
     ft_width: int = 128,
+    rank_corpus_path: Path | None = None,
 ) -> dict:
     if target_mode not in TARGET_MODES:
         raise SystemExit(
@@ -709,11 +710,57 @@ def train_and_eval(
     best_state_dict = None
     epochs_no_improve = 0
 
+    # S10-I1-A: optional sibling-ranking auxiliary objective. rank_scale
+    # is derived ONCE at initialization (dimensional calibration from the
+    # randomly-initialized model on a forward pass — NOT validation
+    # tuning), rounded to 2 significant digits, frozen for the run.
+    rank_corpus = None
+    rank_scale = None
+    n_train = len(train_items)
+    if rank_corpus_path is not None:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "i1_rank_corpus",
+            str(Path(__file__).parent / "i1_rank_corpus.py"))
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        RankCorpus = _mod.RankCorpus
+        rank_corpus = RankCorpus(rank_corpus_path, Path(engine_bin), device)
+        # calibration batch = the first 256 WHOLE validation items
+        # (slice at EncodedSplit level so offsets stay aligned — slicing
+        # the flattened index tensors would cut mid-item and desync the
+        # embedding_bag ranges)
+        with torch.no_grad():
+            cal_items = val_items[:256]
+            cal = EncodedSplit([
+                {**it, "target_scaled": it["target_scaled"],
+                 "target_cp": it["target_cp"]} for it in cal_items])
+            scalar_mag = criterion(
+                model(cal.stm_indices.to(device), cal.stm_offsets.to(device),
+                      cal.nstm_indices.to(device), cal.nstm_offsets.to(device)),
+                cal.targets.to(device)).item()
+        rank_mag = rank_corpus.raw_loss_magnitude(model)
+        if rank_mag <= 0:
+            raise SystemExit("FAIL CLOSED: rank corpus has no valid pairs")
+        raw = scalar_mag / rank_mag
+        # 2 significant digits
+        rank_scale = round(raw, 1 - int(__import__("math").floor(
+            __import__("math").log10(abs(raw)))))
+        print(f"rank corpus: {rank_corpus.n_parents} parents, "
+              f"{rank_corpus.n_pairs} valid pairs | rank_scale "
+              f"(calibration, frozen) = {rank_scale}")
+        # deterministic rank-step schedule: one rank step per
+        # ceil(scalar_steps / rank_epochs) scalar steps, spread uniformly;
+        # total optimizer steps UNCHANGED (rank loss is ADDED to the
+        # scheduled scalar step's loss)
+        n_scalar_steps = (n_train + batch_size - 1) // batch_size * max_epochs
+        rank_every = max(1, n_scalar_steps // max(1, rank_corpus.n_parents))
+
     g = torch.Generator()
     g.manual_seed(seed)
 
     history = []
-    n_train = len(train_items)
+    global_step = 0
 
     for epoch in range(1, max_epochs + 1):
         model.train()
@@ -735,9 +782,19 @@ def train_and_eval(
             optimizer.zero_grad()
             preds = model(stm_ind, stm_off, nstm_ind, nstm_off)
             loss = criterion(preds, targets)
+            # S10-I1-A: scheduled rank steps ADD the ranking loss to the
+            # same scalar step (one optimizer.step() total; step count,
+            # scalar order and scheduler progression unchanged).
+            if rank_corpus is not None and global_step % rank_every == 0:
+                pids = rank_corpus.batch_parent_ids(
+                    global_step // rank_every, rank_corpus.n_parents)
+                rloss = rank_corpus.loss_for_parents(model, pids)
+                if rloss is not None:
+                    loss = loss + rank_scale * rloss
             loss.backward()
             optimizer.step()
 
+            global_step += 1
             train_loss_accum += loss.item() * len(batch_items)
 
         train_loss = train_loss_accum / n_train
@@ -1011,6 +1068,12 @@ def main():
                         help="feature-transformer width (S10-G1 capacity "
                              "probe; 128 is the frozen production width, "
                              "256 doubles only the FT capacity)")
+    parser.add_argument("--rank-corpus", type=Path, default=None,
+                        help="S10-I1-A sibling-ranking corpus (jsonl). "
+                             "When given, adds the frozen ranking "
+                             "auxiliary objective; scalar step count/"
+                             "order/scheduler unchanged. Without it the "
+                             "trainer is byte-identical to the legacy path.")
     parser.add_argument("--allow-holdout", action="store_true", help="Stage 2 only: evaluate holdout split")
     parser.add_argument("--preflight", action="store_true",
                         help="run data/training preflight only (no training)")
@@ -1042,6 +1105,7 @@ def main():
         allow_holdout=args.allow_holdout,
         target_mode=args.target_mode,
         ft_width=args.ft_width,
+        rank_corpus_path=args.rank_corpus,
     )
     print(
         f"Training completed for {args.feature_set} seed {args.seed} "
