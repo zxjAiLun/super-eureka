@@ -49,7 +49,7 @@ SELECTOR_NODES = 4096
 LABEL_NODES = 32768
 
 
-def make_sf():
+def make_sf(multipv=1):
     p = subprocess.Popen([SF], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, text=True, bufsize=1)
@@ -58,33 +58,60 @@ def make_sf():
     send("uci")
     while p.stdout.readline().strip() != "uciok":
         pass
-    for name, value in (("Threads", "1"), ("Hash", "64")):
+    for name, value in (("Threads", "1"), ("Hash", "64"),
+                        ("MultiPV", str(multipv))):
         send(f"setoption name {name} value {value}")
     return p, send
 
 
 def select_moves(p, send, fen, k):
-    """MultiPV-k selector at 4k nodes; returns k candidate moves."""
+    """MultiPV=k selector at 4k nodes. Accepts ONLY the final complete
+    MultiPV frame (deepest depth with all ranks 1..k present exactly
+    once); fail-closes on any incomplete/duplicate frame."""
     send("ucinewgame")
     send(f"position fen {fen}")
     send(f"go nodes {SELECTOR_NODES}")
-    moves = []
+    frames = {}  # depth -> {rank: move}
     while True:
         line = p.stdout.readline()
         if not line or line.startswith("bestmove"):
             break
-        m = re.search(r" multipv (\d+) .* pv (\S+)", line)
+        m = re.search(r"info depth (\d+) .*?multipv (\d+) .* pv (\S+)",
+                      line)
         if m:
-            moves.append((int(m.group(1)), m.group(2)))
-    moves.sort()
-    return [mv for _, mv in moves[:k]]
+            depth, rank, move = (int(m.group(1)), int(m.group(2)),
+                                 m.group(3))
+            frames.setdefault(depth, {})[rank] = move
+    # final frame = the deepest depth having ALL ranks 1..k exactly once;
+    # PV heads may repeat across ranks (converging lines) — dedupe keeping
+    # the highest-ranked occurrence.
+    for depth in sorted(frames, reverse=True):
+        fr = frames[depth]
+        if sorted(fr.keys()) != list(range(1, k + 1)):
+            continue
+        moves = []
+        for r in range(1, k + 1):
+            mv = fr[r]
+            if mv not in moves:
+                moves.append(mv)
+        if not moves:
+            raise SystemExit(
+                f"FAIL CLOSED: empty selector frame at depth {depth} "
+                f"for {fen}")
+        return moves
+    raise SystemExit(
+        f"FAIL CLOSED: no complete MultiPV-{k} frame for {fen} "
+        f"(frames: {[(d, sorted(f.keys())) for d, f in sorted(frames.items())][-3:]})")
 
 
 def label_move(p, send, fen, move):
-    """Constrained 32k label for one move; score in PARENT POV."""
+    """Constrained 32k label: `go nodes 32768 searchmoves <move>` from the
+    PARENT position (the frozen I1-A contract). The returned score is the
+    parent-position search score with the move forced first — already in
+    the PARENT's POV, no negation."""
     send("ucinewgame")
-    send(f"position fen {fen} moves {move}")
-    send(f"go nodes {LABEL_NODES}")
+    send(f"position fen {fen}")
+    send(f"go nodes {LABEL_NODES} searchmoves {move}")
     cp = mate = None
     while True:
         line = p.stdout.readline()
@@ -98,12 +125,10 @@ def label_move(p, send, fen, move):
                 cp = int(m.group(1))
             else:
                 mate = int(m.group(2))
-    # search runs AFTER the move: score is from the OPPONENT (child stm).
-    # Parent POV = negate.
     if cp is not None:
-        return {"cp": -cp, "mate": None}
+        return {"cp": cp, "mate": None}
     if mate is not None:
-        return {"cp": None, "mate": -mate}
+        return {"cp": None, "mate": mate}
     return {"cp": None, "mate": None}
 
 
@@ -222,26 +247,38 @@ def collect_ordinary_parents(n_needed, seed):
 
 
 def label_parents(parents, n_workers=6):
-    """Two-stage labeling with a thread-local SF process each."""
+    """Two-stage labeling with thread-local SF processes: one MultiPV=8
+    selector process and one MultiPV=1 labeler per thread."""
     local = threading.local()
-    def get_sf():
-        if getattr(local, "sf", None) is None:
-            local.sf, local.send = make_sf()
-        return local.sf, local.send
+    def get_selector():
+        if getattr(local, "sel", None) is None:
+            local.sel, local.sel_send = make_sf(multipv=K_SIBLINGS)
+        return local.sel, local.sel_send
+    def get_labeler():
+        if getattr(local, "lab", None) is None:
+            local.lab, local.lab_send = make_sf(multipv=1)
+        return local.lab, local.lab_send
 
     def work(pi):
         p = parents[pi]
-        sf, send = get_sf()
-        cands = select_moves(sf, send, p["fen"], K_SIBLINGS)
-        sibs = []
         b = chess.Board(p["fen"])
+        k = min(K_SIBLINGS, len(list(b.legal_moves)))
+        sel_p, sel_send = get_selector()
+        cands = select_moves(sel_p, sel_send, p["fen"], k)
+        # fail-close: every selector move must be legal
         for mv in cands:
+            if chess.Move.from_uci(mv) not in b.legal_moves:
+                raise SystemExit(
+                    f"FAIL CLOSED: selector returned illegal move {mv} "
+                    f"for {p['fen']}")
+        lab_p, lab_send = get_labeler()
+        sibs = []
+        for mv in cands:
+            lab = label_move(lab_p, lab_send, p["fen"], mv)
             m = chess.Move.from_uci(mv)
-            if m not in b.legal_moves:
-                continue  # selector hallucination guard
-            lab = label_move(sf, send, p["fen"], mv)
             b.push(m)
-            sibs.append({"uci": mv, "child_fen": b.fen(), **lab})
+            sibs.append({"uci": mv, "child_fen": b.fen(),
+                         "selector_rank": cands.index(mv) + 1, **lab})
             b.pop()
         p["siblings"] = sibs
 
@@ -266,23 +303,26 @@ def main():
     args = parser.parse_args()
     CACHE.mkdir(exist_ok=True)
 
+    # Repair 1: REUSE the exact original parent corpus (same parents,
+    # same SHA) — only the sibling selection/labeling is redone.
+    src = (r"C:\Users\81489\AppData\Local\Temp\opencode\i1a-cache"
+           r"\i1a_full.jsonl")
+    all_parents = [json.loads(l) for l in open(src, encoding="utf-8")
+                   if l.strip()]
     if args.phase == "smoke":
-        n = 64
-        eureka = (r"C:\Users\81489\AppData\Local\Temp\opencode"
-                  r"\eureka-diag.exe")
+        rng = random.Random(2026090801)
+        parents = rng.sample(all_parents, 128)
+        out_name = "i1a_smoke_r1"
     else:
-        n = 5000
-        eureka = (r"C:\Users\81489\AppData\Local\Temp\opencode"
-                  r"\eureka-diag.exe")
-
-    print(f"=== I1-A0 {args.phase}: {n*2} parents ===", flush=True)
-    ordinary = collect_ordinary_parents(n, seed=2026090701)
-    print(f"ordinary parents: {len(ordinary)}", flush=True)
-    search, n_roots = collect_search_parents(n, seed=2026090702,
-                                              eureka_diag=eureka)
-    print(f"search-site parents: {len(search)} from {n_roots} roots",
-          flush=True)
-    parents = ordinary + search
+        parents = all_parents
+        out_name = "i1a_full_r1"
+    n_roots = len({p.get("root_pid") for p in parents
+                   if p["source"] == "search_site"})
+    print(f"=== I1-A Repair1 {args.phase}: {len(parents)} parents "
+          f"({n_roots} roots, REUSED) ===", flush=True)
+    # drop old siblings
+    for p in parents:
+        p.pop("siblings", None)
 
     wall = label_parents(parents)
     print(f"labeling wall: {wall:.0f}s "
@@ -294,7 +334,7 @@ def main():
     n_sibs = sum(len(p["siblings"]) for p in parents)
     print(f"total siblings: {n_sibs} | parent SHA {ordered_sha[:16]}")
 
-    out = CACHE / (f"i1a_{'smoke' if args.phase=='smoke' else 'full'}.jsonl")
+    out = CACHE / f"{out_name}.jsonl"
     with open(out, "w", encoding="utf-8") as f:
         for p in parents:
             f.write(json.dumps(p) + "\n")

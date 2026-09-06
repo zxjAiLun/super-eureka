@@ -710,12 +710,16 @@ def train_and_eval(
     best_state_dict = None
     epochs_no_improve = 0
 
-    # S10-I1-A: optional sibling-ranking auxiliary objective. rank_scale
-    # is derived ONCE at initialization (dimensional calibration from the
-    # randomly-initialized model on a forward pass — NOT validation
-    # tuning), rounded to 2 significant digits, frozen for the run.
+    # S10-I1-A (Repair 1): sibling-ranking auxiliary. Exposure contract:
+    # every scalar epoch performs EXACTLY ONE full deterministic pass over
+    # the rank-parent corpus in minibatches of 32 parents; each rank
+    # minibatch is added to a uniformly scheduled scalar step's loss (one
+    # optimizer.step() total — step count, scalar order, scheduler
+    # unchanged). rank_scale is derived ONCE at initialization (dimensional
+    # calibration), rounded to 2 significant digits, frozen.
     rank_corpus = None
     rank_scale = None
+    rank_every = 1
     n_train = len(train_items)
     if rank_corpus_path is not None:
         import importlib.util as _ilu
@@ -726,10 +730,6 @@ def train_and_eval(
         _spec.loader.exec_module(_mod)
         RankCorpus = _mod.RankCorpus
         rank_corpus = RankCorpus(rank_corpus_path, Path(engine_bin), device)
-        # calibration batch = the first 256 WHOLE validation items
-        # (slice at EncodedSplit level so offsets stay aligned — slicing
-        # the flattened index tensors would cut mid-item and desync the
-        # embedding_bag ranges)
         with torch.no_grad():
             cal_items = val_items[:256]
             cal = EncodedSplit([
@@ -743,24 +743,23 @@ def train_and_eval(
         if rank_mag <= 0:
             raise SystemExit("FAIL CLOSED: rank corpus has no valid pairs")
         raw = scalar_mag / rank_mag
-        # 2 significant digits
         rank_scale = round(raw, 1 - int(__import__("math").floor(
             __import__("math").log10(abs(raw)))))
         print(f"rank corpus: {rank_corpus.n_parents} parents, "
               f"{rank_corpus.n_pairs} valid pairs | rank_scale "
               f"(calibration, frozen) = {rank_scale}")
-        # deterministic rank-step schedule: one rank step per
-        # ceil(scalar_steps / rank_epochs) scalar steps, spread uniformly;
-        # total optimizer steps UNCHANGED (rank loss is ADDED to the
-        # scheduled scalar step's loss)
-        n_scalar_steps = (n_train + batch_size - 1) // batch_size * max_epochs
-        rank_every = max(1, n_scalar_steps // max(1, rank_corpus.n_parents))
+        # schedule: ceil(n_parents / 32) rank minibatches per epoch, spread
+        # uniformly over the epoch's scalar steps
+        steps_per_epoch = (n_train + batch_size - 1) // batch_size
+        rank_batches_per_epoch = (rank_corpus.n_parents + 31) // 32
+        rank_every = max(1, steps_per_epoch // rank_batches_per_epoch)
 
     g = torch.Generator()
     g.manual_seed(seed)
 
     history = []
     global_step = 0
+    rank_telemetry = {"steps": 0, "raw_rank_loss": 0.0}
 
     for epoch in range(1, max_epochs + 1):
         model.train()
@@ -782,15 +781,17 @@ def train_and_eval(
             optimizer.zero_grad()
             preds = model(stm_ind, stm_off, nstm_ind, nstm_off)
             loss = criterion(preds, targets)
-            # S10-I1-A: scheduled rank steps ADD the ranking loss to the
-            # same scalar step (one optimizer.step() total; step count,
-            # scalar order and scheduler progression unchanged).
+            # S10-I1-A (Repair 1): one full deterministic parent pass per
+            # epoch in minibatches of 32, uniformly interleaved with the
+            # scalar steps (ADD to the same step; one optimizer.step()).
             if rank_corpus is not None and global_step % rank_every == 0:
-                pids = rank_corpus.batch_parent_ids(
-                    global_step // rank_every, rank_corpus.n_parents)
+                pids = rank_corpus.epoch_parent_batch(
+                    epoch, (global_step % steps_per_epoch) // rank_every)
                 rloss = rank_corpus.loss_for_parents(model, pids)
                 if rloss is not None:
                     loss = loss + rank_scale * rloss
+                    rank_telemetry["raw_rank_loss"] = rloss.item()
+                    rank_telemetry["steps"] += 1
             loss.backward()
             optimizer.step()
 
@@ -798,6 +799,11 @@ def train_and_eval(
             train_loss_accum += loss.item() * len(batch_items)
 
         train_loss = train_loss_accum / n_train
+        if rank_corpus is not None:
+            print(f"  epoch {epoch}: rank steps so far "
+                  f"{rank_telemetry['steps']}, last raw rank loss "
+                  f"{rank_telemetry['raw_rank_loss']:.4f}, train_loss "
+                  f"{train_loss:.4f}", flush=True)
 
         # Fast vectorized validation pass
         model.eval()
