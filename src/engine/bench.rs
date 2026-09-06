@@ -2865,9 +2865,10 @@ fn run_nnue_features(args: &[String]) -> Result<(), String> {
                     "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
                     "v2r6" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R6,
                     "v2r14" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R14,
+                    "v2r12" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R12,
                     other => {
                         return Err(format!(
-                            "nnue-features: unknown feature set '{other}' (expected v1|v2|v2r6|v2r14)"
+                            "nnue-features: unknown feature set '{other}' (expected v1|v2|v2r6|v2r14|v2r12)"
                         ))
                     }
                 }
@@ -2919,9 +2920,10 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
                     "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
                     "v2r6" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R6,
                     "v2r14" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R14,
+                    "v2r12" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R12,
                     other => {
                         return Err(format!(
-                            "nnue-features-batch: unknown feature set '{other}' (expected v1|v2|v2r6|v2r14)"
+                            "nnue-features-batch: unknown feature set '{other}' (expected v1|v2|v2r6|v2r14|v2r12)"
                         ))
                     }
                 }
@@ -3475,6 +3477,7 @@ fn run_nnue_feature_cost(args: &[String]) -> Result<(), String> {
                 crate::engine::nnue::NnueFeatureSet::V2 => "v2",
                 crate::engine::nnue::NnueFeatureSet::V2R6 => "v2r6",
                 crate::engine::nnue::NnueFeatureSet::V2R14 => "v2r14",
+                crate::engine::nnue::NnueFeatureSet::V2R12 => "v2r12",
             };
 
             let start = std::time::Instant::now();

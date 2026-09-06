@@ -57,6 +57,9 @@ NNUE_V2R6_REL_BASE = 22528
 # S11-A Repair 1: V2 + R14 sidecar (A bound to victim piece type).
 NNUE_INPUTS_V2R14 = 22528 + 14 * 64
 NNUE_V2R14_REL_BASE = 22528
+# S11-A Repair 2: V2 + R12 sidecar (A for N/B/R/Q only; no pawn A).
+NNUE_INPUTS_V2R12 = 22528 + 12 * 64
+NNUE_V2R12_REL_BASE = 22528
 
 CLIP_CP = 2000.0
 TARGET_SCALE = 1000.0
@@ -425,6 +428,8 @@ def export_features_from_engine(
         max_dim = NNUE_INPUTS_V2R6
     elif feature_set == "v2r14":
         max_dim = NNUE_INPUTS_V2R14
+    elif feature_set == "v2r12":
+        max_dim = NNUE_INPUTS_V2R12
     else:
         max_dim = NNUE_INPUTS_V2
     exported: dict[str, dict] = {}
@@ -631,6 +636,8 @@ def train_and_eval(
         num_inputs = NNUE_INPUTS_V2R6
     elif feature_set == "v2r14":
         num_inputs = NNUE_INPUTS_V2R14
+    elif feature_set == "v2r12":
+        num_inputs = NNUE_INPUTS_V2R12
     else:
         num_inputs = NNUE_INPUTS_V2
 
@@ -808,7 +815,7 @@ def train_and_eval(
     # S11-A fairness: zero the R6 sidecar rows so epoch-0 output is
     # bit-identical to the E3 single-tail model on the same seed; any
     # later divergence comes from actually learning the relation rows.
-    if feature_set in ("v2r6", "v2r14"):
+    if feature_set in ("v2r6", "v2r14", "v2r12"):
         with torch.no_grad():
             model.ft_weights.weight[NNUE_V2R6_REL_BASE:].zero_()
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -1175,7 +1182,7 @@ def main():
     parser = argparse.ArgumentParser(description="S10 Production NNUE Training Harness")
     parser.add_argument("--dataset", type=Path, required=True, help="Path to dataset directory")
     parser.add_argument("--engine", type=Path, required=True, help="Path to eureka engine binary")
-    parser.add_argument("--feature-set", choices=["v1", "v2", "v2r6", "v2r14"], required=True, help="Feature set representation")
+    parser.add_argument("--feature-set", choices=["v1", "v2", "v2r6", "v2r14", "v2r12"], required=True, help="Feature set representation")
     parser.add_argument("--seed", type=int, required=True, help="Random seed")
     parser.add_argument("--output", type=Path, required=True, help="Output directory")
     parser.add_argument("--lr", type=float, default=DEFAULT_LR)

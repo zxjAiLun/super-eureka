@@ -93,7 +93,7 @@ def evaluate_checkpoint(ckpt_path, device="cpu", feature_set="auto"):
     records = [{"position_id": f"c{i}", "fen": f}
                for i, f in enumerate(child_fens)]
     if feature_set == "auto":
-        feature_set = ("v2r14" if sd_inputs >= 23424 else ("v2r6" if sd_inputs >= 22912 else "v2"))
+        feature_set = ("v2r14" if sd_inputs >= 23424 else ("v2r6" if sd_inputs >= 22912 else ("v2r12" if sd_inputs >= 23296 else "v2")))
     exported = export_features_from_engine(EUREKA, records, feature_set)
     # S10-J2: phase buckets via the FROZEN classifier (j2_phase.py)
     import importlib.util as _ilu3

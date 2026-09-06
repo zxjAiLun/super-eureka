@@ -56,6 +56,18 @@ pub const NNUE_V2R6_REL_BASE: usize = NNUE_INPUTS_V2;
 pub const NNUE_INPUTS_V2R14: usize = NNUE_INPUTS_V2 + 14 * 64;
 pub const NNUE_V2R14_REL_BASE: usize = NNUE_INPUTS_V2;
 
+/// S11-A Repair 2: V2 + R12 sidecar — R14 minus the pawn A channels.
+/// Hanging PAWN relations are excluded entirely (the R1.5/R1.6 audits
+/// showed their marginal task value is small while their exchange
+/// over-read drives the dxc6 pathology); A for N/B/R/Q stays
+/// victim-type-bound. 12 channels x 64 squares:
+///   ch 0..3 = OWN_A_{N,B,R,Q}
+///   ch 4..7 = OPP_A_{N,B,R,Q}
+///   ch 8/9  = OWN_D / OPP_D
+///   ch 10/11 = OWN_C / OPP_C
+pub const NNUE_INPUTS_V2R12: usize = NNUE_INPUTS_V2 + 12 * 64;
+pub const NNUE_V2R12_REL_BASE: usize = NNUE_INPUTS_V2;
+
 /// Supported NNUE feature set representations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NnueFeatureSet {
@@ -65,6 +77,8 @@ pub enum NnueFeatureSet {
     V2R6,
     /// S11-A Repair 1: V2 base rows + R14 victim-type-bound sidecar.
     V2R14,
+    /// S11-A Repair 2: V2 base rows + R12 sidecar (no pawn A).
+    V2R12,
 }
 
 impl NnueFeatureSet {
@@ -76,6 +90,7 @@ impl NnueFeatureSet {
             NnueFeatureSet::V2 => NNUE_INPUTS_V2,
             NnueFeatureSet::V2R6 => NNUE_INPUTS_V2R6,
             NnueFeatureSet::V2R14 => NNUE_INPUTS_V2R14,
+            NnueFeatureSet::V2R12 => NNUE_INPUTS_V2R12,
         }
     }
 
@@ -87,6 +102,7 @@ impl NnueFeatureSet {
             NnueFeatureSet::V2 => 31,
             NnueFeatureSet::V2R6 => 32,
             NnueFeatureSet::V2R14 => 33,
+            NnueFeatureSet::V2R12 => 34,
         }
     }
 }
@@ -303,6 +319,11 @@ pub fn active_features_for(
             out.extend(relation_features_v2r14(pos, perspective));
             out
         }
+        NnueFeatureSet::V2R12 => {
+            let mut out = active_features_v2(pos, perspective);
+            out.extend(relation_features_v2r12(pos, perspective));
+            out
+        }
     }
 }
 
@@ -402,6 +423,54 @@ fn relation_features_v2r14(
         let oriented = perspective.orient(sq);
         let transformed = if mirror_file { oriented ^ 7 } else { oriented };
         out.push((NNUE_V2R14_REL_BASE
+            + channel * 64
+            + transformed as usize) as u16);
+    }
+    out
+}
+
+/// S11-A Repair 2: R12 sidecar — identical semantics to R14 except
+/// PAWN victims in the A (attacked-undefended) state produce NO row.
+/// Channel layout (see NNUE_INPUTS_V2R12 doc comment):
+///   A: type_idx(N=0,B=1,R=2,Q=3) + 4*own   (0..=7)
+///   D: 8 + own                             (8/9)
+///   C: 10 + own                            (10/11)
+fn relation_features_v2r12(
+    pos: &Position,
+    perspective: NnuePerspective,
+) -> Vec<u16> {
+    use crate::chess::types::PieceType;
+    let (_, mirror_file) = v2_king_context(pos, perspective);
+    let mut out = Vec::new();
+    for sq in 0..64u8 {
+        let Some(piece) = pos.board()[sq as usize] else { continue };
+        if piece.piece_type == PieceType::King {
+            continue;
+        }
+        let enemy = piece.color.opposite();
+        let attacked = pos.is_square_attacked(sq, enemy);
+        let defended = pos.is_square_attacked(sq, piece.color);
+        let own = piece.color == perspective.color();
+        let type_idx: Option<usize> = match piece.piece_type {
+            PieceType::Pawn => None, // no pawn A in R12
+            PieceType::Knight => Some(0),
+            PieceType::Bishop => Some(1),
+            PieceType::Rook => Some(2),
+            PieceType::Queen => Some(3),
+            PieceType::King => unreachable!("kings excluded above"),
+        };
+        let channel: usize = match (attacked, defended) {
+            (true, false) => match type_idx {
+                Some(ti) => ti + if own { 0 } else { 4 },
+                None => continue, // pawn victim: excluded
+            },
+            (false, true) => 8 + if own { 0 } else { 1 },
+            (true, true) => 10 + if own { 0 } else { 1 },
+            (false, false) => continue,
+        };
+        let oriented = perspective.orient(sq);
+        let transformed = if mirror_file { oriented ^ 7 } else { oriented };
+        out.push((NNUE_V2R12_REL_BASE
             + channel * 64
             + transformed as usize) as u16);
     }
@@ -733,6 +802,34 @@ mod tests {
     /// S11-A Repair 1: the R14 sidecar must satisfy the same
     /// vertical-mirror + color-swap symmetry (identity under the swap,
     /// OWN/OPP preserved — see the R6 twin test's comment).
+    /// S11-A Repair 2: R12 sidecar mirror/color-swap symmetry.
+    #[test]
+    fn v2r12_vertical_mirror_color_swap_preserves_indices() {
+        let fens = [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "rn1qkbnr/p1pp1ppp/1p4n1/8/1B2p3/4P3/PPPP1PPP/RNBQK1NR w KQkq - 0 1",
+        ];
+        for fen in fens {
+            let original = parse_fen(fen).unwrap();
+            let mirrored =
+                parse_fen(&mirror_color_swap_fen(fen)).unwrap();
+            for (a, b) in
+                [(NnuePerspective::White, NnuePerspective::Black),
+                 (NnuePerspective::Black, NnuePerspective::White)]
+            {
+                let mut fa = relation_features_v2r12(&original, a);
+                fa.sort();
+                let mut fb = relation_features_v2r12(&mirrored, b);
+                fb.sort();
+                assert_eq!(
+                    fa, fb,
+                    "R12 mirror/color-swap mismatch for {fen} ({a:?}->{b:?})"
+                );
+            }
+        }
+    }
+
     #[test]
     fn v2r14_vertical_mirror_color_swap_preserves_indices() {
         let fens = [
