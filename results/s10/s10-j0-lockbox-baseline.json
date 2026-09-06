@@ -1,0 +1,11 @@
+{
+ "n": 256,
+ "mean_regret": 210.1,
+ "median_regret": 47,
+ "acc20": 42.6,
+ "acc50": 53.1,
+ "top1": 30.9,
+ "pairwise": 58.3,
+ "pairs": 75818,
+ "note": "J1-0 frozen E3 baseline via tools/s10/j0_lockbox.py (the single lockbox scorer). Historical 58.1 was a different script; 58.3 is the canonical number from this code path. All J1+ comparisons use this."
+}
