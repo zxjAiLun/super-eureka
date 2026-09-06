@@ -81,7 +81,7 @@ def evaluate_checkpoint(ckpt_path, device="cpu"):
     sd = ckpt["model_state_dict"]
     ft_w = int(sd["ft_bias"].shape[0])
     dense_w = int(sd["l1.bias"].shape[0])
-    n_buckets = 4 if "bucket_outs.0.weight" in sd else 1
+    n_buckets = 4 if "bucket_tails.0.l1.weight" in sd else 1
     model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w,
                       dense_width=dense_w, output_buckets=n_buckets)
     model.load_state_dict(sd)

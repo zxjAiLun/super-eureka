@@ -200,7 +200,7 @@ class NnueModel(nn.Module):
         self.ft_weights = nn.Embedding(num_inputs, ft_width)
         self.ft_bias = nn.Parameter(torch.zeros(ft_width))
 
-        # Dense evaluation network (shared trunk up to the output layer)
+        # Dense evaluation network (legacy single tail)
         self.act1 = ClippedReLU(0.0, 1.0)
         self.l1 = nn.Linear(ft_width * 2, dense_width)
         self.act2 = ClippedReLU(0.0, 1.0)
@@ -210,13 +210,25 @@ class NnueModel(nn.Module):
 
         self._init_weights()
 
-        # S10-J2: bucketed heads are CLONES of the initialized legacy
-        # head (epoch-0 outputs identical across buckets; any divergence
-        # is then purely from phase-specialized training).
+        # S10-J2 Repair 1: FULL phase-specific tails. With
+        # output_buckets > 1 ONLY the FT (weights + bias) is shared;
+        # the complete l1 -> l2 -> out nonlinear mapping is per-bucket.
+        # All four tails are CLONES of the initialized legacy tail, so
+        # epoch-0 outputs are bit-identical across buckets and to the
+        # legacy single-head model (same seed); any divergence is then
+        # purely from phase-specialized training. The legacy
+        # `l1/l2/out` members remain for state-dict compatibility but
+        # are UNUSED on the bucketed path.
         if output_buckets > 1:
             import copy
-            self.bucket_outs = nn.ModuleList([
-                copy.deepcopy(self.out) for _ in range(output_buckets)])
+            self.bucket_tails = nn.ModuleList([
+                nn.ModuleDict({
+                    "l1": copy.deepcopy(self.l1),
+                    "l2": copy.deepcopy(self.l2),
+                    "out": copy.deepcopy(self.out),
+                })
+                for _ in range(output_buckets)
+            ])
 
     def forward(
         self,
@@ -243,15 +255,25 @@ class NnueModel(nn.Module):
         # Apply ClippedReLU to accumulator output [stm_acc, nstm_acc] -> 256
         acc_act = self.act1(torch.cat([stm_acc, nstm_acc], dim=1))
 
-        # Forward dense layers
+        if self.output_buckets > 1 and buckets is not None:
+            # S10-J2 Repair 1: run ONLY the sample's own full tail.
+            # Per-sample gather is done by bucket group so each tail
+            # executes as one batched forward (no per-sample loop).
+            outs = torch.empty(acc_act.shape[0], 1,
+                               device=acc_act.device)
+            for bid, tail in enumerate(self.bucket_tails):
+                mask = buckets == bid
+                if not mask.any():
+                    continue
+                sel = acc_act[mask]
+                h1 = self.act2(tail["l1"](sel))
+                h2 = self.act3(tail["l2"](h1))
+                outs[mask] = tail["out"](h2)
+            return outs.view(-1)
+
+        # Forward dense layers (legacy single-tail path)
         h1 = self.act2(self.l1(acc_act))
         h2 = self.act3(self.l2(h1))
-        if self.output_buckets > 1 and buckets is not None:
-            # per-sample bucket head: gather each sample's head output
-            outs = torch.stack([head(h2) for head in self.bucket_outs],
-                               dim=1)  # [B, n_buckets, 1]
-            b = buckets.view(-1, 1, 1).expand(-1, 1, 1)
-            return outs.gather(1, b).squeeze(1).view(-1)
         out = self.out(h2)
         return out.view(-1)
 

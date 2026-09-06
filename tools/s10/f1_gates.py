@@ -76,8 +76,12 @@ def load_checkpoint(path: Path):
     from tools.s10.train_nnue import NNUE_INPUTS_V2, NnueModel
 
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2)
-    model.load_state_dict(ckpt["model_state_dict"])
+    sd = ckpt["model_state_dict"]
+    nb = 4 if "bucket_tails.0.l1.weight" in sd else 1
+    dw = int(sd["l1.bias"].shape[0])
+    model = NnueModel(num_inputs=NNUE_INPUTS_V2, dense_width=dw,
+                      output_buckets=nb)
+    model.load_state_dict(sd)
     model.eval()
     return model
 
@@ -134,9 +138,25 @@ def composed_predictions(model, engine: Path, fens: list[str]):
     enc = EncodedSplit([
         {**it, "target_scaled": 0.0, "target_cp": 0.0} for it in items
     ])
+    # S10-J2: attach the frozen phase bucket for bucketed models.
+    buckets = None
+    if getattr(model, "output_buckets", 1) > 1:
+        import chess as _chess
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "j2_phase",
+            str(Path(__file__).parent / "j2_phase.py"))
+        _j2 = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_j2)
+        _BID = {"high": 0, "mid": 1, "low": 2, "zero": 3}
+        buckets = torch.tensor(
+            [_BID[_j2.bucket_of_phase(
+                _j2.phase_score(_chess.Board(f).piece_map()))]
+             for f in fens], dtype=torch.long)
     with torch.no_grad():
         preds = model(
-            enc.stm_indices, enc.stm_offsets, enc.nstm_indices, enc.nstm_offsets
+            enc.stm_indices, enc.stm_offsets, enc.nstm_indices,
+            enc.nstm_offsets, buckets
         ).numpy()
     return [
         it["material"] + float(p) * 1000.0 for it, p in zip(items, preds)
