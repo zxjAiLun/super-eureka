@@ -1,0 +1,40 @@
+{
+ "dxc6": -237.0,
+ "motif": {
+  "ALL_motif": {
+   "bias": -42.7,
+   "mae": 170.5
+  },
+  "victim_P": {
+   "bias": -82.3,
+   "mae": 128.8
+  },
+  "pawn_capture_True": {
+   "bias": 26.6,
+   "mae": 153.2
+  },
+  "CONTROLS": {
+   "bias": 19.9,
+   "mae": 137.4
+  }
+ },
+ "search_site_mae": 174.8,
+ "lockbox": {
+  "pairwise": 68.1,
+  "macro_pairwise": 64.1,
+  "mean_regret": 163.0,
+  "acc20": 41.8,
+  "catastrophic_n": 17,
+  "catastrophic_mean_regret": 1272
+ },
+ "gates": {
+  "dxc6 <= -150": "PASS (-237.0)",
+  "pairwise >= 67.0": "PASS (68.1)",
+  "mean regret <= 175": "PASS (163.0)",
+  "ALL_motif MAE <= 190": "PASS (170.5)",
+  "|ALL_motif bias| <= 100": "PASS (-42.7)",
+  "controls MAE <= 160": "PASS (137.4)",
+  "|pawn_capture_True bias| <= 100": "PASS (+26.6)"
+ },
+ "verdict": "ALL 7 gates PASS -> GO R12"
+}
