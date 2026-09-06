@@ -81,25 +81,38 @@ def evaluate_checkpoint(ckpt_path, device="cpu"):
     sd = ckpt["model_state_dict"]
     ft_w = int(sd["ft_bias"].shape[0])
     dense_w = int(sd["l1.bias"].shape[0])
+    n_buckets = 4 if "bucket_outs.0.weight" in sd else 1
     model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w,
-                      dense_width=dense_w)
-    model.load_state_dict(ckpt["model_state_dict"])
+                      dense_width=dense_w, output_buckets=n_buckets)
+    model.load_state_dict(sd)
     model.eval()
 
     records = [{"position_id": f"c{i}", "fen": f}
                for i, f in enumerate(child_fens)]
     exported = export_features_from_engine(EUREKA, records, "v2")
+    # S10-J2: phase buckets via the FROZEN classifier (j2_phase.py)
+    import importlib.util as _ilu3
+    _spec3 = _ilu3.spec_from_file_location(
+        "j2_phase", str(_HERE / "j2_phase.py"))
+    _j2 = _ilu3.module_from_spec(_spec3)
+    _spec3.loader.exec_module(_j2)
+    _BID = {"high": 0, "mid": 1, "low": 2, "zero": 3}
     items = []
     for i, f in enumerate(child_fens):
         exp = exported[f"c{i}"]
         sw = f.split()[1] == "w"
+        board = chess.Board(f)
+        bucket = _BID[_j2.bucket_of_phase(
+            _j2.phase_score(board.piece_map()))]
         items.append({"stm": exp["white"] if sw else exp["black"],
-                      "nstm": exp["black"] if sw else exp["white"]})
+                      "nstm": exp["black"] if sw else exp["white"],
+                      "bucket": bucket})
     enc = EncodedSplit([
         {**it, "target_scaled": 0.0, "target_cp": 0.0} for it in items])
     with torch.no_grad():
         preds = model(enc.stm_indices, enc.stm_offsets,
-                      enc.nstm_indices, enc.nstm_offsets).numpy()
+                      enc.nstm_indices, enc.nstm_offsets,
+                      enc.buckets).numpy()
     child_eval = [_clamp(material_cp_stm_python(f) + float(p) * 1000.0)
                   for f, p in zip(child_fens, preds)]
 

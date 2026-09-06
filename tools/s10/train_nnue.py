@@ -183,20 +183,24 @@ class NnueModel(nn.Module):
     """Production NNUE architecture: FT-(dense)-(dense)-1.
 
     The dense width defaults to the frozen production 32; the S10-J1
-    capacity probe uses 64 with everything else unchanged."""
+    capacity probe uses 64 with everything else unchanged. S10-J2 adds
+    OPTIONAL phase-bucketed output heads (4 x the full 32->32->1 tail,
+    one per high/mid/low/zero phase); with `output_buckets=1` (default)
+    the single-head legacy path is byte-identical."""
 
     def __init__(self, num_inputs: int, ft_width: int = 128,
-                 dense_width: int = 32):
+                 dense_width: int = 32, output_buckets: int = 1):
         super().__init__()
         self.num_inputs = num_inputs
         self.ft_width = ft_width
         self.dense_width = dense_width
+        self.output_buckets = output_buckets
 
         # Feature Transformer (sparse embedding table + accumulator bias)
         self.ft_weights = nn.Embedding(num_inputs, ft_width)
         self.ft_bias = nn.Parameter(torch.zeros(ft_width))
 
-        # Dense evaluation network
+        # Dense evaluation network (shared trunk up to the output layer)
         self.act1 = ClippedReLU(0.0, 1.0)
         self.l1 = nn.Linear(ft_width * 2, dense_width)
         self.act2 = ClippedReLU(0.0, 1.0)
@@ -206,16 +210,13 @@ class NnueModel(nn.Module):
 
         self._init_weights()
 
-    def _init_weights(self):
-        # Uniform init for embedding table
-        nn.init.uniform_(self.ft_weights.weight, -0.01, 0.01)
-        nn.init.zeros_(self.ft_bias)
-        nn.init.kaiming_uniform_(self.l1.weight, nonlinearity="relu")
-        nn.init.zeros_(self.l1.bias)
-        nn.init.kaiming_uniform_(self.l2.weight, nonlinearity="relu")
-        nn.init.zeros_(self.l2.bias)
-        nn.init.xavier_uniform_(self.out.weight)
-        nn.init.zeros_(self.out.bias)
+        # S10-J2: bucketed heads are CLONES of the initialized legacy
+        # head (epoch-0 outputs identical across buckets; any divergence
+        # is then purely from phase-specialized training).
+        if output_buckets > 1:
+            import copy
+            self.bucket_outs = nn.ModuleList([
+                copy.deepcopy(self.out) for _ in range(output_buckets)])
 
     def forward(
         self,
@@ -223,7 +224,8 @@ class NnueModel(nn.Module):
         stm_offsets: torch.Tensor,
         nstm_indices: torch.Tensor,
         nstm_offsets: torch.Tensor,
-    ) -> torch.Tensor:
+        buckets: torch.Tensor | None = None,
+    ):
         # Fast vectorized sparse bag-of-features lookup via nn.functional.embedding_bag
         stm_acc = (
             nn.functional.embedding_bag(
@@ -244,8 +246,28 @@ class NnueModel(nn.Module):
         # Forward dense layers
         h1 = self.act2(self.l1(acc_act))
         h2 = self.act3(self.l2(h1))
+        if self.output_buckets > 1 and buckets is not None:
+            # per-sample bucket head: gather each sample's head output
+            outs = torch.stack([head(h2) for head in self.bucket_outs],
+                               dim=1)  # [B, n_buckets, 1]
+            b = buckets.view(-1, 1, 1).expand(-1, 1, 1)
+            return outs.gather(1, b).squeeze(1).view(-1)
         out = self.out(h2)
         return out.view(-1)
+
+    def _init_weights(self):
+        # Uniform init for embedding table
+        nn.init.uniform_(self.ft_weights.weight, -0.01, 0.01)
+        nn.init.zeros_(self.ft_bias)
+        nn.init.kaiming_uniform_(self.l1.weight, nonlinearity="relu")
+        nn.init.zeros_(self.l1.bias)
+        nn.init.kaiming_uniform_(self.l2.weight, nonlinearity="relu")
+        nn.init.zeros_(self.l2.bias)
+        nn.init.xavier_uniform_(self.out.weight)
+        nn.init.zeros_(self.out.bias)
+
+    def _legacy_forward_removed(self):
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -506,6 +528,8 @@ class EncodedSplit:
         self.nstm_offsets = torch.tensor(nstm_offsets, dtype=torch.long)
         self.targets = torch.tensor(targets, dtype=torch.float32)
         self.raw_cps = torch.tensor(raw_cps, dtype=torch.float32)
+        buckets = [it.get("bucket", 0) for it in items]
+        self.buckets = torch.tensor(buckets, dtype=torch.long)
 
 
 def train_and_eval(
@@ -525,6 +549,7 @@ def train_and_eval(
     ft_width: int = 128,
     rank_corpus_path: Path | None = None,
     dense_width: int = 32,
+    output_buckets: int = 1,
 ) -> dict:
     if target_mode not in TARGET_MODES:
         raise SystemExit(
@@ -537,6 +562,33 @@ def train_and_eval(
             "(expected 128 | 256; the G1 capacity probe is frozen to "
             "these two widths)"
         )
+    if output_buckets not in (1, 4):
+        raise SystemExit(
+            f"FAIL CLOSED: unsupported output_buckets {output_buckets} "
+            "(expected 1 | 4; S10-J2 phase routing is frozen to 4)")
+
+    # S10-J2: attach the frozen phase bucket to every record (trainer,
+    # lockbox scorer, and runtime share the SAME classifier —
+    # tools/s10/j2_phase.py is the single definition).
+    if output_buckets > 1:
+        import chess as _chess
+        import importlib.util as _ilu2
+        _spec2 = _ilu2.spec_from_file_location(
+            "j2_phase", str(Path(__file__).parent / "j2_phase.py"))
+        _j2 = _ilu2.module_from_spec(_spec2)
+        _spec2.loader.exec_module(_j2)
+        phase_score = _j2.phase_score
+        bucket_of_phase = _j2.bucket_of_phase
+        _BUCKET_ID = {"high": 0, "mid": 1, "low": 2, "zero": 3}
+        _bucket_cache: dict[str, int] = {}
+        def _bucket_of_fen(fen: str) -> int:
+            b = _bucket_cache.get(fen)
+            if b is None:
+                board = _chess.Board(fen)
+                b = _BUCKET_ID[bucket_of_phase(
+                    phase_score(board.piece_map()))]
+                _bucket_cache[fen] = b
+            return b
     start_time = time.time()
     num_inputs = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
 
@@ -621,6 +673,7 @@ def train_and_eval(
             "target_scaled": target_scaled,
             "target_cp": target_cp,
             "material_cp_stm": material_stm[pid],
+            "bucket": _bucket_of_fen(r["fen"]) if output_buckets > 1 else 0,
         }
         splits[split].append(item)
 
@@ -679,6 +732,7 @@ def train_and_eval(
         [it["material_cp_stm"] for it in val_items],
         dtype=torch.float32, device=device,
     )
+    val_buckets = val_encoded.buckets.to(device)
 
     # S10-F1: residual target distribution (train+validation actually
     # encoded). Recorded BEFORE training; never clipped.
@@ -707,7 +761,8 @@ def train_and_eval(
 
     # 5. Initialize Model & Optimizer
     model = NnueModel(num_inputs=num_inputs, ft_width=ft_width,
-                      dense_width=dense_width).to(device)
+                      dense_width=dense_width,
+                      output_buckets=output_buckets).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.SmoothL1Loss(beta=LOSS_BETA)
 
@@ -786,7 +841,8 @@ def train_and_eval(
             targets = b_enc.targets.to(device)
 
             optimizer.zero_grad()
-            preds = model(stm_ind, stm_off, nstm_ind, nstm_off)
+            preds = model(stm_ind, stm_off, nstm_ind, nstm_off,
+                          b_enc.buckets.to(device))
             loss = criterion(preds, targets)
             # S10-I1-A (Repair 1): one full deterministic parent pass per
             # epoch in minibatches of 32, uniformly interleaved with the
@@ -815,7 +871,8 @@ def train_and_eval(
         # Fast vectorized validation pass
         model.eval()
         with torch.no_grad():
-            preds = model(val_stm_ind, val_stm_off, val_nstm_ind, val_nstm_off)
+            preds = model(val_stm_ind, val_stm_off, val_nstm_ind,
+                          val_nstm_off, val_buckets)
             val_loss = criterion(preds, val_targets).item()
             pred_cp = preds * TARGET_SCALE
             if target_mode == "material-residual":
@@ -868,7 +925,8 @@ def train_and_eval(
 
     # Re-evaluate validation set with best checkpoint to verify restored loss/MAE parity
     with torch.no_grad():
-        preds = model(val_stm_ind, val_stm_off, val_nstm_ind, val_nstm_off)
+        preds = model(val_stm_ind, val_stm_off, val_nstm_ind,
+                      val_nstm_off, val_buckets)
         restored_val_loss = criterion(preds, val_targets).item()
         pred_cp = preds * TARGET_SCALE
         if target_mode == "material-residual":
@@ -896,8 +954,10 @@ def train_and_eval(
             dtype=torch.float32, device=device,
         )
 
+        h_buckets = holdout_encoded.buckets.to(device)
         with torch.no_grad():
-            preds = model(h_stm_ind, h_stm_off, h_nstm_ind, h_nstm_off)
+            preds = model(h_stm_ind, h_stm_off, h_nstm_ind,
+                          h_nstm_off, h_buckets)
             h_loss = criterion(preds, h_targets).item()
             pred_cp = preds * TARGET_SCALE
             if target_mode == "material-residual":
@@ -929,6 +989,7 @@ def train_and_eval(
         "seed": seed,
         "ft_width": ft_width,
         "dense_width": dense_width,
+        "output_buckets": output_buckets,
         "target_mode": target_mode,
         "material_anchor": {
             "canonical_piece_cp": CANONICAL_PIECE_CP,
@@ -1088,6 +1149,11 @@ def main():
                         default=32,
                         help="dense head width (S10-J1 capacity probe; "
                              "32 is the frozen production width)")
+    parser.add_argument("--output-buckets", type=int, choices=[1, 4],
+                        default=1,
+                        help="phase-bucketed output heads (S10-J2; "
+                             "4 = one 32-32-1 tail per high/mid/low/zero "
+                             "phase, cloned at init)")
     parser.add_argument("--rank-corpus", type=Path, default=None,
                         help="S10-I1-A sibling-ranking corpus (jsonl). "
                              "When given, adds the frozen ranking "
@@ -1127,6 +1193,7 @@ def main():
         ft_width=args.ft_width,
         rank_corpus_path=args.rank_corpus,
         dense_width=args.dense_width,
+        output_buckets=args.output_buckets,
     )
     print(
         f"Training completed for {args.feature_set} seed {args.seed} "
