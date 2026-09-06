@@ -94,6 +94,7 @@ def composed_predictions(model, engine: Path, fens: list[str]):
 
     from tools.s10.train_nnue import (
         export_features_from_engine,
+        feature_set_from_input_dim,
         material_cp_stm_python,
     )
 
@@ -101,7 +102,7 @@ def composed_predictions(model, engine: Path, fens: list[str]):
         {"position_id": f"c{i}", "fen": f} for i, f in enumerate(fens)
     ]
     _inputs = int(model.ft_weights.weight.shape[0])
-    _fset = ("v2r14" if _inputs >= 23424 else ("v2r6" if _inputs >= 22912 else ("v2r12" if _inputs >= 23296 else "v2")))
+    _fset = feature_set_from_input_dim(_inputs)
     exported = export_features_from_engine(engine, records, _fset)
 
     # material from the engine (single source of truth), cross-checked

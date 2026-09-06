@@ -181,5 +181,29 @@ class TestMaterialResidualTargetMode(unittest.TestCase):
         self.assertEqual(TARGET_MODES, ("cp", "material-residual"))
 
 
+
+class TestFeatureSetFromInputDim(unittest.TestCase):
+    """S11-A Repair 2 evaluation repair: the input-dim resolver must be
+    EXACT and fail-closed (the >= threshold form mis-classified R12's
+    23296 as v2r6 and poisoned the R12 evaluation)."""
+
+    def test_exact_mapping(self):
+        from tools.s10.train_nnue import feature_set_from_input_dim
+        self.assertEqual(feature_set_from_input_dim(40960), "v1")
+        self.assertEqual(feature_set_from_input_dim(22528), "v2")
+        self.assertEqual(feature_set_from_input_dim(22912), "v2r6")
+        self.assertEqual(feature_set_from_input_dim(23296), "v2r12")
+        self.assertEqual(feature_set_from_input_dim(23424), "v2r14")
+
+    def test_unknown_dimension_fails_closed(self):
+        from tools.s10.train_nnue import feature_set_from_input_dim
+        with self.assertRaises(SystemExit):
+            feature_set_from_input_dim(23295)
+        with self.assertRaises(SystemExit):
+            feature_set_from_input_dim(23425)
+        with self.assertRaises(SystemExit):
+            feature_set_from_input_dim(0)
+
+
 if __name__ == '__main__':
     unittest.main()

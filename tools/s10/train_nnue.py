@@ -61,6 +61,27 @@ NNUE_V2R14_REL_BASE = 22528
 NNUE_INPUTS_V2R12 = 22528 + 12 * 64
 NNUE_V2R12_REL_BASE = 22528
 
+
+def feature_set_from_input_dim(input_dim: int) -> str:
+    """S11-A Repair 2 evaluation repair: the ONLY sanctioned mapping from a
+    checkpoint's FT input dimension to its feature-set name. EXACT match,
+    fail-closed on any unknown dimension — never >= thresholds (the
+    threshold form silently mis-classified R12's 23,296 as v2r6 and
+    poisoned the R12 evaluation with R6 row semantics)."""
+    if input_dim == 22528:
+        return "v2"
+    if input_dim == 22912:
+        return "v2r6"
+    if input_dim == 23296:
+        return "v2r12"
+    if input_dim == 23424:
+        return "v2r14"
+    if input_dim == 40960:
+        return "v1"
+    raise SystemExit(
+        f"FAIL CLOSED: unknown FT input dimension {input_dim} "
+        "(expected 40960|22528|22912|23296|23424)")
+
 CLIP_CP = 2000.0
 TARGET_SCALE = 1000.0
 LOSS_BETA = 0.1
