@@ -1,0 +1,128 @@
+{
+ "ALL_motif": {
+  "E3": {
+   "mean_bias": -218.6,
+   "mae": 261.8
+  },
+  "R6": {
+   "mean_bias": -81.4,
+   "mae": 216.3
+  },
+  "R14": {
+   "mean_bias": -27.0,
+   "mae": 166.7
+  }
+ },
+ "CONTROLS": {
+  "E3": {
+   "mean_bias": 14.0,
+   "mae": 163.2
+  },
+  "R6": {
+   "mean_bias": 17.3,
+   "mae": 122.2
+  },
+  "R14": {
+   "mean_bias": 20.0,
+   "mae": 137.6
+  }
+ },
+ "pawn_capture_False": {
+  "E3": {
+   "mean_bias": -216.0,
+   "mae": 256.7
+  },
+  "R6": {
+   "mean_bias": -93.5,
+   "mae": 217.3
+  },
+  "R14": {
+   "mean_bias": -39.7,
+   "mae": 169.0
+  }
+ },
+ "pawn_capture_True": {
+  "E3": {
+   "mean_bias": -232.7,
+   "mae": 289.6
+  },
+  "R6": {
+   "mean_bias": -16.1,
+   "mae": 211.3
+  },
+  "R14": {
+   "mean_bias": 41.4,
+   "mae": 154.8
+  }
+ },
+ "victim_B": {
+  "E3": {
+   "mean_bias": -203.9,
+   "mae": 240.3
+  },
+  "R6": {
+   "mean_bias": -36.0,
+   "mae": 192.8
+  },
+  "R14": {
+   "mean_bias": 3.7,
+   "mae": 158.7
+  }
+ },
+ "victim_N": {
+  "E3": {
+   "mean_bias": -165.7,
+   "mae": 211.4
+  },
+  "R6": {
+   "mean_bias": -90.5,
+   "mae": 208.9
+  },
+  "R14": {
+   "mean_bias": -67.1,
+   "mae": 180.4
+  }
+ },
+ "victim_P": {
+  "E3": {
+   "mean_bias": -74.0,
+   "mae": 145.4
+  },
+  "R6": {
+   "mean_bias": 7.1,
+   "mae": 140.8
+  },
+  "R14": {
+   "mean_bias": -31.6,
+   "mae": 126.0
+  }
+ },
+ "victim_Q": {
+  "E3": {
+   "mean_bias": -499.2,
+   "mae": 517.4
+  },
+  "R6": {
+   "mean_bias": -259.6,
+   "mae": 370.5
+  },
+  "R14": {
+   "mean_bias": 14.3,
+   "mae": 131.0
+  }
+ },
+ "victim_R": {
+  "E3": {
+   "mean_bias": -311.5,
+   "mae": 326.5
+  },
+  "R6": {
+   "mean_bias": -118.4,
+   "mae": 249.8
+  },
+  "R14": {
+   "mean_bias": -37.7,
+   "mae": 267.1
+  }
+ }
+}
