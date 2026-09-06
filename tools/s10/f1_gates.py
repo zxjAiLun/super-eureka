@@ -79,7 +79,8 @@ def load_checkpoint(path: Path):
     sd = ckpt["model_state_dict"]
     nb = 4 if "bucket_tails.0.l1.weight" in sd else 1
     dw = int(sd["l1.bias"].shape[0])
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2, dense_width=dw,
+    sd_inputs = int(sd["ft_weights.weight"].shape[0])
+    model = NnueModel(num_inputs=sd_inputs, dense_width=dw,
                       output_buckets=nb)
     model.load_state_dict(sd)
     model.eval()
@@ -99,7 +100,9 @@ def composed_predictions(model, engine: Path, fens: list[str]):
     records = [
         {"position_id": f"c{i}", "fen": f} for i, f in enumerate(fens)
     ]
-    exported = export_features_from_engine(engine, records, "v2")
+    _inputs = int(model.ft_weights.weight.shape[0])
+    _fset = "v2r6" if _inputs >= 22912 else "v2"
+    exported = export_features_from_engine(engine, records, _fset)
 
     # material from the engine (single source of truth), cross-checked
     with tempfile.NamedTemporaryFile(

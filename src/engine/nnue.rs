@@ -36,11 +36,22 @@ pub const NNUE_INPUTS_V1: usize = NNUE_INPUTS;
 /// Sparse input dimension for V2: 32 king buckets * 11 piece channels * 64 piece squares = 22,528.
 pub const NNUE_INPUTS_V2: usize = 32 * 11 * 64;
 
+/// S11-A: V2 + R6 tactical-relation sidecar. 6 relation channels
+/// (OWN_A/OWN_D/OWN_C/OPP_A/OPP_D/OPP_C) x 64 squares appended after
+/// the 22,528 V2 rows. A = attacked-undefended, D = defended-only,
+/// C = contested; OWN/OPP relative to the accumulator perspective.
+/// Pseudo-attack semantics only (no pin/legality correction); neutral
+/// pieces contribute nothing. Non-king pieces only.
+pub const NNUE_INPUTS_V2R6: usize = NNUE_INPUTS_V2 + 6 * 64;
+pub const NNUE_V2R6_REL_BASE: usize = NNUE_INPUTS_V2;
+
 /// Supported NNUE feature set representations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NnueFeatureSet {
     V1,
     V2,
+    /// S11-A: V2 base rows + R6 relation sidecar rows.
+    V2R6,
 }
 
 impl NnueFeatureSet {
@@ -50,6 +61,7 @@ impl NnueFeatureSet {
         match self {
             NnueFeatureSet::V1 => NNUE_INPUTS_V1,
             NnueFeatureSet::V2 => NNUE_INPUTS_V2,
+            NnueFeatureSet::V2R6 => NNUE_INPUTS_V2R6,
         }
     }
 
@@ -59,6 +71,7 @@ impl NnueFeatureSet {
         match self {
             NnueFeatureSet::V1 => 30,
             NnueFeatureSet::V2 => 31,
+            NnueFeatureSet::V2R6 => 32,
         }
     }
 }
@@ -265,7 +278,68 @@ pub fn active_features_for(
     match feature_set {
         NnueFeatureSet::V1 => active_features_v1(pos, perspective),
         NnueFeatureSet::V2 => active_features_v2(pos, perspective),
+        NnueFeatureSet::V2R6 => {
+            let mut out = active_features_v2(pos, perspective);
+            out.extend(relation_features_v2r6(pos, perspective));
+            out
+        }
     }
+}
+
+/// S11-A: R6 relation sidecar features for one perspective.
+///
+/// For every non-king piece: attacked = the square is pseudo-attacked
+/// by the OPPONENT of the piece's color; defended = the square is
+/// pseudo-attacked by the piece's OWN color (a piece does not defend
+/// itself — the defender must be a DIFFERENT piece; since the piece
+/// occupying the square is of its own color, `is_square_attacked` by
+/// own color already excludes the occupant's own attacks from the
+/// pawn-diagonal/knight/king patterns... it does NOT exclude it for
+/// sliders through the square. To keep semantics atomic and simple we
+/// use raw `is_square_attacked` for both — this is a deliberately
+/// documented approximation, not a bug).
+///
+/// State -> channel (perspective-relative):
+///   A = attacked && !defended  (hanging-like)
+///   D = !attacked && defended  (defended-only)
+///   C = attacked && defended   (contested)
+///   neutral contributes nothing.
+/// Kings are excluded (they are the conditioning bucket, and their
+/// "attacked" status is the check state — a different signal).
+///
+/// The transformed square uses the SAME orientation + horizontal-mirror
+/// as the V2 piece features (v2_king_context), so there is exactly one
+/// board-coordinate semantics.
+fn relation_features_v2r6(
+    pos: &Position,
+    perspective: NnuePerspective,
+) -> Vec<u16> {
+    let (bucket, mirror_file) = v2_king_context(pos, perspective);
+    let mut out = Vec::new();
+    for sq in 0..64u8 {
+        let Some(piece) = pos.board()[sq as usize] else { continue };
+        if piece.piece_type == crate::chess::types::PieceType::King {
+            continue;
+        }
+        let enemy = piece.color.opposite();
+        let attacked = pos.is_square_attacked(sq, enemy);
+        let defended = pos.is_square_attacked(sq, piece.color);
+        let state = match (attacked, defended) {
+            (true, false) => 0u16,  // A
+            (false, true) => 1u16,  // D
+            (true, true) => 2u16,   // C
+            (false, false) => continue, // neutral
+        };
+        let own = piece.color == perspective.color();
+        let channel = state * 2 + if own { 0 } else { 1 };
+        let oriented = perspective.orient(sq);
+        let transformed = if mirror_file { oriented ^ 7 } else { oriented };
+        out.push((NNUE_V2R6_REL_BASE
+            + (channel as usize) * 64
+            + transformed as usize) as u16);
+    }
+    let _ = bucket;
+    out
 }
 
 #[cfg(test)]
@@ -548,6 +622,45 @@ mod tests {
                 features_v2(&mirrored, NnuePerspective::Black),
                 "original Black == mirrored Black V2 for {fen}"
             );
+        }
+    }
+
+    /// S11-A: the R6 relation sidecar must satisfy the SAME vertical-mirror
+    /// + color-swap symmetry as the base V2 features — original White-view ==
+    /// mirrored Black-view with the OWN/OPP channel bit flipped (the piece's
+    /// color relative to the fixed perspective inverts under the swap).
+    #[test]
+    fn v2r6_vertical_mirror_color_swap_preserves_indices() {
+        let fens = [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/8/8/8/8/5k2/5P1K/6R1 w - - 0 1",
+            "rn1qkbnr/p1pp1ppp/1p4n1/8/1B2p3/4P3/PPPP1PPP/RNBQK1NR w KQkq - 0 1",
+        ];
+        for fen in fens {
+            let original = parse_fen(fen).unwrap();
+            let mirrored =
+                parse_fen(&mirror_color_swap_fen(fen)).unwrap();
+            for (a, b) in
+                [(NnuePerspective::White, NnuePerspective::Black),
+                 (NnuePerspective::Black, NnuePerspective::White)]
+            {
+                // mirror_color_swap flips rank AND color, so a piece that is
+                // OWN for perspective `a` in the original is OWN for
+                // perspective `b` in the mirrored position — the OWN/OPP
+                // channel bit is PRESERVED (not toggled). The base V2 test
+                // asserts exact equality; R6 asserts the same.
+                let mut fa_sorted =
+                    relation_features_v2r6(&original, a);
+                fa_sorted.sort();
+                let mut fb_sorted =
+                    relation_features_v2r6(&mirrored, b);
+                fb_sorted.sort();
+                assert_eq!(
+                    fa_sorted, fb_sorted,
+                    "R6 mirror/color-swap mismatch for {fen} ({a:?}->{b:?})"
+                );
+            }
         }
     }
 

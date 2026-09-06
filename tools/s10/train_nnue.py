@@ -51,6 +51,9 @@ if torch.cuda.is_available():
 
 NNUE_INPUTS_V1 = 40960
 NNUE_INPUTS_V2 = 22528
+# S11-A: V2 + R6 relation sidecar (6 channels x 64 squares appended).
+NNUE_INPUTS_V2R6 = 22528 + 6 * 64
+NNUE_V2R6_REL_BASE = 22528
 
 CLIP_CP = 2000.0
 TARGET_SCALE = 1000.0
@@ -413,7 +416,12 @@ def export_features_from_engine(
                 f"FAIL CLOSED: exporter exit code {proc.returncode}: {proc.stderr[:500]}"
             )
 
-    max_dim = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
+    if feature_set == "v1":
+        max_dim = NNUE_INPUTS_V1
+    elif feature_set == "v2r6":
+        max_dim = NNUE_INPUTS_V2R6
+    else:
+        max_dim = NNUE_INPUTS_V2
     exported: dict[str, dict] = {}
     for line in proc.stdout.splitlines():
         if not line.strip():
@@ -612,7 +620,12 @@ def train_and_eval(
                 _bucket_cache[fen] = b
             return b
     start_time = time.time()
-    num_inputs = NNUE_INPUTS_V1 if feature_set == "v1" else NNUE_INPUTS_V2
+    if feature_set == "v1":
+        num_inputs = NNUE_INPUTS_V1
+    elif feature_set == "v2r6":
+        num_inputs = NNUE_INPUTS_V2R6
+    else:
+        num_inputs = NNUE_INPUTS_V2
 
     # Determinism / Device setup
     torch.manual_seed(seed)
@@ -785,6 +798,12 @@ def train_and_eval(
     model = NnueModel(num_inputs=num_inputs, ft_width=ft_width,
                       dense_width=dense_width,
                       output_buckets=output_buckets).to(device)
+    # S11-A fairness: zero the R6 sidecar rows so epoch-0 output is
+    # bit-identical to the E3 single-tail model on the same seed; any
+    # later divergence comes from actually learning the relation rows.
+    if feature_set == "v2r6":
+        with torch.no_grad():
+            model.ft_weights.weight[NNUE_V2R6_REL_BASE:].zero_()
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.SmoothL1Loss(beta=LOSS_BETA)
 
@@ -1149,7 +1168,7 @@ def main():
     parser = argparse.ArgumentParser(description="S10 Production NNUE Training Harness")
     parser.add_argument("--dataset", type=Path, required=True, help="Path to dataset directory")
     parser.add_argument("--engine", type=Path, required=True, help="Path to eureka engine binary")
-    parser.add_argument("--feature-set", choices=["v1", "v2"], required=True, help="Feature set representation")
+    parser.add_argument("--feature-set", choices=["v1", "v2", "v2r6"], required=True, help="Feature set representation")
     parser.add_argument("--seed", type=int, required=True, help="Random seed")
     parser.add_argument("--output", type=Path, required=True, help="Output directory")
     parser.add_argument("--lr", type=float, default=DEFAULT_LR)

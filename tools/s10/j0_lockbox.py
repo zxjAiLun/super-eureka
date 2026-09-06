@@ -62,11 +62,13 @@ def _clamp(v):
 
 # --- frozen static scorer ------------------------------------------------
 
-def evaluate_checkpoint(ckpt_path, device="cpu"):
+def evaluate_checkpoint(ckpt_path, device="cpu", feature_set="auto"):
     """Static H0-E lockbox metrics for one torch checkpoint.
 
     Model score for a parent's move = -(material(child) +
     residual(child)); the child's STM is the opponent.
+    feature_set: "auto" infers from the checkpoint input dim
+    (22528 -> v2, 22912 -> v2r6).
     """
     parents = _load_parents()
     child_fens = []
@@ -82,14 +84,17 @@ def evaluate_checkpoint(ckpt_path, device="cpu"):
     ft_w = int(sd["ft_bias"].shape[0])
     dense_w = int(sd["l1.bias"].shape[0])
     n_buckets = 4 if "bucket_tails.0.l1.weight" in sd else 1
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w,
+    sd_inputs = int(sd["ft_weights.weight"].shape[0])
+    model = NnueModel(num_inputs=sd_inputs, ft_width=ft_w,
                       dense_width=dense_w, output_buckets=n_buckets)
     model.load_state_dict(sd)
     model.eval()
 
     records = [{"position_id": f"c{i}", "fen": f}
                for i, f in enumerate(child_fens)]
-    exported = export_features_from_engine(EUREKA, records, "v2")
+    if feature_set == "auto":
+        feature_set = ("v2r6" if sd_inputs >= 22912 else "v2")
+    exported = export_features_from_engine(EUREKA, records, feature_set)
     # S10-J2: phase buckets via the FROZEN classifier (j2_phase.py)
     import importlib.util as _ilu3
     _spec3 = _ilu3.spec_from_file_location(

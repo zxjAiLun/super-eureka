@@ -1,0 +1,53 @@
+{
+ "schema_version": 1,
+ "seed": 20260820,
+ "primary_lockbox": {
+  "E3": {
+   "pairwise": 58.3,
+   "mean_regret": 210.1,
+   "acc20": 42.6
+  },
+  "S11A": {
+   "pairwise": 67.3,
+   "mean_regret": 142.7,
+   "acc20": 44.9
+  },
+  "gains": {
+   "pairwise_pp": 9.0,
+   "regret_cp": 67.4,
+   "acc20_pp": 2.3
+  },
+  "pass_bars": {
+   "pairwise": "+2.0pp",
+   "regret": "-10cp",
+   "acc20": "+2.0pp"
+  },
+  "primary_3_of_3": true
+ },
+ "guards": {
+  "ordinary_val_mae": {
+   "E3": 138.578,
+   "S11A": 129.231,
+   "delta": -9.35,
+   "gate": "degradation <= 3cp",
+   "pass": true
+  },
+  "search_site_mae": {
+   "E3": 202.1,
+   "S11A": 179.7,
+   "delta": -22.4,
+   "gate": "degradation <= 10cp",
+   "pass": true
+  },
+  "material_forensic": {
+   "removal_gates": "ALL PASS",
+   "dxc6": {
+    "value": -80.5,
+    "gate": -150.0,
+    "pass": false,
+    "note": "residual +240cp cancels 3/4 of the -320 material anchor exactly in the mutual-capture hanging-knight position; P1 (knight simply deleted, no white pawn on c6) composes correctly to -346. The pathology is specific to the recapture structure: the model over-values the opponent's hanging b7-recapturable pawn / its own passed c6 pawn as compensation."
+   }
+  }
+ },
+ "verdict": "PRIMARY PASS 3/3 + 2/3 guards PASS + dxc6 forensic FAIL -> NOT a clean offline PASS per the frozen gate; the relation sidecar produces the largest task-aligned gains of the entire program but with a specific, reproducible hanging-piece compensation pathology"
+}

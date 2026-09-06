@@ -2863,9 +2863,10 @@ fn run_nnue_features(args: &[String]) -> Result<(), String> {
                 match value.to_lowercase().as_str() {
                     "v1" => feature_set = crate::engine::nnue::NnueFeatureSet::V1,
                     "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
+                    "v2r6" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R6,
                     other => {
                         return Err(format!(
-                            "nnue-features: unknown feature set '{other}' (expected v1|v2)"
+                            "nnue-features: unknown feature set '{other}' (expected v1|v2|v2r6)"
                         ))
                     }
                 }
@@ -2915,9 +2916,10 @@ fn run_nnue_features_batch(args: &[String]) -> Result<(), String> {
                 match value.to_lowercase().as_str() {
                     "v1" => feature_set = crate::engine::nnue::NnueFeatureSet::V1,
                     "v2" => feature_set = crate::engine::nnue::NnueFeatureSet::V2,
+                    "v2r6" => feature_set = crate::engine::nnue::NnueFeatureSet::V2R6,
                     other => {
                         return Err(format!(
-                            "nnue-features-batch: unknown feature set '{other}' (expected v1|v2)"
+                            "nnue-features-batch: unknown feature set '{other}' (expected v1|v2|v2r6)"
                         ))
                     }
                 }
@@ -3469,6 +3471,7 @@ fn run_nnue_feature_cost(args: &[String]) -> Result<(), String> {
             let label = match fset {
                 crate::engine::nnue::NnueFeatureSet::V1 => "v1",
                 crate::engine::nnue::NnueFeatureSet::V2 => "v2",
+                crate::engine::nnue::NnueFeatureSet::V2R6 => "v2r6",
             };
 
             let start = std::time::Instant::now();
