@@ -180,12 +180,17 @@ class ClippedReLU(nn.Module):
 
 
 class NnueModel(nn.Module):
-    """Production NNUE architecture: 128-32-32-1."""
+    """Production NNUE architecture: FT-(dense)-(dense)-1.
 
-    def __init__(self, num_inputs: int, ft_width: int = 128):
+    The dense width defaults to the frozen production 32; the S10-J1
+    capacity probe uses 64 with everything else unchanged."""
+
+    def __init__(self, num_inputs: int, ft_width: int = 128,
+                 dense_width: int = 32):
         super().__init__()
         self.num_inputs = num_inputs
         self.ft_width = ft_width
+        self.dense_width = dense_width
 
         # Feature Transformer (sparse embedding table + accumulator bias)
         self.ft_weights = nn.Embedding(num_inputs, ft_width)
@@ -193,11 +198,11 @@ class NnueModel(nn.Module):
 
         # Dense evaluation network
         self.act1 = ClippedReLU(0.0, 1.0)
-        self.l1 = nn.Linear(ft_width * 2, 32)
+        self.l1 = nn.Linear(ft_width * 2, dense_width)
         self.act2 = ClippedReLU(0.0, 1.0)
-        self.l2 = nn.Linear(32, 32)
+        self.l2 = nn.Linear(dense_width, dense_width)
         self.act3 = ClippedReLU(0.0, 1.0)
-        self.out = nn.Linear(32, 1)
+        self.out = nn.Linear(dense_width, 1)
 
         self._init_weights()
 
@@ -519,6 +524,7 @@ def train_and_eval(
     target_mode: str = "cp",
     ft_width: int = 128,
     rank_corpus_path: Path | None = None,
+    dense_width: int = 32,
 ) -> dict:
     if target_mode not in TARGET_MODES:
         raise SystemExit(
@@ -700,7 +706,8 @@ def train_and_eval(
         print(f"residual target stats: {residual_target_stats}")
 
     # 5. Initialize Model & Optimizer
-    model = NnueModel(num_inputs=num_inputs, ft_width=ft_width).to(device)
+    model = NnueModel(num_inputs=num_inputs, ft_width=ft_width,
+                      dense_width=dense_width).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.SmoothL1Loss(beta=LOSS_BETA)
 
@@ -908,7 +915,9 @@ def train_and_eval(
     # Parameter footprint calculation
     l1_in = ft_width * 2
     ft_param_count = num_inputs * ft_width + ft_width
-    dense_param_count = (l1_in * 32 + 32) + (32 * 32 + 32) + (32 * 1 + 1)
+    dense_param_count = (l1_in * dense_width + dense_width) \
+        + (dense_width * dense_width + dense_width) \
+        + (dense_width * 1 + 1)
     total_param_count = ft_param_count + dense_param_count
     ft_fp32_bytes = ft_param_count * 4
     total_fp32_bytes = total_param_count * 4
@@ -919,6 +928,7 @@ def train_and_eval(
         "feature_set": feature_set,
         "seed": seed,
         "ft_width": ft_width,
+        "dense_width": dense_width,
         "target_mode": target_mode,
         "material_anchor": {
             "canonical_piece_cp": CANONICAL_PIECE_CP,
@@ -945,7 +955,7 @@ def train_and_eval(
         "architecture": {
             "num_inputs": num_inputs,
             "ft_width": ft_width,
-            "dense_layers": [l1_in, 32, 32, 1],
+            "dense_layers": [l1_in, dense_width, dense_width, 1],
             "ft_param_count": ft_param_count,
             "dense_param_count": dense_param_count,
             "total_param_count": total_param_count,
@@ -1074,6 +1084,10 @@ def main():
                         help="feature-transformer width (S10-G1 capacity "
                              "probe; 128 is the frozen production width, "
                              "256 doubles only the FT capacity)")
+    parser.add_argument("--dense-width", type=int, choices=[32, 64],
+                        default=32,
+                        help="dense head width (S10-J1 capacity probe; "
+                             "32 is the frozen production width)")
     parser.add_argument("--rank-corpus", type=Path, default=None,
                         help="S10-I1-A sibling-ranking corpus (jsonl). "
                              "When given, adds the frozen ranking "
@@ -1112,6 +1126,7 @@ def main():
         target_mode=args.target_mode,
         ft_width=args.ft_width,
         rank_corpus_path=args.rank_corpus,
+        dense_width=args.dense_width,
     )
     print(
         f"Training completed for {args.feature_set} seed {args.seed} "

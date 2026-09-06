@@ -78,8 +78,11 @@ def evaluate_checkpoint(ckpt_path, device="cpu"):
             b.pop()
 
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    ft_w = int(ckpt["model_state_dict"]["ft_bias"].shape[0])
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w)
+    sd = ckpt["model_state_dict"]
+    ft_w = int(sd["ft_bias"].shape[0])
+    dense_w = int(sd["l1.bias"].shape[0])
+    model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w,
+                      dense_width=dense_w)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
