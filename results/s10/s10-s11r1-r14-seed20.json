@@ -1,0 +1,10 @@
+{
+ "r14_seed20": {
+  "val_mae": 126.856,
+  "pairwise": 69.0,
+  "mean_regret": 173.8,
+  "acc20": 40.2,
+  "dxc6": -115.4,
+  "verdict": "dxc6 improved but still FAILS the -150 gate; pairwise retained (+10.7pp) but acc@20 regressed below E3; regret retention 36.3cp < 50cp bar"
+ }
+}

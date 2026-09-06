@@ -101,7 +101,7 @@ def composed_predictions(model, engine: Path, fens: list[str]):
         {"position_id": f"c{i}", "fen": f} for i, f in enumerate(fens)
     ]
     _inputs = int(model.ft_weights.weight.shape[0])
-    _fset = "v2r6" if _inputs >= 22912 else "v2"
+    _fset = ("v2r14" if _inputs >= 23424 else ("v2r6" if _inputs >= 22912 else "v2"))
     exported = export_features_from_engine(engine, records, _fset)
 
     # material from the engine (single source of truth), cross-checked
