@@ -1,0 +1,38 @@
+{
+ "FULL": {
+  "dxc6": -80.5,
+  "pairwise": 67.3,
+  "mean_regret": 142.7,
+  "acc20": 44.9
+ },
+ "ALL_R6_OFF": {
+  "dxc6": -243.9,
+  "pairwise": 53.9,
+  "mean_regret": 217.7,
+  "acc20": 36.7
+ },
+ "-OWN_A": {
+  "dxc6": -230.4
+ },
+ "-OPP_A": {
+  "dxc6": -201.8
+ },
+ "-A": {
+  "dxc6": -258.5,
+  "pairwise": 57.7,
+  "mean_regret": 208.8,
+  "acc20": 38.3
+ },
+ "-D": {
+  "dxc6": -140.6
+ },
+ "-C": {
+  "dxc6": -68.0
+ },
+ "-A@c6(both-sides)": {
+  "dxc6": -258.5,
+  "pairwise": 67.1,
+  "mean_regret": 144.0,
+  "acc20": 45.7
+ }
+}
