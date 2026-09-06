@@ -1,0 +1,62 @@
+{
+ "FULL": {
+  "dxc6": -115.4,
+  "pairwise": 69.0,
+  "mean_regret": 173.8,
+  "acc20": 40.2
+ },
+ "-OWN_A_P": {
+  "dxc6": -180.8
+ },
+ "-OPP_A_P": {
+  "dxc6": -183.1
+ },
+ "-A_P": {
+  "dxc6": -237.0,
+  "pairwise": 68.1,
+  "mean_regret": 163.0,
+  "acc20": 41.8
+ },
+ "-A_N": {
+  "dxc6": -115.4
+ },
+ "-A_B": {
+  "dxc6": -115.4
+ },
+ "-A_R": {
+  "dxc6": -115.4
+ },
+ "-A_Q": {
+  "dxc6": -115.4
+ },
+ "-A (all)": {
+  "dxc6": -237.0,
+  "pairwise": 56.3,
+  "mean_regret": 217.2,
+  "acc20": 38.7
+ },
+ "-D": {
+  "dxc6": -261.2
+ },
+ "-C": {
+  "dxc6": -90.1
+ },
+ "-A_P@c6(both)": {
+  "dxc6": -237.0,
+  "pairwise": 69.0,
+  "mean_regret": 174.7,
+  "acc20": 40.2
+ },
+ "-A_P@c6(w-side only)": {
+  "dxc6": -180.8
+ },
+ "-A_P@c6(b-side only)": {
+  "dxc6": -183.1
+ },
+ "-A_any@c6": {
+  "dxc6": -237.0,
+  "pairwise": 68.6,
+  "mean_regret": 177.0,
+  "acc20": 41.0
+ }
+}
