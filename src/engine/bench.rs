@@ -2649,6 +2649,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-accumulator-audit" {
         return run_nnue_v2q_accumulator_audit(&args[1..]);
     }
+    if args[0] == "nnue-v2q-r12-parity" {
+        return run_nnue_v2q_r12_parity(&args[1..]);
+    }
     #[cfg(feature = "diagnostic_eval_site_capture")]
     if args[0] == "eval-site-capture" {
         return run_eval_site_capture(&args[1..]);
@@ -2745,6 +2748,7 @@ fn print_help() {
     println!("  nnue-v2q-probe --model <bin> --fen <fen>  S10-B5 V2 quantized integer inference, one JSON line");
     println!("  nnue-v2q-probe-batch --model <bin> --batch <file>  one JSON line per record");
     println!("  nnue-v2q-accumulator-audit --model <bin> [--games N] [--plies N]  S10-C1 incremental vs full-refresh bit-exact audit");
+    println!("  nnue-v2q-r12-parity --model <v4-r12.bin> [--batch <fens>] [--games N] [--plies N]  S11-B2 hybrid vs full-refresh parity (corpus + transitions + directed fixtures)");
     println!("  nnue-v2q-cost --model <bin> --batch <file> [--rounds N]  S10-C3-A component microcost (Eval2 vs NNUE full vs incremental)");
 }
 
@@ -4534,6 +4538,303 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
     );
     if !passed {
         return Err("nnue-v2q-accumulator-audit: FAIL (lane or raw mismatch)".to_string());
+    }
+    Ok(())
+}
+
+/// S11-B2 Layer C: `bench nnue-v2q-r12-parity --model <v4-r12.bin>
+/// [--batch <10k-fen-file>] [--games N] [--plies N]` — three-way hybrid
+/// correctness gate for the R12 runtime:
+///
+///   1. corpus: for every FEN, hybrid (V2-base accumulator + fresh
+///      relation rows) == full R12 refresh on ALL lanes (both
+///      perspectives) AND the raw output;
+///   2. transitions: deterministic random legal playouts where the
+///      V2-base accumulator is maintained INCREMENTALLY
+///      (update_accumulator_for_move — exactly the production hybrid
+///      stack) and compared against a per-ply full rebuild;
+///   3. directed fixtures: hand-picked FENs covering quiet / capture /
+///      en passant / castling / promotion / king-move bucket refresh /
+///      slider-unblock, each verified as a one-move transition from a
+///      known parent.
+///
+/// Emits one JSON object; nonzero exit on any mismatch.
+fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
+    use crate::chess::movegen::generate_legal_moves;
+    use crate::chess::types::MoveFlag;
+    use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut games: usize = 200;
+    let mut plies: usize = 100;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                model = Some(it.next().ok_or(
+                    "nnue-v2q-r12-parity: --model requires a value",
+                )?.clone());
+            }
+            "--batch" => {
+                batch = Some(it.next().ok_or(
+                    "nnue-v2q-r12-parity: --batch requires a value",
+                )?.clone());
+            }
+            "--games" => {
+                games = it.next().ok_or(
+                    "nnue-v2q-r12-parity: --games requires a value",
+                )?.parse().map_err(|_| "bad --games")?;
+            }
+            "--plies" => {
+                plies = it.next().ok_or(
+                    "nnue-v2q-r12-parity: --plies requires a value",
+                )?.parse().map_err(|_| "bad --plies")?;
+            }
+            other => {
+                return Err(format!(
+                    "nnue-v2q-r12-parity: unknown argument '{other}'"
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or(
+        "nnue-v2q-r12-parity: --model is required",
+    )?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+        std::path::Path::new(&model_path),
+    )?;
+    if model.feature_set() != NnueFeatureSetId::V2R12 {
+        return Err(format!(
+            "nnue-v2q-r12-parity: artifact feature_set is {:?}, \
+             requires V2R12",
+            model.feature_set()
+        ));
+    }
+
+    // ---- Part 1: corpus parity (hybrid == full, lanes + raw) ----
+    let mut corpus_positions: usize = 0;
+    let mut corpus_lane_mismatches: u64 = 0;
+    let mut corpus_raw_mismatches: u64 = 0;
+    if let Some(batch_path) = batch.as_deref() {
+        let text = std::fs::read_to_string(batch_path).map_err(|e| {
+            format!("nnue-v2q-r12-parity: cannot read {batch_path}: {e}")
+        })?;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let fen = match line.split_once('|') {
+                Some((_, fen)) => fen.trim(),
+                None => line,
+            };
+            let pos = parse_fen(fen).map_err(|e| {
+                format!("nnue-v2q-r12-parity: {e}: '{fen}'")
+            })?;
+            let base = model.base_accumulator_v2(&pos);
+            let hybrid = model.hybrid_accumulator_r12(&pos, &base);
+            let full = model.full_accumulator(&pos);
+            if hybrid.white() != full.white()
+                || hybrid.black() != full.black()
+            {
+                corpus_lane_mismatches += hybrid
+                    .white()
+                    .iter()
+                    .zip(full.white().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+                corpus_lane_mismatches += hybrid
+                    .black()
+                    .iter()
+                    .zip(full.black().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+            }
+            let raw_hybrid =
+                model.evaluate_raw_hybrid_r12(&pos, &base);
+            let raw_full = model.evaluate_raw(&pos);
+            if raw_hybrid != raw_full {
+                corpus_raw_mismatches += 1;
+            }
+            corpus_positions += 1;
+        }
+    }
+
+    // ---- Part 2: incremental-transition parity ----
+    // The stack maintains the V2-BASE accumulator incrementally
+    // (production hybrid shape); each ply is compared against a full
+    // R12 rebuild of BOTH the accumulator and the raw output.
+    let mut rng: u64 = 0x5989d5721ea4258e;
+    let mut next = move || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+    let mut transitions: u64 = 0;
+    let mut trans_lane_mismatches: u64 = 0;
+    let mut trans_raw_mismatches: u64 = 0;
+    let mut full_refreshes: u64 = 0;
+    let mut flag_counts: std::collections::BTreeMap<&'static str, u64> =
+        std::collections::BTreeMap::new();
+    for _game in 0..games {
+        let mut pos = Position::startpos();
+        // V2-base accumulator stack root.
+        let mut acc = model.base_accumulator_v2(&pos);
+        for _ply in 0..plies {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                break;
+            }
+            let m = moves[(next() % moves.len() as u64) as usize];
+            let flag_name = match m.flag {
+                MoveFlag::Normal => "normal",
+                MoveFlag::DoublePawnPush => "double_pawn_push",
+                MoveFlag::EnPassant => "en_passant",
+                MoveFlag::KingCastle => "king_castle",
+                MoveFlag::QueenCastle => "queen_castle",
+                MoveFlag::Promotion(_) => "promotion",
+            };
+            *flag_counts.entry(flag_name).or_insert(0) += 1;
+
+            let before = pos.clone();
+            let delta = model.prepare_move_delta(&before, &m);
+            pos.make_move(m);
+            let stats =
+                model.update_accumulator_for_move(&mut acc, &delta, &pos);
+            full_refreshes += stats.full_refreshes as u64;
+
+            // Hybrid eval from the incremented BASE accumulator must
+            // equal the full R12 refresh.
+            let hybrid = model.hybrid_accumulator_r12(&pos, &acc);
+            let full = model.full_accumulator(&pos);
+            if hybrid.white() != full.white()
+                || hybrid.black() != full.black()
+            {
+                trans_lane_mismatches += hybrid
+                    .white()
+                    .iter()
+                    .zip(full.white().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+                trans_lane_mismatches += hybrid
+                    .black()
+                    .iter()
+                    .zip(full.black().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+            }
+            let raw_hybrid = model.evaluate_raw_hybrid_r12(&pos, &acc);
+            let raw_full = model.evaluate_raw(&pos);
+            if raw_hybrid != raw_full {
+                trans_raw_mismatches += 1;
+            }
+            transitions += 1;
+        }
+    }
+
+    // ---- Part 3: directed fixtures ----
+    // (parent FEN, move UCI, description). Each exercises one move
+    // class through prepare->make->incremental->hybrid vs full.
+    let fixtures: &[(&str, &str, &str)] = &[
+        // quiet
+        ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "e2e4", "quiet_pawn_double"),
+        // normal capture (with recapture structure — R12 relation case)
+        ("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+            "c4f7", "capture_bishop_takes_f7"),
+        // en passant
+        ("rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1",
+            "e5f6", "en_passant"),
+        // king castle
+        ("r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R w KQkq - 0 1",
+            "e1g1", "king_castle_white"),
+        // queen castle
+        ("r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R b KQkq - 0 1",
+            "e8c8", "queen_castle_black"),
+        // promotion (queen, corner square — square-transform edge case)
+        ("5k2/P7/8/8/8/8/6r1/K7 w - - 0 1",
+            "a7a8q", "promotion_rook_corner"),
+        // quiet promotion
+        ("5k2/1P6/8/8/8/8/8/K7 w - - 0 1",
+            "b7b8n", "promotion_knight"),
+        // king move crossing the mirror boundary (bucket refresh)
+        ("4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+            "e1d1", "king_mirror_boundary"),
+        // slider unblock: rook's file opens (relation D->A flips)
+        ("4k3/8/8/8/8/8/3P4/R3K3 w - - 0 1",
+            "d2d3", "rook_unblock"),
+        // check-giving knight (relation C on king-adjacent squares)
+        ("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
+            "f3f7", "check_queen_f7"),
+    ];
+    let mut fixture_failures: Vec<String> = Vec::new();
+    let mut fixtures_ok: usize = 0;
+    for (fen, uci, name) in fixtures {
+        let mut pos = parse_fen(fen).map_err(|e| {
+            format!("nnue-v2q-r12-parity: fixture {name}: {e}")
+        })?;
+        let legal = generate_legal_moves(&mut pos.clone());
+        let mv = legal.iter().copied().find(|m| {
+            crate::chess::types::move_to_uci(*m) == *uci
+        });
+        let Some(mv) = mv else {
+            fixture_failures
+                .push(format!("{name}: {uci} not legal in fixture FEN"));
+            continue;
+        };
+        let mut acc = model.base_accumulator_v2(&pos);
+        let delta = model.prepare_move_delta(&pos, &mv);
+        pos.make_move(mv);
+        model.update_accumulator_for_move(&mut acc, &delta, &pos);
+
+        let hybrid = model.hybrid_accumulator_r12(&pos, &acc);
+        let full = model.full_accumulator(&pos);
+        let mut ok = hybrid.white() == full.white()
+            && hybrid.black() == full.black();
+        let raw_hybrid = model.evaluate_raw_hybrid_r12(&pos, &acc);
+        let raw_full = model.evaluate_raw(&pos);
+        ok = ok && raw_hybrid == raw_full;
+        if ok {
+            fixtures_ok += 1;
+        } else {
+            fixture_failures.push(format!(
+                "{name}: hybrid != full after {uci}"
+            ));
+        }
+    }
+
+    let passed = corpus_lane_mismatches == 0
+        && corpus_raw_mismatches == 0
+        && trans_lane_mismatches == 0
+        && trans_raw_mismatches == 0
+        && fixture_failures.is_empty();
+    let flags_json = flag_counts
+        .iter()
+        .map(|(k, v)| format!("\"{k}\":{v}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    println!(
+        "{{\"stage\":\"s11b2_r12_hybrid_parity\",\
+          \"corpus_positions\":{corpus_positions},\
+          \"corpus_lane_mismatches\":{corpus_lane_mismatches},\
+          \"corpus_raw_mismatches\":{corpus_raw_mismatches},\
+          \"transitions\":{transitions},\
+          \"trans_lane_mismatches\":{trans_lane_mismatches},\
+          \"trans_raw_mismatches\":{trans_raw_mismatches},\
+          \"full_refreshes\":{full_refreshes},\
+          \"move_flags\":{{{flags_json}}},\
+          \"fixtures_total\":{},\"fixtures_ok\":{fixtures_ok},\
+          \"fixture_failures\":{:?},\
+          \"passed\":{passed}}}",
+        fixtures.len(),
+        fixture_failures
+    );
+    if !passed {
+        return Err(
+            "nnue-v2q-r12-parity: FAIL (see JSON counters)".to_string()
+        );
     }
     Ok(())
 }

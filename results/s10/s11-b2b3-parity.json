@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "stage": "s11_b2b3_parity",
+  "date": "2026-09-07",
+  "artifact": {
+    "path": "data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin",
+    "sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619",
+    "format_version": 4,
+    "feature_set": "v2r12",
+    "inputs": 23296,
+    "ft_width": 128
+  },
+  "layer_a_b_fp32_vs_quant_vs_rust": {
+    "source": "results/s10/s11-b2b3-quant-parity.json",
+    "n": 10000,
+    "seed": 2026083102,
+    "layer1_raw_residual_parity_mismatches": 0,
+    "layer2_composed_parity_mismatches": 0,
+    "fp32_vs_quantized_residual_cp": {
+      "mean": 0.13,
+      "p95": 0.335,
+      "p99": 0.511,
+      "max": 1.402
+    },
+    "composed_validation_mae_cp": 127.161,
+    "quant_gate": {
+      "mean_bar": 0.30,
+      "p99_bar": 1.0,
+      "max_bar": 2.0,
+      "pass": true
+    }
+  },
+  "layer_c_hybrid_vs_full_refresh": {
+    "command": "bench nnue-v2q-r12-parity --model <v4> --batch <10k> --games 200 --plies 100",
+    "corpus_positions": 10000,
+    "corpus_lane_mismatches": 0,
+    "corpus_raw_mismatches": 0,
+    "transitions": 19692,
+    "trans_lane_mismatches": 0,
+    "trans_raw_mismatches": 0,
+    "full_refreshes": 2089,
+    "move_flags": {
+      "double_pawn_push": 1274,
+      "en_passant": 2,
+      "king_castle": 12,
+      "normal": 18341,
+      "promotion": 54,
+      "queen_castle": 9
+    },
+    "directed_fixtures": {
+      "total": 10,
+      "ok": 10,
+      "classes": ["quiet_pawn_double", "capture_bishop_takes_f7", "en_passant", "king_castle_white", "queen_castle_black", "promotion_rook_corner", "promotion_knight", "king_mirror_boundary", "rook_unblock", "check_queen_f7"]
+    },
+    "passed": true
+  },
+  "layer_d_scalar_vs_avx2": {
+    "n": 10000,
+    "raw_output_mismatches": 0,
+    "passed": true
+  },
+  "old_artifact_regression": {
+    "method": "probe-batch raw_output pre-refactor binary vs new binary, 3 FENs each",
+    "artifacts_identical": [
+      "nnue-v2-q01-material.bin (v2)",
+      "nnue-v2-q01-material-v3twin.bin (v3)",
+      "nnue-v2-q01.bin (v1-era v2, B3)",
+      "nnue-v2-q01-material-256.bin (v3 FT256, G1)"
+    ],
+    "passed": true
+  },
+  "verdict": "ALL FOUR PARITY LAYERS PASS — the runtime computes the same model as training. Benchmark unblocked."
+}

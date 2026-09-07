@@ -43,8 +43,12 @@ QA = 1 << FT_SHIFT
 TARGET_SCALE = 1000.0
 
 
-def load_quantized(path: Path):
-    """Parse the v2 EUNN2Q01 artifact in Python (weights + target mode)."""
+def load_quantized(path: Path, feature_set: str = "v2"):
+    """Parse the EUNN2Q01 artifact in Python (weights + target mode).
+
+    v1-v3 carry implicit feature_set=V2 (inputs 22528); v4 carries an
+    explicit word and is currently V2R12/23296/FT128 only.
+    """
     import numpy as np
 
     data = path.read_bytes()
@@ -53,11 +57,24 @@ def load_quantized(path: Path):
     inputs = int.from_bytes(data[12:16], "little")
     ft_width = int.from_bytes(data[16:20], "little")
     mode = int.from_bytes(data[40:44], "little")
-    assert version in (2, 3), f"expected v2/v3, got {version}"
+    assert version in (2, 3, 4), f"expected v2/v3/v4, got {version}"
     assert mode == 1, f"expected target_mode=material_residual, got {mode}"
-    assert inputs == 22528 and ft_width in (128, 256)
+    if version == 4:
+        fs_word = int.from_bytes(data[44:48], "little")
+        artifact_fs = {0: "v2", 1: "v2r12"}[fs_word]
+        assert artifact_fs == feature_set, (
+            f"artifact feature_set {artifact_fs} != requested "
+            f"{feature_set}")
+        sha_off = 48
+    else:
+        assert feature_set == "v2", (
+            f"v{version} artifact is implicitly v2, requested "
+            f"{feature_set}")
+        assert inputs == 22528
+        sha_off = 44
+    assert ft_width in (128, 256)
 
-    off = 108
+    off = sha_off + 64
     dense_in = 2 * ft_width
     ft_w = np.frombuffer(data, dtype="<i2", count=inputs * ft_width, offset=off)
     off += ft_w.nbytes
@@ -148,21 +165,27 @@ def main() -> int:
     parser.add_argument("--n", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=2026083102)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--feature-set", choices=["v2", "v2r12"],
+                        default="v2",
+                        help="S11-B2: feature set of the checkpoint/"
+                             "artifact (selects feature export + NnueModel "
+                             "input dim)")
     args = parser.parse_args()
 
     import torch
 
     from tools.s10.train_nnue import (
-        EncodedSplit, NNUE_INPUTS_V2, NnueModel,
+        EncodedSplit, NNUE_INPUTS_V2, NNUE_INPUTS_V2R12, NnueModel,
         export_features_from_engine, material_cp_stm_python,
     )
+    num_inputs = (NNUE_INPUTS_V2 if args.feature_set == "v2"
+                  else NNUE_INPUTS_V2R12)
 
     records = []
-    for line in (args.dataset / "part-0000.jsonl").read_text(
-        encoding="utf-8"
-    ).splitlines():
-        if line.strip():
-            records.append(json.loads(line))
+    for p in sorted(args.dataset.glob("part-*.jsonl")):
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                records.append(json.loads(line))
     labels = {}
     for line in (args.dataset / "labels.jsonl").read_text(
         encoding="utf-8"
@@ -178,7 +201,8 @@ def main() -> int:
     sample = random.Random(args.seed).sample(validation, args.n)
 
     # features + material via the engine (single source of truth)
-    exported = export_features_from_engine(args.engine, sample, "v2")
+    exported = export_features_from_engine(
+        args.engine, sample, args.feature_set)
     with tempfile.NamedTemporaryFile(
         "w", suffix=".txt", delete=False, encoding="utf-8"
     ) as fh:
@@ -220,7 +244,7 @@ def main() -> int:
             rust_raw[rec["position_id"]] = rec["raw_output"]
 
     # Layer 1: Python integer reference of the SAME quantized network
-    q = load_quantized(args.quantized)
+    q = load_quantized(args.quantized, args.feature_set)
     raw_mismatches = 0
     composed_mismatches = 0
     residual_cp_errors = []
@@ -247,7 +271,7 @@ def main() -> int:
     ckpt = torch.load(args.checkpoint, map_location="cpu",
                       weights_only=False)
     ft_w = int(ckpt["model_state_dict"]["ft_bias"].shape[0])
-    model = NnueModel(num_inputs=NNUE_INPUTS_V2, ft_width=ft_w)
+    model = NnueModel(num_inputs=num_inputs, ft_width=ft_w)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
     items = []
