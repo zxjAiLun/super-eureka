@@ -24,6 +24,8 @@
 !/results/s4-attribution/**
 !/results/s10/
 !/results/s10/**
+!/results/s11/
+!/results/s11/**
 /results/s10/bakeoff/
 /results/s10/stage2_holdout/
 /results/s10/deterministic_replay/
