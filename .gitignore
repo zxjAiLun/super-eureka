@@ -101,10 +101,6 @@ data/s6/sources/lichess-standard-rated-v2/
 data/s6/sources/lichess-standard-rated-v3/
 data/s6/sources/lichess-standard-rated-v4/
 data/s10/
-# S11-B2: model binaries stay local (repo convention), but manifests/layouts
-# are provenance records and must be tracked (mirrors results/s10 convention).
-!data/s10/s11/r2/seed-20260819/*.manifest.json
-!data/s10/s11/r2/seed-20260819/*.layout.json
 
 # S10-B3 python environment (torch cu130 from uv cache)
 .venv-s10/
