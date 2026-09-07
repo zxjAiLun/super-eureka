@@ -20,13 +20,12 @@
 ## 一句话结论
 
 S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +71.3 Elo）；S10 全季
-NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena（E3-D1 数据规模、
-F1-D1 material-residual、G1-D1 FT256 宽度）全部 SPRT ACCEPT_H0 拒绝，H0 根因审计
-裁定 MULTIFACTORIAL。S11-A 关系 sidecar（R12）成为整个 NNUE 计划中离线任务对齐
-收益最大的突破。**S11-B2/B3 已完成：R12 hybrid reference runtime 四层 parity 全
-PASS、v1-v3 兼容逐字节不变，但 fresh-recompute 搜索 NPS = 0.58（低于 0.80 暂停
-门）→ B5 search validation PAUSED；当前决策点：是否立项 incremental relation
-updater（B1 数据强烈支持：平均 4-8 行/边）。**
+NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena 全拒，H0 裁定
+MULTIFACTORIAL。S11-A R12 sidecar 是 NNUE 计划最大离线突破。**S11-B2/B3 完成：R12
+hybrid reference 四层 parity 全 PASS、NPS 0.58 → B5 PAUSED；S11-B4-A 完成（GO
+决议）：relation-state recompute + delta FT update——attack-map/state/diff-chain
+全 bitwise parity，成本门 median 448 ns/edge（门 1500/理想 1000，3.3× 余量），
+投影 NPS ~0.85-0.92。下一步 B4-B：搜索栈集成 + 配对 NPS 裁决（0.90/0.80 门）。**
 
 ## 当前生产行为
 
@@ -151,6 +150,26 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
   它同时消掉 scan 与批量重加，预期 eval 税 ~1.5-2×；工程量为新子项目
   （slider ray 开闭、victim 联动、king move perspective 变换）。
 
+### S11-B4（进行中）
+
+- **B4-A 完成（`ebd95ca`，GO 决议，详见
+  docs/dev-log/2026-09-07-s11-b4a-relation-delta.md）**：审批方向修正——不做
+  "完整局部依赖 incremental updater"，改做 relation-state recompute + delta FT
+  update。`Position::attack_map`（u64×2，逐位 == is_square_attacked）、
+  `R12RelationState`（[u8;64] physical state，perspective 无关）、
+  `r12_apply_relation_delta` / `r12_rebuild_perspective`（king-move 稀有路径）。
+  Parity：1.28M attack bits、10k corpus state-rows、10k 边 ratchet（combined ==
+  full refresh，含 king 路径）全 0 mismatch。**成本门：median 448.1 ns/edge**
+  （冻结门 1500、理想 1000）。途中两个真 bug：king-move 漏另一视角 diff（单测
+  抓到，差一行 32）；corpus 重 seed 条件永真死循环（两次超时后定位）。
+- **B4-B（下一步，待执行）**：搜索栈集成——frame 携带 combined accumulator +
+  [u8;64] state；push_child = V2 delta + relation diff（king: mover 视角重建）；
+  fresh R12 保留为 oracle 不删；parity 资产复用（full==fresh==incremental：
+  10k corpus / ~20k transitions / 定向 fixtures / fixed-node 树一致）；然后同一
+  24-FEN、200k-node、同 binary 配对 NPS；门不变：≥0.90 解锁 B5，0.80-0.90 一次
+  纯性能优化机会，<0.80 停止 productionization（不升级成维护 attack
+  dependency graph 的大型真增量系统）。
+
 ### S11 已知陷阱（本轮实测）
 
 - `types::MoveFlag` 没有 `is_capture()`；手写判定。
@@ -160,6 +179,11 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
 - bench fixture FEN 必须先验证合法（本轮 3 个手写 FEN 王被牵制/非法）。
 - **性能直觉陷阱**：per-move delta（churn）≠ per-eval 全量成本；测量分段
   （scan / scan+FT / total）才能正确归因。
+- **Bench 循环纪律**：任何"条件触发重启"的 corpus 构建循环，条件必须随迭代
+  推进（`len()%N==k` 在不 push 的分支里永真 → 死循环）；ratchet 重放必须逐
+  决策镜像同一 RNG 序列。
+- **增量语义纪律**：任何"某事件只影响 X 视角"的假设都要过双视角检查——king
+  move 同时改变两色的 attack map（B4-A 的唯一真 bug）。
 
 ## 文档对齐地图（证据在哪里）
 
@@ -215,13 +239,11 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ### 推荐下一步（按序）
 
-1. **S11 决策（审批方）**：NPS 0.58 < 0.80，按冻结协议 B5 暂停。选项：
-   (a) 立项 incremental relation updater（B1: 平均 4-8 行/边；预期 eval 税
-   1.5-2×；新子项目，slider ray/victim 联动/king perspective 变换）；
-   (b) 接受 fresh reference 作为离线分析工具（不再追求 R12 生产化）；
-   (c) 减半 relation 活跃行（representation 变更，需重训——违背本轮冻结）。
-2. 若立项增量 updater：parity 套件全部复用（nnue-v2q-r12-parity 直接
-   验证增量路径 vs full refresh）；
+1. **S11-B4-B 执行**：搜索栈集成（combined accumulator + relation state 入
+   frame；fresh oracle 保留）；parity 复用（full==fresh==incremental：10k
+   corpus + ~20k transitions + 定向 fixtures + fixed-node 树一致）；同一协议
+   重跑配对 NPS，按 0.90/0.80 门裁决；
+2. NPS ≥ 0.90 → 申请 B5（256 roots × 100k search validation）；
 3. 无论方向：handoff + dev-log 按制度更新。
 
 ## 关键文件导航
@@ -246,6 +268,13 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-07 · S11-B4-A relation delta · `ebd95ca`**
+  审批 GO 后实现 attack-map + [u8;64] relation state + diff FT 应用
+  （king-move 稀有路径）。Parity 全 bitwise（1.28M attack bits / 10k
+  state-rows / 10k 边 ratchet 0 mismatch）。成本门 median 448 ns/edge
+  （门 1500、理想 1000）。两个真 bug：king-move 漏另一视角 diff；
+  corpus 重 seed 死循环。投影 NPS ~0.85-0.92，B4-B GO。
+  开发文档：docs/dev-log/2026-09-07-s11-b4a-relation-delta.md
 - **2026-09-07 · S11-B2/B3 R12 hybrid reference runtime · `19c5237`..`7025c56`**
   Phase 0: v4 export（feature_set 字段，R12 bound 61，E3 v3twin 重导
   byte-identical；发现并补提交 B1 漏掉的 search.rs churn hooks）。
