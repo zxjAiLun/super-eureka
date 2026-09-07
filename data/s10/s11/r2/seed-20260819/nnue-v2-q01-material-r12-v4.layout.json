@@ -1,0 +1,41 @@
+{
+  "artifact_path": "data\\s10\\s11\\r2\\seed-20260819\\nnue-v2-q01-material-r12-v4.bin",
+  "artifact_sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619",
+  "total_bytes": 5983156,
+  "magic": "EUNN2Q01",
+  "format_version": 4,
+  "feature_set": "v2r12",
+  "target_mode": 1,
+  "inputs": 23296,
+  "n_features_max_per_perspective": 61,
+  "ft_width": 128,
+  "shifts": {
+    "ft": 12,
+    "dense_w": 12,
+    "dense_z": 12
+  },
+  "qa": 4096,
+  "source_fp32_artifact_sha256": "a6865bdf451e1bb68c5bd18b9c3b3f80ee427202d9ae383d7cfb67f4a67e4f95",
+  "source_checkpoint_sha256": "cdeda94858746406bc478afade0b393cd1aba8a1079592933fd680accadb2089",
+  "proven_overflow_bounds": {
+    "ft_accumulator_bound": 1999851,
+    "l1_mac_bound": 2074901845,
+    "l2_mac_bound": 362398556,
+    "out_mac_bound": 201937857,
+    "i32_max": 2147483647,
+    "ft_overflow": false,
+    "l1_overflow": false,
+    "l2_overflow": false,
+    "out_overflow": false
+  },
+  "quantized_layer_sizes": {
+    "ft_weights_bytes": 5963776,
+    "ft_bias_bytes": 512,
+    "l1_weight_bytes": 16384,
+    "l1_bias_bytes": 128,
+    "l2_weight_bytes": 2048,
+    "l2_bias_bytes": 128,
+    "out_weight_bytes": 64,
+    "out_bias_bytes": 4
+  }
+}

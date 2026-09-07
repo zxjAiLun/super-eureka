@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "exported": "2026-09-07",
+  "round": "S11-B2/B3 Phase 0",
+  "artifact": {
+    "path": "data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin",
+    "sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619",
+    "total_bytes": 5983156,
+    "magic": "EUNN2Q01",
+    "format_version": 4
+  },
+  "feature_set": "v2r12",
+  "input_dim": 23296,
+  "ft_width": 128,
+  "target_mode": "material-residual",
+  "quant_constants": {
+    "ft_shift": 12,
+    "dense_w_shift": 12,
+    "dense_z_shift": 12,
+    "qa": 4096,
+    "target_scale": 1000.0,
+    "n_features_max_per_perspective": 61
+  },
+  "source": {
+    "checkpoint": "data/s10/s11/r2/seed-20260819/checkpoint_v2r12_s20260819.pt",
+    "checkpoint_sha256": "cdeda94858746406bc478afade0b393cd1aba8a1079592933fd680accadb2089",
+    "seed": 20260819,
+    "dataset_sha256": "1504803a179e7601149862aa47ba6d3ed77977d976397bc780ec92d0d8880560",
+    "training_summary": "data/s10/s11/r2/seed-20260819/training_summary_v2r12_s20260819.json",
+    "best_val_mae_cp": 127.21964289869595
+  },
+  "header_provenance": {
+    "source_fp32_artifact_sha256": "a6865bdf451e1bb68c5bd18b9c3b3f80ee427202d9ae383d7cfb67f4a67e4f95",
+    "note": "temporary EUNN2F32 export of the same checkpoint (not persisted per S11-B2 protocol; regenerate with export_nnue_v2.py --feature-set v2r12)"
+  },
+  "export_command": "python tools/s10/export_quantized.py --out data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin --checkpoint data/s10/s11/r2/seed-20260819/checkpoint_v2r12_s20260819.pt --checkpoint-sha \"\" --fp32-artifact <tmp nnue-v2-f32-r12.bin> --fp32-sha \"\" --target-mode material-residual --feature-set v2r12 --layout data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.layout.json",
+  "byte_layout": "see nnue-v2-q01-material-r12-v4.layout.json"
+}

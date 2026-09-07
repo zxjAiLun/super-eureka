@@ -100,7 +100,18 @@ data/s6/s6-eval-v1-core-300k/
 data/s6/sources/lichess-standard-rated-v2/
 data/s6/sources/lichess-standard-rated-v3/
 data/s6/sources/lichess-standard-rated-v4/
-data/s10/
+# data/s10 model binaries stay local (SHAs/provenance in results/s10); the
+# S11-B2 manifest+layout are provenance records and are whitelisted below
+# (directory chain must be re-included for the negation to apply).
+data/s10/**
+!data/s10/s11/
+data/s10/s11/**
+!data/s10/s11/r2/
+data/s10/s11/r2/**
+!data/s10/s11/r2/seed-20260819/
+data/s10/s11/r2/seed-20260819/*
+!data/s10/s11/r2/seed-20260819/*.manifest.json
+!data/s10/s11/r2/seed-20260819/*.layout.json
 
 # S10-B3 python environment (torch cu130 from uv cache)
 .venv-s10/
