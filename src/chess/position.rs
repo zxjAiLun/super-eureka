@@ -373,6 +373,119 @@ impl Position {
         false
     }
 
+    /// S11-B4: pseudo-attack map of every square attacked by any piece of
+    /// color `by`, as a 64-bit board mask. BITWISE-EXACT oracle-equivalent of
+    /// `is_square_attacked(sq, by)` for all 64 squares: for every square set
+    /// in the mask, `is_square_attacked` returns true, and vice versa.
+    ///
+    /// Semantics preserved verbatim (the R12 relation contract):
+    /// - pawns mark their two forward diagonals;
+    /// - knights/kings mark their offsets;
+    /// - bishops/rooks/queens walk each ray from their own square, marking
+    ///   every empty square and the FIRST occupied square (inclusive), then
+    ///   stop — exactly the "first blocker toward the target" rule of
+    ///   `is_square_attacked` viewed from the slider's side.
+    ///
+    /// This is NOT a bitboard rewrite of the engine: it is a two-u64 local
+    /// substrate for the R12 relation-state recompute (one pass per color
+    /// instead of 64-per-square scans).
+    pub fn attack_map(&self, by: Color) -> u64 {
+        let mut map: u64 = 0;
+        for (sq, piece) in self.board.iter().enumerate() {
+            let Some(p) = piece else { continue };
+            if p.color != by {
+                continue;
+            }
+            let s = sq as u8;
+            let f = file_of(s) as i32;
+            let r = rank_of(s) as i32;
+            match p.piece_type {
+                PieceType::Pawn => {
+                    // White pawns attack toward rank+1, black toward rank-1
+                    // (from the PAWN's own square, matching the target-side
+                    // formula "by-pawn on (tf±1, tr - dir)").
+                    let dir = if by == Color::White { 1 } else { -1 };
+                    for df in [-1i32, 1i32] {
+                        let af = f + df;
+                        let ar = r + dir;
+                        if on_board(af, ar) {
+                            map |= 1u64 << make_square(af as u8, ar as u8);
+                        }
+                    }
+                }
+                PieceType::Knight => {
+                    for (df, dr) in KNIGHT_OFFSETS {
+                        let nf = f + df;
+                        let nr = r + dr;
+                        if on_board(nf, nr) {
+                            map |= 1u64 << make_square(nf as u8, nr as u8);
+                        }
+                    }
+                }
+                PieceType::King => {
+                    for (df, dr) in KING_OFFSETS {
+                        let nf = f + df;
+                        let nr = r + dr;
+                        if on_board(nf, nr) {
+                            map |= 1u64 << make_square(nf as u8, nr as u8);
+                        }
+                    }
+                }
+                PieceType::Bishop => {
+                    for (df, dr) in BISHOP_DIRS {
+                        let mut nf = f + df;
+                        let mut nr = r + dr;
+                        while on_board(nf, nr) {
+                            let to = make_square(nf as u8, nr as u8);
+                            map |= 1u64 << to;
+                            if self.board[to as usize].is_some() {
+                                break;
+                            }
+                            nf += df;
+                            nr += dr;
+                        }
+                    }
+                }
+                PieceType::Rook => {
+                    for (df, dr) in ROOK_DIRS {
+                        let mut nf = f + df;
+                        let mut nr = r + dr;
+                        while on_board(nf, nr) {
+                            let to = make_square(nf as u8, nr as u8);
+                            map |= 1u64 << to;
+                            if self.board[to as usize].is_some() {
+                                break;
+                            }
+                            nf += df;
+                            nr += dr;
+                        }
+                    }
+                }
+                PieceType::Queen => {
+                    for (df, dr) in QUEEN_DIRS {
+                        let mut nf = f + df;
+                        let mut nr = r + dr;
+                        while on_board(nf, nr) {
+                            let to = make_square(nf as u8, nr as u8);
+                            map |= 1u64 << to;
+                            if self.board[to as usize].is_some() {
+                                break;
+                            }
+                            nf += df;
+                            nr += dr;
+                        }
+                    }
+                }
+            }
+        }
+        map
+    }
+
+    /// S11-B4: both colors' attack maps in one pass over the board.
+    pub fn attack_maps(&self) -> (u64, u64) {
+        (self.attack_map(Color::White), self.attack_map(Color::Black))
+    }
+
     pub fn is_in_check(&self, color: Color) -> bool {
         self.is_square_attacked(self.king_sq[color as usize], color.opposite())
     }

@@ -2652,6 +2652,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "nnue-v2q-r12-parity" {
         return run_nnue_v2q_r12_parity(&args[1..]);
     }
+    if args[0] == "nnue-v2q-r12-delta-cost" {
+        return run_nnue_v2q_r12_delta_cost(&args[1..]);
+    }
     #[cfg(feature = "diagnostic_eval_site_capture")]
     if args[0] == "eval-site-capture" {
         return run_eval_site_capture(&args[1..]);
@@ -2749,6 +2752,7 @@ fn print_help() {
     println!("  nnue-v2q-probe-batch --model <bin> --batch <file>  one JSON line per record");
     println!("  nnue-v2q-accumulator-audit --model <bin> [--games N] [--plies N]  S10-C1 incremental vs full-refresh bit-exact audit");
     println!("  nnue-v2q-r12-parity --model <v4-r12.bin> [--batch <fens>] [--games N] [--plies N]  S11-B2 hybrid vs full-refresh parity (corpus + transitions + directed fixtures)");
+    println!("  nnue-v2q-r12-delta-cost --model <v4-r12.bin> [--batch <fens>] [--rounds N] [--edges N] [--ratchet]  S11-B4 incremental relation cost gate (attack-map recompute + diff + changed-row FT applies)");
     println!("  nnue-v2q-cost --model <bin> --batch <file> [--rounds N]  S10-C3-A component microcost (Eval2 vs NNUE full vs incremental)");
 }
 
@@ -4572,38 +4576,42 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--model" => {
-                model = Some(it.next().ok_or(
-                    "nnue-v2q-r12-parity: --model requires a value",
-                )?.clone());
+                model = Some(
+                    it.next()
+                        .ok_or("nnue-v2q-r12-parity: --model requires a value")?
+                        .clone(),
+                );
             }
             "--batch" => {
-                batch = Some(it.next().ok_or(
-                    "nnue-v2q-r12-parity: --batch requires a value",
-                )?.clone());
+                batch = Some(
+                    it.next()
+                        .ok_or("nnue-v2q-r12-parity: --batch requires a value")?
+                        .clone(),
+                );
             }
             "--games" => {
-                games = it.next().ok_or(
-                    "nnue-v2q-r12-parity: --games requires a value",
-                )?.parse().map_err(|_| "bad --games")?;
+                games = it
+                    .next()
+                    .ok_or("nnue-v2q-r12-parity: --games requires a value")?
+                    .parse()
+                    .map_err(|_| "bad --games")?;
             }
             "--plies" => {
-                plies = it.next().ok_or(
-                    "nnue-v2q-r12-parity: --plies requires a value",
-                )?.parse().map_err(|_| "bad --plies")?;
+                plies = it
+                    .next()
+                    .ok_or("nnue-v2q-r12-parity: --plies requires a value")?
+                    .parse()
+                    .map_err(|_| "bad --plies")?;
             }
             other => {
-                return Err(format!(
-                    "nnue-v2q-r12-parity: unknown argument '{other}'"
-                ));
+                return Err(format!("nnue-v2q-r12-parity: unknown argument '{other}'"));
             }
         }
     }
-    let model_path = model.ok_or(
-        "nnue-v2q-r12-parity: --model is required",
-    )?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(&model_path),
-    )?;
+    let model_path = model.ok_or("nnue-v2q-r12-parity: --model is required")?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
     if model.feature_set() != NnueFeatureSetId::V2R12 {
         return Err(format!(
             "nnue-v2q-r12-parity: artifact feature_set is {:?}, \
@@ -4616,10 +4624,14 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
     let mut corpus_positions: usize = 0;
     let mut corpus_lane_mismatches: u64 = 0;
     let mut corpus_raw_mismatches: u64 = 0;
+    // S11-B4-A corpus gates: attack-map bitwise equality and
+    // state-derived row equality, per position x color x perspective.
+    let mut b4_attack_bit_mismatches: u64 = 0;
+    let mut b4_state_row_mismatches: u64 = 0;
+    let mut b4_attack_bits_checked: u64 = 0;
     if let Some(batch_path) = batch.as_deref() {
-        let text = std::fs::read_to_string(batch_path).map_err(|e| {
-            format!("nnue-v2q-r12-parity: cannot read {batch_path}: {e}")
-        })?;
+        let text = std::fs::read_to_string(batch_path)
+            .map_err(|e| format!("nnue-v2q-r12-parity: cannot read {batch_path}: {e}"))?;
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -4629,15 +4641,60 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
                 Some((_, fen)) => fen.trim(),
                 None => line,
             };
-            let pos = parse_fen(fen).map_err(|e| {
-                format!("nnue-v2q-r12-parity: {e}: '{fen}'")
-            })?;
+            let pos = parse_fen(fen).map_err(|e| format!("nnue-v2q-r12-parity: {e}: '{fen}'"))?;
+
+            // S11-B4-A gate 1: attack maps bitwise vs is_square_attacked.
+            for by in [
+                crate::chess::types::Color::White,
+                crate::chess::types::Color::Black,
+            ] {
+                let map = pos.attack_map(by);
+                for sq in 0..64u8 {
+                    b4_attack_bits_checked += 1;
+                    if (map >> sq & 1 == 1) != pos.is_square_attacked(sq, by) {
+                        b4_attack_bit_mismatches += 1;
+                    }
+                }
+            }
+
+            // S11-B4-A gate 2: state-derived rows == frozen emitter rows
+            // (multiset equality, both perspectives).
+            {
+                use crate::engine::nnue_v2q_runtime::R12RelationState;
+                use std::collections::BTreeMap;
+                let state = R12RelationState::recompute(&pos);
+                for perspective in [
+                    crate::engine::nnue::NnuePerspective::White,
+                    crate::engine::nnue::NnuePerspective::Black,
+                ] {
+                    let (_, mirror_file) = crate::engine::nnue::v2_king_context(&pos, perspective);
+                    let mut frozen: BTreeMap<u16, usize> = BTreeMap::new();
+                    crate::engine::nnue::for_each_relation_feature_v2r12(
+                        &pos,
+                        perspective,
+                        |idx| *frozen.entry(idx).or_insert(0) += 1,
+                    );
+                    let mut derived: BTreeMap<u16, usize> = BTreeMap::new();
+                    for sq in 0..64usize {
+                        if let Some(f) = R12RelationState::row_for_square(
+                            state.square_state(sq),
+                            sq,
+                            perspective,
+                            mirror_file,
+                        ) {
+                            *derived.entry(f).or_insert(0) += 1;
+                        }
+                    }
+                    if frozen != derived {
+                        b4_state_row_mismatches += 1;
+                    }
+                }
+            }
+
             let base = model.base_accumulator_v2(&pos);
             let hybrid = model.hybrid_accumulator_r12(&pos, &base);
             let full = model.full_accumulator(&pos);
-            if hybrid.white() != full.white()
-                || hybrid.black() != full.black()
-            {
+            if hybrid.white() != full.white() || hybrid.black() != full.black() {
                 corpus_lane_mismatches += hybrid
                     .white()
                     .iter()
@@ -4651,8 +4708,7 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
                     .filter(|(a, b)| a != b)
                     .count() as u64;
             }
-            let raw_hybrid =
-                model.evaluate_raw_hybrid_r12(&pos, &base);
+            let raw_hybrid = model.evaluate_raw_hybrid_r12(&pos, &base);
             let raw_full = model.evaluate_raw(&pos);
             if raw_hybrid != raw_full {
                 corpus_raw_mismatches += 1;
@@ -4701,17 +4757,14 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
             let before = pos.clone();
             let delta = model.prepare_move_delta(&before, &m);
             pos.make_move(m);
-            let stats =
-                model.update_accumulator_for_move(&mut acc, &delta, &pos);
+            let stats = model.update_accumulator_for_move(&mut acc, &delta, &pos);
             full_refreshes += stats.full_refreshes as u64;
 
             // Hybrid eval from the incremented BASE accumulator must
             // equal the full R12 refresh.
             let hybrid = model.hybrid_accumulator_r12(&pos, &acc);
             let full = model.full_accumulator(&pos);
-            if hybrid.white() != full.white()
-                || hybrid.black() != full.black()
-            {
+            if hybrid.white() != full.white() || hybrid.black() != full.black() {
                 trans_lane_mismatches += hybrid
                     .white()
                     .iter()
@@ -4739,49 +4792,74 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
     // class through prepare->make->incremental->hybrid vs full.
     let fixtures: &[(&str, &str, &str)] = &[
         // quiet
-        ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "e2e4", "quiet_pawn_double"),
+        (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "e2e4",
+            "quiet_pawn_double",
+        ),
         // normal capture (with recapture structure — R12 relation case)
-        ("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
-            "c4f7", "capture_bishop_takes_f7"),
+        (
+            "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+            "c4f7",
+            "capture_bishop_takes_f7",
+        ),
         // en passant
-        ("rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1",
-            "e5f6", "en_passant"),
+        (
+            "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1",
+            "e5f6",
+            "en_passant",
+        ),
         // king castle
-        ("r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R w KQkq - 0 1",
-            "e1g1", "king_castle_white"),
+        (
+            "r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R w KQkq - 0 1",
+            "e1g1",
+            "king_castle_white",
+        ),
         // queen castle
-        ("r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R b KQkq - 0 1",
-            "e8c8", "queen_castle_black"),
+        (
+            "r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R b KQkq - 0 1",
+            "e8c8",
+            "queen_castle_black",
+        ),
         // promotion (queen, corner square — square-transform edge case)
-        ("5k2/P7/8/8/8/8/6r1/K7 w - - 0 1",
-            "a7a8q", "promotion_rook_corner"),
+        (
+            "5k2/P7/8/8/8/8/6r1/K7 w - - 0 1",
+            "a7a8q",
+            "promotion_rook_corner",
+        ),
         // quiet promotion
-        ("5k2/1P6/8/8/8/8/8/K7 w - - 0 1",
-            "b7b8n", "promotion_knight"),
+        (
+            "5k2/1P6/8/8/8/8/8/K7 w - - 0 1",
+            "b7b8n",
+            "promotion_knight",
+        ),
         // king move crossing the mirror boundary (bucket refresh)
-        ("4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-            "e1d1", "king_mirror_boundary"),
+        (
+            "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+            "e1d1",
+            "king_mirror_boundary",
+        ),
         // slider unblock: rook's file opens (relation D->A flips)
-        ("4k3/8/8/8/8/8/3P4/R3K3 w - - 0 1",
-            "d2d3", "rook_unblock"),
+        ("4k3/8/8/8/8/8/3P4/R3K3 w - - 0 1", "d2d3", "rook_unblock"),
         // check-giving knight (relation C on king-adjacent squares)
-        ("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
-            "f3f7", "check_queen_f7"),
+        (
+            "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
+            "f3f7",
+            "check_queen_f7",
+        ),
     ];
     let mut fixture_failures: Vec<String> = Vec::new();
     let mut fixtures_ok: usize = 0;
     for (fen, uci, name) in fixtures {
-        let mut pos = parse_fen(fen).map_err(|e| {
-            format!("nnue-v2q-r12-parity: fixture {name}: {e}")
-        })?;
+        let mut pos =
+            parse_fen(fen).map_err(|e| format!("nnue-v2q-r12-parity: fixture {name}: {e}"))?;
         let legal = generate_legal_moves(&mut pos.clone());
-        let mv = legal.iter().copied().find(|m| {
-            crate::chess::types::move_to_uci(*m) == *uci
-        });
+        let mv = legal
+            .iter()
+            .copied()
+            .find(|m| crate::chess::types::move_to_uci(*m) == *uci);
         let Some(mv) = mv else {
-            fixture_failures
-                .push(format!("{name}: {uci} not legal in fixture FEN"));
+            fixture_failures.push(format!("{name}: {uci} not legal in fixture FEN"));
             continue;
         };
         let mut acc = model.base_accumulator_v2(&pos);
@@ -4791,17 +4869,14 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
 
         let hybrid = model.hybrid_accumulator_r12(&pos, &acc);
         let full = model.full_accumulator(&pos);
-        let mut ok = hybrid.white() == full.white()
-            && hybrid.black() == full.black();
+        let mut ok = hybrid.white() == full.white() && hybrid.black() == full.black();
         let raw_hybrid = model.evaluate_raw_hybrid_r12(&pos, &acc);
         let raw_full = model.evaluate_raw(&pos);
         ok = ok && raw_hybrid == raw_full;
         if ok {
             fixtures_ok += 1;
         } else {
-            fixture_failures.push(format!(
-                "{name}: hybrid != full after {uci}"
-            ));
+            fixture_failures.push(format!("{name}: hybrid != full after {uci}"));
         }
     }
 
@@ -4809,7 +4884,9 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
         && corpus_raw_mismatches == 0
         && trans_lane_mismatches == 0
         && trans_raw_mismatches == 0
-        && fixture_failures.is_empty();
+        && fixture_failures.is_empty()
+        && b4_attack_bit_mismatches == 0
+        && b4_state_row_mismatches == 0;
     let flags_json = flag_counts
         .iter()
         .map(|(k, v)| format!("\"{k}\":{v}"))
@@ -4827,15 +4904,321 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
           \"move_flags\":{{{flags_json}}},\
           \"fixtures_total\":{},\"fixtures_ok\":{fixtures_ok},\
           \"fixture_failures\":{:?},\
+          \"b4_attack_bits_checked\":{b4_attack_bits_checked},\
+          \"b4_attack_bit_mismatches\":{b4_attack_bit_mismatches},\
+          \"b4_state_row_mismatches\":{b4_state_row_mismatches},\
           \"passed\":{passed}}}",
         fixtures.len(),
         fixture_failures
     );
     if !passed {
-        return Err(
-            "nnue-v2q-r12-parity: FAIL (see JSON counters)".to_string()
-        );
+        return Err("nnue-v2q-r12-parity: FAIL (see JSON counters)".to_string());
     }
+    Ok(())
+}
+
+/// S11-B4-A cost gate: `bench nnue-v2q-r12-delta-cost --model <v4-r12.bin>
+/// [--batch <fens>] [--rounds N] [--ratchet]` — measures the FULL B4
+/// incremental relation cost per SEARCH EDGE on the real B1-style edge
+/// distribution (deterministic random legal playouts, same generator as
+/// the C2A audit):
+///
+///   per edge = child attack-map pair (2 board passes)
+///            + child relation-state recompute (64 squares)
+///            + parent-vs-child state diff
+///            + FT add/sub of the CHANGED rows only (real weights)
+///
+/// The frozen gate: median <= 1500 ns/edge (ideally < 1000). With
+/// `--ratchet`, the harness also maintains the combined accumulator
+/// incrementally and verifies every edge against a full refresh
+/// (correctness + cost in one run).
+fn run_nnue_v2q_r12_delta_cost(args: &[String]) -> Result<(), String> {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    use crate::chess::movegen::generate_legal_moves;
+    use crate::engine::nnue_v2q_runtime::{NnueFeatureSetId, R12RelationState};
+
+    let mut model: Option<String> = None;
+    let mut batch: Option<String> = None;
+    let mut rounds: u32 = 16;
+    let mut edges: usize = 10_000;
+    let mut ratchet = false;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--model" => {
+                model = Some(
+                    it.next()
+                        .ok_or("nnue-v2q-r12-delta-cost: --model requires a value")?
+                        .clone(),
+                );
+            }
+            "--batch" => {
+                batch = Some(
+                    it.next()
+                        .ok_or("nnue-v2q-r12-delta-cost: --batch requires a value")?
+                        .clone(),
+                );
+            }
+            "--rounds" => {
+                rounds = it
+                    .next()
+                    .ok_or("nnue-v2q-r12-delta-cost: --rounds requires a value")?
+                    .parse()
+                    .map_err(|_| "bad --rounds")?;
+            }
+            "--edges" => {
+                edges = it
+                    .next()
+                    .ok_or("nnue-v2q-r12-delta-cost: --edges requires a value")?
+                    .parse()
+                    .map_err(|_| "bad --edges")?;
+            }
+            "--ratchet" => ratchet = true,
+            other => {
+                return Err(format!(
+                    "nnue-v2q-r12-delta-cost: unknown argument '{other}'"
+                ));
+            }
+        }
+    }
+    let model_path = model.ok_or("nnue-v2q-r12-delta-cost: --model is required")?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
+    if model.feature_set() != NnueFeatureSetId::V2R12 {
+        return Err(format!(
+            "nnue-v2q-r12-delta-cost: artifact feature_set is {:?}, \
+             requires V2R12",
+            model.feature_set()
+        ));
+    }
+    if model.ft_width() != crate::engine::nnue_v2q_runtime::FtWidth::W128 {
+        return Err("nnue-v2q-r12-delta-cost: v4 R12 artifact is FT128".into());
+    }
+
+    // Deterministic edge corpus: random legal playouts from startpos
+    // (same xorshift + shape as the C2A accumulator audit / B1).
+    let mut rng: u64 = 0xc3a0_7a11_ce5e_d5c3;
+    let mut next = move || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+    // Optionally seed playouts from corpus FENs for variety.
+    let mut seeds: Vec<Position> = Vec::new();
+    if let Some(batch_path) = batch.as_deref() {
+        let text = std::fs::read_to_string(batch_path)
+            .map_err(|e| format!("nnue-v2q-r12-delta-cost: cannot read {batch_path}: {e}"))?;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let fen = match line.split_once('|') {
+                Some((_, fen)) => fen.trim(),
+                None => line,
+            };
+            if seeds.len() >= 64 {
+                break;
+            }
+            seeds.push(
+                parse_fen(fen).map_err(|e| format!("nnue-v2q-r12-delta-cost: {e}: '{fen}'"))?,
+            );
+        }
+    }
+
+    // Materialize the edge corpus ONCE (untimed): (parent state,
+    // child position). Playouts walk real game-shaped positions —
+    // the same distribution class B1 measured.
+    struct Edge {
+        parent_state: R12RelationState,
+        child: Position,
+    }
+    let mut corpus: Vec<Edge> = Vec::with_capacity(edges);
+    {
+        let mut pos = Position::startpos();
+        let mut state = R12RelationState::recompute(&pos);
+        let mut next_reseed = 249usize;
+        while corpus.len() < edges {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                // terminal: fall back to startpos (guaranteed legal
+                // moves — no infinite restart loop on terminal seeds)
+                pos = Position::startpos();
+                state = R12RelationState::recompute(&pos);
+                continue;
+            }
+            if corpus.len() == next_reseed && !seeds.is_empty() {
+                // periodically restart from a corpus seed for variety;
+                // verify the seed is non-terminal, else startpos
+                let s = &seeds[next() as usize % seeds.len()];
+                let mut cand = *s;
+                if generate_legal_moves(&mut cand.clone()).is_empty() {
+                    pos = Position::startpos();
+                } else {
+                    pos = cand;
+                }
+                state = R12RelationState::recompute(&pos);
+                next_reseed += 250;
+                continue;
+            }
+            let m = moves[(next() % moves.len() as u64) as usize];
+            pos.make_move(m);
+            corpus.push(Edge {
+                parent_state: state,
+                child: pos,
+            });
+            state = R12RelationState::recompute(&pos);
+        }
+    }
+
+    // Timed: full B4 per-edge work — child state recompute (attack
+    // maps + 64 squares) + diff + changed-row FT applies (real
+    // weights, real memory traffic).
+    let mut acc = model.full_accumulator(&Position::startpos());
+    let mut edge_pass = |acc: &mut crate::engine::nnue_v2q_runtime::AccumulatorFor| {
+        let mut applied_total = 0usize;
+        for e in &corpus {
+            applied_total += model.r12_apply_relation_delta(&e.parent_state, &e.child, acc);
+        }
+        applied_total
+    };
+    let samples: Vec<u128> = {
+        let mut samples = Vec::new();
+        for _ in 0..2 {
+            black_box(edge_pass(&mut acc));
+        }
+        for _ in 0..rounds {
+            let start = Instant::now();
+            black_box(edge_pass(&mut acc));
+            samples.push(start.elapsed().as_nanos());
+        }
+        samples
+    };
+    let mut sorted = samples;
+    sorted.sort_unstable();
+    let median = sorted[sorted.len() / 2] as f64 / corpus.len() as f64;
+    let p90 = sorted[(sorted.len() as f64 * 0.9) as usize] as f64 / corpus.len() as f64;
+    let min = sorted[0] as f64 / corpus.len() as f64;
+
+    // Ratchet correctness pass (untimed): walk the SAME edge sequence,
+    // maintaining the combined accumulator with the B4-B rules (V2 base
+    // delta + relation diff; king-move perspective rebuild), comparing
+    // every edge against a full refresh. The corpus walk stores the
+    // parent position implicitly: consecutive edges share the playout,
+    // so replay by re-deriving the move from parent->child board diff
+    // is unnecessary — instead rebuild the playout positions alongside.
+    let mut ratchet_mismatches: u64 = 0;
+    if ratchet {
+        // Rebuild the playout: the corpus edges were recorded in order
+        // from ONE game walk (with periodic reseeding); replay the
+        // identical walk by regenerating from the same seed.
+        let mut rng2: u64 = 0xc3a0_7a11_ce5e_d5c3;
+        let mut next2 = move || {
+            rng2 ^= rng2 << 13;
+            rng2 ^= rng2 >> 7;
+            rng2 ^= rng2 << 17;
+            rng2
+        };
+        let mut pos = Position::startpos();
+        let mut state = R12RelationState::recompute(&pos);
+        let mut combined = model.full_accumulator(&pos);
+        let mut i = 0usize;
+        let mut next_reseed = 249usize;
+        while i < corpus.len() {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                // MUST mirror the corpus-build walk exactly (same rng
+                // draws, same decisions) so the ratchet replays the
+                // identical edge sequence.
+                pos = Position::startpos();
+                state = R12RelationState::recompute(&pos);
+                combined = model.full_accumulator(&pos);
+                continue;
+            }
+            if i == next_reseed && !seeds.is_empty() {
+                let s = &seeds[next2() as usize % seeds.len()];
+                let mut cand = *s;
+                if generate_legal_moves(&mut cand.clone()).is_empty() {
+                    pos = Position::startpos();
+                } else {
+                    pos = cand;
+                }
+                state = R12RelationState::recompute(&pos);
+                combined = model.full_accumulator(&pos);
+                next_reseed += 250;
+                continue;
+            }
+            let m = moves[(next2() % moves.len() as u64) as usize];
+            let delta = model.prepare_move_delta(&pos, &m);
+            pos.make_move(m);
+            let new_state = R12RelationState::recompute(&pos);
+            // V2 base delta (also handles the king-perspective base
+            // full refresh internally).
+            model.update_accumulator_for_move(&mut combined, &delta, &pos);
+            if let Some(kc) = delta.moved_king_color() {
+                // King-move rare path: rebuild the mover's perspective
+                // (base + all relation rows), diff the OTHER one.
+                let perspective = if kc == crate::chess::types::Color::White {
+                    crate::engine::nnue::NnuePerspective::White
+                } else {
+                    crate::engine::nnue::NnuePerspective::Black
+                };
+                model.r12_rebuild_perspective(&pos, perspective, &mut combined);
+                // diff the other perspective into a scratch, then copy
+                // that perspective's lanes back
+                let mut scratch = combined;
+                model.r12_apply_relation_delta(&state, &pos, &mut scratch);
+                let other = if kc == crate::chess::types::Color::White {
+                    crate::engine::nnue::NnuePerspective::Black
+                } else {
+                    crate::engine::nnue::NnuePerspective::White
+                };
+                match (&mut combined, &scratch, other) {
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(s),
+                        crate::engine::nnue::NnuePerspective::White,
+                    ) => c.white = s.white,
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(s),
+                        crate::engine::nnue::NnuePerspective::Black,
+                    ) => c.black = s.black,
+                    _ => unreachable!(),
+                }
+            } else {
+                model.r12_apply_relation_delta(&state, &pos, &mut combined);
+            }
+            state = new_state;
+            let full = model.full_accumulator(&pos);
+            if combined.white() != full.white() || combined.black() != full.black() {
+                ratchet_mismatches += 1;
+            }
+            i += 1;
+        }
+    }
+
+    let gate_pass = median <= 1500.0 && ratchet_mismatches == 0;
+    println!(
+        "{{\"stage\":\"s11b4a_delta_cost\",\
+          \"edges\":{},\
+          \"rounds\":{rounds},\
+          \"median_ns_per_edge\":{:.1},\
+          \"p90_ns_per_edge\":{:.1},\
+          \"min_ns_per_edge\":{:.1},\
+          \"gate_bar_ns\":1500,\
+          \"ratchet\":{ratchet},\
+          \"ratchet_mismatches\":{ratchet_mismatches},\
+          \"gate_pass\":{gate_pass}}}",
+        corpus.len(),
+        median,
+        p90,
+        min
+    );
     Ok(())
 }
 
@@ -5191,9 +5574,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
     {
         use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
         if model_arc.feature_set() == NnueFeatureSetId::V2R12 {
-            use crate::engine::nnue::{
-                for_each_relation_feature_v2r12, NnuePerspective,
-            };
+            use crate::engine::nnue::{for_each_relation_feature_v2r12, NnuePerspective};
 
             // 11. Relation scan only (feature emission, no FT math) —
             // isolates the fresh-recompute attack-query cost.
@@ -5201,15 +5582,11 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
                 let samples = run_rounds(
                     || {
                         for pos in &positions {
-                            for p in [NnuePerspective::White,
-                                      NnuePerspective::Black]
-                            {
+                            for p in [NnuePerspective::White, NnuePerspective::Black] {
                                 let mut sink: u64 = 0;
-                                for_each_relation_feature_v2r12(
-                                    black_box(pos),
-                                    p,
-                                    |idx| sink += idx as u64,
-                                );
+                                for_each_relation_feature_v2r12(black_box(pos), p, |idx| {
+                                    sink += idx as u64
+                                });
                                 black_box(sink);
                             }
                         }
@@ -5226,22 +5603,13 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
                     || {
                         for pos in &positions {
                             let mut lanes = [0i32; 128];
-                            for p in [NnuePerspective::White,
-                                      NnuePerspective::Black]
-                            {
-                                for_each_relation_feature_v2r12(
-                                    black_box(pos),
-                                    p,
-                                    |idx| {
-                                        let base = (idx as usize) * 128;
-                                        for (i, slot) in
-                                            lanes.iter_mut().enumerate()
-                                        {
-                                            *slot = slot.wrapping_add(
-                                                (base + i) as i32);
-                                        }
-                                    },
-                                );
+                            for p in [NnuePerspective::White, NnuePerspective::Black] {
+                                for_each_relation_feature_v2r12(black_box(pos), p, |idx| {
+                                    let base = (idx as usize) * 128;
+                                    for (i, slot) in lanes.iter_mut().enumerate() {
+                                        *slot = slot.wrapping_add((base + i) as i32);
+                                    }
+                                });
                             }
                             black_box(lanes);
                         }
@@ -5253,23 +5621,17 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
 
             // 12. Hybrid eval total (base accumulator + fresh relation
             // rows + dense) — the B2 production hot path, eval-only.
-            let base_accs: Vec<
-                crate::engine::nnue_v2q_runtime::AccumulatorFor,
-            > = positions
+            let base_accs: Vec<crate::engine::nnue_v2q_runtime::AccumulatorFor> = positions
                 .iter()
                 .map(|pos| model_arc.base_accumulator_v2(pos))
                 .collect();
             {
                 let samples = run_rounds(
                     || {
-                        for (pos, base) in
-                            positions.iter().zip(base_accs.iter())
-                        {
-                            black_box(model_arc
-                                .evaluate_raw_hybrid_r12(
-                                    black_box(pos),
-                                    black_box(base),
-                                ));
+                        for (pos, base) in positions.iter().zip(base_accs.iter()) {
+                            black_box(
+                                model_arc.evaluate_raw_hybrid_r12(black_box(pos), black_box(base)),
+                            );
                         }
                     },
                     rounds,
@@ -5282,20 +5644,13 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             {
                 let samples = run_rounds(
                     || {
-                        for (f, t) in
-                            fixtures.iter().zip(transitions.iter())
-                        {
-                            let delta = model_arc
-                                .prepare_move_delta(&t.parent, &t.mv);
+                        for (f, t) in fixtures.iter().zip(transitions.iter()) {
+                            let delta = model_arc.prepare_move_delta(&t.parent, &t.mv);
                             let mut acc = f.parent_acc;
-                            black_box(model_arc
-                                .update_accumulator_for_move(
-                                    &mut acc, &delta, &f.child,
-                                ));
-                            black_box(model_arc
-                                .evaluate_raw_hybrid_r12(
-                                    &f.child, &acc,
-                                ));
+                            black_box(
+                                model_arc.update_accumulator_for_move(&mut acc, &delta, &f.child),
+                            );
+                            black_box(model_arc.evaluate_raw_hybrid_r12(&f.child, &acc));
                         }
                     },
                     rounds,

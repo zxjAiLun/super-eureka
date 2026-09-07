@@ -387,6 +387,13 @@ impl NnueMoveDelta {
             .filter_map(|e| e.map(|(sq, _)| sq))
     }
 
+    /// S11-B4: the color whose KING square changes across this move
+    /// (None for non-king moves) — drives the king-perspective rebuild
+    /// in the ratchet harness and the incremental R12 stack.
+    pub fn moved_king_color(&self) -> Option<Color> {
+        self.moved_king
+    }
+
     #[cfg(test)]
     pub fn removed_entries(&self) -> impl Iterator<Item = (Square, Piece)> + '_ {
         self.removed.iter().filter_map(|&e| e)
@@ -748,6 +755,95 @@ impl NnueV2QuantizedModel {
                 white: accumulate_lanes::<256>(w, &active_features_v2(pos, NnuePerspective::White)),
                 black: accumulate_lanes::<256>(w, &active_features_v2(pos, NnuePerspective::Black)),
             }),
+        }
+    }
+
+    /// S11-B4: one incremental relation edge — recompute the child's
+    /// relation state (attack maps + 64 squares), diff against
+    /// `before`, and apply the CHANGED rows to `acc` (both
+    /// perspectives; `pos` is the CHILD position). Returns the number
+    /// of FT row applications. V2R12-only (fail-closed).
+    pub fn r12_apply_relation_delta(
+        &self,
+        before: &R12RelationState,
+        pos: &Position,
+        acc: &mut AccumulatorFor,
+    ) -> usize {
+        if self.feature_set != NnueFeatureSetId::V2R12 {
+            panic!(
+                "r12_apply_relation_delta: artifact feature_set is {:?}, \
+                 not V2R12",
+                self.feature_set
+            );
+        }
+        let child_state = R12RelationState::recompute(pos);
+        match (&self.weights, acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                child_state.apply_diff(before, w, pos, a)
+            }
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                child_state.apply_diff(before, w, pos, a)
+            }
+            _ => panic!("accumulator width does not match model"),
+        }
+    }
+
+    /// S11-B4: rebuild one perspective of a combined accumulator from
+    /// the child's base + ALL child relation rows (the king-move rare
+    /// path). V2R12-only (fail-closed).
+    pub fn r12_rebuild_perspective(
+        &self,
+        pos: &Position,
+        perspective: NnuePerspective,
+        acc: &mut AccumulatorFor,
+    ) {
+        if self.feature_set != NnueFeatureSetId::V2R12 {
+            panic!(
+                "r12_rebuild_perspective: artifact feature_set is {:?}, \
+                 not V2R12",
+                self.feature_set
+            );
+        }
+        let state = R12RelationState::recompute(pos);
+        let (_, mirror_file) = crate::engine::nnue::v2_king_context(pos, perspective);
+        match (&self.weights, acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                let lanes = match perspective {
+                    NnuePerspective::White => &mut a.white,
+                    NnuePerspective::Black => &mut a.black,
+                };
+                let fresh = accumulate_lanes::<128>(w, &active_features_v2(pos, perspective));
+                lanes.copy_from_slice(&fresh);
+                for sq in 0..64usize {
+                    if let Some(f) = R12RelationState::row_for_square(
+                        state.squares[sq],
+                        sq,
+                        perspective,
+                        mirror_file,
+                    ) {
+                        apply_feature_row(w, lanes, f, 1);
+                    }
+                }
+            }
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                let lanes = match perspective {
+                    NnuePerspective::White => &mut a.white,
+                    NnuePerspective::Black => &mut a.black,
+                };
+                let fresh = accumulate_lanes::<256>(w, &active_features_v2(pos, perspective));
+                lanes.copy_from_slice(&fresh);
+                for sq in 0..64usize {
+                    if let Some(f) = R12RelationState::row_for_square(
+                        state.squares[sq],
+                        sq,
+                        perspective,
+                        mirror_file,
+                    ) {
+                        apply_feature_row(w, lanes, f, 1);
+                    }
+                }
+            }
+            _ => panic!("accumulator width does not match model"),
         }
     }
 
@@ -1144,6 +1240,187 @@ fn apply_feature_row<const W: usize>(
         } else {
             *slot = slot.wrapping_sub(w.ft_weights[base + i] as i32);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// S11-B4: physical R12 relation state + incremental FT row application
+// ---------------------------------------------------------------------------
+
+/// S11-B4: physical R12 relation state — one byte per square, encoding
+/// everything needed to derive BOTH perspectives' R12 relation rows for
+/// that square. Perspective-independent (attacked/defended is a board
+/// fact); orientation/mirror is applied only when a row is actually
+/// emitted.
+///
+/// Byte layout:
+///   0                    -> no relation row (empty square, king, or
+///                          neutral (not attacked, not defended) piece)
+///   1..=6                -> A-channel, victim piece type N/B/R/Q
+///                          (attacked && !defended; pawn A excluded by
+///                          the frozen R12 schema)
+///   7                    -> D-channel (defended only)
+///   8                    -> C-channel (contested)
+///   +8 if the piece is BLACK (0..=15 total; the perspective-relative
+///   own/opponent bit is derived at emit time)
+///
+/// Because the byte pins the PIECE TYPE and COLOR, a state byte
+/// difference is sufficient to know the old and new R12 rows exactly
+/// (with the position's king context for orientation/mirror, which is
+/// recomputed per diff application).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct R12RelationState {
+    squares: [u8; 64],
+}
+
+/// A-channel victim type codes (state byte values for white pieces;
+/// add 8 for black).
+const R12_A_KNIGHT: u8 = 1;
+const R12_A_BISHOP: u8 = 2;
+const R12_A_ROOK: u8 = 3;
+const R12_A_QUEEN: u8 = 4;
+const R12_D: u8 = 5;
+const R12_C: u8 = 6;
+
+impl R12RelationState {
+    /// Recompute the full 64-square relation state from ONE pair of
+    /// attack maps (S11-B4-A core: `Position::attack_maps` generates
+    /// both colors' pseudo-attack bit sets in one board pass, replacing
+    /// the ~2-per-square `is_square_attacked` scans of the fresh path).
+    ///
+    /// Semantics are BITWISE-IDENTICAL to `for_each_relation_feature_
+    /// v2r12` (frozen contract): raw pseudo-attacks, self-slider
+    /// approximation included, kings excluded, pawn-A excluded.
+    pub fn recompute(pos: &Position) -> Self {
+        let (white_att, black_att) = pos.attack_maps();
+        let mut squares = [0u8; 64];
+        for (sq, piece) in pos.board().iter().enumerate() {
+            let Some(p) = piece else { continue };
+            use crate::chess::types::PieceType;
+            if p.piece_type == PieceType::King {
+                continue;
+            }
+            let attacked_by_enemy = if p.color == Color::White {
+                black_att
+            } else {
+                white_att
+            } >> sq
+                & 1
+                == 1;
+            let defended_by_own = if p.color == Color::White {
+                white_att
+            } else {
+                black_att
+            } >> sq
+                & 1
+                == 1;
+            let color_bit: u8 = if p.color == Color::Black { 8 } else { 0 };
+            let code: u8 = match (attacked_by_enemy, defended_by_own) {
+                (true, false) => match p.piece_type {
+                    // pawn victims produce NO A row in R12
+                    PieceType::Pawn => 0,
+                    PieceType::Knight => R12_A_KNIGHT,
+                    PieceType::Bishop => R12_A_BISHOP,
+                    PieceType::Rook => R12_A_ROOK,
+                    PieceType::Queen => R12_A_QUEEN,
+                    PieceType::King => unreachable!("kings excluded"),
+                },
+                (false, true) => R12_D,
+                (true, true) => R12_C,
+                (false, false) => 0,
+            };
+            if code != 0 {
+                squares[sq] = code | color_bit;
+            }
+        }
+        R12RelationState { squares }
+    }
+
+    /// Emit the R12 relation row index for one square under one
+    /// perspective, given that square's state byte. Returns None for
+    /// state 0 (no row). Mirrors the frozen channel layout of
+    /// `relation_features_v2r12`: A: type_idx(N=0,B=1,R=2,Q=3) + 4*own
+    /// (0..=7); D: 8+own; C: 10+own — oriented + file-mirrored via the
+    /// position's king context.
+    pub fn row_for_square(
+        state: u8,
+        sq: usize,
+        perspective: NnuePerspective,
+        mirror_file: bool,
+    ) -> Option<u16> {
+        if state == 0 {
+            return None;
+        }
+        // `own` = 1 when the piece's color equals the perspective's color.
+        let piece_is_white = state & 8 == 0;
+        let own = u8::from(piece_is_white == (perspective == NnuePerspective::White));
+        // A-channels are victim-type bound (4 each side); D/C are
+        // generic (1 each side). Absolute channel (frozen R12 layout):
+        let channel: usize = match state & 7 {
+            R12_A_KNIGHT | R12_A_BISHOP | R12_A_ROOK | R12_A_QUEEN => {
+                (state & 7) as usize - 1 + if own == 1 { 0 } else { 4 }
+            }
+            R12_D => 8 + if own == 1 { 0 } else { 1 },
+            _ => 10 + if own == 1 { 0 } else { 1 },
+        };
+        let oriented = perspective.orient(sq as u8);
+        let transformed = if mirror_file { oriented ^ 7 } else { oriented };
+        Some(
+            (crate::engine::nnue::NNUE_V2R12_REL_BASE + channel * 64 + transformed as usize) as u16,
+        )
+    }
+
+    /// The raw state byte of one square (bench/diagnostic parity
+    /// harnesses compare state-derived rows against the frozen
+    /// emitter; 0 = no relation row).
+    pub fn square_state(&self, sq: usize) -> u8 {
+        self.squares[sq]
+    }
+
+    /// Apply the state transition `before -> after` to BOTH perspectives
+    /// of a combined (base+relation) accumulator: for every square whose
+    /// state byte changed, subtract the old row and add the new row (in
+    /// each perspective's frame, using `pos`'s king context — `pos` is
+    /// the CHILD position; the king context is identical for both states
+    /// because the diff is applied immediately after the child's make).
+    ///
+    /// Squares whose byte is UNCHANGED are skipped entirely — the B1
+    /// churn evidence says that is the overwhelming majority.
+    pub fn apply_diff<const W: usize>(
+        &self,
+        before: &R12RelationState,
+        w: &Weights<W>,
+        pos: &Position,
+        acc: &mut NnueV2Accumulator<W>,
+    ) -> usize {
+        let (_, mirror_w) = crate::engine::nnue::v2_king_context(pos, NnuePerspective::White);
+        let (_, mirror_b) = crate::engine::nnue::v2_king_context(pos, NnuePerspective::Black);
+        let mut applied = 0usize;
+        for sq in 0..64usize {
+            let (old, new) = (before.squares[sq], self.squares[sq]);
+            if old == new {
+                continue;
+            }
+            // White perspective
+            if let Some(f) = Self::row_for_square(old, sq, NnuePerspective::White, mirror_w) {
+                apply_feature_row(w, &mut acc.white, f, -1);
+                applied += 1;
+            }
+            if let Some(f) = Self::row_for_square(new, sq, NnuePerspective::White, mirror_w) {
+                apply_feature_row(w, &mut acc.white, f, 1);
+                applied += 1;
+            }
+            // Black perspective
+            if let Some(f) = Self::row_for_square(old, sq, NnuePerspective::Black, mirror_b) {
+                apply_feature_row(w, &mut acc.black, f, -1);
+                applied += 1;
+            }
+            if let Some(f) = Self::row_for_square(new, sq, NnuePerspective::Black, mirror_b) {
+                apply_feature_row(w, &mut acc.black, f, 1);
+                applied += 1;
+            }
+        }
+        applied
     }
 }
 
@@ -2563,5 +2840,251 @@ mod tests {
         // a feature-set dispatch regression) fails here.
         // (Value 0: synthetic dense weights saturate QA clipping.)
         assert_eq!(raw, 0);
+    }
+
+    // ------------------------------------------------------------------
+    // S11-B4-A: attack-map / relation-state / diff-apply parity
+    // ------------------------------------------------------------------
+
+    fn b4_test_fens() -> Vec<&'static str> {
+        vec![
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/3qQ3/8/8/8/4K3 w - - 0 1",
+            "rnbqkbnr/pp1ppppp/8/8/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1",
+            "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+            "8/P7/8/8/8/8/6r1/K6k w - - 0 1",
+            "3k4/8/8/8/8/8/8/3K4 w - - 0 1",
+            "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1",
+        ]
+    }
+
+    /// Gate 1: for every FEN x color x square, the attack-map bit must
+    /// equal `is_square_attacked` — bitwise exact.
+    #[test]
+    fn s11b4a_attack_map_bitwise_exact() {
+        use crate::chess::types::Color;
+        for fen in b4_test_fens() {
+            let pos = parse_fen(fen).unwrap();
+            for by in [Color::White, Color::Black] {
+                let map = pos.attack_map(by);
+                for sq in 0..64u8 {
+                    let oracle = pos.is_square_attacked(sq, by);
+                    let bit = map >> sq & 1 == 1;
+                    assert_eq!(bit, oracle, "attack map mismatch {fen} by={by:?} sq={sq}");
+                }
+            }
+        }
+    }
+
+    /// Gate 2: rows derived from the relation STATE must match the
+    /// frozen `for_each_relation_feature_v2r12` emitter exactly (as
+    /// sorted multisets, both perspectives) — proving the [u8;64]
+    /// physical encoding loses nothing. Covers the static FENs AND
+    /// random legal-playout positions (the dynamic shapes the diff
+    /// chain actually visits).
+    #[test]
+    fn s11b4a_state_rows_match_frozen_emitter() {
+        use crate::chess::movegen::generate_legal_moves;
+        use crate::chess::types::Color;
+        use std::collections::BTreeMap;
+        let mut positions: Vec<Position> = b4_test_fens()
+            .iter()
+            .map(|f| parse_fen(f).unwrap())
+            .collect();
+        // random playout positions
+        let mut rng: u64 = 0x5989d5721ea4258e;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for _game in 0..10 {
+            let mut pos = Position::startpos();
+            for _ply in 0..120 {
+                let moves = generate_legal_moves(&mut pos.clone());
+                if moves.is_empty() {
+                    break;
+                }
+                let m = moves[(next() % moves.len() as u64) as usize];
+                pos.make_move(m);
+                positions.push(pos);
+            }
+        }
+        for pos in &positions {
+            let state = R12RelationState::recompute(pos);
+            for perspective in [NnuePerspective::White, NnuePerspective::Black] {
+                let (_, mirror_file) = crate::engine::nnue::v2_king_context(pos, perspective);
+                let mut frozen: BTreeMap<u16, usize> = BTreeMap::new();
+                crate::engine::nnue::for_each_relation_feature_v2r12(pos, perspective, |idx| {
+                    *frozen.entry(idx).or_insert(0) += 1
+                });
+                let mut derived: BTreeMap<u16, usize> = BTreeMap::new();
+                for sq in 0..64usize {
+                    if let Some(f) = R12RelationState::row_for_square(
+                        state.squares[sq],
+                        sq,
+                        perspective,
+                        mirror_file,
+                    ) {
+                        *derived.entry(f).or_insert(0) += 1;
+                    }
+                }
+                assert_eq!(
+                    frozen, derived,
+                    "state rows != frozen rows for pos {:?} {perspective:?}",
+                    pos
+                );
+            }
+        }
+    }
+
+    /// Gate 3: applying a chain of state diffs to a combined accumulator
+    /// must equal a full R12 refresh at every ply (the core B4-B
+    /// invariant, tested at unit level over random legal playouts).
+    #[test]
+    fn s11b4a_diff_chain_equals_full_refresh() {
+        use crate::chess::movegen::generate_legal_moves;
+        let bytes = synthetic_artifact_bytes_v4_r12(
+            START_FEN,
+            NnueFeatureSetId::V2R12,
+            NnueFeatureSetId::V2R12.inputs() as u32,
+        );
+        let model = NnueV2QuantizedModel::from_bytes(&bytes).unwrap();
+        let WeightsFor::W128(w) = &model.weights else {
+            unreachable!()
+        };
+
+        let mut rng: u64 = 0x5989d5721ea4258e;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for _game in 0..10 {
+            let mut pos = Position::startpos();
+            let mut state = R12RelationState::recompute(&pos);
+            // combined accumulator: base + relation rows, maintained by
+            // (a) the existing V2 move deltas and (b) relation-state diffs.
+            let mut combined = model.full_accumulator(&pos);
+            for _ply in 0..120 {
+                let moves = generate_legal_moves(&mut pos.clone());
+                if moves.is_empty() {
+                    break;
+                }
+                let m = moves[(next() % moves.len() as u64) as usize];
+                let delta = model.prepare_move_delta(&pos, &m);
+                pos.make_move(m);
+
+                // (a) V2 base delta — full-refresh the king perspective
+                // (the B4-B king rule; here the COMBINED accumulator is
+                // rebuilt for a king-move perspective via full refresh +
+                // relation state recompute, exactly as B4-B prescribes).
+                let moved_king_color = delta.moved_king;
+                model.update_accumulator_for_move(&mut combined, &delta, &pos);
+
+                // (b) relation-state diff. For a perspective whose king
+                // moved, update_accumulator_for_move already fully
+                // refreshed the BASE lanes (losing that perspective's
+                // relation rows); rebuild the MOVER's perspective from
+                // base + fresh relation rows (the B4-B rare path), and
+                // still apply the state diff to the OTHER perspective
+                // (a king move changes attack maps for both colors).
+                let new_state = R12RelationState::recompute(&pos);
+                {
+                    let AccumulatorFor::W128(combined_w128) = &mut combined else {
+                        unreachable!()
+                    };
+                    if let Some(kc) = moved_king_color {
+                        // Rare path: rebuild the mover's perspective
+                        // lanes from base + fresh relation rows.
+                        let perspective = if kc == Color::White {
+                            NnuePerspective::White
+                        } else {
+                            NnuePerspective::Black
+                        };
+                        let mut fresh_base = model.base_accumulator_v2(&pos);
+                        let (_, mirror_file) =
+                            crate::engine::nnue::v2_king_context(&pos, perspective);
+                        {
+                            let lanes = match (&mut fresh_base, perspective) {
+                                (AccumulatorFor::W128(a), NnuePerspective::White) => &mut a.white,
+                                (AccumulatorFor::W128(a), NnuePerspective::Black) => &mut a.black,
+                                _ => unreachable!(),
+                            };
+                            for sq in 0..64usize {
+                                if let Some(f) = R12RelationState::row_for_square(
+                                    new_state.squares[sq],
+                                    sq,
+                                    perspective,
+                                    mirror_file,
+                                ) {
+                                    apply_feature_row(w, lanes, f, 1);
+                                }
+                            }
+                        }
+                        let rebuilt = match &fresh_base {
+                            AccumulatorFor::W128(fb) => match perspective {
+                                NnuePerspective::White => fb.white,
+                                NnuePerspective::Black => fb.black,
+                            },
+                            _ => unreachable!(),
+                        };
+                        match perspective {
+                            NnuePerspective::White => combined_w128.white = rebuilt,
+                            NnuePerspective::Black => combined_w128.black = rebuilt,
+                        }
+                    }
+                    // State diff for BOTH perspectives: apply_diff
+                    // skips unchanged squares, and for the rebuilt
+                    // perspective the diff would double-apply rows.
+                    // Therefore: rebuild path handles the mover's
+                    // perspective entirely; the diff is applied ONLY to
+                    // the non-mover's lanes.
+                    if let Some(kc) = moved_king_color {
+                        // apply diff to the other perspective only
+                        let other = if kc == Color::White {
+                            NnuePerspective::Black
+                        } else {
+                            NnuePerspective::White
+                        };
+                        let before_other = state;
+                        let _ = before_other;
+                        // partial diff: reuse apply_diff but restrict
+                        // lanes — simplest correct form: temporarily
+                        // apply to a scratch and copy the other lanes
+                        // back. To keep ONE code path, apply the diff to
+                        // a clone of combined and take the other
+                        // perspective's lanes from it.
+                        let mut scratch = *combined_w128;
+                        new_state.apply_diff(&state, w, &pos, &mut scratch);
+                        match other {
+                            NnuePerspective::White => combined_w128.white = scratch.white,
+                            NnuePerspective::Black => combined_w128.black = scratch.black,
+                        }
+                    } else {
+                        new_state.apply_diff(&state, w, &pos, combined_w128);
+                    }
+                }
+                state = new_state;
+
+                // Oracle: full R12 refresh must match the maintained
+                // combined accumulator on ALL lanes.
+                let full = model.full_accumulator(&pos);
+                assert_eq!(
+                    combined.white(),
+                    full.white(),
+                    "white lanes drift after move {m:?}"
+                );
+                assert_eq!(
+                    combined.black(),
+                    full.black(),
+                    "black lanes drift after move {m:?}"
+                );
+            }
+        }
     }
 }

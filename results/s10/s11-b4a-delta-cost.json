@@ -1,0 +1,1 @@
+{"stage":"s11b4a_delta_cost","edges":10000,"rounds":16,"median_ns_per_edge":448.1,"p90_ns_per_edge":475.0,"min_ns_per_edge":427.4,"gate_bar_ns":1500,"ratchet":true,"ratchet_mismatches":0,"gate_pass":true}

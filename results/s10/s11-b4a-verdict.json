@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "stage": "s11_b4a_delta_cost_and_parity",
+  "date": "2026-09-07",
+  "model": {
+    "path": "data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin",
+    "sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619"
+  },
+  "design": {
+    "relation_state": "[u8; 64] physical state (one byte/square: none / A_N / A_B / A_R / A_Q / D / C + piece-color bit); perspective-independent; rows derived at apply time with the child's king context",
+    "per_edge": "child attack-map pair (2 board passes) + 64-square state recompute + parent-vs-child state diff + FT add/sub of CHANGED rows only (real weights)",
+    "king_move": "rare path: mover's perspective rebuilt from base + all child relation rows; other perspective still diffed"
+  },
+  "parity_gates": {
+    "unit_tests": "s11b4a_attack_map_bitwise_exact / s11b4a_state_rows_match_frozen_emitter (static + 1200 playout positions) / s11b4a_diff_chain_equals_full_refresh (10 games x 120 plies) — ALL PASS",
+    "corpus_10k": {
+      "attack_bits_checked": 1280000,
+      "attack_bit_mismatches": 0,
+      "state_row_mismatches": 0,
+      "source": "results/s10/s11b2b3-parity.json extended run (b4_* fields)"
+    },
+    "ratchet_10k_edges": {
+      "combined_vs_full_refresh_mismatches": 0,
+      "includes_king_move_rebuild_path": true
+    }
+  },
+  "cost_gate": {
+    "edges": 10000,
+    "rounds": 16,
+    "edge_distribution": "deterministic random legal playouts + periodic corpus-seed restarts (64 FENs from the frozen 10k corpus)",
+    "median_ns_per_edge": 448.1,
+    "p90_ns_per_edge": 475.0,
+    "min_ns_per_edge": 427.4,
+    "gate_bar_ns": 1500,
+    "ideal_bar_ns": 1000,
+    "gate_pass": true
+  },
+  "context": {
+    "b2_fresh_hybrid_eval_total_ns": 22813,
+    "b2_fresh_edge_plus_eval_ns": 5030,
+    "e3_dense_from_accumulator_ns": 1057,
+    "e3_incremental_edge_plus_eval_ns": 1343,
+    "note": "The B4 delta cost (448 ns/edge) replaces the B2 fresh eval relation work (~21.8us of scan+row adds per eval) at push time instead of eval time; combined with eval = plain dense-from-accumulator (~1.0us), the projected hybrid eval cost is back to E3-class.",
+    "projection_rationale": "E3 ~160-170k NPS on this machine (~6us/node). B4 adds ~0.45us/edge (only on push_child, roughly one per node) => projected NPS ratio ~0.85-0.92; the B4-B search integration + paired NPS measurement decides against the frozen 0.90/0.80 gates."
+  },
+  "verdict": "S11-B4-A PASS: incremental relation delta is correct (bitwise) and costs ~448 ns/median per search edge — 3.3x under the 1500 ns gate, 2.2x under the ideal bar. B4-B (search integration + paired NPS) is GO."
+}
