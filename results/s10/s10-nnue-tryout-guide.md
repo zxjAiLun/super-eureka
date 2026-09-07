@@ -1,6 +1,26 @@
 # Eureka NNUE 试用指南（En Croissant / 任意 UCI GUI）
 
-NNUE 版本已可以通过 UCI 直接使用了。三个引擎形态：
+NNUE 版本已可以通过 UCI 直接使用。En Croissant 不需要命令行参数：
+`EvalFile` 与 `NnueMode` 会出现在引擎的高级设置中。启动 profile 仍在
+整个进程内固定；这些选项只替换评估器，不改变搜索策略或 profile 身份。
+
+## En Croissant：无命令行参数（推荐）
+
+1. 把 `nnue-v2-q01.bin` 放到 `eureka.exe` 同一目录。
+2. 在 En Croissant 中添加 `eureka.exe`，启动参数留空。
+3. 打开该引擎的高级设置，把 `NnueMode` 从 `off` 改成
+   `nnue-v2q`，保存。
+
+`EvalFile` 留空即可：引擎只会按 `eureka.exe` 所在目录自动查找，绝不按
+GUI 的当前工作目录查找。需要使用其他位置或文件名时，在 `EvalFile`
+文本框填写模型的绝对路径；`nnue-v2q-full` 是每次评估全量刷新的参照模式。
+
+默认 `NnueMode=off`，因此不设置这些选项的 Arena/fastchess 和现有 GUI
+行为不变。启用 NNUE 后若没有可加载模型，引擎会输出
+`NnueMode requires a loadable EvalFile; refusing to search` 和
+`bestmove 0000`，不会静默回退到手工评估。
+
+以下命令行 profile 方式继续保留，适合 Arena、fastchess 和基准测试。
 
 ## 1. NNUE Incremental（推荐体验，S10 主力候选）
 
@@ -29,13 +49,6 @@ Arguments/命令行参数里填）：
 ```
 <repo>/target/release/eureka
 ```
-
-## En Croissant 具体步骤
-
-1. 打开 En Croissant → 设置（齿轮）→ Engines → 添加
-2. Engine 选 `eureka` 二进制路径
-3. 在 Arguments 一栏粘贴上面 `--profile ... --nnue-model ...` 那行
-4. 保存后即可在 Analysis 或 Play 里选用
 
 ## 验证是否生效
 

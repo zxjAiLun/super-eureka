@@ -40,13 +40,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 MAGIC = b"EUNN2F32"
 FORMAT_VERSION = 1
 INPUTS = 22528
+INPUTS_V2R12 = 23296
 FT_WIDTH = 128  # default; --ft-width overrides (S10-G1)
 TARGET_SCALE = 1000.0
 
+
+def inputs_for_feature_set(feature_set: str) -> int:
+    if feature_set == "v2":
+        return INPUTS
+    if feature_set == "v2r12":
+        return INPUTS_V2R12
+    raise SystemExit(
+        f"PIPELINE_FAILURE: unknown feature_set {feature_set!r}")
+
+
 HEADER_BYTES = 8 + 4 + 4 + 4 + 4 + 32
-def state_shapes(ft_width: int) -> dict:
+def state_shapes(ft_width: int, inputs: int = INPUTS) -> dict:
     return {
-        "ft_weights.weight": (INPUTS, ft_width),
+        "ft_weights.weight": (inputs, ft_width),
         "ft_bias": (ft_width,),
         "l1.weight": (32, ft_width * 2),
         "l1.bias": (32,),
@@ -74,8 +85,9 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
                         expected_seed: int | None,
                         expected_dataset_sha: str | None,
                         expected_labels_sha: str | None,
-                        expected_target_mode: str | None,
-                        expected_ft_width: int | None = None) -> dict:
+                         expected_target_mode: str | None,
+                         expected_ft_width: int | None = None,
+                         expected_feature_set: str | None = None) -> dict:
     data = path.read_bytes()
     sha = hashlib.sha256(data).hexdigest()
     if expected_sha is not None and sha != expected_sha:
@@ -87,7 +99,11 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
     checks = {}
     if expected_seed is not None:
         checks["seed"] = summary["seed"] == expected_seed
-    checks["feature_set"] = summary["feature_set"] == "v2"
+    feature_set = summary.get("feature_set", "v2")
+    checks["feature_set"] = (
+        feature_set == expected_feature_set
+        if expected_feature_set is not None
+        else feature_set == "v2")
     if expected_dataset_sha is not None:
         checks["dataset_sha256"] = (
             summary["dataset_sha256"] == expected_dataset_sha)
@@ -96,7 +112,9 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
     # holdout_observed is informational: for S10-F1 the winner's weights are
     # selected purely on validation, and the single winner-only holdout
     # evaluation happens BEFORE export without touching any parameter.
-    checks["num_inputs"] = summary["architecture"]["num_inputs"] == INPUTS
+    checks["num_inputs"] = (
+        summary["architecture"]["num_inputs"]
+        == inputs_for_feature_set(feature_set))
     ft_w = summary["architecture"]["ft_width"]
     checks["ft_width"] = summary["architecture"]["ft_width"] == FT_WIDTH \
         if expected_ft_width is None else \
@@ -108,7 +126,8 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
     if bad:
         raise SystemExit(f"PIPELINE_FAILURE: summary mismatch: {bad}")
     sd = ckpt["model_state_dict"]
-    shapes = state_shapes(summary["architecture"]["ft_width"])
+    shapes = state_shapes(summary["architecture"]["ft_width"],
+                          inputs_for_feature_set(feature_set))
     if set(sd) != set(shapes):
         raise SystemExit(
             f"PIPELINE_FAILURE: state-dict keys {sorted(sd)} != "
@@ -120,7 +139,8 @@ def validate_checkpoint(path: Path, expected_sha: str | None,
                 f" != {shape}")
         if not torch.isfinite(sd[key]).all():
             raise SystemExit(f"PIPELINE_FAILURE: non-finite value in {key}")
-    return {"sha": sha, "state_dict": sd, "summary": summary}
+    return {"sha": sha, "state_dict": sd, "summary": summary,
+            "feature_set": feature_set}
 
 
 def export_artifact(ckpt_path: Path, out_path: Path,
@@ -129,13 +149,15 @@ def export_artifact(ckpt_path: Path, out_path: Path,
                     expected_dataset_sha: str | None = None,
                     expected_labels_sha: str | None = None,
                     expected_target_mode: str | None = None,
-                    expected_ft_width: int | None = None) -> dict:
+                    expected_ft_width: int | None = None,
+                    expected_feature_set: str | None = None) -> dict:
     info = validate_checkpoint(
         ckpt_path, expected_sha, expected_seed, expected_dataset_sha,
-        expected_labels_sha, expected_target_mode, expected_ft_width)
+        expected_labels_sha, expected_target_mode, expected_ft_width,
+        expected_feature_set)
     sd = info["state_dict"]
 
-    ft_weights = sd["ft_weights.weight"]            # [22528, 128] input-major
+    ft_weights = sd["ft_weights.weight"]            # [inputs, 128] input-major
     ft_bias = sd["ft_bias"].contiguous()
     l1_weight = sd["l1.weight"].contiguous()        # [32, 256] row-major
     l1_bias = sd["l1.bias"].contiguous()
@@ -147,7 +169,8 @@ def export_artifact(ckpt_path: Path, out_path: Path,
     header = bytearray()
     header += MAGIC
     header += __import__("struct").pack(
-        "<IIIf", FORMAT_VERSION, INPUTS,
+        "<IIIf", FORMAT_VERSION,
+        inputs_for_feature_set(info["feature_set"]),
         int(sd["ft_bias"].shape[0]), TARGET_SCALE)
     header += bytes.fromhex(info["sha"])
 
@@ -167,7 +190,8 @@ def export_artifact(ckpt_path: Path, out_path: Path,
         "total_bytes": len(blob),
         "magic": MAGIC.decode(),
         "format_version": FORMAT_VERSION,
-        "inputs": INPUTS,
+        "inputs": inputs_for_feature_set(info["feature_set"]),
+        "feature_set": info["feature_set"],
         "ft_width": int(sd["ft_bias"].shape[0]),
         "target_scale": TARGET_SCALE,
         "checkpoint_sha256": info["sha"],
@@ -192,6 +216,9 @@ def main() -> int:
                     help="require this target_mode in the checkpoint summary")
     ap.add_argument("--ft-width", type=int, choices=[128, 256], default=None,
                     help="require this ft_width in the checkpoint summary")
+    ap.add_argument("--feature-set", choices=["v2", "v2r12"], default=None,
+                    help="S11-B2: require this feature_set (v2r12 has "
+                         "inputs=23296)")
     args = ap.parse_args()
     info = export_artifact(
         args.checkpoint.resolve(), args.out.resolve(),
@@ -201,6 +228,7 @@ def main() -> int:
         expected_labels_sha=args.labels_sha,
         expected_target_mode=args.target_mode,
         expected_ft_width=args.ft_width,
+        expected_feature_set=args.feature_set,
     )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)

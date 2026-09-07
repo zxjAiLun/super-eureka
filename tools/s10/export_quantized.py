@@ -35,28 +35,33 @@ inference time):
     z shift:                 arithmetic right shift, round half away from zero
     saturation:              clamp to container / [0, QA] only
 
-Artifact layout (EUNN2Q01 v1, little-endian):
+Artifact layout (EUNN2Q01, little-endian; versions 1-3 share the
+108-byte header, v4 extends to 112):
     magic[8]              "EUNN2Q01"
-    version        u32    1
-    inputs         u32    22528
-    ft_width       u32    128
+    version        u32    1|2|3|4
+    inputs         u32    22528 (v1-v3) | feature-set dependent (v4)
+    ft_width       u32    128 (v3+ also 256)
     target_scale   f32    1000.0
     ft_shift       u32    12
     dense_w_shift  u32    12     (q_w = round(w * 2^dense_w_shift))
     dense_z_shift  u32    12     (z_int >> dense_z_shift -> A units)
     qa             u32    4096   (integer ClippedReLU upper bound, A units)
-    reserved       u32    0
+    reserved/target_mode u32    v1: 0; v2+: target_mode (0=cp, 1=material_residual)
+    feature_set    u32    v4 ONLY (after mode, before SHAs): 0=V2, 1=V2R12
+                           (v1-v3 carry NO feature_set word: implicit V2,
+                           inputs MUST be 22528)
     source_fp32_artifact_sha256   32 bytes
     source_checkpoint_sha256      32 bytes
-    ft_weights     i16[22528][128]
-    ft_bias        i32[128]
-    l1_weight      i16[32][256]
+    ft_weights     i16[inputs][ft_width]
+    ft_bias        i32[ft_width]
+    l1_weight      i16[32][2*ft_width]
     l1_bias        i32[32]
     l2_weight      i16[32][32]
     l2_bias        i32[32]
     out_weight     i16[1][32]
     out_bias       i32[1]
 """
+
 
 from __future__ import annotations
 
@@ -76,10 +81,19 @@ MAGIC = b"EUNN2Q01"
 # v1 artifacts implicitly carry mode cp.
 # v3 (S10-G1): width-aware payload; ft_width may be 128 OR 256 (the two
 # AUTHENTICATED widths); v1/v2 are strictly FT128.
+# v4 (S11-B2): feature-set-aware payload. Header gains a `feature_set`
+# u32 between target_mode and the source SHAs (108 -> 112 bytes);
+# v1-v3 layouts are byte-identical to before (implicit feature_set=V2,
+# inputs MUST be 22528). v4 is currently authenticated for
+# feature_set=V2R12 + inputs 23296 + ft_width 128 ONLY.
 FORMAT_VERSION = 3
+FORMAT_VERSION_V4 = 4
 TARGET_MODE_CP = 0
 TARGET_MODE_MATERIAL_RESIDUAL = 1
+FEATURE_SET_V2 = 0
+FEATURE_SET_V2R12 = 1
 INPUTS = 22528
+INPUTS_V2R12 = 23296
 FT_WIDTH = 128
 TARGET_SCALE = 1000.0
 
@@ -87,6 +101,32 @@ FT_SHIFT = 12
 DENSE_W_SHIFT = 12
 DENSE_Z_SHIFT = 12
 QA = 1 << FT_SHIFT  # 4096: integer ClippedReLU upper bound in A units
+
+
+def inputs_for_feature_set(feature_set: int) -> int:
+    """Exact fail-closed feature-set -> input-dim mapping (S11-B2)."""
+    if feature_set == FEATURE_SET_V2:
+        return INPUTS
+    if feature_set == FEATURE_SET_V2R12:
+        return INPUTS_V2R12
+    raise SystemExit(
+        f"PIPELINE_FAILURE: unknown feature_set {feature_set}")
+
+
+def n_features_max_for_feature_set(feature_set: int) -> int:
+    """Proven per-perspective active-FT-row bound (S11-B2).
+
+    V2: all pieces minus own king = 31.
+    V2R12: base 31 + at most 1 relation row per non-king piece (30
+    non-king pieces max) = 61. Channels do NOT cap the count: the same
+    channel can be active on different squares simultaneously.
+    """
+    if feature_set == FEATURE_SET_V2:
+        return 31
+    if feature_set == FEATURE_SET_V2R12:
+        return 61
+    raise SystemExit(
+        f"PIPELINE_FAILURE: unknown feature_set {feature_set}")
 
 FROZEN_CHECKPOINT = Path(
     "data/s10/b3/seed-20260818/checkpoint_v2_s20260818.pt")
@@ -116,7 +156,7 @@ def quantize_i32(t: torch.Tensor, scale: float) -> np.ndarray:
     return q.astype(np.int32)
 
 
-def build_quantized_arrays(sd: dict) -> dict:
+def build_quantized_arrays(sd: dict, n_features_max: int = 31) -> dict:
     ft_w_q = quantize_i16(sd["ft_weights.weight"], 1 << FT_SHIFT)
     ft_b_q = quantize_i32(sd["ft_bias"], 1 << FT_SHIFT)
 
@@ -133,7 +173,7 @@ def build_quantized_arrays(sd: dict) -> dict:
     out_b_q = quantize_i32(sd["out.bias"], bias_scale)
 
     # PROVEN overflow bounds (worst case, not empirical).
-    n_features_max = 31
+    q_w_absmax_l1 = int(np.abs(l1_w_q).max())
     ft_bound = int(np.abs(ft_b_q).max()) + n_features_max * 32767
     q_w_absmax_l1 = int(np.abs(l1_w_q).max())
     q_w_absmax_l2 = int(np.abs(l2_w_q).max())
@@ -172,14 +212,24 @@ def build_quantized_arrays(sd: dict) -> dict:
 
 def artifact_bytes(q: dict, src_fp32_sha: str, src_ckpt_sha: str,
                    target_mode: int = TARGET_MODE_CP,
-                   ft_width: int = FT_WIDTH) -> bytes:
+                   ft_width: int = FT_WIDTH,
+                   feature_set: int | None = None) -> bytes:
+    """Serialize a v3 (feature_set=None) or v4 (feature_set=int) artifact.
+
+    v4 inserts the feature_set u32 between target_mode and the source
+    SHAs; v3 output is byte-identical to the historical exporter.
+    """
     import struct
+    version = FORMAT_VERSION if feature_set is None else FORMAT_VERSION_V4
     header = bytearray()
     header += MAGIC
     header += struct.pack(
-        "<IIIfIIIII", FORMAT_VERSION, INPUTS, ft_width, TARGET_SCALE,
+        "<IIIfIIIII", version, INPUTS if feature_set is None
+        else inputs_for_feature_set(feature_set), ft_width, TARGET_SCALE,
         FT_SHIFT, DENSE_W_SHIFT, DENSE_Z_SHIFT, QA,
         target_mode)
+    if feature_set is not None:
+        header += struct.pack("<I", feature_set)
     header += bytes.fromhex(src_fp32_sha)
     header += bytes.fromhex(src_ckpt_sha)
     payload = bytearray()
@@ -205,10 +255,11 @@ def load_frozen_sd(checkpoint: Path, checkpoint_sha: str) -> tuple[dict, str]:
 
 
 def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
-           checkpoint_sha: str | None = None,
-           fp32_sha_expected: str | None = None,
-           target_mode: int = TARGET_MODE_CP,
-           ft_width: int = FT_WIDTH) -> dict:
+            checkpoint_sha: str | None = None,
+            fp32_sha_expected: str | None = None,
+            target_mode: int = TARGET_MODE_CP,
+            ft_width: int = FT_WIDTH,
+            feature_set: int | None = None) -> dict:
     sd, ckpt_sha = load_frozen_sd(checkpoint, checkpoint_sha)
     fp32_sha = hashlib.sha256(fp32_artifact.read_bytes()).hexdigest()
     if fp32_sha_expected is not None and fp32_sha != fp32_sha_expected:
@@ -217,8 +268,18 @@ def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
         raise SystemExit(
             f"PIPELINE_FAILURE: checkpoint ft_width "
             f"{sd['ft_bias'].shape[0]} != requested {ft_width}")
-    q = build_quantized_arrays(sd)
-    blob = artifact_bytes(q, fp32_sha, ckpt_sha, target_mode, ft_width)
+    expected_inputs = (INPUTS if feature_set is None
+                       else inputs_for_feature_set(feature_set))
+    if int(sd["ft_weights.weight"].shape[0]) != expected_inputs:
+        raise SystemExit(
+            f"PIPELINE_FAILURE: checkpoint num_inputs "
+            f"{sd['ft_weights.weight'].shape[0]} != feature-set "
+            f"expected {expected_inputs}")
+    q = build_quantized_arrays(
+        sd, n_features_max_for_feature_set(
+            FEATURE_SET_V2 if feature_set is None else feature_set))
+    blob = artifact_bytes(q, fp32_sha, ckpt_sha, target_mode, ft_width,
+                          feature_set)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(blob)
     return {
@@ -226,9 +287,14 @@ def export(out_path: Path, checkpoint: Path, fp32_artifact: Path,
         "artifact_sha256": hashlib.sha256(blob).hexdigest(),
         "total_bytes": len(blob),
         "magic": MAGIC.decode(),
-        "format_version": FORMAT_VERSION,
+        "format_version": (FORMAT_VERSION if feature_set is None
+                           else FORMAT_VERSION_V4),
+        "feature_set": ("v2" if feature_set in (None, FEATURE_SET_V2)
+                        else "v2r12"),
         "target_mode": target_mode,
-        "inputs": INPUTS,
+        "inputs": expected_inputs,
+        "n_features_max_per_perspective": n_features_max_for_feature_set(
+            FEATURE_SET_V2 if feature_set is None else feature_set),
         "ft_width": ft_width,
         "shifts": {
             "ft": FT_SHIFT,
@@ -270,15 +336,26 @@ def main() -> int:
                     help="semantic mode recorded in the v2 header")
     ap.add_argument("--ft-width", type=int, choices=[128, 256], default=128,
                     help="feature-transformer width (v3 width-aware payload)")
+    ap.add_argument("--feature-set", choices=["v2", "v2r12"], default="v2",
+                    help="S11-B2: v4 feature-set-aware payload. 'v2' emits "
+                         "the historical v3 format (byte-identical); "
+                         "'v2r12' emits v4 with feature_set=V2R12, "
+                         "inputs=23296, FT128 only")
     args = ap.parse_args()
     mode = (TARGET_MODE_CP if args.target_mode == "cp"
             else TARGET_MODE_MATERIAL_RESIDUAL)
+    if args.feature_set == "v2r12" and args.ft_width != 128:
+        raise SystemExit(
+            "PIPELINE_FAILURE: v2r12 artifact is FT128-only (frozen "
+            "S11-B2 contract)")
+    feature_set = (None if args.feature_set == "v2" else FEATURE_SET_V2R12)
     info = export(
         args.out, args.checkpoint, args.fp32_artifact,
         checkpoint_sha=args.checkpoint_sha or None,
         fp32_sha_expected=args.fp32_sha or None,
         target_mode=mode,
         ft_width=args.ft_width,
+        feature_set=feature_set,
     )
     if args.layout is not None:
         args.layout.parent.mkdir(parents=True, exist_ok=True)

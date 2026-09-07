@@ -4971,11 +4971,16 @@ fn negamax_entered_impl_with_null_and_extensions(
             .as_ref()
             .filter(|s| s.is_incremental())
             .map(|s| s.prepare_delta(pos, &m));
+        #[cfg(feature = "diagnostic_relation_churn")]
+        let churn_before = pos.clone();
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
             state.push_child(delta, pos);
         }
+        #[cfg(feature = "diagnostic_relation_churn")]
+        crate::engine::nnue_search::relation_churn::record_edge(
+            &churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
@@ -7102,11 +7107,16 @@ fn quiescence_entered_impl_with_profile(
             .as_ref()
             .filter(|s| s.is_incremental())
             .map(|s| s.prepare_delta(pos, &m));
+        #[cfg(feature = "diagnostic_relation_churn")]
+        let churn_before = pos.clone();
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
             state.push_child(delta, pos);
         }
+        #[cfg(feature = "diagnostic_relation_churn")]
+        crate::engine::nnue_search::relation_churn::record_edge(
+            &churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
@@ -7290,11 +7300,16 @@ fn search_final_evasion_ply_with_profile(
             .as_ref()
             .filter(|s| s.is_incremental())
             .map(|s| s.prepare_delta(pos, &m));
+        #[cfg(feature = "diagnostic_relation_churn")]
+        let churn_before = pos.clone();
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
             state.push_child(delta, pos);
         }
+        #[cfg(feature = "diagnostic_relation_churn")]
+        crate::engine::nnue_search::relation_churn::record_edge(
+            &churn_before, pos, m);
 
         // `legal` came from `generate_legal_moves`, so this evasion is legal:
         // the opponent is NOT attacking our king here. Score the child:
@@ -7560,11 +7575,16 @@ fn root_search_with_window(
             .as_ref()
             .filter(|s| s.is_incremental())
             .map(|s| s.prepare_delta(pos, &m));
+        #[cfg(feature = "diagnostic_relation_churn")]
+        let churn_before = pos.clone();
         let undo = make_move_profiled(pos, m, ctx);
         path.push_child(pos);
         if let (Some(state), Some(delta)) = (nnue.as_mut(), nnue_delta.as_ref()) {
             state.push_child(delta, pos);
         }
+        #[cfg(feature = "diagnostic_relation_churn")]
+        crate::engine::nnue_search::relation_churn::record_edge(
+            &churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
