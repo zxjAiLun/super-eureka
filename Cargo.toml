@@ -24,3 +24,5 @@ diagnostic_eval_site_capture = []
 # (bidirectional gate-decision telemetry at the production predicate
 # sites). Production builds carry zero shadow code.
 diagnostic_search_calibration = []
+# S11-B1: relation-churn audit recorder (bench-only)
+diagnostic_relation_churn = []

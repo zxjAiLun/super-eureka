@@ -531,3 +531,94 @@ mod tests {
         assert!(snap.lane_mismatches > 0, "audit must detect corruption");
     }
 }
+
+// ---------------------------------------------------------------------------
+// S11-B1: diagnostic relation-churn recorder (bench-only, cargo feature
+// diagnostic_relation_churn). Records, for every REAL search make-move edge,
+// how many R12 relation sidecar rows change (removed + added) across both
+// perspectives. Recomputes the full relation sets before and after the move —
+// O(board) per edge, only meaningful for the audit harness.
+// ---------------------------------------------------------------------------
+#[cfg(feature = "diagnostic_relation_churn")]
+pub mod relation_churn {
+    use std::sync::Mutex;
+
+    #[derive(Clone, Copy, Default)]
+    pub struct EdgeRecord {
+        pub removed: u32,
+        pub added: u32,
+        pub is_capture: bool,
+        pub mover_slider: bool,
+        pub phase_bucket: u8, // 0 high, 1 mid, 2 low, 3 zero
+    }
+
+    static RECORDS: Mutex<Option<Vec<EdgeRecord>>> = Mutex::new(None);
+
+    pub fn enable(capacity: usize) {
+        let mut g = RECORDS.lock().unwrap();
+        *g = Some(Vec::with_capacity(capacity));
+    }
+
+    pub fn disable_and_take() -> Vec<EdgeRecord> {
+        let mut g = RECORDS.lock().unwrap();
+        g.take().unwrap_or_default()
+    }
+
+    fn set_for(pos: &crate::chess::position::Position, per: crate::engine::nnue::NnuePerspective)
+        -> std::collections::BTreeSet<u16>
+    {
+        crate::engine::nnue::relation_features_v2r12(pos, per)
+            .into_iter().collect()
+    }
+
+    /// Record one make-move edge. `before` is the PARENT position, `after`
+    /// the child; `mv` is the move (for capture/slider classification).
+    pub fn record_edge(
+        before: &crate::chess::position::Position,
+        after: &crate::chess::position::Position,
+        mv: crate::chess::types::Move,
+    ) {
+        let mut g = match RECORDS.try_lock() { Ok(g) => g, Err(_) => return };
+        let Some(v) = g.as_mut() else { return };
+        use crate::engine::nnue::NnuePerspective;
+        let mut removed = 0u32;
+        let mut added = 0u32;
+        for per in [NnuePerspective::White, NnuePerspective::Black] {
+            let a = set_for(before, per);
+            let b = set_for(after, per);
+            removed += a.difference(&b).count() as u32;
+            added += b.difference(&a).count() as u32;
+        }
+        let phase = phase_score(after);
+        let bucket = if phase >= 18 { 0 } else if phase >= 8 { 1 } else if phase >= 1 { 2 } else { 3 };
+        let mover = before.board()[mv.from as usize];
+        let is_capture = matches!(mv.flag,
+            crate::chess::types::MoveFlag::EnPassant)
+            || before.board()[mv.to as usize].is_some();
+        v.push(EdgeRecord {
+            removed, added,
+            is_capture,
+            mover_slider: mover
+                .map(|p| matches!(p.piece_type,
+                    crate::chess::types::PieceType::Bishop
+                    | crate::chess::types::PieceType::Rook
+                    | crate::chess::types::PieceType::Queen))
+                .unwrap_or(false),
+            phase_bucket: bucket,
+        });
+    }
+
+    pub fn phase_score(pos: &crate::chess::position::Position) -> i32 {
+        use crate::chess::types::PieceType;
+        let mut ph = 0;
+        for piece in pos.board().iter().flatten() {
+            ph += match piece.piece_type {
+                PieceType::Knight | PieceType::Bishop => 1,
+                PieceType::Rook => 2,
+                PieceType::Queen => 4,
+                _ => 0,
+            };
+        }
+        ph
+    }
+}

@@ -2627,6 +2627,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if args[0] == "search-calibration" {
         return run_search_calibration(&args[1..]);
     }
+    #[cfg(feature = "diagnostic_relation_churn")]
+    if args[0] == "relation-churn" {
+        return run_relation_churn(&args[1..]);
+    }
     if args[0] == "nnue-v2q-cost" {
         return run_nnue_v2q_cost(&args[1..]);
     }
@@ -4037,6 +4041,117 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+
+
+/// S11-B1: `bench relation-churn --fen <fen> [--nodes N] --profile
+/// current-final-nnue-v2q-material --nnue-model <bin>` — run ONE fixed-node
+/// search with the relation-churn recorder enabled; emits one JSON object
+/// with the churn distribution and per-class breakdowns.
+#[cfg(feature = "diagnostic_relation_churn")]
+fn run_relation_churn(args: &[String]) -> Result<(), String> {
+    use crate::engine::nnue_search::relation_churn;
+    let mut fen: Option<String> = None;
+    let mut nodes: u64 = 50_000;
+    let mut profile = SearchProfile::CurrentFinalNnueV2QMaterial;
+    let mut nnue_model: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--fen" => fen = Some(it.next()
+                .ok_or("relation-churn: --fen requires a value")?.clone()),
+            "--nodes" => nodes = it.next()
+                .ok_or("relation-churn: --nodes requires a value")?
+                .parse().map_err(|_| "relation-churn: bad --nodes")?,
+            "--profile" => {
+                let v = it.next()
+                    .ok_or("relation-churn: --profile requires a value")?;
+                profile = match v.as_str() {
+                    "current-final-nnue-v2q-material" =>
+                        SearchProfile::CurrentFinalNnueV2QMaterial,
+                    "current-final-nnue-v2q" =>
+                        SearchProfile::CurrentFinalNnueV2QIncremental,
+                    other => return Err(format!(
+                        "relation-churn: unsupported profile '{other}'")),
+                };
+            }
+            "--nnue-model" => nnue_model = Some(it.next()
+                .ok_or("relation-churn: --nnue-model requires a value")?
+                .clone()),
+            other => {
+                return Err(format!(
+                    "relation-churn: unknown argument '{other}'"));
+            }
+        }
+    }
+    let fen = fen.ok_or("relation-churn: --fen is required")?;
+    let mut pos = parse_fen(&fen)
+        .map_err(|e| format!("relation-churn: invalid FEN: {e}"))?;
+    let hist = vec![pos.zobrist_key()];
+    let mut tt = TranspositionTable::new_mb(32)
+        .map_err(|e| format!("relation-churn: TT alloc: {e}"))?;
+    let path = nnue_model.as_deref().ok_or(
+        "relation-churn: --nnue-model is required")?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+        std::path::Path::new(path))?;
+    let nnue_state = crate::engine::nnue_search::NnueSearchState::with_options(
+        std::sync::Arc::new(model),
+        crate::engine::nnue_search::NnueSearchMode::Incremental,
+        &pos, false, false);
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let ctx = SearchContext::new_with_profiling(stop, false);
+    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+
+    relation_churn::enable(2_000_000);
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
+                             profile, Some(nnue_state));
+    let records = relation_churn::disable_and_take();
+    outcome.ok_or("relation-churn: no legal moves (terminal root)")?;
+
+    let churn: Vec<u64> = {
+        let mut v: Vec<u64> =
+            records.iter().map(|r| (r.removed + r.added) as u64).collect();
+        v.sort_unstable();
+        v
+    };
+    let pct = |p: f64| -> u64 {
+        if churn.is_empty() { 0 } else { churn[((churn.len() as f64 * p)
+            as usize).min(churn.len() - 1)] }
+    };
+    let sum: u64 = churn.iter().sum();
+    let by = |f: &dyn Fn(&relation_churn::EdgeRecord) -> bool| -> (u64, u64) {
+        let sel: Vec<&relation_churn::EdgeRecord> =
+            records.iter().filter(|r| f(r)).collect();
+        if sel.is_empty() { return (0, 0); }
+        let mut v: Vec<u64> = sel.iter()
+            .map(|r| (r.removed + r.added) as u64).collect();
+        v.sort_unstable();
+        (v[v.len()/2], v[v.len()-1])
+    };
+    let (cap_med, cap_max) = by(&|r| r.is_capture);
+    let (qui_med, qui_max) = by(&|r| !r.is_capture);
+    let (sli_med, sli_max) = by(&|r| r.mover_slider);
+    let (nsl_med, nsl_max) = by(&|r| !r.mover_slider);
+    let mut phases: [(u64, u64, u64); 4] = [(0, 0, 0); 4]; // count, med, max
+    for bucket in 0..4 {
+        let sel: Vec<&relation_churn::EdgeRecord> = records.iter()
+            .filter(|r| r.phase_bucket == bucket as u8).collect();
+        if !sel.is_empty() {
+            let mut v: Vec<u64> = sel.iter()
+                .map(|r| (r.removed + r.added) as u64).collect();
+            v.sort_unstable();
+            phases[bucket] = (sel.len() as u64, v[v.len()/2], *v.last().unwrap());
+        }
+    }
+    println!("{{\"edges\":{},\"churn_sum\":{},\"median\":{},\"p75\":{},\"p90\":{},\"p95\":{},\"p99\":{},\"max\":{},\"capture\":{{\"median\":{},\"max\":{}}},\"quiet\":{{\"median\":{},\"max\":{}}},\"slider\":{{\"median\":{},\"max\":{}}},\"non_slider\":{{\"median\":{},\"max\":{}}},\"phase_high\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_mid\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_low\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_zero\":{{\"n\":{},\"median\":{},\"max\":{}}}}}",
+        records.len(), sum, pct(0.5), pct(0.75), pct(0.9), pct(0.95), pct(0.99),
+        *churn.last().unwrap_or(&0),
+        cap_med, cap_max, qui_med, qui_max, sli_med, sli_max, nsl_med, nsl_max,
+        phases[0].0, phases[0].1, phases[0].2, phases[1].0, phases[1].1, phases[1].2,
+        phases[2].0, phases[2].1, phases[2].2, phases[3].0, phases[3].1, phases[3].2);
+    eprintln!("relation_churn edges={} median={}", records.len(), pct(0.5));
+    Ok(())
+}
 
 /// S10-H0-D: `bench search-calibration --fen <fen> --root-id N
 /// --active hce|nnue [--nnue-model M] [--nodes N]` — one fixed-node

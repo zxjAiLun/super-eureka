@@ -435,7 +435,7 @@ fn relation_features_v2r14(
 ///   A: type_idx(N=0,B=1,R=2,Q=3) + 4*own   (0..=7)
 ///   D: 8 + own                             (8/9)
 ///   C: 10 + own                            (10/11)
-fn relation_features_v2r12(
+pub fn relation_features_v2r12(
     pos: &Position,
     perspective: NnuePerspective,
 ) -> Vec<u16> {
