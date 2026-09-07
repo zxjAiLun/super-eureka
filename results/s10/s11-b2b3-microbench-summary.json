@@ -1,0 +1,24 @@
+{
+ "schema_version": 1,
+ "stage": "s11_b3_microbench_summary",
+ "corpus": "frozen 10k validation sample (seed 2026083102)",
+ "e3_baseline_ns": {
+  "nnue_full_total": 2596.3,
+  "dense_forward": 1056.8,
+  "incremental_edge_plus_eval": 1342.5
+ },
+ "r12_hybrid_ns": {
+  "relation_scan": 7419.3,
+  "relation_scan_plus_dummyft": 19328.1,
+  "hybrid_eval_total": 22812.8,
+  "hybrid_edge_plus_eval": 5130.2,
+  "nnue_full_total": 10358.9
+ },
+ "attribution": {
+  "active_relation_rows_per_position": "median 24 / mean 23.9 / p90 44 / max 58 (1k subsample)",
+  "note1": "B1 churn (4-8 rows/edge) is the DELTA per move; the fresh path re-adds ALL ~24 active rows per eval.",
+  "note2": "FT row adds dominate: scan+dummyft 19.3us vs scan 7.4us \u2014 ~12us is row-add memory traffic (relation rows span 1.9MB of ft_weights; ~24 random 256B rows x 2 perspectives = cache misses), not attack queries.",
+  "note3": "edge+eval on simple playout positions is 3.8x E3 (5.1us vs 1.34us); corpus eval-only is ~22x (22.8us vs 1.06us). Search NPS lands at 0.58 median \u2014 between the two, since search mixes simple qsearch leaves with complex middlegame nodes."
+ },
+ "verdict": "Fresh-recompute hybrid pays a large eval tax. NPS 0.58 < 0.80 gate: per the frozen protocol, B5 is PAUSED; the decision is whether an incremental relation updater (avg 4-8 rows/edge churn, B1) is engineering-justified."
+}

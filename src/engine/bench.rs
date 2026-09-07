@@ -5187,6 +5187,124 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
         add_part("incremental_edge_plus_eval", &samples, fixtures.len());
     }
 
+    // S11-B3: R12 hybrid parts — only for a V2R12 artifact (v4).
+    {
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        if model_arc.feature_set() == NnueFeatureSetId::V2R12 {
+            use crate::engine::nnue::{
+                for_each_relation_feature_v2r12, NnuePerspective,
+            };
+
+            // 11. Relation scan only (feature emission, no FT math) —
+            // isolates the fresh-recompute attack-query cost.
+            {
+                let samples = run_rounds(
+                    || {
+                        for pos in &positions {
+                            for p in [NnuePerspective::White,
+                                      NnuePerspective::Black]
+                            {
+                                let mut sink: u64 = 0;
+                                for_each_relation_feature_v2r12(
+                                    black_box(pos),
+                                    p,
+                                    |idx| sink += idx as u64,
+                                );
+                                black_box(sink);
+                            }
+                        }
+                    },
+                    rounds,
+                );
+                add_part("r12_relation_scan", &samples, n);
+            }
+
+            // 11b. Relation scan + FT row adds into a stack accumulator
+            // (no dense) — separates the scan cost from the FT math.
+            {
+                let samples = run_rounds(
+                    || {
+                        for pos in &positions {
+                            let mut lanes = [0i32; 128];
+                            for p in [NnuePerspective::White,
+                                      NnuePerspective::Black]
+                            {
+                                for_each_relation_feature_v2r12(
+                                    black_box(pos),
+                                    p,
+                                    |idx| {
+                                        let base = (idx as usize) * 128;
+                                        for (i, slot) in
+                                            lanes.iter_mut().enumerate()
+                                        {
+                                            *slot = slot.wrapping_add(
+                                                (base + i) as i32);
+                                        }
+                                    },
+                                );
+                            }
+                            black_box(lanes);
+                        }
+                    },
+                    rounds,
+                );
+                add_part("r12_relation_scan_plus_dummyft", &samples, n);
+            }
+
+            // 12. Hybrid eval total (base accumulator + fresh relation
+            // rows + dense) — the B2 production hot path, eval-only.
+            let base_accs: Vec<
+                crate::engine::nnue_v2q_runtime::AccumulatorFor,
+            > = positions
+                .iter()
+                .map(|pos| model_arc.base_accumulator_v2(pos))
+                .collect();
+            {
+                let samples = run_rounds(
+                    || {
+                        for (pos, base) in
+                            positions.iter().zip(base_accs.iter())
+                        {
+                            black_box(model_arc
+                                .evaluate_raw_hybrid_r12(
+                                    black_box(pos),
+                                    black_box(base),
+                                ));
+                        }
+                    },
+                    rounds,
+                );
+                add_part("r12_hybrid_eval_total", &samples, n);
+            }
+
+            // 13. Hybrid edge + eval (delta prepare + base update +
+            // hybrid eval) — the B2 search-edge cost.
+            {
+                let samples = run_rounds(
+                    || {
+                        for (f, t) in
+                            fixtures.iter().zip(transitions.iter())
+                        {
+                            let delta = model_arc
+                                .prepare_move_delta(&t.parent, &t.mv);
+                            let mut acc = f.parent_acc;
+                            black_box(model_arc
+                                .update_accumulator_for_move(
+                                    &mut acc, &delta, &f.child,
+                                ));
+                            black_box(model_arc
+                                .evaluate_raw_hybrid_r12(
+                                    &f.child, &acc,
+                                ));
+                        }
+                    },
+                    rounds,
+                );
+                add_part("r12_hybrid_edge_plus_eval", &samples, fixtures.len());
+            }
+        }
+    }
+
     let parts = json_parts.join(",");
     println!(
         "{{\"stage\":\"s10_c3a_microcost\",\"rounds\":{rounds},\
