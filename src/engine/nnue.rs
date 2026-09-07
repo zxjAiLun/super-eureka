@@ -248,10 +248,7 @@ pub const fn v2_feature_index(king_bucket: usize, channel: u8, mirrored_piece_sq
 /// `active_features_v2()` and `v2_feature_for_piece()` so the full-refresh
 /// and incremental paths share ONE feature formula.
 #[inline]
-pub(crate) fn v2_king_context(
-    pos: &Position,
-    perspective: NnuePerspective,
-) -> (usize, bool) {
+pub(crate) fn v2_king_context(pos: &Position, perspective: NnuePerspective) -> (usize, bool) {
     let raw_king_sq = perspective.orient(pos.king_square(perspective.color()));
     let mirror_file = (raw_king_sq & 7) < 4;
     let king_sq = if mirror_file {
@@ -291,9 +288,7 @@ pub fn active_features_v2(pos: &Position, perspective: NnuePerspective) -> Vec<u
     let mut out = Vec::with_capacity(31);
     for (sq, piece) in pos.board().iter().enumerate() {
         let Some(piece) = piece else { continue };
-        if let Some(index) =
-            v2_feature_for_piece(pos, perspective, sq as Square, *piece)
-        {
+        if let Some(index) = v2_feature_for_piece(pos, perspective, sq as Square, *piece) {
             out.push(index);
         }
     }
@@ -351,14 +346,13 @@ pub fn active_features_for(
 /// The transformed square uses the SAME orientation + horizontal-mirror
 /// as the V2 piece features (v2_king_context), so there is exactly one
 /// board-coordinate semantics.
-fn relation_features_v2r6(
-    pos: &Position,
-    perspective: NnuePerspective,
-) -> Vec<u16> {
+fn relation_features_v2r6(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
     let (bucket, mirror_file) = v2_king_context(pos, perspective);
     let mut out = Vec::new();
     for sq in 0..64u8 {
-        let Some(piece) = pos.board()[sq as usize] else { continue };
+        let Some(piece) = pos.board()[sq as usize] else {
+            continue;
+        };
         if piece.piece_type == crate::chess::types::PieceType::King {
             continue;
         }
@@ -366,18 +360,16 @@ fn relation_features_v2r6(
         let attacked = pos.is_square_attacked(sq, enemy);
         let defended = pos.is_square_attacked(sq, piece.color);
         let state = match (attacked, defended) {
-            (true, false) => 0u16,  // A
-            (false, true) => 1u16,  // D
-            (true, true) => 2u16,   // C
+            (true, false) => 0u16,      // A
+            (false, true) => 1u16,      // D
+            (true, true) => 2u16,       // C
             (false, false) => continue, // neutral
         };
         let own = piece.color == perspective.color();
         let channel = state * 2 + if own { 0 } else { 1 };
         let oriented = perspective.orient(sq);
         let transformed = if mirror_file { oriented ^ 7 } else { oriented };
-        out.push((NNUE_V2R6_REL_BASE
-            + (channel as usize) * 64
-            + transformed as usize) as u16);
+        out.push((NNUE_V2R6_REL_BASE + (channel as usize) * 64 + transformed as usize) as u16);
     }
     let _ = bucket;
     out
@@ -386,15 +378,14 @@ fn relation_features_v2r6(
 /// S11-A Repair 1: R14 sidecar — same pseudo-attack semantics as R6,
 /// but every A (attacked-undefended) row is bound to the VICTIM's
 /// piece type; D (defended-only) and C (contested) stay generic.
-fn relation_features_v2r14(
-    pos: &Position,
-    perspective: NnuePerspective,
-) -> Vec<u16> {
+fn relation_features_v2r14(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
     use crate::chess::types::PieceType;
     let (_, mirror_file) = v2_king_context(pos, perspective);
     let mut out = Vec::new();
     for sq in 0..64u8 {
-        let Some(piece) = pos.board()[sq as usize] else { continue };
+        let Some(piece) = pos.board()[sq as usize] else {
+            continue;
+        };
         if piece.piece_type == PieceType::King {
             continue;
         }
@@ -422,9 +413,7 @@ fn relation_features_v2r14(
         };
         let oriented = perspective.orient(sq);
         let transformed = if mirror_file { oriented ^ 7 } else { oriented };
-        out.push((NNUE_V2R14_REL_BASE
-            + channel * 64
-            + transformed as usize) as u16);
+        out.push((NNUE_V2R14_REL_BASE + channel * 64 + transformed as usize) as u16);
     }
     out
 }
@@ -443,17 +432,16 @@ fn relation_features_v2r14(
 /// apart. Semantics (raw pseudo-attack `is_square_attacked` for both
 /// attacked and defended, incl. the documented self-slider
 /// approximation) are FROZEN — do not "fix" them here.
-pub fn for_each_relation_feature_v2r12<F>(
-    pos: &Position,
-    perspective: NnuePerspective,
-    mut f: F,
-) where
+pub fn for_each_relation_feature_v2r12<F>(pos: &Position, perspective: NnuePerspective, mut f: F)
+where
     F: FnMut(u16),
 {
     use crate::chess::types::PieceType;
     let (_, mirror_file) = v2_king_context(pos, perspective);
     for sq in 0..64u8 {
-        let Some(piece) = pos.board()[sq as usize] else { continue };
+        let Some(piece) = pos.board()[sq as usize] else {
+            continue;
+        };
         if piece.piece_type == PieceType::King {
             continue;
         }
@@ -480,18 +468,13 @@ pub fn for_each_relation_feature_v2r12<F>(
         };
         let oriented = perspective.orient(sq);
         let transformed = if mirror_file { oriented ^ 7 } else { oriented };
-        f((NNUE_V2R12_REL_BASE
-            + channel * 64
-            + transformed as usize) as u16);
+        f((NNUE_V2R12_REL_BASE + channel * 64 + transformed as usize) as u16);
     }
 }
 
 /// Vec wrapper over [`for_each_relation_feature_v2r12`] — exporter and
 /// diagnostic use only; the hybrid runtime uses the callback form.
-pub fn relation_features_v2r12(
-    pos: &Position,
-    perspective: NnuePerspective,
-) -> Vec<u16> {
+pub fn relation_features_v2r12(pos: &Position, perspective: NnuePerspective) -> Vec<u16> {
     let mut out = Vec::new();
     for_each_relation_feature_v2r12(pos, perspective, |idx| {
         out.push(idx);
@@ -526,8 +509,8 @@ mod tests {
             START_FEN,
             "7k/8/8/8/8/8/3QK3/8 w - - 0 1",
             "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1",
-            "4k3/8/8/8/8/8/8/3K4 w - - 0 1",             // kings on d/e files
-            "3k4/8/8/8/8/8/8/4K3 w - - 0 1",             // mirror boundary
+            "4k3/8/8/8/8/8/8/3K4 w - - 0 1", // kings on d/e files
+            "3k4/8/8/8/8/8/8/4K3 w - - 0 1", // mirror boundary
             "rnbqkbnr/pp1ppppp/8/8/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1",
             "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", // ep-ish, pawns
             "4k3/8/8/8/8/8/8/4K2R w K - 0 1",
@@ -543,8 +526,7 @@ mod tests {
                     .enumerate()
                     .filter_map(|(sq, piece)| {
                         let piece = (*piece)?;
-                        v2_feature_for_piece(
-                            &pos, perspective, sq as Square, piece)
+                        v2_feature_for_piece(&pos, perspective, sq as Square, piece)
                     })
                     .collect();
                 assert_eq!(
@@ -562,17 +544,11 @@ mod tests {
         for perspective in [NnuePerspective::White, NnuePerspective::Black] {
             let king_sq = pos.king_square(perspective.color());
             let king = pos.board()[king_sq as usize].unwrap();
-            assert!(
-                v2_feature_for_piece(&pos, perspective, king_sq, king)
-                    .is_none()
-            );
+            assert!(v2_feature_for_piece(&pos, perspective, king_sq, king).is_none());
             // Opponent king must be a channel-10 feature.
             let opp_sq = pos.king_square(perspective.color().opposite());
             let opp_king = pos.board()[opp_sq as usize].unwrap();
-            assert!(
-                v2_feature_for_piece(&pos, perspective, opp_sq, opp_king)
-                    .is_some()
-            );
+            assert!(v2_feature_for_piece(&pos, perspective, opp_sq, opp_king).is_some());
         }
     }
 
@@ -796,22 +772,19 @@ mod tests {
         ];
         for fen in fens {
             let original = parse_fen(fen).unwrap();
-            let mirrored =
-                parse_fen(&mirror_color_swap_fen(fen)).unwrap();
-            for (a, b) in
-                [(NnuePerspective::White, NnuePerspective::Black),
-                 (NnuePerspective::Black, NnuePerspective::White)]
-            {
+            let mirrored = parse_fen(&mirror_color_swap_fen(fen)).unwrap();
+            for (a, b) in [
+                (NnuePerspective::White, NnuePerspective::Black),
+                (NnuePerspective::Black, NnuePerspective::White),
+            ] {
                 // mirror_color_swap flips rank AND color, so a piece that is
                 // OWN for perspective `a` in the original is OWN for
                 // perspective `b` in the mirrored position — the OWN/OPP
                 // channel bit is PRESERVED (not toggled). The base V2 test
                 // asserts exact equality; R6 asserts the same.
-                let mut fa_sorted =
-                    relation_features_v2r6(&original, a);
+                let mut fa_sorted = relation_features_v2r6(&original, a);
                 fa_sorted.sort();
-                let mut fb_sorted =
-                    relation_features_v2r6(&mirrored, b);
+                let mut fb_sorted = relation_features_v2r6(&mirrored, b);
                 fb_sorted.sort();
                 assert_eq!(
                     fa_sorted, fb_sorted,
@@ -834,12 +807,11 @@ mod tests {
         ];
         for fen in fens {
             let original = parse_fen(fen).unwrap();
-            let mirrored =
-                parse_fen(&mirror_color_swap_fen(fen)).unwrap();
-            for (a, b) in
-                [(NnuePerspective::White, NnuePerspective::Black),
-                 (NnuePerspective::Black, NnuePerspective::White)]
-            {
+            let mirrored = parse_fen(&mirror_color_swap_fen(fen)).unwrap();
+            for (a, b) in [
+                (NnuePerspective::White, NnuePerspective::Black),
+                (NnuePerspective::Black, NnuePerspective::White),
+            ] {
                 let mut fa = relation_features_v2r12(&original, a);
                 fa.sort();
                 let mut fb = relation_features_v2r12(&mirrored, b);
@@ -867,17 +839,10 @@ mod tests {
         ];
         for fen in fens {
             let pos = parse_fen(fen).unwrap();
-            for perspective in
-                [NnuePerspective::White, NnuePerspective::Black]
-            {
-                let via_vec =
-                    relation_features_v2r12(&pos, perspective);
+            for perspective in [NnuePerspective::White, NnuePerspective::Black] {
+                let via_vec = relation_features_v2r12(&pos, perspective);
                 let mut via_cb = Vec::new();
-                for_each_relation_feature_v2r12(
-                    &pos,
-                    perspective,
-                    |idx| via_cb.push(idx),
-                );
+                for_each_relation_feature_v2r12(&pos, perspective, |idx| via_cb.push(idx));
                 assert_eq!(
                     via_vec, via_cb,
                     "wrapper/core drift for {fen} / {perspective:?}"
@@ -895,12 +860,11 @@ mod tests {
         ];
         for fen in fens {
             let original = parse_fen(fen).unwrap();
-            let mirrored =
-                parse_fen(&mirror_color_swap_fen(fen)).unwrap();
-            for (a, b) in
-                [(NnuePerspective::White, NnuePerspective::Black),
-                 (NnuePerspective::Black, NnuePerspective::White)]
-            {
+            let mirrored = parse_fen(&mirror_color_swap_fen(fen)).unwrap();
+            for (a, b) in [
+                (NnuePerspective::White, NnuePerspective::Black),
+                (NnuePerspective::Black, NnuePerspective::White),
+            ] {
                 let mut fa = relation_features_v2r14(&original, a);
                 fa.sort();
                 let mut fb = relation_features_v2r14(&mirrored, b);

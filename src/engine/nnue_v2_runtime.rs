@@ -87,8 +87,7 @@ impl NnueV2Model {
         let version = u32::from_le_bytes(data[8..12].try_into().unwrap());
         let inputs = u32::from_le_bytes(data[12..16].try_into().unwrap());
         let ft_width = u32::from_le_bytes(data[16..20].try_into().unwrap());
-        let target_scale =
-            f32::from_bits(u32::from_le_bytes(data[20..24].try_into().unwrap()));
+        let target_scale = f32::from_bits(u32::from_le_bytes(data[20..24].try_into().unwrap()));
         if version != NNUE_V2_VERSION {
             return Err(format!("nnue-v2-probe: bad version {version}"));
         }
@@ -289,8 +288,7 @@ mod tests {
 
     #[test]
     fn loads_valid_artifact_and_predicts() {
-        let model =
-            NnueV2Model::from_bytes(&synthetic_artifact_bytes(START_FEN)).unwrap();
+        let model = NnueV2Model::from_bytes(&synthetic_artifact_bytes(START_FEN)).unwrap();
         let pos = parse_fen(START_FEN).unwrap();
         // startpos: 31 active features per perspective -> acc = 0.25 + 31*0.01
         // = 0.56 -> clamp(0,1) stays 0.56 for all 256 hidden inputs.
@@ -330,8 +328,7 @@ mod tests {
     fn rejects_nan_payload() {
         let mut data = synthetic_artifact_bytes(START_FEN);
         // Corrupt one ft weight float at the start of the payload.
-        data[FT_W_OFFSET..FT_W_OFFSET + 4]
-            .copy_from_slice(&f32::NAN.to_le_bytes());
+        data[FT_W_OFFSET..FT_W_OFFSET + 4].copy_from_slice(&f32::NAN.to_le_bytes());
         assert!(NnueV2Model::from_bytes(&data).is_err());
     }
 
@@ -416,8 +413,7 @@ mod tests {
 
     #[test]
     fn evaluate_does_not_mutate_position() {
-        let model =
-            NnueV2Model::from_bytes(&synthetic_artifact_bytes(START_FEN)).unwrap();
+        let model = NnueV2Model::from_bytes(&synthetic_artifact_bytes(START_FEN)).unwrap();
         let pos = parse_fen(START_FEN).unwrap();
         let before = pos.zobrist_key();
         let _ = model.evaluate_scaled(&pos);
