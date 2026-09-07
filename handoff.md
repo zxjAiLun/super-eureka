@@ -1,11 +1,9 @@
 # ChessEngineDemo Handoff
 
-> 状态快照：2026-09-07
+> 状态快照：2026-09-07（晚）
 > 仓库：`E:\AUbuntuProject\project\chessenginedemo`
-> 工作分支：`s10/nnue-production-foundation`（领先 `main` 80 commits，已推送）
-> 分支 HEAD：`3f171db`（S11-B1 relation-churn audit）
+> 工作分支：`s10/nnue-production-foundation`（已推送至 `7025c56`）
 > `main` HEAD：`3dae2fa`（S9-B2 closeout，2026-08-26）
-> 工作树：CLEAN
 > crate / 二进制名：`eureka`（旧名 `chess-engine-demo` 已废弃）
 
 ## 文档制度（2026-09-07 起，长期有效）
@@ -25,9 +23,10 @@ S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +
 NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena（E3-D1 数据规模、
 F1-D1 material-residual、G1-D1 FT256 宽度）全部 SPRT ACCEPT_H0 拒绝，H0 根因审计
 裁定 MULTIFACTORIAL。S11-A 关系 sidecar（R12）成为整个 NNUE 计划中离线任务对齐
-收益最大的突破（lockbox pairwise +10.4~10.9pp、dxc6 安全门双 seed 通过）。当前
-正在进行 **S11-B2/B3：R12 hybrid reference runtime**，B1 churn 审计已完成，下一步
-是 parity 门 + 配对基准。
+收益最大的突破。**S11-B2/B3 已完成：R12 hybrid reference runtime 四层 parity 全
+PASS、v1-v3 兼容逐字节不变，但 fresh-recompute 搜索 NPS = 0.58（低于 0.80 暂停
+门）→ B5 search validation PAUSED；当前决策点：是否立项 incremental relation
+updater（B1 数据强烈支持：平均 4-8 行/边）。**
 
 ## 当前生产行为
 
@@ -133,28 +132,24 @@ per-root median **4 行/边**，p90≈10，p99≈18，全局 max 50；phase high
 low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代码）。
 结论：churn 温和——fresh-recompute hybrid 第一版可行，增量化留作后续优化依据。
 
-### S11-B2/B3 冻结协议（下一步，执行细节见会话 checkpoint）
+### S11-B2/B3 结论（已完成，`19c5237`..`7025c56`，详见
+### docs/dev-log/2026-09-07-s11-b2b3-hybrid-runtime.md）
 
-- 结构：`effective_acc = incremental_V2_base_acc + fresh_R12_relation_sum`，
-  双 perspective，每次 eval 现算 relation rows；**不缓存、不做 relation 增量**。
-- 单一语义：exporter / full-refresh parity / runtime 共享同一 relation 实现
-  （抽无分配 `for_each_relation_feature_v2r12`）；R12 pseudo-attack 近似**逐字
-  保留**，不顺手"修正"。
-- Artifact 契约：格式 bump **v4**，显式 `feature_set` 字段 + fail-closed
-  （V2R12↔23296 精确互检；v1-v3 artifact 行为逐字节不变）。
-- 已知实现要点：`MAX_FEATURES_PER_PERSPECTIVE=31`（nnue_v2q_runtime.rs:235）
-  必须 raised（R12 上界 31+30）；`relation_features_v2r12` 已 pub
-  （nnue.rs:438）；bench 框架复用 `nnue-v2q-cost` / `accumulator-audit` /
-  `search_nps_c3c.py` 协议；parity 工具 `f1_quant_parity.py` 需参数化
-  feature-set。
-- Parity 硬门（benchmark 前）：A FP32↔quant；B Python quant↔Rust full-refresh；
-  C Rust full↔hybrid **10k 精确 + 转移序列（capture/promotion/castling/EP/
-  king-move/slider-unblock）**；D scalar↔AVX2。
-- 量化门：mean ≤0.30cp / p99 ≤1.0 / max ≤2.0 / val MAE 退化 ≤0.05cp。
-- 基准：同 binary 配对 B(E3 V2 FT128) vs A(R12 hybrid)：eval ns / edge+eval ns /
-  NPS + 单独 relation-scan ns。runtime 门不变：NPS ≥90% → B5；80-90% →
-  一次性 performance-only repair；<80% → 暂停评估增量 updater。
-- **B2/B3 交付后 STOP 汇报，不顺手跑 B5。**
+- **Runtime 建成且正确**：v4 artifact 格式（feature_set 字段，version-aware
+  108/112 header，v1-v3 逐字节兼容）；无分配 `for_each_relation_feature_v2r12`
+  单一语义核心；hybrid = 增量 V2-base 栈 + eval 时 fresh relation 行（栈绝不存
+  relation 行）；profile `current-final-nnue-v2q-material-r12` 全线接线 +
+  双向 fail-closed。
+- **四层 parity 全 PASS**（A: FP32↔quant mean 0.13cp；B: PyInt↔Rust 10k
+  exact；C: hybrid↔full 10k corpus + 19,692 transitions + 10 fixtures lanes+raw
+  exact；D: scalar↔AVX2 10k exact；旧 4 artifact 逐字节回归 PASS）。
+- **NPS = 0.58 median < 0.80 暂停门 → B5 PAUSED**。
+- **成本归因（关键认知）**：B1 churn（4-8 行/边）是每步 delta；fresh 每次
+  eval 重加全部 ~24 活跃行（median），主导成本是 FT 行加法的内存流量（~12µs，
+  24 随机 256B 行 × 2 perspective 横跨 1.9MB），attack 查询次之（~7µs）。
+- **决策点（待审批）**：incremental relation updater 立项与否——B1 数据表明
+  它同时消掉 scan 与批量重加，预期 eval 税 ~1.5-2×；工程量为新子项目
+  （slider ray 开闭、victim 联动、king move perspective 变换）。
 
 ### S11 已知陷阱（本轮实测）
 
@@ -162,6 +157,9 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
 - 不要用脚本整段替换重写 `src\engine\nnue.rs`（B1 中曾损毁 815 行，已从 HEAD
   恢复）；用精确锚点的 Edit。
 - Windows 下 `rg` 的路径参数不要带 `\*.rs` glob（目录语法错误）。
+- bench fixture FEN 必须先验证合法（本轮 3 个手写 FEN 王被牵制/非法）。
+- **性能直觉陷阱**：per-move delta（churn）≠ per-eval 全量成本；测量分段
+  （scan / scan+FT / total）才能正确归因。
 
 ## 文档对齐地图（证据在哪里）
 
@@ -217,11 +215,14 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ### 推荐下一步（按序）
 
-1. **S11-B2/B3 执行**（Phase 0 Python 导出 v4 artifact → Phase 1 Rust runtime →
-   Phase 2 四层 parity → Phase 3 配对基准），完成后 STOP 汇报；
-2. 若 NPS ≥ 0.90：申请 B5 冻结 search validation（256 roots × 100k nodes，
-   lockbox scorer 已就绪）；
-3. B2/B3 无论结果，更新本 handoff 并补 results/s10/s10-s11-* closeout。
+1. **S11 决策（审批方）**：NPS 0.58 < 0.80，按冻结协议 B5 暂停。选项：
+   (a) 立项 incremental relation updater（B1: 平均 4-8 行/边；预期 eval 税
+   1.5-2×；新子项目，slider ray/victim 联动/king perspective 变换）；
+   (b) 接受 fresh reference 作为离线分析工具（不再追求 R12 生产化）；
+   (c) 减半 relation 活跃行（representation 变更，需重训——违背本轮冻结）。
+2. 若立项增量 updater：parity 套件全部复用（nnue-v2q-r12-parity 直接
+   验证增量路径 vs full refresh）；
+3. 无论方向：handoff + dev-log 按制度更新。
 
 ## 关键文件导航
 
@@ -245,6 +246,22 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-07 · S11-B2/B3 R12 hybrid reference runtime · `19c5237`..`7025c56`**
+  Phase 0: v4 export（feature_set 字段，R12 bound 61，E3 v3twin 重导
+  byte-identical；发现并补提交 B1 漏掉的 search.rs churn hooks）。
+  Phase 1: `for_each_relation_feature_v2r12` 无分配核心、version-aware
+  loader（v1-v3 逐字节兼容）、hybrid kernels、profile 全接线（双向
+  fail-closed）；关键点：栈只存 V2-base accumulator。Phase 2: 四层 parity
+  全 PASS（A 0.13cp / B 10k exact / C 10k+19,692+10 fixtures lanes+raw
+  exact / D AVX2↔scalar 10k exact / 旧 artifact 回归）。Phase 3: 配对
+  NPS **0.58 median**（< 0.80 门）→ **B5 PAUSED**；归因：fresh 每次
+  eval 重加全部 ~24 活跃行，FT 行加法内存流量主导。决策点：incremental
+  relation updater 立项与否。
+  开发文档：docs/dev-log/2026-09-07-s11-b2b3-hybrid-runtime.md
+- **2026-09-07 · 文档制度落地 · `d1baa59`**
+  handoff.md 纳入版本控制（原 `.git/info/exclude` 不跟踪是漂移根因）；
+  建立 append-only 更新日志 + docs/dev-log/ 每轮开发文档制度；补 B1 与
+  preflight 两份 dev-log。
 - **2026-09-07 · S11-B1 relation-churn audit · `3f171db`**
   新增 cargo feature `diagnostic_relation_churn`（bench-only recorder，4 个
   push_child 站点，production 零代码）+ `bench relation-churn` 命令。32 冻结
