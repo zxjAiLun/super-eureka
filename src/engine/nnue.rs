@@ -435,13 +435,23 @@ fn relation_features_v2r14(
 ///   A: type_idx(N=0,B=1,R=2,Q=3) + 4*own   (0..=7)
 ///   D: 8 + own                             (8/9)
 ///   C: 10 + own                            (10/11)
-pub fn relation_features_v2r12(
+///
+/// S11-B2: the allocation-free semantic core. The ONLY R12 row
+/// emitter — the Vec wrapper below (exporter/diagnostics) and the
+/// hybrid runtime's FT accumulation BOTH consume this callback form,
+/// so training-export / full-refresh parity / runtime can never drift
+/// apart. Semantics (raw pseudo-attack `is_square_attacked` for both
+/// attacked and defended, incl. the documented self-slider
+/// approximation) are FROZEN — do not "fix" them here.
+pub fn for_each_relation_feature_v2r12<F>(
     pos: &Position,
     perspective: NnuePerspective,
-) -> Vec<u16> {
+    mut f: F,
+) where
+    F: FnMut(u16),
+{
     use crate::chess::types::PieceType;
     let (_, mirror_file) = v2_king_context(pos, perspective);
-    let mut out = Vec::new();
     for sq in 0..64u8 {
         let Some(piece) = pos.board()[sq as usize] else { continue };
         if piece.piece_type == PieceType::King {
@@ -470,10 +480,22 @@ pub fn relation_features_v2r12(
         };
         let oriented = perspective.orient(sq);
         let transformed = if mirror_file { oriented ^ 7 } else { oriented };
-        out.push((NNUE_V2R12_REL_BASE
+        f((NNUE_V2R12_REL_BASE
             + channel * 64
             + transformed as usize) as u16);
     }
+}
+
+/// Vec wrapper over [`for_each_relation_feature_v2r12`] — exporter and
+/// diagnostic use only; the hybrid runtime uses the callback form.
+pub fn relation_features_v2r12(
+    pos: &Position,
+    perspective: NnuePerspective,
+) -> Vec<u16> {
+    let mut out = Vec::new();
+    for_each_relation_feature_v2r12(pos, perspective, |idx| {
+        out.push(idx);
+    });
     out
 }
 
@@ -825,6 +847,40 @@ mod tests {
                 assert_eq!(
                     fa, fb,
                     "R12 mirror/color-swap mismatch for {fen} ({a:?}->{b:?})"
+                );
+            }
+        }
+    }
+
+    /// S11-B2: the Vec wrapper and the callback core must emit identical
+    /// row sequences (order included) across representative positions and
+    /// both perspectives — the wrapper delegates, but this pins the
+    /// delegation so exporter/runtime can never drift.
+    #[test]
+    fn v2r12_wrapper_matches_callback_core() {
+        let fens = [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/3qQ3/8/8/8/4K3 w - - 0 1",
+            "8/P7/8/8/8/8/7p/4K2k w - - 0 1",
+        ];
+        for fen in fens {
+            let pos = parse_fen(fen).unwrap();
+            for perspective in
+                [NnuePerspective::White, NnuePerspective::Black]
+            {
+                let via_vec =
+                    relation_features_v2r12(&pos, perspective);
+                let mut via_cb = Vec::new();
+                for_each_relation_feature_v2r12(
+                    &pos,
+                    perspective,
+                    |idx| via_cb.push(idx),
+                );
+                assert_eq!(
+                    via_vec, via_cb,
+                    "wrapper/core drift for {fen} / {perspective:?}"
                 );
             }
         }

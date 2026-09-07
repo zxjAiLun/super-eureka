@@ -20,7 +20,9 @@
 use crate::chess::position::Position;
 use crate::chess::types::{Color, Move, Piece, Square};
 use crate::engine::nnue::{
-    active_features_v2, v2_feature_for_piece, NnuePerspective, NNUE_INPUTS_V2,
+    active_features_v2, for_each_relation_feature_v2r12,
+    v2_feature_for_piece, NnueFeatureSet, NnuePerspective, NNUE_INPUTS_V2,
+    NNUE_INPUTS_V2R12,
 };
 
 /// Fixed S10-B5 artifact constants (must match export_quantized.py).
@@ -32,13 +34,89 @@ pub const NNUE_V2Q_MAGIC: [u8; 8] = *b"EUNN2Q01";
 /// 128 OR 256 (v1/v2 remain strictly FT128); every payload offset/count
 /// is derived from (inputs, ft_width) with checked arithmetic. Hidden
 /// layers stay 32 -> 32 -> 1.
+/// v4 (S11-B2): feature-set-aware payload. A `feature_set` u32 is
+/// inserted between `target_mode` and the source SHAs, extending the
+/// header 108 -> 112 bytes. v1-v3 layouts are BYTE-IDENTICAL to before
+/// (implicit feature_set = V2, inputs MUST be 22528) — old artifacts
+/// keep loading with exact unchanged behavior. v4 is currently
+/// authenticated for feature_set = V2R12 + inputs 23296 + FT128 only
+/// (the frozen S11 runtime candidate contract).
 pub const NNUE_V2Q_VERSION: u32 = 3;
+pub const NNUE_V2Q_VERSION_V4: u32 = 4;
 pub const NNUE_V2Q_FT_WIDTH: usize = 128;
 pub const NNUE_V2Q_TARGET_SCALE: f32 = 1000.0;
 pub const NNUE_V2Q_FT_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_W_SHIFT: u32 = 12;
 pub const NNUE_V2Q_DENSE_Z_SHIFT: u32 = 12;
 pub const NNUE_V2Q_QA: usize = 1 << 12;
+
+/// S11-B2: artifact feature-set identity (v4 header word). v1-v3
+/// artifacts carry this implicitly as V2. This is the RUNTIME mirror of
+/// the exporter's feature-set id; do NOT confuse with the feature
+/// extraction enum `NnueFeatureSet` (which also has diagnostic-only
+/// members).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NnueFeatureSetId {
+    V2 = 0,
+    V2R12 = 1,
+}
+
+impl NnueFeatureSetId {
+    fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(NnueFeatureSetId::V2),
+            1 => Some(NnueFeatureSetId::V2R12),
+            _ => None,
+        }
+    }
+
+    /// The exact input dimension authenticated for this feature set.
+    /// Loader cross-checks this against the header `inputs` word —
+    /// ANY mismatch fails closed (e.g. V2R12 + 22912 rejected,
+    /// V2R12 + 22528 rejected, V2 + 23296 rejected).
+    pub fn inputs(self) -> usize {
+        match self {
+            NnueFeatureSetId::V2 => NNUE_INPUTS_V2,
+            NnueFeatureSetId::V2R12 => NNUE_INPUTS_V2R12,
+        }
+    }
+
+    /// Proven per-perspective active-FT-row bound (S11-B2, the loader's
+    /// i32 accumulator safety contract):
+    /// - V2: every piece minus own king = 31.
+    /// - V2R12: base 31 + at most 1 relation row per non-king piece
+    ///   (<= 30 non-king pieces) = 61. Channels do NOT cap the row
+    ///   count — the same channel can be active on different squares
+    ///   simultaneously.
+    pub fn max_features_per_perspective(self) -> i64 {
+        match self {
+            NnueFeatureSetId::V2 => 31,
+            NnueFeatureSetId::V2R12 => 61,
+        }
+    }
+
+    /// The feature-extraction dispatcher for full-refresh accumulation.
+    pub fn feature_set(self) -> NnueFeatureSet {
+        match self {
+            NnueFeatureSetId::V2 => NnueFeatureSet::V2,
+            NnueFeatureSetId::V2R12 => NnueFeatureSet::V2R12,
+        }
+    }
+}
+
+/// S11-B2: version-aware header size. v1-v3 share the historical
+/// 108-byte header; v4 inserts the `feature_set` u32 before the source
+/// SHAs (112 bytes). Payload offsets are derived from THIS, never from
+/// a global constant — a global bump would shift every v1-v3 payload
+/// by 4 bytes and silently corrupt old artifacts.
+const fn header_bytes(version: u32) -> usize {
+    match version {
+        1 | 2 | 3 => 108,
+        4 => 112,
+        // Unreachable in practice: versions are validated before layout.
+        _ => 112,
+    }
+}
 
 /// S10-G1: the two AUTHENTICATED feature-transformer widths. The runtime
 /// deliberately supports nothing else — this is not a general
@@ -98,7 +176,11 @@ struct PayloadLayout {
 }
 
 impl PayloadLayout {
-    fn derive(inputs: usize, width: FtWidth) -> Result<Self, String> {
+    fn derive(
+        inputs: usize,
+        width: FtWidth,
+        header_bytes: usize,
+    ) -> Result<Self, String> {
         let overflow = "nnue-v2q-probe: payload layout overflow".to_string();
         let w = width.lanes();
         let dense_in = width.dense_in();
@@ -116,7 +198,7 @@ impl PayloadLayout {
             let bytes = count.checked_mul(size).ok_or_else(|| overflow.clone())?;
             off.checked_add(bytes).ok_or_else(|| overflow.clone())
         };
-        let ft_w_offset = HEADER_BYTES;
+        let ft_w_offset = header_bytes;
         let ft_b_offset = step(ft_w_offset, ft_w_count, 2)?;
         let l1_w_offset = step(ft_b_offset, ft_b_count, 4)?;
         let l1_b_offset = step(l1_w_offset, l1_w_count, 2)?;
@@ -231,7 +313,10 @@ const HISTORICAL_SOURCE_CHECKPOINT_SHA: [u8; 32] = [
 ];
 
 /// Maximum active features per perspective (startpos: 32 pieces minus own
-/// king); used in the proven FT accumulator bound.
+/// king); used in the proven FT accumulator bound. S11-B2: the bound is
+/// FEATURE-SET-SPECIFIC — the loader selects it via
+/// `NnueFeatureSetId::max_features_per_perspective` (V2 = 31, V2R12 = 61).
+/// This constant remains the V2 default for v1-v3 artifacts.
 const MAX_FEATURES_PER_PERSPECTIVE: i64 = 31;
 
 const HEADER_BYTES: usize = 8 + 4 * 4 + 4 * 3 + 4 + 4 + 32 + 32;
@@ -352,6 +437,10 @@ pub struct NnueV2QuantizedModel {
     /// models must be composed with `material_cp_stm` by the caller; the
     /// loader refuses to guess.
     target_mode: NnueV2TargetMode,
+    /// S11-B2: feature-set identity (V2 for v1-v3 artifacts; explicit in
+    /// v4). Selects full-refresh feature extraction and the hybrid
+    /// evaluation path.
+    feature_set: NnueFeatureSetId,
 }
 
 /// Per-width tensor bundle. `ft_weights` is [inputs][W] row-major;
@@ -395,7 +484,11 @@ impl NnueV2QuantizedModel {
     /// v1 artifacts are read with `target_mode = Cp`; v2 carry an explicit
     /// semantic mode; v3 additionally allow ft_width 256 (v1/v2 are
     /// STRICTLY FT128 — a v1/v2 artifact declaring a non-128 width is
-    /// malformed and rejected).
+    /// malformed and rejected). v4 (S11-B2) additionally carries an
+    /// explicit `feature_set` word (112-byte header) and is currently
+    /// authenticated for V2R12 + inputs 23296 + FT128 only; v1-v3
+    /// artifacts keep their byte-identical 108-byte layout and implicit
+    /// feature_set = V2.
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
         // Fail closed on short/malformed inputs BEFORE any header slice
         // (the dynamic-layout refactor previously read the version word
@@ -432,22 +525,52 @@ impl NnueV2QuantizedModel {
                 }
                 NnueV2TargetMode::Cp
             }
-            2 | 3 => NnueV2TargetMode::from_u32(mode_raw).ok_or_else(|| {
+            2 | 3 | 4 => NnueV2TargetMode::from_u32(mode_raw).ok_or_else(|| {
                 format!("nnue-v2q-probe: bad target_mode {mode_raw}")
             })?,
             other => {
                 return Err(format!("nnue-v2q-probe: bad version {other}"));
             }
         };
-        if inputs != NNUE_INPUTS_V2 as u32 {
-            return Err(format!("nnue-v2q-probe: bad inputs {inputs}"));
-        }
+        // S11-B2: version-aware feature-set resolution + header layout.
+        // v1-v3: implicit V2, inputs MUST be exactly 22528 (unchanged
+        // historical contract). v4: explicit word, cross-checked against
+        // the feature set's exact input dim — any mismatch fails closed.
+        let (feature_set, sha_off) = match version {
+            1 | 2 | 3 => {
+                if inputs != NNUE_INPUTS_V2 as u32 {
+                    return Err(format!(
+                        "nnue-v2q-probe: bad inputs {inputs}"
+                    ));
+                }
+                (NnueFeatureSetId::V2, 44usize)
+            }
+            4 => {
+                let fs_raw =
+                    u32::from_le_bytes(data[44..48].try_into().unwrap());
+                let feature_set = NnueFeatureSetId::from_u32(fs_raw)
+                    .ok_or_else(|| {
+                        format!("nnue-v2q-probe: bad feature_set {fs_raw}")
+                    })?;
+                if inputs != feature_set.inputs() as u32 {
+                    return Err(format!(
+                        "nnue-v2q-probe: inputs {inputs} does not match \
+                         feature_set {feature_set:?} (expected {})",
+                        feature_set.inputs()
+                    ));
+                }
+                (feature_set, 48usize)
+            }
+            _ => unreachable!("version validated above"),
+        };
         // S10-G1: v1/v2 are strictly FT128; v3 accepts 128 OR 256 — the
         // two AUTHENTICATED widths (never an arbitrary header value).
+        // S11-B2: v4 is FT128-only (the frozen R12 runtime contract).
         let width = match (version, ft_width_raw) {
             (1, 128) | (2, 128) => FtWidth::W128,
             (3, 128) => FtWidth::W128,
             (3, 256) => FtWidth::W256,
+            (4, 128) => FtWidth::W128,
             _ => {
                 return Err(format!(
                     "nnue-v2q-probe: bad ft_width {ft_width_raw} for \
@@ -470,24 +593,39 @@ impl NnueV2QuantizedModel {
                  {dense_w_shift},{dense_z_shift},{qa})"
             ));
         }
+        if data.len() < sha_off + 64 {
+            return Err(format!(
+                "nnue-v2q-probe: bad length {} < header {}",
+                data.len(),
+                sha_off + 64
+            ));
+        }
         let mut source_fp32_artifact_sha256 = [0u8; 32];
-        source_fp32_artifact_sha256.copy_from_slice(&data[44..76]);
+        source_fp32_artifact_sha256
+            .copy_from_slice(&data[sha_off..sha_off + 32]);
         let mut source_checkpoint_sha256 = [0u8; 32];
-        source_checkpoint_sha256.copy_from_slice(&data[76..108]);
+        source_checkpoint_sha256
+            .copy_from_slice(&data[sha_off + 32..sha_off + 64]);
         // S10-E0: format-contract loader. The header's source SHAs are kept
         // for provenance output but are NOT compared against one frozen
         // training iteration anymore — model identity is enforced by the
         // consumer (Arena D0's immutable model-artifact SHA gate pins the
         // exact bytes a tournament may launch with).
 
-        let layout =
-            PayloadLayout::derive(NNUE_INPUTS_V2, width)?;
+        let layout = PayloadLayout::derive(
+            feature_set.inputs(),
+            width,
+            header_bytes(version),
+        )?;
         if data.len() != layout.total_bytes {
             return Err(format!(
                 "nnue-v2q-probe: bad length {} != expected {}",
                 data.len(), layout.total_bytes
             ));
         }
+        // S11-B2: feature-set-specific proven accumulator bound (V2: 31,
+        // V2R12: 61) — the format contract's overflow gate.
+        let max_features = feature_set.max_features_per_perspective();
 
         macro_rules! load_weights {
             ($w:literal) => {{
@@ -518,7 +656,7 @@ impl NnueV2QuantizedModel {
                 // + 2^31 << 2^63 for both widths). ft/l2/out stay i32.
                 let dense_in: i64 = (2 * $w) as i64;
                 let ft_bound = max_abs_i32(&ft_bias)
-                    + MAX_FEATURES_PER_PERSPECTIVE
+                    + max_features
                         * max_abs_i16(&ft_weights);
                 let l1_bound = max_abs_i32(&l1_bias)
                     + dense_in * max_abs_i16(&l1_weight)
@@ -569,12 +707,20 @@ impl NnueV2QuantizedModel {
             source_checkpoint_sha256,
             l1_backend,
             target_mode,
+            feature_set,
         })
     }
 
     /// S10-G1: the authenticated FT width of this model.
     pub fn ft_width(&self) -> FtWidth {
         self.weights.width()
+    }
+
+    /// S11-B2: the feature-set identity of this artifact (v1-v3 are
+    /// implicitly V2; v4 carries it explicitly). Callers use this to
+    /// dispatch full-refresh extraction and hybrid evaluation.
+    pub fn feature_set(&self) -> NnueFeatureSetId {
+        self.feature_set
     }
 
     /// S10-F1: semantic mode carried by this artifact. Callers MUST check
@@ -591,14 +737,18 @@ impl NnueV2QuantizedModel {
 
     /// Full integer forward pass; returns the raw integer output (A units).
     /// Single fact path: full_accumulator -> evaluate_raw_from_accumulator.
+    /// S11-B2: feature-set aware (V2R12 full refresh includes the
+    /// relation sidecar rows).
     pub fn evaluate_raw(&self, pos: &Position) -> i32 {
         match &self.weights {
             WeightsFor::W128(w) => {
-                let acc = full_acc::<128>(w, pos);
+                let acc =
+                    full_acc::<128>(w, pos, self.feature_set);
                 dense_forward::<128>(w, pos, &acc, self.l1_backend)
             }
             WeightsFor::W256(w) => {
-                let acc = full_acc::<256>(w, pos);
+                let acc =
+                    full_acc::<256>(w, pos, self.feature_set);
                 dense_forward::<256>(w, pos, &acc, self.l1_backend)
             }
         }
@@ -608,14 +758,77 @@ impl NnueV2QuantizedModel {
     ///
     /// Stored ALWAYS in White/Black perspective order (never STM/NSTM);
     /// the dense forward swaps by side-to-move at evaluation time.
+    /// S11-B2: feature-set aware (V2R12 includes relation rows).
     pub fn full_accumulator(&self, pos: &Position) -> AccumulatorFor {
         match &self.weights {
-            WeightsFor::W128(w) => {
-                AccumulatorFor::W128(full_acc::<128>(w, pos))
+            WeightsFor::W128(w) => AccumulatorFor::W128(full_acc::<128>(
+                w, pos, self.feature_set)),
+            WeightsFor::W256(w) => AccumulatorFor::W256(full_acc::<256>(
+                w, pos, self.feature_set)),
+        }
+    }
+
+    /// S11-B2 hybrid evaluation: `base_acc` is the search stack's
+    /// INCREMENTAL V2-BASE accumulator for `pos` (relation rows NOT
+    /// included); the fresh R12 relation rows are recomputed here and
+    /// added on top before the dense forward. Only valid for
+    /// feature_set = V2R12 models (fail-closed below). This is the B2
+    /// reference hot path — no relation caching, no relation deltas.
+    pub fn evaluate_raw_hybrid_r12(
+        &self,
+        pos: &Position,
+        base_acc: &AccumulatorFor,
+    ) -> i32 {
+        if self.feature_set != NnueFeatureSetId::V2R12 {
+            panic!(
+                "evaluate_raw_hybrid_r12: artifact feature_set is {:?}, \
+                 not V2R12",
+                self.feature_set
+            );
+        }
+        match (&self.weights, base_acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<128>(w, pos, &mut hybrid);
+                dense_forward::<128>(w, pos, &hybrid, self.l1_backend)
             }
-            WeightsFor::W256(w) => {
-                AccumulatorFor::W256(full_acc::<256>(w, pos))
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<256>(w, pos, &mut hybrid);
+                dense_forward::<256>(w, pos, &hybrid, self.l1_backend)
             }
+            _ => panic!("accumulator width does not match model"),
+        }
+    }
+
+    /// S11-B2: hybrid accumulator inspection (Layer C parity compares
+    /// these lanes directly against the full-refresh accumulator, not
+    /// just the final raw output — an accumulator error could
+    /// otherwise hide behind clipping/dense).
+    pub fn hybrid_accumulator_r12(
+        &self,
+        pos: &Position,
+        base_acc: &AccumulatorFor,
+    ) -> AccumulatorFor {
+        if self.feature_set != NnueFeatureSetId::V2R12 {
+            panic!(
+                "hybrid_accumulator_r12: artifact feature_set is {:?}, \
+                 not V2R12",
+                self.feature_set
+            );
+        }
+        match (&self.weights, base_acc) {
+            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<128>(w, pos, &mut hybrid);
+                AccumulatorFor::W128(hybrid)
+            }
+            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<256>(w, pos, &mut hybrid);
+                AccumulatorFor::W256(hybrid)
+            }
+            _ => panic!("accumulator width does not match model"),
         }
     }
 
@@ -889,14 +1102,87 @@ fn accumulate_lanes<const W: usize>(w: &Weights<W>, indices: &[u16])
     acc
 }
 
-fn full_acc<const W: usize>(w: &Weights<W>, pos: &Position)
-    -> NnueV2Accumulator<W> {
-    NnueV2Accumulator {
-        white: accumulate_lanes(
-            w, &active_features_v2(pos, NnuePerspective::White)),
-        black: accumulate_lanes(
-            w, &active_features_v2(pos, NnuePerspective::Black)),
+fn full_acc<const W: usize>(
+    w: &Weights<W>,
+    pos: &Position,
+    feature_set: NnueFeatureSetId,
+) -> NnueV2Accumulator<W> {
+    // S11-B2: full-refresh extraction dispatches on the artifact's
+    // feature set. V2R12 = V2 base rows + relation sidecar rows via the
+    // shared `active_features_for` dispatcher (one semantic source).
+    match feature_set {
+        NnueFeatureSetId::V2 => NnueV2Accumulator {
+            white: accumulate_lanes(
+                w, &active_features_v2(pos, NnuePerspective::White)),
+            black: accumulate_lanes(
+                w, &active_features_v2(pos, NnuePerspective::Black)),
+        },
+        NnueFeatureSetId::V2R12 => {
+            let mut out = NnueV2Accumulator {
+                white: [0i32; W],
+                black: [0i32; W],
+            };
+            for (perspective, lanes) in [
+                (NnuePerspective::White, &mut out.white),
+                (NnuePerspective::Black, &mut out.black),
+            ] {
+                accumulate_r12_lanes(
+                    w, pos, perspective, feature_set, lanes);
+            }
+            out
+        }
     }
+}
+
+/// S11-B2: allocation-free R12 full-refresh accumulation for ONE
+/// perspective: bias + V2 base rows + fresh relation sidecar rows.
+/// The relation rows come from the single semantic core
+/// (`for_each_relation_feature_v2r12`) — no separate emitter.
+fn accumulate_r12_lanes<const W: usize>(
+    w: &Weights<W>,
+    pos: &Position,
+    perspective: NnuePerspective,
+    _feature_set: NnueFeatureSetId,
+    lanes: &mut [i32; W],
+) {
+    lanes[..].copy_from_slice(&w.ft_bias[..W]);
+    for idx in active_features_v2(pos, perspective) {
+        let base = (idx as usize) * W;
+        for (i, slot) in lanes.iter_mut().enumerate() {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        }
+    }
+    for_each_relation_feature_v2r12(pos, perspective, |idx| {
+        let base = (idx as usize) * W;
+        for (i, slot) in lanes.iter_mut().enumerate() {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        }
+    });
+}
+
+/// S11-B2 hybrid: add fresh R12 relation sidecar rows ON TOP of an
+/// incremental V2 base accumulator (in place). The search stack
+/// maintains ONLY the V2 base rows incrementally; the relation rows
+/// are recomputed fresh at evaluation time (no relation state, no
+/// relation deltas — frozen B2 protocol). Rows are additive and
+/// disjoint (base < 22528, relation >= 22528), so this is exact.
+fn add_fresh_relation_rows<const W: usize>(
+    w: &Weights<W>,
+    pos: &Position,
+    acc: &mut NnueV2Accumulator<W>,
+) {
+    for_each_relation_feature_v2r12(pos, NnuePerspective::White, |idx| {
+        let base = (idx as usize) * W;
+        for (i, slot) in acc.white.iter_mut().enumerate() {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        }
+    });
+    for_each_relation_feature_v2r12(pos, NnuePerspective::Black, |idx| {
+        let base = (idx as usize) * W;
+        for (i, slot) in acc.black.iter_mut().enumerate() {
+            *slot = slot.wrapping_add(w.ft_weights[base + i] as i32);
+        }
+    });
 }
 
 /// Apply one feature row (`+1` add / `-1` subtract) to a lane set.
@@ -1252,11 +1538,11 @@ mod tests {
     use super::*;
 
     fn layout128() -> PayloadLayout {
-        PayloadLayout::derive(22528, FtWidth::W128)
+        PayloadLayout::derive(22528, FtWidth::W128, header_bytes(3))
             .expect("ft128 layout")
     }
     fn layout256() -> PayloadLayout {
-        PayloadLayout::derive(22528, FtWidth::W256)
+        PayloadLayout::derive(22528, FtWidth::W256, header_bytes(3))
             .expect("ft256 layout")
     }
 
@@ -1328,6 +1614,96 @@ mod tests {
         }
         out.extend_from_slice(&0i32.to_le_bytes());
         assert_eq!(out.len(), layout128().total_bytes);
+        out
+    }
+
+    /// S11-B2: synthetic V4 (feature-set-aware) artifact with the same
+    /// deterministic weight scheme, extended to R12 rows: base active
+    /// rows 16, relation active rows 32 (so hybrid/full paths that
+    /// touch relation rows are distinguishable from base-only paths).
+    fn layout128_v4_r12() -> PayloadLayout {
+        PayloadLayout::derive(
+            NnueFeatureSetId::V2R12.inputs(),
+            FtWidth::W128,
+            header_bytes(4),
+        )
+        .expect("ft128 v4 r12 layout")
+    }
+
+    pub(super) fn synthetic_artifact_bytes_v4_r12(
+        fen: &str,
+        feature_set: NnueFeatureSetId,
+        inputs: u32,
+    ) -> Vec<u8> {
+        let pos = parse_fen(fen).unwrap();
+        let white = active_features_v2(&pos, NnuePerspective::White);
+        let black = active_features_v2(&pos, NnuePerspective::Black);
+        let layout = layout128_v4_r12();
+
+        let mut out = Vec::with_capacity(layout.total_bytes);
+        out.extend_from_slice(&NNUE_V2Q_MAGIC);
+        out.extend_from_slice(&NNUE_V2Q_VERSION_V4.to_le_bytes());
+        out.extend_from_slice(&inputs.to_le_bytes());
+        out.extend_from_slice(&(NNUE_V2Q_FT_WIDTH as u32).to_le_bytes());
+        out.extend_from_slice(&NNUE_V2Q_TARGET_SCALE.to_le_bytes());
+        out.extend_from_slice(&NNUE_V2Q_FT_SHIFT.to_le_bytes());
+        out.extend_from_slice(&NNUE_V2Q_DENSE_W_SHIFT.to_le_bytes());
+        out.extend_from_slice(&NNUE_V2Q_DENSE_Z_SHIFT.to_le_bytes());
+        out.extend_from_slice(&(NNUE_V2Q_QA as u32).to_le_bytes());
+        out.extend_from_slice(
+            &NnueV2TargetMode::MaterialResidual.to_u32().to_le_bytes(),
+        );
+        out.extend_from_slice(&(feature_set as u32).to_le_bytes());
+        out.extend_from_slice(&HISTORICAL_SOURCE_FP32_SHA);
+        out.extend_from_slice(&HISTORICAL_SOURCE_CHECKPOINT_SHA);
+
+        // FT: base active rows 16, R12 relation active rows 32; bias 8.
+        let mut ft = vec![0i16; layout.ft_w_count];
+        for &idx in white.iter().chain(black.iter()) {
+            let base = (idx as usize) * NNUE_V2Q_FT_WIDTH;
+            for i in 0..NNUE_V2Q_FT_WIDTH {
+                ft[base + i] = 16;
+            }
+        }
+        let mut rel_rows = 0usize;
+        for perspective in
+            [NnuePerspective::White, NnuePerspective::Black]
+        {
+            for_each_relation_feature_v2r12(&pos, perspective, |idx| {
+                let base = (idx as usize) * NNUE_V2Q_FT_WIDTH;
+                for i in 0..NNUE_V2Q_FT_WIDTH {
+                    ft[base + i] = 32;
+                }
+                rel_rows += 1;
+            });
+        }
+        assert!(rel_rows > 0, "fixture must have relation rows");
+        for v in &ft {
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+        for _ in 0..layout.ft_b_count {
+            out.extend_from_slice(&8i32.to_le_bytes());
+        }
+        for _ in 0..layout.l1_w_count {
+            out.extend_from_slice(&2i16.to_le_bytes());
+        }
+        for _ in 0..layout.l1_b_count {
+            out.extend_from_slice(&0i32.to_le_bytes());
+        }
+        for o in 0..32 {
+            for i in 0..32 {
+                let v: i16 = if o == i { 2 } else { 0 };
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        for _ in 0..layout.l2_b_count {
+            out.extend_from_slice(&0i32.to_le_bytes());
+        }
+        for _ in 0..layout.out_w_count {
+            out.extend_from_slice(&2i16.to_le_bytes());
+        }
+        out.extend_from_slice(&0i32.to_le_bytes());
+        assert_eq!(out.len(), layout.total_bytes);
         out
     }
 
@@ -2105,5 +2481,179 @@ mod tests {
 
         // Startpos: 0 either way; kings contribute nothing.
         assert_eq!(material_cp_stm(&Position::startpos()), 0);
+    }
+
+    // ------------------------------------------------------------------
+    // S11-B2: v4 loader contract + hybrid/full-refresh equivalence
+    // ------------------------------------------------------------------
+
+    /// The v4 R12 artifact loads and reports its identity.
+    #[test]
+    fn s11b2_v4_r12_loads() {
+        let bytes = synthetic_artifact_bytes_v4_r12(
+            START_FEN,
+            NnueFeatureSetId::V2R12,
+            NnueFeatureSetId::V2R12.inputs() as u32,
+        );
+        let model = NnueV2QuantizedModel::from_bytes(&bytes).unwrap();
+        assert_eq!(model.feature_set(), NnueFeatureSetId::V2R12);
+        assert_eq!(model.ft_width(), FtWidth::W128);
+        assert_eq!(
+            model.target_mode(),
+            NnueV2TargetMode::MaterialResidual
+        );
+    }
+
+    /// Fail-closed matrix: every feature_set <-> inputs mismatch and
+    /// every unknown word is rejected, and a truncated v4 (payload cut
+    /// to the v3 layout) is rejected as a length error.
+    #[test]
+    fn s11b2_v4_rejects_mismatches() {
+        let ok = NnueFeatureSetId::V2R12.inputs() as u32;
+        // Wrong inputs for V2R12 (22912 = R6's dim; 22528 = V2's).
+        for bad_inputs in [22912u32, 22528, 23295, 23297] {
+            let bytes = synthetic_artifact_bytes_v4_r12(
+                START_FEN,
+                NnueFeatureSetId::V2R12,
+                bad_inputs,
+            );
+            assert!(
+                NnueV2QuantizedModel::from_bytes(&bytes).is_err(),
+                "inputs {bad_inputs} must be rejected"
+            );
+        }
+        // Unknown feature_set word.
+        let mut bytes = synthetic_artifact_bytes_v4_r12(
+            START_FEN,
+            NnueFeatureSetId::V2R12,
+            ok,
+        );
+        let fs_off = 44usize;
+        bytes[fs_off..fs_off + 4]
+            .copy_from_slice(&99u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&bytes).is_err());
+        // Feature_set=V2 with R12 dim (cross-check fails closed).
+        let mut bytes = synthetic_artifact_bytes_v4_r12(
+            START_FEN,
+            NnueFeatureSetId::V2R12,
+            ok,
+        );
+        bytes[fs_off..fs_off + 4]
+            .copy_from_slice(&0u32.to_le_bytes());
+        assert!(NnueV2QuantizedModel::from_bytes(&bytes).is_err());
+        // Truncated to the v3 total (payload under-length).
+        let full = synthetic_artifact_bytes_v4_r12(
+            START_FEN,
+            NnueFeatureSetId::V2R12,
+            ok,
+        );
+        let truncated = &full[..full.len() - 4];
+        assert!(NnueV2QuantizedModel::from_bytes(truncated).is_err());
+    }
+
+    /// v1-v3 synthetic artifacts (the historical builder) still load
+    /// after the version-aware header refactor — the compatibility
+    /// hard gate at unit level.
+    #[test]
+    fn s11b2_v3_synthetic_still_loads() {
+        for fen in
+            [START_FEN, "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1"]
+        {
+            let bytes = synthetic_artifact_bytes(fen);
+            let model = NnueV2QuantizedModel::from_bytes(&bytes).unwrap();
+            assert_eq!(model.feature_set(), NnueFeatureSetId::V2);
+            // Exercise the full-refresh eval path end to end.
+            let pos = parse_fen(fen).unwrap();
+            let _ = model.evaluate_raw(&pos);
+        }
+    }
+
+    /// Layer-C core invariant at unit level: for a V2R12 model,
+    /// hybrid (base + fresh relation rows) == full refresh, compared
+    /// on ALL lanes (both perspectives) AND the raw output, across
+    /// positions with varied relation structure.
+    #[test]
+    fn s11b2_hybrid_equals_full_refresh() {
+        let fens = [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/3qQ3/8/8/8/4K3 w - - 0 1",
+            "rnbqkbnr/pp1ppppp/8/8/8/8/PP1PPPPP/RNBQKBNR w KQkq - 0 1",
+        ];
+        for fen in fens {
+            let bytes = synthetic_artifact_bytes_v4_r12(
+                fen,
+                NnueFeatureSetId::V2R12,
+                NnueFeatureSetId::V2R12.inputs() as u32,
+            );
+            let model =
+                NnueV2QuantizedModel::from_bytes(&bytes).unwrap();
+            let pos = parse_fen(fen).unwrap();
+
+            // Base-only accumulator (what the incremental stack
+            // maintains): V2 features only.
+            let base = match &model.weights {
+                WeightsFor::W128(w) => AccumulatorFor::W128(
+                    NnueV2Accumulator {
+                        white: accumulate_lanes::<128>(
+                            w,
+                            &active_features_v2(
+                                &pos,
+                                NnuePerspective::White,
+                            ),
+                        ),
+                        black: accumulate_lanes::<128>(
+                            w,
+                            &active_features_v2(
+                                &pos,
+                                NnuePerspective::Black,
+                            ),
+                        ),
+                    },
+                ),
+                WeightsFor::W256(_) => {
+                    unreachable!("synthetic v4 is FT128")
+                }
+            };
+
+            let full = model.full_accumulator(&pos);
+            let hybrid = model.hybrid_accumulator_r12(&pos, &base);
+            assert_eq!(
+                hybrid.white(),
+                full.white(),
+                "hybrid white lanes != full for {fen}"
+            );
+            assert_eq!(
+                hybrid.black(),
+                full.black(),
+                "hybrid black lanes != full for {fen}"
+            );
+
+            let raw_full = model.evaluate_raw(&pos);
+            let raw_hybrid =
+                model.evaluate_raw_hybrid_r12(&pos, &base);
+            assert_eq!(
+                raw_hybrid, raw_full,
+                "hybrid raw != full raw for {fen}"
+            );
+        }
+    }
+
+    /// A v3 (V2) artifact evaluated through the full path must be
+    /// UNCHANGED by the S11-B2 refactor — the synthetic twin of the
+    /// frozen-artifact regression gate.
+    #[test]
+    fn s11b2_v3_eval_values_stable() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let bytes = synthetic_artifact_bytes(fen);
+        let model = NnueV2QuantizedModel::from_bytes(&bytes).unwrap();
+        let pos = parse_fen(fen).unwrap();
+        let raw = model.evaluate_raw(&pos);
+        // Deterministic synthetic weights -> deterministic raw; this
+        // pins the value so any accidental change to the V2 path (e.g.
+        // a feature-set dispatch regression) fails here.
+        // (Value 0: synthetic dense weights saturate QA clipping.)
+        assert_eq!(raw, 0);
     }
 }
