@@ -349,7 +349,7 @@ fn write_uci_handshake_with_profile<W: Write>(
     writeln!(out, "info string profile {}", startup_profile_name(profile))?;
     // Baseline and S6-C1 candidate ship in the SAME binary, so the eval line
     // names the calibration when it is active. Every pre-existing profile keeps
-    // the exact original string.
+    // the exact original string. S11: NNUE profiles name the network family.
     writeln!(
         out,
         "info string eval {}",
@@ -357,11 +357,28 @@ fn write_uci_handshake_with_profile<W: Write>(
             "handcrafted-v1+phase-affine-c1"
         } else if profile.uses_eval2() {
             "handcrafted-v1+integrated-positional"
+        } else if profile.uses_nnue_eval() {
+            "nnue-v2q"
         } else {
             "handcrafted-v1"
         }
     )?;
-    writeln!(out, "info string network none")?;
+    if profile.uses_nnue_eval() {
+        // S11: name the R12 relation-sidecar variant (fresh oracle vs
+        // incremental stack) when an NNUE profile is active.
+        let network = match profile {
+            search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => {
+                "nnue-v2r12-fresh-hybrid"
+            }
+            search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
+                "nnue-v2r12-incremental"
+            }
+            _ => "nnue-v2q",
+        };
+        writeln!(out, "info string network {network}")?;
+    } else {
+        writeln!(out, "info string network none")?;
+    }
     if eval_backend.model.is_some() && !eval_backend.eval_file.is_empty() {
         let path = Path::new(&eval_backend.eval_file);
         let name = path
@@ -830,13 +847,18 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                         required.name()
                     ));
                 }
-                // S11-B2: fail-closed feature-set match (the R12 hybrid
-                // profile requires a v4 V2R12 artifact; other NNUE
-                // profiles require V2 artifacts).
+                // S11-B2/B4-B: fail-closed feature-set match (the R12
+                // profiles — fresh and incremental — require a v4 V2R12
+                // artifact; other NNUE profiles require V2 artifacts).
                 if profile.uses_nnue_eval() {
                     use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
                     let required_fs =
-                        if profile == search::SearchProfile::CurrentFinalNnueV2QMaterialR12 {
+                        if matches!(
+                            profile,
+                            search::SearchProfile::CurrentFinalNnueV2QMaterialR12
+                                | search::SearchProfile::
+                                      CurrentFinalNnueV2QMaterialR12Inc
+                        ) {
                             NnueFeatureSetId::V2R12
                         } else {
                             NnueFeatureSetId::V2
