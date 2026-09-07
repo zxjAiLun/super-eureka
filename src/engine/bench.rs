@@ -225,6 +225,9 @@ fn profile_str(p: SearchProfile) -> &'static str {
             "current-final-nnue-v2q-material-cal-fut"
         }
         SearchProfile::CurrentFinalNnueV2QMaterialR12 => "current-final-nnue-v2q-material-r12",
+        SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
+            "current-final-nnue-v2q-material-r12-inc"
+        }
     }
 }
 
@@ -503,9 +506,12 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-nnue-v2q-material-r12" => {
                         SearchProfile::CurrentFinalNnueV2QMaterialR12
                     }
+                    "current-final-nnue-v2q-material-r12-inc" => {
+                        SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
+                    }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc)",
                             other
                         ));
                     }
@@ -1797,12 +1803,16 @@ fn run_one(
             }
         }
         // S11-B2: fail-closed feature-set match between the artifact and
-        // the requested profile (the R12 hybrid profile requires a v4
-        // V2R12 artifact; a V2 artifact under it — or the reverse — is
+        // the requested profile (the R12 profiles require a v4 V2R12
+        // artifact; a V2 artifact under them — or the reverse — is
         // refused).
         {
             use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-            let required_fs = if cfg.profile == SearchProfile::CurrentFinalNnueV2QMaterialR12 {
+            let required_fs = if matches!(
+                cfg.profile,
+                SearchProfile::CurrentFinalNnueV2QMaterialR12
+                    | SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
+            ) {
                 NnueFeatureSetId::V2R12
             } else {
                 NnueFeatureSetId::V2
@@ -1817,17 +1827,27 @@ fn run_one(
                 ));
             }
         }
-        let state = crate::engine::nnue_search::NnueSearchState::with_options(
-            std::sync::Arc::new(model),
-            if cfg.profile.uses_nnue_incremental_stack() {
-                crate::engine::nnue_search::NnueSearchMode::Incremental
-            } else {
-                crate::engine::nnue_search::NnueSearchMode::FullRefresh
-            },
-            &pos,
-            want_diagnostics,
-            cfg.nnue_audit,
-        );
+        let state = if cfg.profile.uses_nnue_r12_incremental_frames() {
+            crate::engine::nnue_search::NnueSearchState::with_r12_incremental(
+                std::sync::Arc::new(model),
+                crate::engine::nnue_search::NnueSearchMode::Incremental,
+                &pos,
+                want_diagnostics,
+                cfg.nnue_audit,
+            )
+        } else {
+            crate::engine::nnue_search::NnueSearchState::with_options(
+                std::sync::Arc::new(model),
+                if cfg.profile.uses_nnue_incremental_stack() {
+                    crate::engine::nnue_search::NnueSearchMode::Incremental
+                } else {
+                    crate::engine::nnue_search::NnueSearchMode::FullRefresh
+                },
+                &pos,
+                want_diagnostics,
+                cfg.nnue_audit,
+            )
+        };
         // Keep a read handle: the Arc model is shared; diagnostics are
         // read via the state BEFORE it moves into the search — so instead
         // we retain an Arc<NnueDiagnostics> clone when enabled.
@@ -4787,6 +4807,92 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
         }
     }
 
+    // ---- Part 2b (S11-B4-B): the REAL search-stack API ----
+    // Drive NnueSearchState::with_r12_incremental through
+    // push_child / push_null_child / pop with the actual
+    // prepare->make->push order, random null-move insertions, and
+    // random unwinds — then compare the stack top (combined
+    // accumulator, via evaluate + direct top() lanes) against a full
+    // R12 refresh at every depth.
+    let mut inc_transitions: u64 = 0;
+    let mut inc_lane_mismatches: u64 = 0;
+    let mut inc_raw_mismatches: u64 = 0;
+    let mut null_pushes: u64 = 0;
+    {
+        use crate::engine::nnue_search::{NnueSearchMode, NnueSearchState};
+        let mut state = NnueSearchState::with_r12_incremental(
+            std::sync::Arc::new(
+                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(
+                    &std::fs::read(&model_path)
+                        .map_err(|e| format!("nnue-v2q-r12-parity: {e}: {model_path}"))?,
+                )
+                .map_err(|e| format!("nnue-v2q-r12-parity: {e}"))?,
+            ),
+            NnueSearchMode::Incremental,
+            &Position::startpos(),
+            false,
+            false,
+        );
+        let mut pos = Position::startpos();
+        for _ply in 0..plies * 2 {
+            let moves = generate_legal_moves(&mut pos.clone());
+            if moves.is_empty() {
+                break;
+            }
+            // Every 7th ply: a null-move push (board unchanged), then
+            // pop it right back — exercising the null path.
+            if _ply % 7 == 3 {
+                state.push_null_child();
+                null_pushes += 1;
+                // evaluate on the null child must equal full refresh
+                let ev = state.evaluate_cp_i32(&pos);
+                let full_raw = model.evaluate_raw(&pos);
+                let expect = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::cp_i32_from_raw(
+                    full_raw,
+                );
+                if ev != expect {
+                    inc_raw_mismatches += 1;
+                }
+                state.pop();
+            }
+            let m = moves[(next() % moves.len() as u64) as usize];
+            let delta = state.prepare_delta(&pos, &m);
+            pos.make_move(m);
+            state.push_child(&delta, &pos);
+            inc_transitions += 1;
+            // Compare the stack top against a full R12 refresh.
+            let full = model.full_accumulator(&pos);
+            let top = state.top();
+            if top.white() != full.white() || top.black() != full.black() {
+                inc_lane_mismatches += top
+                    .white()
+                    .iter()
+                    .zip(full.white().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+                inc_lane_mismatches += top
+                    .black()
+                    .iter()
+                    .zip(full.black().iter())
+                    .filter(|(a, b)| a != b)
+                    .count() as u64;
+            }
+            let ev = state.evaluate_cp_i32(&pos);
+            let full_raw = model.evaluate_raw(&pos);
+            let expect =
+                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::cp_i32_from_raw(full_raw);
+            if ev != expect {
+                inc_raw_mismatches += 1;
+            }
+            // NOTE: no bare pop here — popping without unmaking the
+            // position would desync the stack top from `pos` and
+            // corrupt subsequent comparisons. Pop correctness in real
+            // search (unmake-then-pop pairing) is covered by the
+            // search-level tree-identity gate (fresh vs inc, 24-FEN
+            // fixed-node).
+        }
+    }
+
     // ---- Part 3: directed fixtures ----
     // (parent FEN, move UCI, description). Each exercises one move
     // class through prepare->make->incremental->hybrid vs full.
@@ -4886,7 +4992,9 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
         && trans_raw_mismatches == 0
         && fixture_failures.is_empty()
         && b4_attack_bit_mismatches == 0
-        && b4_state_row_mismatches == 0;
+        && b4_state_row_mismatches == 0
+        && inc_lane_mismatches == 0
+        && inc_raw_mismatches == 0;
     let flags_json = flag_counts
         .iter()
         .map(|(k, v)| format!("\"{k}\":{v}"))
@@ -4907,6 +5015,10 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
           \"b4_attack_bits_checked\":{b4_attack_bits_checked},\
           \"b4_attack_bit_mismatches\":{b4_attack_bit_mismatches},\
           \"b4_state_row_mismatches\":{b4_state_row_mismatches},\
+          \"b4b_inc_transitions\":{inc_transitions},\
+          \"b4b_inc_null_pushes\":{null_pushes},\
+          \"b4b_inc_lane_mismatches\":{inc_lane_mismatches},\
+          \"b4b_inc_raw_mismatches\":{inc_raw_mismatches},\
           \"passed\":{passed}}}",
         fixtures.len(),
         fixture_failures
@@ -5167,11 +5279,11 @@ fn run_nnue_v2q_r12_delta_cost(args: &[String]) -> Result<(), String> {
                 } else {
                     crate::engine::nnue::NnuePerspective::Black
                 };
-                model.r12_rebuild_perspective(&pos, perspective, &mut combined);
+                model.r12_rebuild_perspective(&pos, &new_state, perspective, &mut combined);
                 // diff the other perspective into a scratch, then copy
                 // that perspective's lanes back
                 let mut scratch = combined;
-                model.r12_apply_relation_delta(&state, &pos, &mut scratch);
+                model.r12_apply_relation_state_diff(&state, &new_state, &pos, &mut scratch);
                 let other = if kc == crate::chess::types::Color::White {
                     crate::engine::nnue::NnuePerspective::Black
                 } else {
@@ -5191,7 +5303,7 @@ fn run_nnue_v2q_r12_delta_cost(args: &[String]) -> Result<(), String> {
                     _ => unreachable!(),
                 }
             } else {
-                model.r12_apply_relation_delta(&state, &pos, &mut combined);
+                model.r12_apply_relation_state_diff(&state, &new_state, &pos, &mut combined);
             }
             state = new_state;
             let full = model.full_accumulator(&pos);

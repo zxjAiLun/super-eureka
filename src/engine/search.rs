@@ -281,6 +281,15 @@ pub(crate) enum SearchProfile {
     /// protocol). The loader fail-closes unless the artifact is v4
     /// feature_set=V2R12, FT128, material-residual.
     CurrentFinalNnueV2QMaterialR12,
+    /// S11-B4-B: EXACTLY CurrentFinalNnueV2QMaterialR12's search policy,
+    /// but the NNUE stack maintains the COMBINED (base + relation)
+    /// accumulator incrementally: push_child applies the existing V2
+    /// piece delta plus the relation-state diff (child state recomputed
+    /// once per edge; king moves rebuild the mover's perspective and
+    /// diff the other); null moves copy both stacks; eval is a plain
+    /// dense-from-accumulator (zero relation work at eval time). The
+    /// B2 fresh profile remains as the correctness oracle.
+    CurrentFinalNnueV2QMaterialR12Inc,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -340,6 +349,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -376,6 +386,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -408,6 +419,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -442,6 +454,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -488,6 +501,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -521,6 +535,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -565,6 +580,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -644,6 +660,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -681,6 +698,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -718,6 +736,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -789,6 +808,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -800,6 +820,7 @@ impl SearchProfile {
             Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -811,8 +832,17 @@ impl SearchProfile {
     pub(crate) const fn uses_nnue_incremental_stack(self) -> bool {
         matches!(
             self,
-            Self::CurrentFinalNnueV2QIncremental | Self::CurrentFinalNnueV2QMaterialR12
+            Self::CurrentFinalNnueV2QIncremental
+                | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
+    }
+
+    /// S11-B4-B: true when the NNUE stack should be constructed with the
+    /// INCREMENTAL R12 relation frames (combined accumulator + [u8; 64]
+    /// relation state per frame).
+    pub(crate) const fn uses_nnue_r12_incremental_frames(self) -> bool {
+        matches!(self, Self::CurrentFinalNnueV2QMaterialR12Inc)
     }
 
     #[inline]
@@ -852,6 +882,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
                 | Self::CurrentFinalNnueV2QMaterialR12
+                | Self::CurrentFinalNnueV2QMaterialR12Inc
         )
     }
 
@@ -10525,13 +10556,14 @@ mod tests {
         use SearchProfile::{
             CurrentFinal, CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental,
             CurrentFinalNnueV2QMaterial, CurrentFinalNnueV2QMaterialCalFut,
-            CurrentFinalNnueV2QMaterialR12,
+            CurrentFinalNnueV2QMaterialR12, CurrentFinalNnueV2QMaterialR12Inc,
         };
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QFull);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QIncremental);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterial);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialCalFut);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialR12);
+        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialR12Inc);
         for cand in [CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental] {
             assert!(cand.uses_nnue_eval(), "{cand:?} must use NNUE eval");
             assert!(!cand.uses_eval2(), "{cand:?} must NOT use Eval2");
@@ -10618,9 +10650,10 @@ mod tests {
                 SearchProfile::CurrentFinalNnueV2QMaterial => (),
                 SearchProfile::CurrentFinalNnueV2QMaterialCalFut => (),
                 SearchProfile::CurrentFinalNnueV2QMaterialR12 => (),
+                SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => (),
             }
         }
-        let all: [SearchProfile; 47] = [
+        let all: [SearchProfile; 48] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -10668,6 +10701,7 @@ mod tests {
             SearchProfile::CurrentFinalNnueV2QMaterial,
             SearchProfile::CurrentFinalNnueV2QMaterialCalFut,
             SearchProfile::CurrentFinalNnueV2QMaterialR12,
+            SearchProfile::CurrentFinalNnueV2QMaterialR12Inc,
         ];
         for profile in all {
             assert_exhaustive(profile);

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "stage": "s11_b4b_closeout",
+  "date": "2026-09-07",
+  "model": {
+    "path": "data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin",
+    "sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619"
+  },
+  "implementation": {
+    "profile": "current-final-nnue-v2q-material-r12-inc",
+    "stack": "frames: Vec<AccumulatorFor> UNCHANGED (E3/baseline hot-path shape preserved) + Option<Vec<R12RelationState>> parallel [u8;64] stack (None unless inc)",
+    "root": "full R12 combined accumulator + recompute(root) state",
+    "normal_move": "V2 piece delta + relation state diff (child state recomputed ONCE per edge — r12_apply_relation_state_diff)",
+    "king_move": "mover perspective rebuild (base + all child rows) + other-perspective diff",
+    "null_move": "copy accumulator + copy relation state",
+    "eval": "plain dense-from-accumulator (zero relation work at eval time)",
+    "oracle": "current-final-nnue-v2q-material-r12 (B2 fresh) preserved as-is",
+    "api_refactor": "state generation and FT diff split into separate primitives (R12RelationState::recompute + r12_apply_relation_state_diff) so no edge ever recomputes twice"
+  },
+  "parity": {
+    "static_and_transitions": "results/s10/s11-b4b-parity.json: 10k corpus lanes+raw exact; 19,692 fresh-path transitions exact; 10/10 directed fixtures; 1,280,000 attack bits exact; B4-B inc-stack: 200 transitions + 29 null pushes, stack-top == full refresh, 0 mismatch",
+    "search_tree_identity": {
+      "source": "results/s10/s11-b4b-tree-identity.json",
+      "protocol": "fresh vs inc, same binary, 24-FEN frozen C3-C corpus, 50k nodes, cold 64MiB TT",
+      "fields_compared": ["score", "bestmove", "completed_depth", "nodes", "pv", "qsearch_nodes", "eval_calls", "legal_move_generations", "make_moves", "tt_probes", "tt_stores", "beta_cutoffs", "check_extensions", "null_move_attempts", "lmr_reductions", "futility_pruned", "aspiration_retries"],
+      "mismatches": 0,
+      "passed": true
+    }
+  },
+  "paired_nps": {
+    "source": "results/s10/s11-b4b-nps.json",
+    "protocol": "frozen B2/B3 protocol unchanged: 24-FEN corpus, 200k nodes, cold 64MiB TT, 8 rounds AB/BA alternating, same binary; A = r12-inc, B = E3 v2 material",
+    "ratio_median": 0.9488,
+    "ratio_mean": 0.9416,
+    "ratio_min": 0.7995,
+    "ratio_max": 1.049,
+    "per_class_vs_b2_fresh": {
+      "opening": "0.56 -> 1.00-1.05",
+      "middlegame": "0.56-0.60 -> 0.94-1.00",
+      "tactical": "0.64-0.70 -> 0.90-0.91",
+      "endgame_king_heavy": "0.75-0.94 -> 0.80-0.91"
+    },
+    "residual_gap_note": "endgame/king-heavy: E3's sparse-position eval is extremely cheap, so the fixed ~450ns/edge relation cost is proportionally larger; openings/middlegames are at parity or faster"
+  },
+  "gate": {
+    "bar": "median >= 0.90 -> B5 unlocked; 0.80-0.90 -> one performance-only repair; < 0.80 -> STOP",
+    "result": "PASS (0.9488 >= 0.90)",
+    "decision": "B5 (256 roots x 100k fixed-node search validation) UNLOCKED"
+  },
+  "audit_semantics": "deep-audit paths now compare the incremental combined stack directly against full refresh (fresh-hybrid states keep the B2 semantics); audit still returns the fresh score"
+}

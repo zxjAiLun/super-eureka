@@ -758,25 +758,27 @@ impl NnueV2QuantizedModel {
         }
     }
 
-    /// S11-B4: one incremental relation edge — recompute the child's
-    /// relation state (attack maps + 64 squares), diff against
-    /// `before`, and apply the CHANGED rows to `acc` (both
-    /// perspectives; `pos` is the CHILD position). Returns the number
-    /// of FT row applications. V2R12-only (fail-closed).
-    pub fn r12_apply_relation_delta(
+    /// S11-B4: apply a relation-state diff to a combined accumulator.
+    /// `child_state` MUST have been produced by
+    /// `R12RelationState::recompute(child)` — the caller owns state
+    /// generation so the search stack never recomputes an edge twice.
+    /// Applies the CHANGED rows to both perspectives (`pos` is the
+    /// CHILD position, for the king context). Returns the number of FT
+    /// row applications. V2R12-only (fail-closed).
+    pub fn r12_apply_relation_state_diff(
         &self,
         before: &R12RelationState,
+        child_state: &R12RelationState,
         pos: &Position,
         acc: &mut AccumulatorFor,
     ) -> usize {
         if self.feature_set != NnueFeatureSetId::V2R12 {
             panic!(
-                "r12_apply_relation_delta: artifact feature_set is {:?}, \
-                 not V2R12",
+                "r12_apply_relation_state_diff: artifact feature_set is \
+                 {:?}, not V2R12",
                 self.feature_set
             );
         }
-        let child_state = R12RelationState::recompute(pos);
         match (&self.weights, acc) {
             (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
                 child_state.apply_diff(before, w, pos, a)
@@ -788,12 +790,33 @@ impl NnueV2QuantizedModel {
         }
     }
 
+    /// S11-B4: one incremental relation edge — recompute the child's
+    /// relation state (attack maps + 64 squares), diff against
+    /// `before`, and apply the CHANGED rows to `acc` (both
+    /// perspectives; `pos` is the CHILD position). Returns the number
+    /// of FT row applications. V2R12-only (fail-closed).
+    ///
+    /// Convenience wrapper for BENCH/parity harnesses: the search stack
+    /// uses `r12_apply_relation_state_diff` directly with its own
+    /// state generation (single recompute per edge).
+    pub fn r12_apply_relation_delta(
+        &self,
+        before: &R12RelationState,
+        pos: &Position,
+        acc: &mut AccumulatorFor,
+    ) -> usize {
+        let child_state = R12RelationState::recompute(pos);
+        self.r12_apply_relation_state_diff(before, &child_state, pos, acc)
+    }
+
     /// S11-B4: rebuild one perspective of a combined accumulator from
     /// the child's base + ALL child relation rows (the king-move rare
-    /// path). V2R12-only (fail-closed).
+    /// path). `child_state` is the caller's recompute of the child
+    /// (single recompute per edge). V2R12-only (fail-closed).
     pub fn r12_rebuild_perspective(
         &self,
         pos: &Position,
+        child_state: &R12RelationState,
         perspective: NnuePerspective,
         acc: &mut AccumulatorFor,
     ) {
@@ -804,7 +827,6 @@ impl NnueV2QuantizedModel {
                 self.feature_set
             );
         }
-        let state = R12RelationState::recompute(pos);
         let (_, mirror_file) = crate::engine::nnue::v2_king_context(pos, perspective);
         match (&self.weights, acc) {
             (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
@@ -816,7 +838,7 @@ impl NnueV2QuantizedModel {
                 lanes.copy_from_slice(&fresh);
                 for sq in 0..64usize {
                     if let Some(f) = R12RelationState::row_for_square(
-                        state.squares[sq],
+                        child_state.square_state(sq),
                         sq,
                         perspective,
                         mirror_file,
@@ -834,7 +856,7 @@ impl NnueV2QuantizedModel {
                 lanes.copy_from_slice(&fresh);
                 for sq in 0..64usize {
                     if let Some(f) = R12RelationState::row_for_square(
-                        state.squares[sq],
+                        child_state.square_state(sq),
                         sq,
                         perspective,
                         mirror_file,

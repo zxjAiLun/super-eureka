@@ -16,7 +16,10 @@ use std::sync::Arc;
 use crate::chess::position::Position;
 use crate::chess::types::Move;
 
-use crate::engine::nnue_v2q_runtime::{AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel};
+use crate::engine::nnue::NnuePerspective;
+use crate::engine::nnue_v2q_runtime::{
+    AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel, R12RelationState,
+};
 
 /// Which accumulator delivery mechanism a search uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,6 +74,19 @@ pub struct NnueSearchState {
     pub model: Arc<NnueV2QuantizedModel>,
     pub mode: NnueSearchMode,
     frames: Vec<AccumulatorFor>,
+    /// S11-B4-B: parallel relation-state stack for the INCREMENTAL R12
+    /// profile only (`Some` iff this state runs the B4 incremental
+    /// relation deltas — see `r12_incremental`). One [u8; 64] state per
+    /// accumulator frame; `None` keeps the V2/E3 and B2-fresh paths on
+    /// their exact original hot-path shape (no extra frame copies).
+    r12_relation_frames: Option<Vec<R12RelationState>>,
+    /// S11-B4-B: true iff frames hold COMBINED (base + relation)
+    /// accumulators maintained incrementally (the new
+    /// current-final-nnue-v2q-material-r12-inc profile on a V2R12
+    /// artifact). False for everything else — including the B2 fresh
+    /// oracle profile, whose frames stay V2-base-only with relation
+    /// rows added at eval time.
+    r12_incremental: bool,
     /// S10-C3-0: `None` on normal performance runs (zero atomic ops on the
     /// hot paths). `Some` only when explicitly requested.
     pub diagnostics: Option<Arc<NnueDiagnostics>>,
@@ -86,13 +102,59 @@ impl NnueSearchState {
         Self::with_options(model, mode, root, false, false)
     }
 
+    /// S11-B4-B: like [`with_options`], but the state runs the
+    /// INCREMENTAL R12 relation stack: frame 0 is the FULL combined
+    /// (base + relation) accumulator plus its [u8; 64] relation state,
+    /// every push_child maintains both incrementally, and eval is a
+    /// plain dense-from-accumulator (zero relation work at eval time).
+    /// Requires a V2R12 artifact + Incremental mode (fail-closed).
+    pub fn with_r12_incremental(
+        model: Arc<NnueV2QuantizedModel>,
+        mode: NnueSearchMode,
+        root: &Position,
+        telemetry: bool,
+        audit: bool,
+    ) -> Self {
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        assert!(
+            mode == NnueSearchMode::Incremental,
+            "r12 incremental requires the incremental mode"
+        );
+        assert!(
+            model.feature_set() == NnueFeatureSetId::V2R12,
+            "r12 incremental requires a V2R12 (v4) artifact"
+        );
+        let mut state = Self::with_options(
+            Arc::clone(&model),
+            NnueSearchMode::FullRefresh,
+            root,
+            telemetry,
+            audit,
+        );
+        // with_options(FullRefresh, V2R12) built the FULL combined
+        // accumulator — exactly the B4-B root. Attach the relation
+        // stack and the incremental flags.
+        state.mode = mode;
+        state.r12_relation_frames = Some(vec![R12RelationState::recompute(root)]);
+        state.r12_incremental = true;
+        state
+    }
+
+    /// True iff this state runs the B4 incremental R12 relation stack.
+    #[inline]
+    pub fn is_r12_incremental(&self) -> bool {
+        self.r12_incremental
+    }
+
     /// Full constructor. `telemetry` enables stack counters;
     /// `audit` enables the per-eval deep comparison (implies telemetry
     /// being meaningful; both freeze at construction — C3-0 hygiene).
     /// S11-B2: for a V2R12 artifact in Incremental mode, frame 0 (and
     /// every stacked frame) is the V2-BASE accumulator — relation rows
     /// are NEVER part of the stack; they are recomputed fresh at eval
-    /// time and added on top (evaluate_raw_hybrid_r12).
+    /// time and added on top (evaluate_raw_hybrid_r12). (The B4-B
+    /// incremental profile constructs via `with_r12_incremental`
+    /// instead.)
     pub fn with_options(
         model: Arc<NnueV2QuantizedModel>,
         mode: NnueSearchMode,
@@ -115,6 +177,8 @@ impl NnueSearchState {
             model,
             mode,
             frames: vec![root_acc],
+            r12_relation_frames: None,
+            r12_incremental: false,
             diagnostics: if telemetry || audit {
                 Some(Arc::new(NnueDiagnostics::default()))
             } else {
@@ -160,10 +224,12 @@ impl NnueSearchState {
     /// stack top against a fresh full refresh (256 lanes + raw) and count
     /// mismatches, then return the FRESH score (a detected corruption must
     /// not change the search tree — the mismatch counters fail the gate).
-    /// S11-B2: for a V2R12 hybrid artifact the stack top holds the V2-BASE
-    /// accumulator, so the audit compares the HYBRID accumulator
-    /// (base + fresh relation rows) against the full R12 refresh — never
-    /// the bare base (which would false-mismatch on every eval).
+    /// S11-B2: for a V2R12 fresh-hybrid state the stack top holds the
+    /// V2-BASE accumulator, so the audit compares the HYBRID accumulator
+    /// (base + fresh relation rows) against the full R12 refresh.
+    /// S11-B4-B: for the incremental-R12 state the stack top IS the
+    /// combined accumulator — compared directly (the audit semantics
+    /// switch with the stack semantics; still returns the fresh score).
     pub fn evaluate_cp_i32_audited(&self, pos: &Position) -> i32 {
         if !self.audit_enabled {
             return self.evaluate_cp_i32(pos);
@@ -175,9 +241,10 @@ impl NnueSearchState {
         diag.audit_eval_calls.fetch_add(1, Ordering::Relaxed);
         let fresh = self.model.full_accumulator(pos);
         use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-        let r12_hybrid = self.mode == NnueSearchMode::Incremental
+        let r12_fresh_hybrid = self.mode == NnueSearchMode::Incremental
+            && !self.r12_incremental
             && self.model.feature_set() == NnueFeatureSetId::V2R12;
-        let effective: AccumulatorFor = if r12_hybrid {
+        let effective: AccumulatorFor = if r12_fresh_hybrid {
             self.model.hybrid_accumulator_r12(pos, self.top())
         } else {
             *self.top()
@@ -234,9 +301,87 @@ impl NnueSearchState {
     /// `delta` MUST have been prepared against the PARENT position
     /// (BEFORE the move); `child` is the position AFTER `make_move`.
     /// Order contract: prepare delta BEFORE make; push AFTER make.
+    ///
+    /// S11-B4-B incremental-R12 path: frames hold COMBINED (base +
+    /// relation) accumulators. Order: (1) apply the existing V2 piece
+    /// delta (king-perspective base refresh handled inside); (2)
+    /// recompute the child relation state ONCE; (3) king move: rebuild
+    /// the mover's perspective from base + all child relation rows and
+    /// diff the OTHER perspective (a king move changes attack maps for
+    /// both colors — the B4-A lesson); normal move: apply the relation
+    /// state diff to both perspectives; (4) push accumulator + state.
     pub fn push_child(&mut self, delta: &NnueMoveDelta, child: &Position) {
         if !self.is_incremental() {
             return; // FullRefresh: no stack maintenance.
+        }
+        if self.r12_incremental {
+            let parent_state = match self.r12_relation_frames.as_ref() {
+                Some(rel_frames) => *rel_frames.last().expect("relation stack never empty"),
+                None => unreachable!("r12_incremental implies relation frames"),
+            };
+            let mut child_acc = *self.top();
+            let stats = self
+                .model
+                .update_accumulator_for_move(&mut child_acc, delta, child);
+            let child_state = R12RelationState::recompute(child);
+            if let Some(kc) = delta.moved_king_color() {
+                let perspective = if kc == crate::chess::types::Color::White {
+                    NnuePerspective::White
+                } else {
+                    NnuePerspective::Black
+                };
+                self.model.r12_rebuild_perspective(
+                    child,
+                    &child_state,
+                    perspective,
+                    &mut child_acc,
+                );
+                // Diff the OTHER perspective into a scratch, then copy
+                // that perspective's lanes back (rare path: a scratch
+                // copy is acceptable for king moves by the frozen
+                // B4-B contract).
+                let mut scratch = child_acc;
+                self.model.r12_apply_relation_state_diff(
+                    &parent_state,
+                    &child_state,
+                    child,
+                    &mut scratch,
+                );
+                match (&mut child_acc, &scratch, perspective) {
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(s),
+                        NnuePerspective::White,
+                    ) => c.black = s.black,
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(s),
+                        NnuePerspective::Black,
+                    ) => c.white = s.white,
+                    _ => unreachable!(),
+                }
+            } else {
+                self.model.r12_apply_relation_state_diff(
+                    &parent_state,
+                    &child_state,
+                    child,
+                    &mut child_acc,
+                );
+            }
+            self.frames.push(child_acc);
+            if let Some(rel_frames) = self.r12_relation_frames.as_mut() {
+                rel_frames.push(child_state);
+            }
+            if let Some(diag) = self.diagnostics.as_ref() {
+                diag.delta_updates
+                    .fetch_add(stats.delta_updates as u64, Ordering::Relaxed);
+                diag.full_refreshes
+                    .fetch_add(stats.full_refreshes as u64, Ordering::Relaxed);
+                diag.pushes.fetch_add(1, Ordering::Relaxed);
+                diag.max_depth
+                    .fetch_max(self.frames.len() as u64, Ordering::Relaxed);
+            }
+            return;
         }
         let mut child_acc = *self.top();
         let stats = self
@@ -256,14 +401,20 @@ impl NnueSearchState {
 
     /// Push the null-move child: the board, pieces, and kings are
     /// unchanged, so the child accumulator is bit-identical to the
-    /// parent's — push a plain copy. The dense forward swaps STM/NSTM
-    /// via the flipped side-to-move at eval time.
+    /// parent's — push a plain copy (accumulator AND relation state;
+    /// the relation state is a board fact and the board is unchanged).
+    /// The dense forward swaps STM/NSTM via the flipped side-to-move at
+    /// eval time.
     pub fn push_null_child(&mut self) {
         if !self.is_incremental() {
             return; // FullRefresh: no stack maintenance.
         }
         let child_acc = *self.top();
         self.frames.push(child_acc);
+        if let Some(rel_frames) = self.r12_relation_frames.as_mut() {
+            let parent_state = *rel_frames.last().expect("relation stack never empty");
+            rel_frames.push(parent_state);
+        }
         if let Some(diag) = self.diagnostics.as_ref() {
             diag.null_pushes.fetch_add(1, Ordering::Relaxed);
             diag.pushes.fetch_add(1, Ordering::Relaxed);
@@ -280,6 +431,9 @@ impl NnueSearchState {
         debug_assert!(self.frames.len() > 1, "nnue stack pop below root frame");
         if self.frames.len() > 1 {
             self.frames.pop();
+            if let Some(rel_frames) = self.r12_relation_frames.as_mut() {
+                rel_frames.pop();
+            }
         }
         if let Some(diag) = self.diagnostics.as_ref() {
             diag.pops.fetch_add(1, Ordering::Relaxed);
@@ -291,6 +445,9 @@ impl NnueSearchState {
     /// `SearchPath::restore_root`.
     pub fn restore_root(&mut self) {
         self.frames.truncate(1);
+        if let Some(rel_frames) = self.r12_relation_frames.as_mut() {
+            rel_frames.truncate(1);
+        }
     }
 
     /// Test-only mutable access to the frames (audit tamper tests).
@@ -311,13 +468,20 @@ impl NnueSearchState {
         match self.mode {
             NnueSearchMode::FullRefresh => self.model.evaluate_cp_i32(pos),
             NnueSearchMode::Incremental => {
-                use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-                if self.model.feature_set() == NnueFeatureSetId::V2R12 {
-                    NnueV2QuantizedModel::cp_i32_from_raw(
-                        self.model.evaluate_raw_hybrid_r12(pos, self.top()),
-                    )
-                } else {
+                if self.r12_incremental {
+                    // S11-B4-B: the stack top IS the combined (base +
+                    // relation) accumulator — plain dense forward,
+                    // zero relation work at eval time.
                     self.model.evaluate_cp_i32_from_accumulator(pos, self.top())
+                } else {
+                    use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+                    if self.model.feature_set() == NnueFeatureSetId::V2R12 {
+                        NnueV2QuantizedModel::cp_i32_from_raw(
+                            self.model.evaluate_raw_hybrid_r12(pos, self.top()),
+                        )
+                    } else {
+                        self.model.evaluate_cp_i32_from_accumulator(pos, self.top())
+                    }
                 }
             }
         }
@@ -350,8 +514,10 @@ impl NnueAuditCounters {
 /// Returns the audit-updated evaluation (always computed from the FRESH
 /// path so audit mode cannot mask an integration bug in the returned
 /// score — the mismatch counters expose the stack).
-/// S11-B2: for a V2R12 hybrid state, compares the HYBRID accumulator
-/// (base + fresh relation rows) — not the bare base stack top.
+/// S11-B2: for a V2R12 fresh-hybrid state, compares the HYBRID
+/// accumulator (base + fresh relation rows).
+/// S11-B4-B: for the incremental-R12 state, the stack top IS the
+/// combined accumulator — compared directly.
 pub fn audit_incremental_eval(
     state: &NnueSearchState,
     pos: &Position,
@@ -361,6 +527,7 @@ pub fn audit_incremental_eval(
     counters.eval_calls += 1;
     let fresh = state.model.full_accumulator(pos);
     let effective: AccumulatorFor = if state.mode == NnueSearchMode::Incremental
+        && !state.is_r12_incremental()
         && state.model.feature_set() == NnueFeatureSetId::V2R12
     {
         state.model.hybrid_accumulator_r12(pos, state.top())

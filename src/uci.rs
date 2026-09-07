@@ -114,6 +114,9 @@ fn resolve_default_eval_file() -> Option<PathBuf> {
 struct SearchNnueBackend {
     model: Arc<NnueModel>,
     mode: crate::engine::nnue_search::NnueSearchMode,
+    /// S11-B4-B: construct the state with the incremental R12 relation
+    /// frames (combined accumulator + [u8; 64] relation state).
+    r12_incremental: bool,
 }
 
 /// Parse a UCI time token (milliseconds) into a `Duration`, clamping to
@@ -189,7 +192,17 @@ fn spawn_search(
         // Its presence controls evaluator dispatch; `profile` still controls
         // every search-policy branch.
         let nnue_state = nnue_backend.map(|backend| {
-            crate::engine::nnue_search::NnueSearchState::new(backend.model, backend.mode, &pos)
+            if backend.r12_incremental {
+                crate::engine::nnue_search::NnueSearchState::with_r12_incremental(
+                    backend.model,
+                    backend.mode,
+                    &pos,
+                    false,
+                    false,
+                )
+            } else {
+                crate::engine::nnue_search::NnueSearchState::new(backend.model, backend.mode, &pos)
+            }
         });
         match search::search_best_move_with_history_tt_and_profile(
             &mut pos,
@@ -274,6 +287,9 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         }
         search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => {
             "current-final-nnue-v2q-material-r12"
+        }
+        search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
+            "current-final-nnue-v2q-material-r12-inc"
         }
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
@@ -759,6 +775,9 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-nnue-v2q-material-r12" => {
                         search::SearchProfile::CurrentFinalNnueV2QMaterialR12
                     }
+                    "current-final-nnue-v2q-material-r12-inc" => {
+                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
+                    }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
@@ -909,7 +928,11 @@ fn select_search_nnue_backend(
         } else {
             crate::engine::nnue_search::NnueSearchMode::FullRefresh
         };
-        return Ok(Some(SearchNnueBackend { model, mode }));
+        return Ok(Some(SearchNnueBackend {
+            model,
+            mode,
+            r12_incremental: profile.uses_nnue_r12_incremental_frames(),
+        }));
     }
 
     let Some(mode) = eval_backend.mode.search_mode() else {
@@ -919,7 +942,11 @@ fn select_search_nnue_backend(
         .model
         .clone()
         .ok_or("NnueMode requires a loadable EvalFile; refusing to search")?;
-    Ok(Some(SearchNnueBackend { model, mode }))
+    Ok(Some(SearchNnueBackend {
+        model,
+        mode,
+        r12_incremental: false,
+    }))
 }
 
 fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<Arc<NnueModel>>) {

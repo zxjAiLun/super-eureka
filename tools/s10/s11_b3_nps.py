@@ -29,7 +29,7 @@ MODEL_B = Path(
 MODEL_A = Path(
     "data/s10/s11/r2/seed-20260819/nnue-v2-q01-material-r12-v4.bin")
 PROFILE_B = "current-final-nnue-v2q-material"
-PROFILE_A = "current-final-nnue-v2q-material-r12"
+PROFILE_A = "current-final-nnue-v2q-material-r12-inc"
 
 NODES = 200_000
 ROUNDS = 8
@@ -129,7 +129,7 @@ def main() -> int:
     overall_median = statistics.median(ratios)
     report = {
         "schema_version": 1,
-        "stage": "s11_b3_paired_nps",
+        "stage": "s11_b4b_paired_nps",
         "nodes": NODES,
         "rounds": ROUNDS,
         "hash_mb": HASH_MB,
@@ -152,7 +152,7 @@ def main() -> int:
             "nps_ge_080": overall_median >= 0.80,
         },
     }
-    out = Path("results/s10/s11-b2b3-nps.json")
+    out = Path("results/s10/s11-b4b-nps.json")
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: report[k] for k in
                       ("ratio_median", "ratio_min", "ratio_max",
