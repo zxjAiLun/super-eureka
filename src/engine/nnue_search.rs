@@ -16,9 +16,7 @@ use std::sync::Arc;
 use crate::chess::position::Position;
 use crate::chess::types::Move;
 
-use crate::engine::nnue_v2q_runtime::{
-    AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel,
-};
+use crate::engine::nnue_v2q_runtime::{AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel};
 
 /// Which accumulator delivery mechanism a search uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,17 +82,17 @@ pub struct NnueSearchState {
 impl NnueSearchState {
     /// Initialize at the root: load-free (model provided), full-refresh
     /// the root accumulator as frame 0. No diagnostics (performance shape).
-    pub fn new(
-        model: Arc<NnueV2QuantizedModel>,
-        mode: NnueSearchMode,
-        root: &Position,
-    ) -> Self {
+    pub fn new(model: Arc<NnueV2QuantizedModel>, mode: NnueSearchMode, root: &Position) -> Self {
         Self::with_options(model, mode, root, false, false)
     }
 
     /// Full constructor. `telemetry` enables stack counters;
     /// `audit` enables the per-eval deep comparison (implies telemetry
     /// being meaningful; both freeze at construction — C3-0 hygiene).
+    /// S11-B2: for a V2R12 artifact in Incremental mode, frame 0 (and
+    /// every stacked frame) is the V2-BASE accumulator — relation rows
+    /// are NEVER part of the stack; they are recomputed fresh at eval
+    /// time and added on top (evaluate_raw_hybrid_r12).
     pub fn with_options(
         model: Arc<NnueV2QuantizedModel>,
         mode: NnueSearchMode,
@@ -106,7 +104,13 @@ impl NnueSearchState {
             !audit || matches!(mode, NnueSearchMode::Incremental),
             "deep audit requires the incremental profile"
         );
-        let root_acc = model.full_accumulator(root);
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        let root_acc = match (mode, model.feature_set()) {
+            (NnueSearchMode::Incremental, NnueFeatureSetId::V2R12) => {
+                model.base_accumulator_v2(root)
+            }
+            _ => model.full_accumulator(root),
+        };
         NnueSearchState {
             model,
             mode,
@@ -156,6 +160,10 @@ impl NnueSearchState {
     /// stack top against a fresh full refresh (256 lanes + raw) and count
     /// mismatches, then return the FRESH score (a detected corruption must
     /// not change the search tree — the mismatch counters fail the gate).
+    /// S11-B2: for a V2R12 hybrid artifact the stack top holds the V2-BASE
+    /// accumulator, so the audit compares the HYBRID accumulator
+    /// (base + fresh relation rows) against the full R12 refresh — never
+    /// the bare base (which would false-mismatch on every eval).
     pub fn evaluate_cp_i32_audited(&self, pos: &Position) -> i32 {
         if !self.audit_enabled {
             return self.evaluate_cp_i32(pos);
@@ -166,9 +174,16 @@ impl NnueSearchState {
             .expect("audit implies diagnostics");
         diag.audit_eval_calls.fetch_add(1, Ordering::Relaxed);
         let fresh = self.model.full_accumulator(pos);
-        let top = self.top();
-        if top.white() != fresh.white() {
-            let n = top
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        let r12_hybrid = self.mode == NnueSearchMode::Incremental
+            && self.model.feature_set() == NnueFeatureSetId::V2R12;
+        let effective: AccumulatorFor = if r12_hybrid {
+            self.model.hybrid_accumulator_r12(pos, self.top())
+        } else {
+            *self.top()
+        };
+        if effective.white() != fresh.white() {
+            let n = effective
                 .white()
                 .iter()
                 .zip(fresh.white().iter())
@@ -176,8 +191,8 @@ impl NnueSearchState {
                 .count() as u64;
             diag.audit_lane_mismatches.fetch_add(n, Ordering::Relaxed);
         }
-        if top.black() != fresh.black() {
-            let n = top
+        if effective.black() != fresh.black() {
+            let n = effective
                 .black()
                 .iter()
                 .zip(fresh.black().iter())
@@ -185,7 +200,7 @@ impl NnueSearchState {
                 .count() as u64;
             diag.audit_lane_mismatches.fetch_add(n, Ordering::Relaxed);
         }
-        let inc_raw = self.model.evaluate_raw_from_accumulator(pos, top);
+        let inc_raw = self.model.evaluate_raw_from_accumulator(pos, &effective);
         let fresh_raw = self.model.evaluate_raw(pos);
         if inc_raw != fresh_raw {
             diag.audit_raw_mismatches.fetch_add(1, Ordering::Relaxed);
@@ -219,17 +234,14 @@ impl NnueSearchState {
     /// `delta` MUST have been prepared against the PARENT position
     /// (BEFORE the move); `child` is the position AFTER `make_move`.
     /// Order contract: prepare delta BEFORE make; push AFTER make.
-    pub fn push_child(
-        &mut self,
-        delta: &NnueMoveDelta,
-        child: &Position,
-    ) {
+    pub fn push_child(&mut self, delta: &NnueMoveDelta, child: &Position) {
         if !self.is_incremental() {
             return; // FullRefresh: no stack maintenance.
         }
         let mut child_acc = *self.top();
-        let stats =
-            self.model.update_accumulator_for_move(&mut child_acc, delta, child);
+        let stats = self
+            .model
+            .update_accumulator_for_move(&mut child_acc, delta, child);
         self.frames.push(child_acc);
         if let Some(diag) = self.diagnostics.as_ref() {
             diag.delta_updates
@@ -265,10 +277,7 @@ impl NnueSearchState {
         if !self.is_incremental() {
             return; // FullRefresh: no stack maintenance.
         }
-        debug_assert!(
-            self.frames.len() > 1,
-            "nnue stack pop below root frame"
-        );
+        debug_assert!(self.frames.len() > 1, "nnue stack pop below root frame");
         if self.frames.len() > 1 {
             self.frames.pop();
         }
@@ -294,12 +303,23 @@ impl NnueSearchState {
     /// - FullRefresh: full accumulator + dense (reference path).
     /// - Incremental: dense from the current top frame (the position at
     ///   the current stack top MUST be `pos`).
+    /// - Incremental + V2R12 artifact (S11-B2 hybrid): the stack top is
+    ///   the V2-BASE accumulator; fresh relation rows are recomputed
+    ///   and added on top before the dense forward (no relation
+    ///   caching/deltas — frozen reference protocol).
     pub fn evaluate_cp_i32(&self, pos: &Position) -> i32 {
         match self.mode {
             NnueSearchMode::FullRefresh => self.model.evaluate_cp_i32(pos),
-            NnueSearchMode::Incremental => self
-                .model
-                .evaluate_cp_i32_from_accumulator(pos, self.top()),
+            NnueSearchMode::Incremental => {
+                use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+                if self.model.feature_set() == NnueFeatureSetId::V2R12 {
+                    NnueV2QuantizedModel::cp_i32_from_raw(
+                        self.model.evaluate_raw_hybrid_r12(pos, self.top()),
+                    )
+                } else {
+                    self.model.evaluate_cp_i32_from_accumulator(pos, self.top())
+                }
+            }
         }
     }
 
@@ -330,33 +350,40 @@ impl NnueAuditCounters {
 /// Returns the audit-updated evaluation (always computed from the FRESH
 /// path so audit mode cannot mask an integration bug in the returned
 /// score — the mismatch counters expose the stack).
+/// S11-B2: for a V2R12 hybrid state, compares the HYBRID accumulator
+/// (base + fresh relation rows) — not the bare base stack top.
 pub fn audit_incremental_eval(
     state: &NnueSearchState,
     pos: &Position,
     counters: &mut NnueAuditCounters,
 ) -> i32 {
+    use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
     counters.eval_calls += 1;
     let fresh = state.model.full_accumulator(pos);
-    let top = state.top();
-    if top.white() != fresh.white() {
-        counters.lane_mismatches += top
+    let effective: AccumulatorFor = if state.mode == NnueSearchMode::Incremental
+        && state.model.feature_set() == NnueFeatureSetId::V2R12
+    {
+        state.model.hybrid_accumulator_r12(pos, state.top())
+    } else {
+        *state.top()
+    };
+    if effective.white() != fresh.white() {
+        counters.lane_mismatches += effective
             .white()
             .iter()
             .zip(fresh.white().iter())
             .filter(|(a, b)| a != b)
             .count() as u64;
     }
-    if top.black() != fresh.black() {
-        counters.lane_mismatches += top
+    if effective.black() != fresh.black() {
+        counters.lane_mismatches += effective
             .black()
             .iter()
             .zip(fresh.black().iter())
             .filter(|(a, b)| a != b)
             .count() as u64;
     }
-    let inc_raw = state
-        .model
-        .evaluate_raw_from_accumulator(pos, top);
+    let inc_raw = state.model.evaluate_raw_from_accumulator(pos, &effective);
     let fresh_raw = state.model.evaluate_raw(pos);
     if inc_raw != fresh_raw {
         counters.raw_mismatches += 1;
@@ -364,7 +391,6 @@ pub fn audit_incremental_eval(
     // Score from the FRESH path (audit must not mask bugs).
     NnueV2QuantizedModel::cp_i32_from_raw(fresh_raw)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -376,13 +402,13 @@ mod tests {
 
     /// Minimal synthetic model (deterministic weights; see the runtime's
     /// synthetic_artifact_bytes for the byte-level format).
-    fn synthetic_model()
-        -> Arc<NnueV2QuantizedModel> {
+    fn synthetic_model() -> Arc<NnueV2QuantizedModel> {
         // Reuse the runtime's test-only synthetic builder via a public-ish
         // path: build from the same generator the runtime tests use.
         // For module isolation we rebuild a small valid artifact here.
         let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(
-            crate::chess::types::START_FEN);
+            crate::chess::types::START_FEN,
+        );
         Arc::new(NnueV2QuantizedModel::from_bytes(&bytes).unwrap())
     }
 
@@ -390,11 +416,11 @@ mod tests {
     fn stack_push_pop_balance_and_restore_root() {
         use crate::chess::movegen::generate_legal_moves;
         let model = synthetic_model();
-        let mut pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-        let mut state = NnueSearchState::with_options(
-            model, NnueSearchMode::Incremental, &pos, true, false);
+        let mut pos =
+            parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let mut state =
+            NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, true, false);
         let root_acc = *state.top();
         assert_eq!(state.depth(), 1);
         let moves = generate_legal_moves(&mut pos.clone());
@@ -421,11 +447,10 @@ mod tests {
     fn diagnostics_off_means_no_counters() {
         use crate::chess::movegen::generate_legal_moves;
         let model = synthetic_model();
-        let mut pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-        let mut state =
-            NnueSearchState::new(model, NnueSearchMode::Incremental, &pos);
+        let mut pos =
+            parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let mut state = NnueSearchState::new(model, NnueSearchMode::Incremental, &pos);
         assert!(state.diagnostics.is_none());
         assert!(!state.audit_enabled());
         let moves = generate_legal_moves(&mut pos.clone());
@@ -445,11 +470,11 @@ mod tests {
     fn telemetry_on_counts_moves() {
         use crate::chess::movegen::generate_legal_moves;
         let model = synthetic_model();
-        let mut pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-        let mut state = NnueSearchState::with_options(
-            model, NnueSearchMode::Incremental, &pos, true, false);
+        let mut pos =
+            parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let mut state =
+            NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, true, false);
         let m = generate_legal_moves(&mut pos.clone())[0];
         let delta = state.prepare_delta(&pos, &m);
         let undo = pos.make_move(m);
@@ -463,11 +488,10 @@ mod tests {
     #[test]
     fn audit_on_counts_evals() {
         let model = synthetic_model();
-        let pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+        let pos = parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
             .unwrap();
-        let state = NnueSearchState::with_options(
-            model, NnueSearchMode::Incremental, &pos, false, true);
+        let state =
+            NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, false, true);
         assert!(state.audit_enabled());
         let _ = state.evaluate_cp_i32_audited(&pos);
         let snap = state.audit_snapshot();
@@ -477,11 +501,10 @@ mod tests {
     #[test]
     fn null_child_push_is_bit_identical() {
         let model = synthetic_model();
-        let pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+        let pos = parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
             .unwrap();
-        let mut state = NnueSearchState::with_options(
-            model, NnueSearchMode::Incremental, &pos, true, false);
+        let mut state =
+            NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, true, false);
         let parent = *state.top();
         state.push_null_child();
         assert_eq!(*state.top(), parent, "null child frame == parent frame");
@@ -494,11 +517,10 @@ mod tests {
     fn incremental_eval_matches_full_refresh_in_stack() {
         use crate::chess::movegen::generate_legal_moves;
         let model = synthetic_model();
-        let mut pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-        let mut state =
-            NnueSearchState::new(model, NnueSearchMode::Incremental, &pos);
+        let mut pos =
+            parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let mut state = NnueSearchState::new(model, NnueSearchMode::Incremental, &pos);
         let moves = generate_legal_moves(&mut pos.clone());
         for m in moves {
             let delta = state.prepare_delta(&pos, &m);
@@ -506,9 +528,7 @@ mod tests {
             state.push_child(&delta, &pos);
             let fresh = state.model.full_accumulator(&pos);
             assert_eq!(*state.top(), fresh, "stack frame == fresh for {m:?}");
-            let inc_raw = state
-                .model
-                .evaluate_raw_from_accumulator(&pos, state.top());
+            let inc_raw = state.model.evaluate_raw_from_accumulator(&pos, state.top());
             assert_eq!(inc_raw, state.model.evaluate_raw(&pos));
             state.pop();
             pos.unmake_move(undo);
@@ -518,11 +538,10 @@ mod tests {
     #[test]
     fn audit_counters_detect_tampered_stack() {
         let model = synthetic_model();
-        let pos = parse_fen(
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
+        let pos = parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")
             .unwrap();
-        let mut state = NnueSearchState::with_options(
-            model, NnueSearchMode::Incremental, &pos, true, true);
+        let mut state =
+            NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, true, true);
         // Corrupt the top frame's first lane deliberately.
         state.frames_mut()[0].white_mut()[0] = state.top().white()[0].wrapping_add(1);
         let _ = state.evaluate_cp_i32_audited(&pos);
@@ -564,11 +583,13 @@ pub mod relation_churn {
         g.take().unwrap_or_default()
     }
 
-    fn set_for(pos: &crate::chess::position::Position, per: crate::engine::nnue::NnuePerspective)
-        -> std::collections::BTreeSet<u16>
-    {
+    fn set_for(
+        pos: &crate::chess::position::Position,
+        per: crate::engine::nnue::NnuePerspective,
+    ) -> std::collections::BTreeSet<u16> {
         crate::engine::nnue::relation_features_v2r12(pos, per)
-            .into_iter().collect()
+            .into_iter()
+            .collect()
     }
 
     /// Record one make-move edge. `before` is the PARENT position, `after`
@@ -578,7 +599,10 @@ pub mod relation_churn {
         after: &crate::chess::position::Position,
         mv: crate::chess::types::Move,
     ) {
-        let mut g = match RECORDS.try_lock() { Ok(g) => g, Err(_) => return };
+        let mut g = match RECORDS.try_lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
         let Some(v) = g.as_mut() else { return };
         use crate::engine::nnue::NnuePerspective;
         let mut removed = 0u32;
@@ -590,19 +614,31 @@ pub mod relation_churn {
             added += b.difference(&a).count() as u32;
         }
         let phase = phase_score(after);
-        let bucket = if phase >= 18 { 0 } else if phase >= 8 { 1 } else if phase >= 1 { 2 } else { 3 };
+        let bucket = if phase >= 18 {
+            0
+        } else if phase >= 8 {
+            1
+        } else if phase >= 1 {
+            2
+        } else {
+            3
+        };
         let mover = before.board()[mv.from as usize];
-        let is_capture = matches!(mv.flag,
-            crate::chess::types::MoveFlag::EnPassant)
+        let is_capture = matches!(mv.flag, crate::chess::types::MoveFlag::EnPassant)
             || before.board()[mv.to as usize].is_some();
         v.push(EdgeRecord {
-            removed, added,
+            removed,
+            added,
             is_capture,
             mover_slider: mover
-                .map(|p| matches!(p.piece_type,
-                    crate::chess::types::PieceType::Bishop
-                    | crate::chess::types::PieceType::Rook
-                    | crate::chess::types::PieceType::Queen))
+                .map(|p| {
+                    matches!(
+                        p.piece_type,
+                        crate::chess::types::PieceType::Bishop
+                            | crate::chess::types::PieceType::Rook
+                            | crate::chess::types::PieceType::Queen
+                    )
+                })
                 .unwrap_or(false),
             phase_bucket: bucket,
         });

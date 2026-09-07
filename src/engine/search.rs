@@ -272,6 +272,15 @@ pub(crate) enum SearchProfile {
     /// s10-h0-d3-replay-gate.json). One scalar, no slope/phase/depth
     /// changes; every other gate untouched.
     CurrentFinalNnueV2QMaterialCalFut,
+    /// S11-B2: EXACTLY CurrentFinalNnueV2QMaterial, but the artifact is
+    /// a v4 R12 feature-set model (V2 base + relation sidecar, inputs
+    /// 23296). The search stack maintains ONLY the V2-base accumulator
+    /// incrementally; at every eval the fresh relation rows are
+    /// recomputed and added on top (evaluate_raw_hybrid_r12) — no
+    /// relation caching, no relation deltas (frozen B2 reference
+    /// protocol). The loader fail-closes unless the artifact is v4
+    /// feature_set=V2R12, FT128, material-residual.
+    CurrentFinalNnueV2QMaterialR12,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -330,6 +339,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -365,6 +375,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -396,6 +407,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -429,6 +441,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -474,6 +487,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -506,6 +520,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -549,6 +564,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -627,6 +643,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -663,6 +680,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -699,6 +717,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -769,6 +788,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -779,14 +799,20 @@ impl SearchProfile {
             self,
             Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
     /// S10-C2B: true when the NNUE evaluator must deliver accumulator
     /// frames via the search-local incremental stack (vs full refresh at
-    /// every eval).
+    /// every eval). S11-B2: the R12 hybrid profile uses the incremental
+    /// stack for the V2-BASE accumulator (relation rows are recomputed
+    /// fresh at eval time, never stacked).
     pub(crate) const fn uses_nnue_incremental_stack(self) -> bool {
-        matches!(self, Self::CurrentFinalNnueV2QIncremental)
+        matches!(
+            self,
+            Self::CurrentFinalNnueV2QIncremental | Self::CurrentFinalNnueV2QMaterialR12
+        )
     }
 
     #[inline]
@@ -825,6 +851,7 @@ impl SearchProfile {
                 | Self::CurrentFinalNnueV2QIncremental
                 | Self::CurrentFinalNnueV2QMaterial
                 | Self::CurrentFinalNnueV2QMaterialCalFut
+                | Self::CurrentFinalNnueV2QMaterialR12
         )
     }
 
@@ -2675,14 +2702,12 @@ fn evaluate_profiled(
             // canonical material term. The mode match itself is enforced
             // fail-closed at model-load time (a material artifact cannot be
             // attached to a pure profile or vice versa).
-            nnue.evaluate_cp_i32_audited(pos).saturating_add(
-                crate::engine::nnue_v2q_runtime::material_cp_stm(pos),
-            )
+            nnue.evaluate_cp_i32_audited(pos)
+                .saturating_add(crate::engine::nnue_v2q_runtime::material_cp_stm(pos))
         } else {
             nnue.evaluate_cp_i32_audited(pos)
         };
-        crate::engine::eval::exact_mop_up_for_search(pos, base)
-            .unwrap_or(base)
+        crate::engine::eval::exact_mop_up_for_search(pos, base).unwrap_or(base)
     } else if profile.uses_phase_affine_eval() {
         evaluate_phase_affine(pos)
     } else if let Some(mask) = profile.eval2_mask() {
@@ -4148,8 +4173,7 @@ pub fn negamax(
     let mut tt = TranspositionTable::disabled();
     let mut nnue: Option<crate::engine::nnue_search::NnueSearchState> = None;
     let r = negamax_impl(
-        pos, depth, ply, alpha, beta, ctx, limits, &mut pv, &mut path, &mut tt,
-        &mut nnue,
+        pos, depth, ply, alpha, beta, ctx, limits, &mut pv, &mut path, &mut tt, &mut nnue,
     );
     path.restore_root(root_len);
     r
@@ -4223,8 +4247,7 @@ fn negamax_entered_impl(
     nnue: &mut Option<crate::engine::nnue_search::NnueSearchState>,
 ) -> Option<i32> {
     negamax_entered_impl_with_null(
-        pos, depth, ply, alpha, beta, ctx, limits, profile, pv, path, tt, heur,
-        true, nnue,
+        pos, depth, ply, alpha, beta, ctx, limits, profile, pv, path, tt, heur, true, nnue,
     )
 }
 
@@ -4889,8 +4912,12 @@ fn negamax_entered_impl_with_null_and_extensions(
                 && !move_gives_check(pos, m)
                 && !is_pawn_promotion_threat(pos, m)
             {
-                crate::engine::search::search_calibration_shadow::
-                    shadow_futility(pos, static_eval, margin, alpha);
+                crate::engine::search::search_calibration_shadow::shadow_futility(
+                    pos,
+                    static_eval,
+                    margin,
+                    alpha,
+                );
             }
             if move_idx > 0
                 && !is_tactical(pos, m)
@@ -4979,8 +5006,7 @@ fn negamax_entered_impl_with_null_and_extensions(
             state.push_child(delta, pos);
         }
         #[cfg(feature = "diagnostic_relation_churn")]
-        crate::engine::nnue_search::relation_churn::record_edge(
-            &churn_before, pos, m);
+        crate::engine::nnue_search::relation_churn::record_edge(&churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
@@ -6762,7 +6788,9 @@ pub fn quiescence(
     let mut path = SearchPath::new(vec![pos.zobrist_key()]);
     let root_len = path.len();
     let mut nnue: Option<crate::engine::nnue_search::NnueSearchState> = None;
-    let r = quiescence_impl(pos, ply, qply, alpha, beta, ctx, limits, &mut pv, &mut path, &mut nnue);
+    let r = quiescence_impl(
+        pos, ply, qply, alpha, beta, ctx, limits, &mut pv, &mut path, &mut nnue,
+    );
     path.restore_root(root_len);
     r
 }
@@ -6791,8 +6819,7 @@ fn quiescence_impl(
         return None;
     }
     quiescence_entered_impl(
-        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false, false,
-        nnue,
+        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false, false, nnue,
     )
 }
 
@@ -7004,13 +7031,13 @@ fn quiescence_entered_impl_with_profile(
             }
             #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::push_site(
-                eval_site_capture::SiteKind::QsearchStandpat);
+                eval_site_capture::SiteKind::QsearchStandpat,
+            );
             let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
             #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::pop_site();
             #[cfg(feature = "diagnostic_search_calibration")]
-            crate::engine::search::search_calibration_shadow::
-                shadow_qsearch(pos, stand_pat, beta);
+            crate::engine::search::search_calibration_shadow::shadow_qsearch(pos, stand_pat, beta);
             if stand_pat >= beta {
                 return Some(beta);
             }
@@ -7030,13 +7057,13 @@ fn quiescence_entered_impl_with_profile(
         // the side to move is never forced to make a capture.
         #[cfg(feature = "diagnostic_eval_site_capture")]
         crate::engine::search::eval_site_capture::push_site(
-            eval_site_capture::SiteKind::QsearchStandpat);
+            eval_site_capture::SiteKind::QsearchStandpat,
+        );
         let stand_pat = evaluate_profiled(pos, ctx, profile, nnue.as_ref());
         #[cfg(feature = "diagnostic_eval_site_capture")]
         crate::engine::search::eval_site_capture::pop_site();
         #[cfg(feature = "diagnostic_search_calibration")]
-        crate::engine::search::search_calibration_shadow::
-            shadow_qsearch(pos, stand_pat, beta);
+        crate::engine::search::search_calibration_shadow::shadow_qsearch(pos, stand_pat, beta);
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
             if lazy {
@@ -7115,8 +7142,7 @@ fn quiescence_entered_impl_with_profile(
             state.push_child(delta, pos);
         }
         #[cfg(feature = "diagnostic_relation_churn")]
-        crate::engine::nnue_search::relation_churn::record_edge(
-            &churn_before, pos, m);
+        crate::engine::nnue_search::relation_churn::record_edge(&churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
@@ -7308,8 +7334,7 @@ fn search_final_evasion_ply_with_profile(
             state.push_child(delta, pos);
         }
         #[cfg(feature = "diagnostic_relation_churn")]
-        crate::engine::nnue_search::relation_churn::record_edge(
-            &churn_before, pos, m);
+        crate::engine::nnue_search::relation_churn::record_edge(&churn_before, pos, m);
 
         // `legal` came from `generate_legal_moves`, so this evasion is legal:
         // the opponent is NOT attacking our king here. Score the child:
@@ -7583,8 +7608,7 @@ fn root_search_with_window(
             state.push_child(delta, pos);
         }
         #[cfg(feature = "diagnostic_relation_churn")]
-        crate::engine::nnue_search::relation_churn::record_edge(
-            &churn_before, pos, m);
+        crate::engine::nnue_search::relation_churn::record_edge(&churn_before, pos, m);
 
         // Manual child probe: try_enter_node called EXACTLY ONCE here.
         let probe = match probe_child_draw(
@@ -8197,9 +8221,7 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
     // S10-C2B: NNUE candidate profiles fail closed without a loaded model.
     if profile.uses_nnue_eval() && nnue.is_none() {
-        eprintln!(
-            "ucioops: NNUE profile requires a loaded quantized model (fail closed)"
-        );
+        eprintln!("ucioops: NNUE profile requires a loaded quantized model (fail closed)");
         return None;
     }
     ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
@@ -9511,8 +9533,8 @@ mod tests {
             &mut tt,
             &mut heuristics,
             false,
-        
-            &mut None);
+            &mut None,
+        );
         assert_eq!(ctx.null_move_attempts.load(Ordering::Relaxed), 0);
     }
 
@@ -9736,8 +9758,8 @@ mod tests {
             true,
             false,
             false,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(
             ctx.qsearch_check_moves.load(Ordering::Relaxed) > 0,
             "bounded qsearch must observe checking moves"
@@ -9861,8 +9883,8 @@ mod tests {
                 specialized,
                 pruning,
                 false,
-            
-            &mut None)
+                &mut None,
+            )
             .expect("unlimited qsearch must complete")
         }
 
@@ -10327,11 +10349,11 @@ mod tests {
         let startpos = parse_fen(START_FEN).unwrap();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         for pos in [&kqk, &krk, &startpos] {
-            let bytes = crate::engine::nnue_v2q_runtime::
-                synthetic_artifact_bytes_for_tests(START_FEN);
+            let bytes =
+                crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
             let model = std::sync::Arc::new(
-                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel
-                    ::from_bytes(&bytes).unwrap());
+                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes).unwrap(),
+            );
             let state = crate::engine::nnue_search::NnueSearchState::new(
                 model,
                 crate::engine::nnue_search::NnueSearchMode::Incremental,
@@ -10341,11 +10363,13 @@ mod tests {
             let nnue_base = state.evaluate_cp_i32(pos);
             // Full NNUE arm (mop-up applied to the NNUE base).
             let nnue_full = evaluate_profiled(
-                pos, &ctx, SearchProfile::CurrentFinalNnueV2QFull,
-                Some(&state));
+                pos,
+                &ctx,
+                SearchProfile::CurrentFinalNnueV2QFull,
+                Some(&state),
+            );
             // The mop-up law applied manually to the SAME base.
-            let expected = crate::engine::eval::exact_mop_up_for_search(
-                pos, nnue_base);
+            let expected = crate::engine::eval::exact_mop_up_for_search(pos, nnue_base);
             match expected {
                 Some(v) => assert_eq!(
                     nnue_full, v,
@@ -10379,11 +10403,10 @@ mod tests {
             nodes: Some(2000),
             ..Default::default()
         };
-        let bytes = crate::engine::nnue_v2q_runtime::
-            synthetic_artifact_bytes_for_tests(fen);
+        let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(fen);
         let model = std::sync::Arc::new(
-            crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel
-                ::from_bytes(&bytes).unwrap());
+            crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes).unwrap(),
+        );
 
         // FullRefresh WITH telemetry enabled: zero movement (the no-op is
         // mode-gated, not diagnostics-gated).
@@ -10397,8 +10420,13 @@ mod tests {
         let full_handle = full_state.diagnostics.clone();
         let mut tt = TranspositionTable::disabled();
         let _ = search_best_move_with_history_tt_and_profile(
-            &mut pos, &[key], &limits, &ctx, &mut tt,
-            SearchProfile::CurrentFinalNnueV2QFull, Some(full_state),
+            &mut pos,
+            &[key],
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::CurrentFinalNnueV2QFull,
+            Some(full_state),
         );
         let d = full_handle.unwrap();
         use std::sync::atomic::Ordering as O;
@@ -10420,8 +10448,13 @@ mod tests {
         let inc_handle = inc_state.diagnostics.clone();
         let mut tt = TranspositionTable::disabled();
         let _ = search_best_move_with_history_tt_and_profile(
-            &mut pos, &[key], &limits, &ctx, &mut tt,
-            SearchProfile::CurrentFinalNnueV2QIncremental, Some(inc_state),
+            &mut pos,
+            &[key],
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::CurrentFinalNnueV2QIncremental,
+            Some(inc_state),
         );
         let d = inc_handle.unwrap();
         let pushes = d.pushes.load(O::Relaxed);
@@ -10450,17 +10483,17 @@ mod tests {
                     nodes: Some(budget),
                     ..Default::default()
                 };
-                let bytes = crate::engine::nnue_v2q_runtime::
-                    synthetic_artifact_bytes_for_tests(fen);
+                let bytes =
+                    crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(fen);
                 let model = std::sync::Arc::new(
-                    crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel
-                        ::from_bytes(&bytes).unwrap());
-                let mut state = Some(
-                    crate::engine::nnue_search::NnueSearchState::new(
-                        model,
-                        crate::engine::nnue_search::NnueSearchMode::Incremental,
-                        &pos,
-                    ));
+                    crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes)
+                        .unwrap(),
+                );
+                let mut state = Some(crate::engine::nnue_search::NnueSearchState::new(
+                    model,
+                    crate::engine::nnue_search::NnueSearchMode::Incremental,
+                    &pos,
+                ));
                 let mut tt = TranspositionTable::disabled();
                 // Take a snapshot of the pre-search telemetry; restore_root
                 // truncates but telemetry is cumulative — we only assert
@@ -10489,14 +10522,16 @@ mod tests {
     /// the production default, and differ only in the accumulator delivery.
     #[test]
     fn s10c2b_nnue_profiles_inherit_current_final_policy() {
-        use SearchProfile::{CurrentFinal, CurrentFinalNnueV2QFull,
-            CurrentFinalNnueV2QIncremental, CurrentFinalNnueV2QMaterial,
-            CurrentFinalNnueV2QMaterialCalFut};
+        use SearchProfile::{
+            CurrentFinal, CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental,
+            CurrentFinalNnueV2QMaterial, CurrentFinalNnueV2QMaterialCalFut,
+            CurrentFinalNnueV2QMaterialR12,
+        };
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QFull);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QIncremental);
         assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterial);
-        assert_inherits_current_final_search_policy(
-            CurrentFinalNnueV2QMaterialCalFut);
+        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialCalFut);
+        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialR12);
         for cand in [CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental] {
             assert!(cand.uses_nnue_eval(), "{cand:?} must use NNUE eval");
             assert!(!cand.uses_eval2(), "{cand:?} must NOT use Eval2");
@@ -10513,9 +10548,14 @@ mod tests {
         assert!(CurrentFinalNnueV2QMaterialCalFut.uses_nnue_material_residual());
         assert!(!CurrentFinalNnueV2QMaterial.uses_eval2());
         assert!(!CurrentFinalNnueV2QMaterial.uses_nnue_incremental_stack());
-        assert!(
-            CurrentFinalNnueV2QFull.uses_nnue_incremental_stack() == false
-        );
+        // S11-B2: the R12 hybrid profile — material-residual evaluator
+        // delivered through the incremental stack (V2-base accumulator;
+        // relation rows recomputed fresh per eval).
+        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_eval());
+        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_material_residual());
+        assert!(!CurrentFinalNnueV2QMaterialR12.uses_eval2());
+        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_incremental_stack());
+        assert!(CurrentFinalNnueV2QFull.uses_nnue_incremental_stack() == false);
         assert!(CurrentFinalNnueV2QIncremental.uses_nnue_incremental_stack());
         assert_eq!(PRODUCTION_PROFILE, CurrentFinal);
         // CurrentFinal itself stays evaluator-identical: no NNUE.
@@ -10577,9 +10617,10 @@ mod tests {
                 SearchProfile::CurrentFinalNnueV2QIncremental => (),
                 SearchProfile::CurrentFinalNnueV2QMaterial => (),
                 SearchProfile::CurrentFinalNnueV2QMaterialCalFut => (),
+                SearchProfile::CurrentFinalNnueV2QMaterialR12 => (),
             }
         }
-        let all: [SearchProfile; 46] = [
+        let all: [SearchProfile; 47] = [
             SearchProfile::M4Reference,
             SearchProfile::M41Reference,
             SearchProfile::PvsReference,
@@ -10626,6 +10667,7 @@ mod tests {
             SearchProfile::CurrentFinalNnueV2QIncremental,
             SearchProfile::CurrentFinalNnueV2QMaterial,
             SearchProfile::CurrentFinalNnueV2QMaterialCalFut,
+            SearchProfile::CurrentFinalNnueV2QMaterialR12,
         ];
         for profile in all {
             assert_exhaustive(profile);
@@ -11048,9 +11090,8 @@ mod tests {
             // the test tree tiny while exercising every counter path.
             let score = negamax_entered_impl_with_null(
                 &mut pos, 4, 0, 0, 1, &ctx, &limits, profile, &mut pv, &mut path, &mut tt,
-                &mut heur, true,
-            
-            &mut None);
+                &mut heur, true, &mut None,
+            );
             (score, ctx.stats())
         }
 
@@ -11189,8 +11230,8 @@ mod tests {
                 &mut tt,
                 &mut heur,
                 true,
-            
-            &mut None);
+                &mut None,
+            );
             (score, ctx.stats(), pos, path, pv)
         }
 
@@ -11878,8 +11919,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
 
@@ -11953,8 +11994,8 @@ mod tests {
             SearchProfile::M4Reference,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None);
+            &mut None,
+        );
 
         // Root length restored on every exit.
         assert_eq!(path.len(), root_len, "SearchPath root length not restored");
@@ -12082,8 +12123,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(out.is_none(), "preset stop must abort quiescence");
         path.restore_root(root_len);
         assert_eq!(
@@ -12114,8 +12155,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(out.is_none(), "preset stop must abort emergency evasion");
         path.restore_root(root_len);
         assert_eq!(
@@ -12148,8 +12189,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(
             out.is_some(),
             "emergancy evasion must complete when not stopped"
@@ -12203,8 +12244,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(
             out.is_none(),
             "qsearch must abort when no child node is available"
@@ -12268,8 +12309,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(
             out.is_none(),
             "emergency evasion must abort when the second sibling is denied a node"
@@ -12319,8 +12360,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(score, 0, "K vs K is drawn by insufficient material");
@@ -12346,8 +12387,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(score, 0, "qsearch K vs K is drawn by insufficient material");
@@ -12379,8 +12420,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(
@@ -12533,8 +12574,8 @@ mod tests {
                     &mut path,
                     &mut TranspositionTable::disabled(),
                     &mut None::<SearchHeuristics>,
-                
-            &mut None)
+                    &mut None,
+                )
                 .expect("not stopped");
                 -s
             }
@@ -12592,8 +12633,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(
@@ -12623,8 +12664,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(
@@ -12656,8 +12697,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(
@@ -12689,8 +12730,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(
@@ -12766,8 +12807,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None);
+            &mut None,
+        );
         assert!(r.is_none(), "deeper abort must propagate None");
         assert_eq!(path.len(), root_len, "path restored after deeper abort");
         assert_eq!(
@@ -12913,8 +12954,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(score, 0, "qsearch e1d1 intended-claim edge is 0");
@@ -12946,8 +12987,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert_eq!(score, 0, "final-evasion e1d1 intended-claim edge is 0");
@@ -12980,8 +13021,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(
@@ -13014,8 +13055,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(
@@ -13061,8 +13102,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(
@@ -13203,8 +13244,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut None::<SearchHeuristics>,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("completed iteration");
         path.restore_root(3);
 
@@ -13296,8 +13337,8 @@ mod tests {
             &mut pv2,
             &mut path2,
             &mut TranspositionTable::disabled(),
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path2.restore_root(root_len);
         assert!(
@@ -13445,8 +13486,8 @@ mod tests {
             &limits,
             &mut pv,
             &mut path,
-        
-            &mut None);
+            &mut None,
+        );
         // Root entry (#1) + child probe (#2) succeeded; grandchild probe (#3)
         // failed -> deeper abort propagates None.
         assert!(r.is_none(), "qsearch deeper abort must propagate None");
@@ -13515,8 +13556,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut None::<SearchHeuristics>,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("completed iteration");
         assert_eq!(iter.score, 0, "root claim floor holds at 0");
         assert_eq!(
@@ -14358,8 +14399,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut None::<SearchHeuristics>,
-        
-            &mut None);
+            &mut None,
+        );
         path.restore_root(root_len);
         let out = out.expect("root iteration");
         assert_eq!(out.score, 0, "intended-claim root edge scores 0");
@@ -14394,8 +14435,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut tt,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("not stopped");
         path.restore_root(root_len);
         assert!(score > 0, "qsearch finds the promoting win");
@@ -14440,8 +14481,8 @@ mod tests {
             &mut pv,
             &mut path,
             &mut tt,
-        
-            &mut None);
+            &mut None,
+        );
         assert_eq!(out, Some(50), "TT Lower cut-off returns the decoded score");
         assert!(
             pv.lines[0].is_empty(),
@@ -14917,8 +14958,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(r.is_some(), "non-root search returns a score");
         // A real fixed-depth search MUST have produced >= 1 quiet beta-cutoff.
         let total: usize = heur
@@ -15172,8 +15213,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(r.is_some(), "unbudgeted search completes");
         let h = heur.unwrap();
 
@@ -15232,8 +15273,8 @@ mod tests {
             &mut path2,
             &mut tt2,
             &mut heur2,
-        
-            &mut None);
+            &mut None,
+        );
         let h2 = heur2.unwrap();
         assert!(
             h.history == h2.history,
@@ -15314,8 +15355,8 @@ mod tests {
                 &mut path,
                 &mut tt,
                 &mut heur,
-            
-            &mut None)
+                &mut None,
+            )
             .expect("oracle child completes");
             pos.unmake_move(undo);
             (move0, -child)
@@ -15344,8 +15385,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("parent node completes");
 
         // Fail-lows actually occurred and were dropped (not committed).
@@ -15433,8 +15474,8 @@ mod tests {
                 &mut path,
                 &mut tt,
                 &mut heur,
-            
-            &mut None);
+                &mut None,
+            );
             assert!(r.is_some(), "unbudgeted node completes");
             ctx.nodes.load(Ordering::Relaxed)
         };
@@ -15479,8 +15520,8 @@ mod tests {
                 &mut path,
                 &mut tt,
                 &mut heur,
-            
-            &mut None);
+                &mut None,
+            );
             assert!(r.is_none(), "budget {budget} < {full_nodes} must abort");
             assert_eq!(
                 path.len(),
@@ -15691,8 +15732,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(got.is_some(), "node completes");
         // A scout that improves alpha re-searches (NOT a dead fail-high path).
         assert!(
@@ -15894,8 +15935,8 @@ mod tests {
                 &mut path,
                 &mut tt,
                 &mut heur,
-            
-            &mut None)
+                &mut None,
+            )
             .expect("oracle node completes")
         };
         assert_eq!(oracle, 80, "true full-window node value is 80");
@@ -15927,8 +15968,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("parent node completes");
 
         // The hazard genuinely occurred: a fail-low scout scored ABOVE `best`.
@@ -16067,8 +16108,8 @@ mod tests {
             &mut path,
             &mut tt,
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("parent node completes");
 
         // A real fail-high occurred through a fail-soft (out-of-window) return.
@@ -16302,8 +16343,8 @@ mod tests {
             SearchProfile::M4Reference,
             &mut path,
             &mut tt,
-        
-            &mut None);
+            &mut None,
+        );
         assert!(out.is_some(), "search completes");
 
         // Every state must be EXACTLY restored, proving the search used
@@ -16393,8 +16434,8 @@ mod tests {
                 &mut path,
                 &mut TranspositionTable::disabled(),
                 &mut heur,
-            
-            &mut None)
+                &mut None,
+            )
             .expect("iteration completes");
             assert_eq!(
                 pvs_counters::ROOT_SCOUT.get(),
@@ -16447,8 +16488,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
         assert!(
             pvs_counters::ROOT_SCOUT.get() > 0,
@@ -16549,8 +16590,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
 
         assert!(
@@ -16615,8 +16656,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
 
         assert!(
@@ -16676,8 +16717,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
         assert_eq!(
             pvs_counters::ROOT_MOVES_VISITED.get(),
@@ -16792,8 +16833,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
         assert_eq!(iter.score, 0, "claim floor holds under Current root PVS");
         assert_eq!(
@@ -16836,8 +16877,8 @@ mod tests {
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut heur,
-        
-            &mut None)
+            &mut None,
+        )
         .expect("iteration completes");
         assert!(
             pvs_counters::ROOT_SCOUT.get() > 0,
@@ -16905,8 +16946,8 @@ mod tests {
                 &mut path,
                 &mut TranspositionTable::disabled(),
                 &mut heur,
-            
-            &mut None)
+                &mut None,
+            )
             .expect("unbudgeted root completes");
             ctx.nodes.load(Ordering::Relaxed)
         };
@@ -16943,8 +16984,8 @@ mod tests {
                 &mut path,
                 &mut tt,
                 &mut heur,
-            
-            &mut None);
+                &mut None,
+            );
             assert!(r.is_none(), "budget {budget} < {full_nodes} must abort");
             assert_eq!(
                 ctx.nodes.load(Ordering::Relaxed),
@@ -17040,7 +17081,7 @@ pub mod eval_site_capture {
 
     struct Shared {
         enabled: bool,
-        records: Vec<(String, u8, u32)>,  // (fen, site_kind, search_ply)
+        records: Vec<(String, u8, u32)>, // (fen, site_kind, search_ply)
     }
 
     static SHARED: Mutex<Option<Shared>> = Mutex::new(None);
@@ -17048,8 +17089,10 @@ pub mod eval_site_capture {
     /// Enable capture with a preallocated buffer (bench harness only).
     pub fn enable(capacity: usize) {
         let mut g = SHARED.lock().unwrap();
-        *g = Some(Shared { enabled: true,
-                           records: Vec::with_capacity(capacity) });
+        *g = Some(Shared {
+            enabled: true,
+            records: Vec::with_capacity(capacity),
+        });
     }
 
     /// Disable capture and take the collected records.
@@ -17066,18 +17109,17 @@ pub mod eval_site_capture {
     }
 
     pub fn pop_site() {
-        SITE.with(|s| { s.borrow_mut().pop(); });
+        SITE.with(|s| {
+            s.borrow_mut().pop();
+        });
     }
 
     fn current_site() -> SiteKind {
-        SITE.with(|s| {
-            s.borrow().last().copied().unwrap_or(SiteKind::MainStatic)
-        })
+        SITE.with(|s| s.borrow().last().copied().unwrap_or(SiteKind::MainStatic))
     }
 
     /// Called from `evaluate_profiled`. Cheap no-op when disabled.
-    pub fn record_site(pos: &crate::chess::position::Position,
-                       _ctx: &super::SearchContext) {
+    pub fn record_site(pos: &crate::chess::position::Position, _ctx: &super::SearchContext) {
         let mut g = match SHARED.try_lock() {
             Ok(g) => g,
             Err(_) => return,
@@ -17118,8 +17160,7 @@ pub mod search_calibration_shadow {
     struct Shared {
         active: ActiveKind,
         // shadow model (when the shadow is the NNUE)
-        shadow_model: Option<
-            std::sync::Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+        shadow_model: Option<std::sync::Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
         // per-gate opportunity records
         futility: Vec<GateRecord>,
         qsearch: Vec<GateRecord>,
@@ -17128,7 +17169,7 @@ pub mod search_calibration_shadow {
     #[derive(Clone, Copy)]
     pub struct GateRecord {
         pub root_id: u32,
-        pub active_slack: i32,   // signed; >= 0 means the gate TRIGGERS
+        pub active_slack: i32, // signed; >= 0 means the gate TRIGGERS
         pub shadow_slack: i32,
     }
 
@@ -17137,20 +17178,24 @@ pub mod search_calibration_shadow {
         static ROOT_ID: RefCell<u32> = const { RefCell::new(0) };
     }
 
-    pub fn enable(active: ActiveKind,
-                  shadow_model: Option<std::sync::Arc<
-                      crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>) {
+    pub fn enable(
+        active: ActiveKind,
+        shadow_model: Option<std::sync::Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+    ) {
         let mut g = SHARED.lock().unwrap();
-        *g = Some(Shared { active, shadow_model, futility: Vec::new(),
-                           qsearch: Vec::new() });
+        *g = Some(Shared {
+            active,
+            shadow_model,
+            futility: Vec::new(),
+            qsearch: Vec::new(),
+        });
     }
 
     pub fn set_root_id(id: u32) {
         ROOT_ID.with(|r| *r.borrow_mut() = id);
     }
 
-    pub fn disable_and_take()
-        -> (Vec<GateRecord>, Vec<GateRecord>) {
+    pub fn disable_and_take() -> (Vec<GateRecord>, Vec<GateRecord>) {
         let mut g = SHARED.lock().unwrap();
         match g.take() {
             Some(s) => (s.futility, s.qsearch),
@@ -17159,9 +17204,14 @@ pub mod search_calibration_shadow {
     }
 
     fn is_active_hce() -> bool {
-        SHARED.lock().map(|g| g.as_ref()
-            .map(|s| s.active == ActiveKind::Hce)
-            .unwrap_or(false)).unwrap_or(false)
+        SHARED
+            .lock()
+            .map(|g| {
+                g.as_ref()
+                    .map(|s| s.active == ActiveKind::Hce)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
     }
 
     /// Shadow static evaluation, stm perspective, cp.
@@ -17174,47 +17224,66 @@ pub mod search_calibration_shadow {
             let model = s.shadow_model.as_ref()?;
             // full-refresh raw + material compose (no search state touched)
             let base = model.evaluate_cp_i32(pos);
-            let composed = base.saturating_add(
-                crate::engine::nnue_v2q_runtime::material_cp_stm(pos));
+            let composed =
+                base.saturating_add(crate::engine::nnue_v2q_runtime::material_cp_stm(pos));
             // mirror the production mop-up override
-            Some(crate::engine::eval::exact_mop_up_for_search(pos, composed)
-                .unwrap_or(composed))
+            Some(crate::engine::eval::exact_mop_up_for_search(pos, composed).unwrap_or(composed))
         } else {
             Some(crate::engine::eval::evaluate_integrated_positional(pos))
         }
     }
 
-    fn record(gate: fn(&mut Shared, GateRecord), pos: &crate::chess::position::Position,
-              active_eval: i32, threshold: i32) {
-        let Some(shadow) = shadow_eval(pos) else { return };
+    fn record(
+        gate: fn(&mut Shared, GateRecord),
+        pos: &crate::chess::position::Position,
+        active_eval: i32,
+        threshold: i32,
+    ) {
+        let Some(shadow) = shadow_eval(pos) else {
+            return;
+        };
         let rec = GateRecord {
             root_id: ROOT_ID.with(|r| *r.borrow()),
             active_slack: active_eval.saturating_sub(threshold),
             shadow_slack: shadow.saturating_sub(threshold),
         };
-        let mut g = match SHARED.lock() { Ok(g) => g, Err(_) => return };
+        let mut g = match SHARED.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
         if let Some(s) = g.as_mut() {
             gate(s, rec);
         }
     }
 
-    fn push_futility(s: &mut Shared, r: GateRecord) { s.futility.push(r); }
-    fn push_qsearch(s: &mut Shared, r: GateRecord) { s.qsearch.push(r); }
+    fn push_futility(s: &mut Shared, r: GateRecord) {
+        s.futility.push(r);
+    }
+    fn push_qsearch(s: &mut Shared, r: GateRecord) {
+        s.qsearch.push(r);
+    }
 
     /// Futility move-gate shadow: called AFTER all non-eval prerequisites
     /// pass (move_idx > 0, quiet, non-checking, non-promo-threat) with the
     /// exact production margin/alpha. `active_eval` is the node static eval
     /// the production predicate uses.
-    pub fn shadow_futility(pos: &crate::chess::position::Position,
-                           active_eval: i32, margin: i32, alpha: i32) {
-        record(push_futility, pos, active_eval,
-               alpha.saturating_sub(margin));
+    pub fn shadow_futility(
+        pos: &crate::chess::position::Position,
+        active_eval: i32,
+        margin: i32,
+        alpha: i32,
+    ) {
+        record(
+            push_futility,
+            pos,
+            active_eval,
+            alpha.saturating_sub(margin),
+        );
     }
 
     /// Qsearch stand-pat shadow: called at both stand-pat sites with the
     /// production beta.
-    pub fn shadow_qsearch(pos: &crate::chess::position::Position,
-                          active_eval: i32, beta: i32) {
+    pub fn shadow_qsearch(pos: &crate::chess::position::Position, active_eval: i32, beta: i32) {
         record(push_qsearch, pos, active_eval, beta);
     }
 }

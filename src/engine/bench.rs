@@ -224,6 +224,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
             "current-final-nnue-v2q-material-cal-fut"
         }
+        SearchProfile::CurrentFinalNnueV2QMaterialR12 => "current-final-nnue-v2q-material-r12",
     }
 }
 
@@ -495,15 +496,16 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-no-king-safety" => SearchProfile::CurrentFinalNoKingSafety,
                     "current-final-nnue-v2q-full" => SearchProfile::CurrentFinalNnueV2QFull,
                     "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
-                    "current-final-nnue-v2q-material" => {
-                        SearchProfile::CurrentFinalNnueV2QMaterial
-                    }
+                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
                     "current-final-nnue-v2q-material-cal-fut" => {
                         SearchProfile::CurrentFinalNnueV2QMaterialCalFut
                     }
+                    "current-final-nnue-v2q-material-r12" => {
+                        SearchProfile::CurrentFinalNnueV2QMaterialR12
+                    }
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12)",
                             other
                         ));
                     }
@@ -622,9 +624,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .next()
                     .ok_or_else(|| "bench: --hash-mb requires a value".to_string())?
                     .clone();
-                let n: u32 = v
-                    .parse()
-                    .map_err(|_| format!("bad --hash-mb {v}"))?;
+                let n: u32 = v.parse().map_err(|_| format!("bad --hash-mb {v}"))?;
                 if n == 0 || n > 4096 {
                     return Err("bench: --hash-mb must be in 1..=4096".to_string());
                 }
@@ -880,15 +880,18 @@ fn search_one(
         let _ = nnue_state; // M4Reference never carries an NNUE state.
         search_best_move_with_history_and_tt(pos, hist, limits, ctx, tt)
     } else if profile.uses_nnue_eval() {
-        let state = nnue_state
-            .expect("NNUE profile requires --nnue-model (fail closed)");
+        let state = nnue_state.expect("NNUE profile requires --nnue-model (fail closed)");
         search_best_move_with_history_tt_and_profile(
-            pos, hist, limits, ctx, tt, profile, Some(state),
+            pos,
+            hist,
+            limits,
+            ctx,
+            tt,
+            profile,
+            Some(state),
         )
     } else {
-        search_best_move_with_history_tt_and_profile(
-            pos, hist, limits, ctx, tt, profile, None,
-        )
+        search_best_move_with_history_tt_and_profile(pos, hist, limits, ctx, tt, profile, None)
     }
 }
 
@@ -1664,9 +1667,8 @@ fn run_one(
     // reflect a TT-enabled production-like search.
     let mut tt = match mode {
         BenchMode::Disabled => match cfg.hash_mb {
-            Some(mb) => TranspositionTable::new_mb(mb as usize).map_err(|e| {
-                format!("fixture {}: failed to allocate {mb}MB TT: {}", fx.id, e)
-            })?,
+            Some(mb) => TranspositionTable::new_mb(mb as usize)
+                .map_err(|e| format!("fixture {}: failed to allocate {mb}MB TT: {}", fx.id, e))?,
             None => TranspositionTable::disabled(),
         },
         _ => TranspositionTable::new_mb(16)
@@ -1764,8 +1766,7 @@ fn run_one(
     let (nnue_state, nnue_state_handle) = if cfg.profile.uses_nnue_eval() {
         if cfg.nnue_audit && !cfg.profile.uses_nnue_incremental_stack() {
             return Err(
-                "bench: --nnue-audit requires --profile current-final-nnue-v2q"
-                    .to_string(),
+                "bench: --nnue-audit requires --profile current-final-nnue-v2q".to_string(),
             );
         }
         let path = cfg.nnue_model.as_deref().ok_or_else(|| {
@@ -1773,7 +1774,8 @@ fn run_one(
                 .to_string()
         })?;
         let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(path))?;
+            std::path::Path::new(path),
+        )?;
         // S10-F1: fail-closed semantic-mode match between the artifact and
         // the requested profile (a material-residual artifact under a pure
         // profile, or the reverse, is refused).
@@ -1791,6 +1793,27 @@ fn run_one(
                     model.target_mode().name(),
                     profile_str(cfg.profile),
                     required.name()
+                ));
+            }
+        }
+        // S11-B2: fail-closed feature-set match between the artifact and
+        // the requested profile (the R12 hybrid profile requires a v4
+        // V2R12 artifact; a V2 artifact under it — or the reverse — is
+        // refused).
+        {
+            use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+            let required_fs = if cfg.profile == SearchProfile::CurrentFinalNnueV2QMaterialR12 {
+                NnueFeatureSetId::V2R12
+            } else {
+                NnueFeatureSetId::V2
+            };
+            if model.feature_set() != required_fs {
+                return Err(format!(
+                    "bench: --nnue-model artifact feature_set '{:?}' does \
+                     not match profile '{}' (requires '{:?}') (fail closed)",
+                    model.feature_set(),
+                    profile_str(cfg.profile),
+                    required_fs
                 ));
             }
         }
@@ -1813,16 +1836,23 @@ fn run_one(
     } else {
         if cfg.nnue_audit || cfg.nnue_stack_telemetry {
             return Err(
-                "bench: --nnue-audit/--nnue-stack-telemetry require an NNUE profile"
-                    .to_string(),
+                "bench: --nnue-audit/--nnue-stack-telemetry require an NNUE profile".to_string(),
             );
         }
         (None, None)
     };
 
     let start = Instant::now();
-    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, cfg.profile, nnue_state)
-        .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
+    let outcome = search_one(
+        &mut pos,
+        &hist,
+        &limits,
+        &ctx,
+        &mut tt,
+        cfg.profile,
+        nnue_state,
+    )
+    .ok_or_else(|| format!("fixture {}: no legal moves (terminal root)", fx.id))?;
     let elapsed = start.elapsed();
 
     // Evidence lines only when diagnostics were explicitly requested.
@@ -3725,8 +3755,7 @@ fn run_nnue_v2_probe_batch(args: &[String]) -> Result<(), String> {
             }
         }
     }
-    let model_path =
-        model.ok_or_else(|| "nnue-v2-probe-batch: --model is required".to_string())?;
+    let model_path = model.ok_or_else(|| "nnue-v2-probe-batch: --model is required".to_string())?;
     let batch = batch.ok_or_else(|| "nnue-v2-probe-batch: --batch is required".to_string())?;
     let model =
         crate::engine::nnue_v2_runtime::NnueV2Model::load(std::path::Path::new(&model_path))?;
@@ -3751,8 +3780,7 @@ fn nnue_v2_probe_batch_from_text(
             Some((id, fen)) => (Some(id.trim()), fen.trim()),
             None => (None, line),
         };
-        let pos =
-            parse_fen(fen).map_err(|e| format!("nnue-v2-probe-batch: {e}: '{fen}'"))?;
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-v2-probe-batch: {e}: '{fen}'"))?;
         out.push_str(&nnue_v2_probe_line(model, &pos, fen, position_id));
         out.push('\n');
     }
@@ -3814,8 +3842,9 @@ fn run_nnue_v2q_probe(args: &[String]) -> Result<(), String> {
     }
     let model_path = model.ok_or_else(|| "nnue-v2q-probe: --model is required".to_string())?;
     let fen = fen.ok_or_else(|| "nnue-v2q-probe: --fen is required".to_string())?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(&model_path))?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
     let pos = parse_fen(&fen).map_err(|e| format!("nnue-v2q-probe: {e}"))?;
     println!("{}", nnue_v2q_probe_line(&model, &pos, &fen, None));
     Ok(())
@@ -3855,8 +3884,9 @@ fn run_nnue_v2q_probe_batch(args: &[String]) -> Result<(), String> {
     let model_path =
         model.ok_or_else(|| "nnue-v2q-probe-batch: --model is required".to_string())?;
     let batch = batch.ok_or_else(|| "nnue-v2q-probe-batch: --batch is required".to_string())?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(&model_path))?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
     let text = std::fs::read_to_string(&batch)
         .map_err(|e| format!("nnue-v2q-probe-batch: cannot read {batch}: {e}"))?;
     print!("{}", nnue_v2q_probe_batch_from_text(&model, &text)?);
@@ -3878,8 +3908,7 @@ fn nnue_v2q_probe_batch_from_text(
             Some((id, fen)) => (Some(id.trim()), fen.trim()),
             None => (None, line),
         };
-        let pos =
-            parse_fen(fen).map_err(|e| format!("nnue-v2q-probe-batch: {e}: '{fen}'"))?;
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-v2q-probe-batch: {e}: '{fen}'"))?;
         out.push_str(&nnue_v2q_probe_line(model, &pos, fen, position_id));
         out.push('\n');
     }
@@ -3926,51 +3955,55 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--fen" => {
-                fen = Some(it.next().ok_or(
-                    "eval-site-capture: --fen requires a value")?
-                    .clone());
+                fen = Some(
+                    it.next()
+                        .ok_or("eval-site-capture: --fen requires a value")?
+                        .clone(),
+                );
             }
             "--nodes" => {
-                nodes = it.next()
+                nodes = it
+                    .next()
                     .ok_or("eval-site-capture: --nodes requires a value")?
                     .parse::<u64>()
                     .map_err(|_| "eval-site-capture: bad --nodes")?;
             }
             "--profile" => {
-                let v = it.next().ok_or(
-                    "eval-site-capture: --profile requires a value")?;
+                let v = it
+                    .next()
+                    .ok_or("eval-site-capture: --profile requires a value")?;
                 profile = Some(match v.as_str() {
-                    "current-final-nnue-v2q-material" =>
-                        SearchProfile::CurrentFinalNnueV2QMaterial,
-                    "current-final-nnue-v2q" =>
-                        SearchProfile::CurrentFinalNnueV2QIncremental,
+                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
+                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
                     "current-final" => SearchProfile::CurrentFinal,
-                    other => return Err(format!(
-                        "eval-site-capture: unsupported profile '{other}'")),
+                    other => {
+                        return Err(format!("eval-site-capture: unsupported profile '{other}'"))
+                    }
                 });
             }
             "--nnue-model" => {
-                nnue_model = Some(it.next().ok_or(
-                    "eval-site-capture: --nnue-model requires a value")?
-                    .clone());
+                nnue_model = Some(
+                    it.next()
+                        .ok_or("eval-site-capture: --nnue-model requires a value")?
+                        .clone(),
+                );
             }
             "--hash-mb" => {
-                hash_mb = Some(it.next()
-                    .ok_or("eval-site-capture: --hash-mb requires a value")?
-                    .parse::<u64>()
-                    .map_err(|_| "eval-site-capture: bad --hash-mb")?);
+                hash_mb = Some(
+                    it.next()
+                        .ok_or("eval-site-capture: --hash-mb requires a value")?
+                        .parse::<u64>()
+                        .map_err(|_| "eval-site-capture: bad --hash-mb")?,
+                );
             }
             other => {
-                return Err(format!(
-                    "eval-site-capture: unknown argument '{other}'"));
+                return Err(format!("eval-site-capture: unknown argument '{other}'"));
             }
         }
     }
     let fen = fen.ok_or("eval-site-capture: --fen is required")?;
-    let profile = profile
-        .ok_or("eval-site-capture: --profile is required")?;
-    let mut pos = parse_fen(&fen)
-        .map_err(|e| format!("eval-site-capture: invalid FEN: {e}"))?;
+    let profile = profile.ok_or("eval-site-capture: --profile is required")?;
+    let mut pos = parse_fen(&fen).map_err(|e| format!("eval-site-capture: invalid FEN: {e}"))?;
     let hist = vec![pos.zobrist_key()];
 
     let mut tt = match hash_mb {
@@ -3982,13 +4015,18 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
 
     let stop = Arc::new(AtomicBool::new(false));
     let ctx = SearchContext::new_with_profiling(stop, false);
-    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+    let limits = SearchLimits {
+        nodes: Some(nodes),
+        ..Default::default()
+    };
 
     let nnue_state = if profile.uses_nnue_eval() {
-        let path = nnue_model.as_deref().ok_or(
-            "eval-site-capture: NNUE profile requires --nnue-model")?;
+        let path = nnue_model
+            .as_deref()
+            .ok_or("eval-site-capture: NNUE profile requires --nnue-model")?;
         let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(path))?;
+            std::path::Path::new(path),
+        )?;
         {
             use crate::engine::nnue_v2q_runtime::NnueV2TargetMode;
             let required = if profile.uses_nnue_material_residual() {
@@ -4000,7 +4038,9 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
                 return Err(format!(
                     "eval-site-capture: artifact target_mode '{}' does not \
                      match profile (requires '{}') (fail closed)",
-                    model.target_mode().name(), required.name()));
+                    model.target_mode().name(),
+                    required.name()
+                ));
             }
         }
         Some(crate::engine::nnue_search::NnueSearchState::with_options(
@@ -4019,29 +4059,35 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
     };
 
     crate::engine::search::eval_site_capture::enable(400_000);
-    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
-                             profile, nnue_state);
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, profile, nnue_state);
     let records = crate::engine::search::eval_site_capture::disable_and_take();
     if outcome.is_none() {
-        return Err("eval-site-capture: no legal moves (terminal root)"
-            .to_string());
+        return Err("eval-site-capture: no legal moves (terminal root)".to_string());
     }
 
     let mut main_n = 0usize;
     let mut qs_n = 0usize;
     for (f, kind, _ply) in &records {
-        let site = if *kind == 0 { "main_static" } else { "qsearch_standpat" };
-        if *kind == 0 { main_n += 1; } else { qs_n += 1; }
-        println!("{{\"fen\":\"{}\",\"site\":\"{}\"}}",
-                 json_escape(f), site);
+        let site = if *kind == 0 {
+            "main_static"
+        } else {
+            "qsearch_standpat"
+        };
+        if *kind == 0 {
+            main_n += 1;
+        } else {
+            qs_n += 1;
+        }
+        println!("{{\"fen\":\"{}\",\"site\":\"{}\"}}", json_escape(f), site);
     }
     eprintln!(
         "eval_site_capture total={} main_static={} qsearch_standpat={}",
-        records.len(), main_n, qs_n);
+        records.len(),
+        main_n,
+        qs_n
+    );
     Ok(())
 }
-
-
 
 /// S11-B1: `bench relation-churn --fen <fen> [--nodes N] --profile
 /// current-final-nnue-v2q-material --nnue-model <bin>` — run ONE fixed-node
@@ -4057,76 +4103,104 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--fen" => fen = Some(it.next()
-                .ok_or("relation-churn: --fen requires a value")?.clone()),
-            "--nodes" => nodes = it.next()
-                .ok_or("relation-churn: --nodes requires a value")?
-                .parse().map_err(|_| "relation-churn: bad --nodes")?,
+            "--fen" => {
+                fen = Some(
+                    it.next()
+                        .ok_or("relation-churn: --fen requires a value")?
+                        .clone(),
+                )
+            }
+            "--nodes" => {
+                nodes = it
+                    .next()
+                    .ok_or("relation-churn: --nodes requires a value")?
+                    .parse()
+                    .map_err(|_| "relation-churn: bad --nodes")?
+            }
             "--profile" => {
-                let v = it.next()
+                let v = it
+                    .next()
                     .ok_or("relation-churn: --profile requires a value")?;
                 profile = match v.as_str() {
-                    "current-final-nnue-v2q-material" =>
-                        SearchProfile::CurrentFinalNnueV2QMaterial,
-                    "current-final-nnue-v2q" =>
-                        SearchProfile::CurrentFinalNnueV2QIncremental,
-                    other => return Err(format!(
-                        "relation-churn: unsupported profile '{other}'")),
+                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
+                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
+                    other => return Err(format!("relation-churn: unsupported profile '{other}'")),
                 };
             }
-            "--nnue-model" => nnue_model = Some(it.next()
-                .ok_or("relation-churn: --nnue-model requires a value")?
-                .clone()),
+            "--nnue-model" => {
+                nnue_model = Some(
+                    it.next()
+                        .ok_or("relation-churn: --nnue-model requires a value")?
+                        .clone(),
+                )
+            }
             other => {
-                return Err(format!(
-                    "relation-churn: unknown argument '{other}'"));
+                return Err(format!("relation-churn: unknown argument '{other}'"));
             }
         }
     }
     let fen = fen.ok_or("relation-churn: --fen is required")?;
-    let mut pos = parse_fen(&fen)
-        .map_err(|e| format!("relation-churn: invalid FEN: {e}"))?;
+    let mut pos = parse_fen(&fen).map_err(|e| format!("relation-churn: invalid FEN: {e}"))?;
     let hist = vec![pos.zobrist_key()];
-    let mut tt = TranspositionTable::new_mb(32)
-        .map_err(|e| format!("relation-churn: TT alloc: {e}"))?;
-    let path = nnue_model.as_deref().ok_or(
-        "relation-churn: --nnue-model is required")?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(path))?;
+    let mut tt =
+        TranspositionTable::new_mb(32).map_err(|e| format!("relation-churn: TT alloc: {e}"))?;
+    let path = nnue_model
+        .as_deref()
+        .ok_or("relation-churn: --nnue-model is required")?;
+    let model =
+        crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(path))?;
     let nnue_state = crate::engine::nnue_search::NnueSearchState::with_options(
         std::sync::Arc::new(model),
         crate::engine::nnue_search::NnueSearchMode::Incremental,
-        &pos, false, false);
+        &pos,
+        false,
+        false,
+    );
 
     let stop = Arc::new(AtomicBool::new(false));
     let ctx = SearchContext::new_with_profiling(stop, false);
-    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+    let limits = SearchLimits {
+        nodes: Some(nodes),
+        ..Default::default()
+    };
 
     relation_churn::enable(2_000_000);
-    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
-                             profile, Some(nnue_state));
+    let outcome = search_one(
+        &mut pos,
+        &hist,
+        &limits,
+        &ctx,
+        &mut tt,
+        profile,
+        Some(nnue_state),
+    );
     let records = relation_churn::disable_and_take();
     outcome.ok_or("relation-churn: no legal moves (terminal root)")?;
 
     let churn: Vec<u64> = {
-        let mut v: Vec<u64> =
-            records.iter().map(|r| (r.removed + r.added) as u64).collect();
+        let mut v: Vec<u64> = records
+            .iter()
+            .map(|r| (r.removed + r.added) as u64)
+            .collect();
         v.sort_unstable();
         v
     };
     let pct = |p: f64| -> u64 {
-        if churn.is_empty() { 0 } else { churn[((churn.len() as f64 * p)
-            as usize).min(churn.len() - 1)] }
+        if churn.is_empty() {
+            0
+        } else {
+            churn[((churn.len() as f64 * p) as usize).min(churn.len() - 1)]
+        }
     };
     let sum: u64 = churn.iter().sum();
     let by = |f: &dyn Fn(&relation_churn::EdgeRecord) -> bool| -> (u64, u64) {
-        let sel: Vec<&relation_churn::EdgeRecord> =
-            records.iter().filter(|r| f(r)).collect();
-        if sel.is_empty() { return (0, 0); }
-        let mut v: Vec<u64> = sel.iter()
-            .map(|r| (r.removed + r.added) as u64).collect();
+        let sel: Vec<&relation_churn::EdgeRecord> = records.iter().filter(|r| f(r)).collect();
+        if sel.is_empty() {
+            return (0, 0);
+        }
+        let mut v: Vec<u64> = sel.iter().map(|r| (r.removed + r.added) as u64).collect();
         v.sort_unstable();
-        (v[v.len()/2], v[v.len()-1])
+        (v[v.len() / 2], v[v.len() - 1])
     };
     let (cap_med, cap_max) = by(&|r| r.is_capture);
     let (qui_med, qui_max) = by(&|r| !r.is_capture);
@@ -4134,13 +4208,14 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
     let (nsl_med, nsl_max) = by(&|r| !r.mover_slider);
     let mut phases: [(u64, u64, u64); 4] = [(0, 0, 0); 4]; // count, med, max
     for bucket in 0..4 {
-        let sel: Vec<&relation_churn::EdgeRecord> = records.iter()
-            .filter(|r| r.phase_bucket == bucket as u8).collect();
+        let sel: Vec<&relation_churn::EdgeRecord> = records
+            .iter()
+            .filter(|r| r.phase_bucket == bucket as u8)
+            .collect();
         if !sel.is_empty() {
-            let mut v: Vec<u64> = sel.iter()
-                .map(|r| (r.removed + r.added) as u64).collect();
+            let mut v: Vec<u64> = sel.iter().map(|r| (r.removed + r.added) as u64).collect();
             v.sort_unstable();
-            phases[bucket] = (sel.len() as u64, v[v.len()/2], *v.last().unwrap());
+            phases[bucket] = (sel.len() as u64, v[v.len() / 2], *v.last().unwrap());
         }
     }
     println!("{{\"edges\":{},\"churn_sum\":{},\"median\":{},\"p75\":{},\"p90\":{},\"p95\":{},\"p99\":{},\"max\":{},\"capture\":{{\"median\":{},\"max\":{}}},\"quiet\":{{\"median\":{},\"max\":{}}},\"slider\":{{\"median\":{},\"max\":{}}},\"non_slider\":{{\"median\":{},\"max\":{}}},\"phase_high\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_mid\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_low\":{{\"n\":{},\"median\":{},\"max\":{}}},\"phase_zero\":{{\"n\":{},\"median\":{},\"max\":{}}}}}",
@@ -4164,8 +4239,7 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
 /// Also prints the D1 normalized search-rate counters on stderr.
 #[cfg(feature = "diagnostic_search_calibration")]
 fn run_search_calibration(args: &[String]) -> Result<(), String> {
-    use crate::engine::search::search_calibration_shadow::{
-        self, ActiveKind};
+    use crate::engine::search::search_calibration_shadow::{self, ActiveKind};
     let mut fen: Option<String> = None;
     let mut root_id: u32 = 0;
     let mut active = "hce";
@@ -4174,74 +4248,106 @@ fn run_search_calibration(args: &[String]) -> Result<(), String> {
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--fen" => fen = Some(it.next()
-                .ok_or("search-calibration: --fen requires a value")?.clone()),
-            "--root-id" => root_id = it.next()
-                .ok_or("search-calibration: --root-id requires a value")?
-                .parse().map_err(|_|
-                "search-calibration: bad --root-id")?,
-            "--active" => active = it.next()
-                .ok_or("search-calibration: --active requires a value")?,
-            "--nnue-model" => nnue_model = Some(it.next()
-                .ok_or("search-calibration: --nnue-model requires a value")?
-                .clone()),
-            "--nodes" => nodes = it.next()
-                .ok_or("search-calibration: --nodes requires a value")?
-                .parse().map_err(|_| "search-calibration: bad --nodes")?,
-            other => return Err(format!(
-                "search-calibration: unknown argument '{other}'")),
+            "--fen" => {
+                fen = Some(
+                    it.next()
+                        .ok_or("search-calibration: --fen requires a value")?
+                        .clone(),
+                )
+            }
+            "--root-id" => {
+                root_id = it
+                    .next()
+                    .ok_or("search-calibration: --root-id requires a value")?
+                    .parse()
+                    .map_err(|_| "search-calibration: bad --root-id")?
+            }
+            "--active" => {
+                active = it
+                    .next()
+                    .ok_or("search-calibration: --active requires a value")?
+            }
+            "--nnue-model" => {
+                nnue_model = Some(
+                    it.next()
+                        .ok_or("search-calibration: --nnue-model requires a value")?
+                        .clone(),
+                )
+            }
+            "--nodes" => {
+                nodes = it
+                    .next()
+                    .ok_or("search-calibration: --nodes requires a value")?
+                    .parse()
+                    .map_err(|_| "search-calibration: bad --nodes")?
+            }
+            other => return Err(format!("search-calibration: unknown argument '{other}'")),
         }
     }
     let fen = fen.ok_or("search-calibration: --fen is required")?;
     let (active_kind, profile) = match active {
         "hce" => (ActiveKind::Hce, SearchProfile::CurrentFinal),
-        "nnue" => (ActiveKind::NnueMaterial,
-                   SearchProfile::CurrentFinalNnueV2QMaterial),
-        other => return Err(format!(
-            "search-calibration: --active must be hce|nnue, got '{other}'")),
+        "nnue" => (
+            ActiveKind::NnueMaterial,
+            SearchProfile::CurrentFinalNnueV2QMaterial,
+        ),
+        other => {
+            return Err(format!(
+                "search-calibration: --active must be hce|nnue, got '{other}'"
+            ))
+        }
     };
 
-    let mut pos = parse_fen(&fen)
-        .map_err(|e| format!("search-calibration: invalid FEN: {e}"))?;
+    let mut pos = parse_fen(&fen).map_err(|e| format!("search-calibration: invalid FEN: {e}"))?;
     let hist = vec![pos.zobrist_key()];
-    let mut tt = TranspositionTable::new_mb(32)
-        .map_err(|e| format!("search-calibration: TT alloc: {e}"))?;
+    let mut tt =
+        TranspositionTable::new_mb(32).map_err(|e| format!("search-calibration: TT alloc: {e}"))?;
 
     let nnue_state = if profile.uses_nnue_eval() {
-        let path = nnue_model.as_deref().ok_or(
-            "search-calibration: nnue active requires --nnue-model")?;
+        let path = nnue_model
+            .as_deref()
+            .ok_or("search-calibration: nnue active requires --nnue-model")?;
         Some(crate::engine::nnue_search::NnueSearchState::with_options(
-            std::sync::Arc::new(
-                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-                    std::path::Path::new(path))?),
+            std::sync::Arc::new(crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+                std::path::Path::new(path),
+            )?),
             crate::engine::nnue_search::NnueSearchMode::Incremental,
-            &pos, false, false))
+            &pos,
+            false,
+            false,
+        ))
     } else {
         None
     };
     // shadow model: always the material-residual F128 (needed when active
     // is HCE; also required for the enable() signature when active is NNUE)
-    let shadow_path = nnue_model.as_deref().ok_or(
-        "search-calibration: --nnue-model is required (shadow model)")?;
-    let shadow_model = std::sync::Arc::new(
-        crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(shadow_path))?);
+    let shadow_path = nnue_model
+        .as_deref()
+        .ok_or("search-calibration: --nnue-model is required (shadow model)")?;
+    let shadow_model =
+        std::sync::Arc::new(crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+            std::path::Path::new(shadow_path),
+        )?);
 
     let stop = Arc::new(AtomicBool::new(false));
     let ctx = SearchContext::new_with_profiling(stop, true);
-    let limits = SearchLimits { nodes: Some(nodes), ..Default::default() };
+    let limits = SearchLimits {
+        nodes: Some(nodes),
+        ..Default::default()
+    };
 
     search_calibration_shadow::enable(active_kind, Some(shadow_model));
     search_calibration_shadow::set_root_id(root_id);
-    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt,
-                             profile, nnue_state);
+    let outcome = search_one(&mut pos, &hist, &limits, &ctx, &mut tt, profile, nnue_state);
     let (futility, qsearch) = search_calibration_shadow::disable_and_take();
     outcome.ok_or("search-calibration: no legal moves (terminal root)")?;
 
     for (gate, recs) in [("futility", &futility), ("qsearch", &qsearch)] {
         for r in recs {
-            println!("{{\"root_id\":{},\"gate\":\"{}\",\"active_slack\":{},\"shadow_slack\":{}}}",
-                     r.root_id, gate, r.active_slack, r.shadow_slack);
+            println!(
+                "{{\"root_id\":{},\"gate\":\"{}\",\"active_slack\":{},\"shadow_slack\":{}}}",
+                r.root_id, gate, r.active_slack, r.shadow_slack
+            );
         }
     }
     // D1 normalized-rate counters to stderr
@@ -4275,27 +4381,22 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
                 let value = it
                     .next()
                     .ok_or_else(|| {
-                        "nnue-v2q-accumulator-audit: --model requires a value"
-                            .to_string()
+                        "nnue-v2q-accumulator-audit: --model requires a value".to_string()
                     })?
                     .clone();
                 model = Some(value);
             }
             "--games" => {
-                let value = it.next().ok_or_else(|| {
-                    "--games requires a value".to_string()
-                })?;
-                games = value
-                    .parse()
-                    .map_err(|_| format!("bad --games {value}"))?;
+                let value = it
+                    .next()
+                    .ok_or_else(|| "--games requires a value".to_string())?;
+                games = value.parse().map_err(|_| format!("bad --games {value}"))?;
             }
             "--plies" => {
-                let value = it.next().ok_or_else(|| {
-                    "--plies requires a value".to_string()
-                })?;
-                plies = value
-                    .parse()
-                    .map_err(|_| format!("bad --plies {value}"))?;
+                let value = it
+                    .next()
+                    .ok_or_else(|| "--plies requires a value".to_string())?;
+                plies = value.parse().map_err(|_| format!("bad --plies {value}"))?;
             }
             other => {
                 return Err(format!(
@@ -4304,11 +4405,11 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             }
         }
     }
-    let model_path = model.ok_or_else(|| {
-        "nnue-v2q-accumulator-audit: --model is required".to_string()
-    })?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(&model_path))?;
+    let model_path =
+        model.ok_or_else(|| "nnue-v2q-accumulator-audit: --model is required".to_string())?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
 
     // Deterministic xorshift RNG (fixed seed = frozen commit prefix).
     let mut rng: u64 = 0x5989d5721ea4258e;
@@ -4358,9 +4459,7 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             for color in [Color::White, Color::Black] {
                 let b_sq = before.king_square(color);
                 let a_sq = pos.king_square(color);
-                if b_sq != a_sq
-                    && ((b_sq & 7) < 4) != ((a_sq & 7) < 4)
-                {
+                if b_sq != a_sq && ((b_sq & 7) < 4) != ((a_sq & 7) < 4) {
                     mirror_boundary_king_moves += 1;
                 }
             }
@@ -4369,8 +4468,7 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             // comparison: move-aware == C1 64-square reference ==
             // full refresh.
             let mut inc = acc;
-            let stats =
-                model.update_accumulator_for_move(&mut inc, &delta, &pos);
+            let stats = model.update_accumulator_for_move(&mut inc, &delta, &pos);
             delta_updates += stats.delta_updates as u64;
             full_refreshes += stats.full_refreshes as u64;
 
@@ -4383,8 +4481,7 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
             }
 
             let fresh = model.full_accumulator(&pos);
-            lanes_checked += (fresh.white().len() + fresh.black().len())
-                as u64;
+            lanes_checked += (fresh.white().len() + fresh.black().len()) as u64;
             if inc.white() != fresh.white() {
                 white_lane_mismatches += inc
                     .white()
@@ -4436,12 +4533,10 @@ fn run_nnue_v2q_accumulator_audit(args: &[String]) -> Result<(), String> {
          \"passed\":{passed}}}"
     );
     if !passed {
-        return Err("nnue-v2q-accumulator-audit: FAIL (lane or raw mismatch)"
-            .to_string());
+        return Err("nnue-v2q-accumulator-audit: FAIL (lane or raw mismatch)".to_string());
     }
     Ok(())
 }
-
 
 /// S10-C3-A: `bench nnue-v2q-cost --model <bin> --batch <file>
 /// [--rounds N]` — component microcost for the frozen quantized NNUE vs
@@ -4464,48 +4559,37 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             "--model" => {
                 let value = it
                     .next()
-                    .ok_or_else(|| {
-                        "nnue-v2q-cost: --model requires a value".to_string()
-                    })?
+                    .ok_or_else(|| "nnue-v2q-cost: --model requires a value".to_string())?
                     .clone();
                 model = Some(value);
             }
             "--batch" => {
                 let value = it
                     .next()
-                    .ok_or_else(|| {
-                        "nnue-v2q-cost: --batch requires a value".to_string()
-                    })?
+                    .ok_or_else(|| "nnue-v2q-cost: --batch requires a value".to_string())?
                     .clone();
                 batch = Some(value);
             }
             "--rounds" => {
                 let value = it
                     .next()
-                    .ok_or_else(|| {
-                        "nnue-v2q-cost: --rounds requires a value".to_string()
-                    })?
+                    .ok_or_else(|| "nnue-v2q-cost: --rounds requires a value".to_string())?
                     .clone();
-                rounds = value
-                    .parse()
-                    .map_err(|_| format!("bad --rounds {value}"))?;
+                rounds = value.parse().map_err(|_| format!("bad --rounds {value}"))?;
                 if rounds < 4 {
                     return Err("nnue-v2q-cost: --rounds must be >= 4".to_string());
                 }
             }
             other => {
-                return Err(format!(
-                    "nnue-v2q-cost: unknown argument '{other}'"
-                ));
+                return Err(format!("nnue-v2q-cost: unknown argument '{other}'"));
             }
         }
     }
-    let model_path =
-        model.ok_or_else(|| "nnue-v2q-cost: --model is required".to_string())?;
-    let batch = batch
-        .ok_or_else(|| "nnue-v2q-cost: --batch is required".to_string())?;
-    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-        std::path::Path::new(&model_path))?;
+    let model_path = model.ok_or_else(|| "nnue-v2q-cost: --model is required".to_string())?;
+    let batch = batch.ok_or_else(|| "nnue-v2q-cost: --batch is required".to_string())?;
+    let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+        &model_path,
+    ))?;
     let text = std::fs::read_to_string(&batch)
         .map_err(|e| format!("nnue-v2q-cost: cannot read {batch}: {e}"))?;
 
@@ -4520,8 +4604,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             Some((_, fen)) => fen.trim(),
             None => line,
         };
-        let pos = parse_fen(fen)
-            .map_err(|e| format!("nnue-v2q-cost: {e}: '{fen}'"))?;
+        let pos = parse_fen(fen).map_err(|e| format!("nnue-v2q-cost: {e}: '{fen}'"))?;
         positions.push(pos);
     }
     if positions.is_empty() {
@@ -4558,9 +4641,7 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             let parent = pos.clone();
             pos.make_move(m);
             let moved_is_king = parent.board()[m.from as usize]
-                .map(|p| {
-                    p.piece_type == crate::chess::types::PieceType::King
-                })
+                .map(|p| p.piece_type == crate::chess::types::PieceType::King)
                 .unwrap_or(false);
             transitions.push(Transition {
                 parent,
@@ -4594,16 +4675,14 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
         })
         .collect();
     let king_count = transitions.iter().filter(|t| t.is_king).count();
-    let ordinary_transitions =
-        transitions.iter().filter(|t| !t.is_king).count();
+    let ordinary_transitions = transitions.iter().filter(|t| !t.is_king).count();
 
     // --- helper: measure median/p25/p75/min/max ns/op over `rounds` ---
     fn stats(samples: &[u128]) -> (u128, u128, u128, u128, u128) {
         let mut s = samples.to_vec();
         s.sort_unstable();
         let pick = |q: f64| -> u128 {
-            let idx =
-                ((s.len() as f64 - 1.0) * q).round() as usize;
+            let idx = ((s.len() as f64 - 1.0) * q).round() as usize;
             s[idx.min(s.len() - 1)]
         };
         (pick(0.5), pick(0.25), pick(0.75), s[0], *s.last().unwrap())
@@ -4631,28 +4710,34 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
 
     // 1. Eval2 total (production integrated positional evaluator).
     {
-        let samples = run_rounds(|| {
-            for pos in &positions {
-                black_box(evaluate_integrated_positional(black_box(pos)));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for pos in &positions {
+                    black_box(evaluate_integrated_positional(black_box(pos)));
+                }
+            },
+            rounds,
+        );
         add_part("eval2_total", &samples, n);
     }
 
     // 2. V2 feature extraction (both perspectives, per position).
     {
-        let samples = run_rounds(|| {
-            for pos in &positions {
-                black_box(active_features_v2(
-                    black_box(pos),
-                    black_box(NnuePerspective::White),
-                ));
-                black_box(active_features_v2(
-                    black_box(pos),
-                    black_box(NnuePerspective::Black),
-                ));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for pos in &positions {
+                    black_box(active_features_v2(
+                        black_box(pos),
+                        black_box(NnuePerspective::White),
+                    ));
+                    black_box(active_features_v2(
+                        black_box(pos),
+                        black_box(NnuePerspective::Black),
+                    ));
+                }
+            },
+            rounds,
+        );
         add_part("v2_feature_extract", &samples, n);
     }
 
@@ -4668,56 +4753,63 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
         })
         .collect();
     {
-        let samples = run_rounds(|| {
-            for (white, black) in &feature_lists {
-                // FT accumulate via the full_accumulator path on a
-                // position is not isolated; use the per-perspective
-                // public method.
-                black_box(model_arc.accumulate_public(white));
-                black_box(model_arc.accumulate_public(black));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for (white, black) in &feature_lists {
+                    // FT accumulate via the full_accumulator path on a
+                    // position is not isolated; use the per-perspective
+                    // public method.
+                    black_box(model_arc.accumulate_public(white));
+                    black_box(model_arc.accumulate_public(black));
+                }
+            },
+            rounds,
+        );
         add_part("ft_accumulate", &samples, n);
     }
 
     // 4. Dense forward (from precomputed accumulators).
-    let accs: Vec<crate::engine::nnue_v2q_runtime::AccumulatorFor> =
-        positions
-            .iter()
-            .map(|pos| model_arc.full_accumulator(pos))
-            .collect();
+    let accs: Vec<crate::engine::nnue_v2q_runtime::AccumulatorFor> = positions
+        .iter()
+        .map(|pos| model_arc.full_accumulator(pos))
+        .collect();
     {
-        let samples = run_rounds(|| {
-            for (pos, acc) in positions.iter().zip(accs.iter()) {
-                black_box(model_arc.evaluate_raw_from_accumulator(
-                    black_box(pos),
-                    black_box(acc),
-                ));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for (pos, acc) in positions.iter().zip(accs.iter()) {
+                    black_box(
+                        model_arc.evaluate_raw_from_accumulator(black_box(pos), black_box(acc)),
+                    );
+                }
+            },
+            rounds,
+        );
         add_part("dense_forward", &samples, n);
     }
 
     // 5. NNUE full total — the ACTUAL production full-refresh path.
     {
-        let samples = run_rounds(|| {
-            for pos in &positions {
-                black_box(model_arc.evaluate_cp_i32(black_box(pos)));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for pos in &positions {
+                    black_box(model_arc.evaluate_cp_i32(black_box(pos)));
+                }
+            },
+            rounds,
+        );
         add_part("nnue_full_total", &samples, n);
     }
 
     // 6. Delta preparation.
     {
-        let samples = run_rounds(|| {
-            for t in &transitions {
-                black_box(model_arc.prepare_move_delta(
-                    black_box(&t.parent),
-                    black_box(&t.mv),
-                ));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for t in &transitions {
+                    black_box(model_arc.prepare_move_delta(black_box(&t.parent), black_box(&t.mv)));
+                }
+            },
+            rounds,
+        );
         add_part("delta_prepare", &samples, transitions.len());
     }
 
@@ -4729,19 +4821,16 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             .filter(|(_, t)| !t.is_king)
             .map(|(f, _)| f)
             .collect();
-        let samples = run_rounds(|| {
-            for f in &ordinary {
-                let mut acc = f.parent_acc;
-                black_box(model_arc.update_accumulator_for_move(
-                    &mut acc, &f.delta, &f.child,
-                ));
-            }
-        }, rounds);
-        add_part(
-            "ordinary_accumulator_update",
-            &samples,
-            ordinary.len(),
+        let samples = run_rounds(
+            || {
+                for f in &ordinary {
+                    let mut acc = f.parent_acc;
+                    black_box(model_arc.update_accumulator_for_move(&mut acc, &f.delta, &f.child));
+                }
+            },
+            rounds,
         );
+        add_part("ordinary_accumulator_update", &samples, ordinary.len());
     }
 
     // 8. King-refresh accumulator update (own-king transitions only).
@@ -4752,55 +4841,49 @@ fn run_nnue_v2q_cost(args: &[String]) -> Result<(), String> {
             .filter(|(_, t)| t.is_king)
             .map(|(f, _)| f)
             .collect();
-        let samples = run_rounds(|| {
-            for f in &kings {
-                let mut acc = f.parent_acc;
-                black_box(model_arc.update_accumulator_for_move(
-                    &mut acc, &f.delta, &f.child,
-                ));
-            }
-        }, rounds);
-        add_part(
-            "king_refresh_accumulator_update",
-            &samples,
-            kings.len(),
+        let samples = run_rounds(
+            || {
+                for f in &kings {
+                    let mut acc = f.parent_acc;
+                    black_box(model_arc.update_accumulator_for_move(&mut acc, &f.delta, &f.child));
+                }
+            },
+            rounds,
         );
+        add_part("king_refresh_accumulator_update", &samples, kings.len());
     }
 
     // 9. Dense from accumulator (reuses fixtures' children + parents).
     {
-        let samples = run_rounds(|| {
-            for f in &fixtures {
-                black_box(model_arc.evaluate_raw_from_accumulator(
-                    black_box(&f.child),
-                    black_box(&f.parent_acc),
-                ));
-            }
-        }, rounds);
+        let samples = run_rounds(
+            || {
+                for f in &fixtures {
+                    black_box(model_arc.evaluate_raw_from_accumulator(
+                        black_box(&f.child),
+                        black_box(&f.parent_acc),
+                    ));
+                }
+            },
+            rounds,
+        );
         add_part("dense_from_accumulator", &samples, fixtures.len());
     }
 
     // 10. Incremental edge + eval (delta prepare + update + dense), all
     // precomputed fixtures, no movegen/FEN in the timed region.
     {
-        let samples = run_rounds(|| {
-            for (f, t) in fixtures.iter().zip(transitions.iter()) {
-                let delta =
-                    model_arc.prepare_move_delta(&t.parent, &t.mv);
-                let mut acc = f.parent_acc;
-                black_box(model_arc.update_accumulator_for_move(
-                    &mut acc, &delta, &f.child,
-                ));
-                black_box(model_arc.evaluate_raw_from_accumulator(
-                    &f.child, &acc,
-                ));
-            }
-        }, rounds);
-        add_part(
-            "incremental_edge_plus_eval",
-            &samples,
-            fixtures.len(),
+        let samples = run_rounds(
+            || {
+                for (f, t) in fixtures.iter().zip(transitions.iter()) {
+                    let delta = model_arc.prepare_move_delta(&t.parent, &t.mv);
+                    let mut acc = f.parent_acc;
+                    black_box(model_arc.update_accumulator_for_move(&mut acc, &delta, &f.child));
+                    black_box(model_arc.evaluate_raw_from_accumulator(&f.child, &acc));
+                }
+            },
+            rounds,
         );
+        add_part("incremental_edge_plus_eval", &samples, fixtures.len());
     }
 
     let parts = json_parts.join(",");

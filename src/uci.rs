@@ -268,11 +268,12 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
         search::SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
         search::SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
-        search::SearchProfile::CurrentFinalNnueV2QMaterial => {
-            "current-final-nnue-v2q-material"
-        }
+        search::SearchProfile::CurrentFinalNnueV2QMaterial => "current-final-nnue-v2q-material",
         search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
             "current-final-nnue-v2q-material-cal-fut"
+        }
+        search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => {
+            "current-final-nnue-v2q-material-r12"
         }
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
@@ -740,9 +741,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     // S10-D preview: NNUE candidate profiles (require
                     // --nnue-model; fail-closed otherwise).
-                    "current-final-nnue-v2q-full" => {
-                        search::SearchProfile::CurrentFinalNnueV2QFull
-                    }
+                    "current-final-nnue-v2q-full" => search::SearchProfile::CurrentFinalNnueV2QFull,
                     "current-final-nnue-v2q" => {
                         search::SearchProfile::CurrentFinalNnueV2QIncremental
                     }
@@ -754,6 +753,11 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     "current-final-nnue-v2q-material-cal-fut" => {
                         search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut
+                    }
+                    // S11-B2: R12 relation-sidecar hybrid (requires a v4
+                    // feature_set=V2R12 artifact; fail-closed otherwise).
+                    "current-final-nnue-v2q-material-r12" => {
+                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12
                     }
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
@@ -789,17 +793,16 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     // the profile — a material-residual artifact under a pure NNUE profile
     // (or the reverse) is refused instead of silently mis-evaluating.
     let nnue_model = if let Some(path) = nnue_model_path.as_deref() {
-        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(path),
-        ) {
+        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
+            path,
+        )) {
             Ok(model) => {
                 let mode = model.target_mode();
-                let required =
-                    if profile.uses_nnue_material_residual() {
-                        crate::engine::nnue_v2q_runtime::NnueV2TargetMode::MaterialResidual
-                    } else {
-                        crate::engine::nnue_v2q_runtime::NnueV2TargetMode::Cp
-                    };
+                let required = if profile.uses_nnue_material_residual() {
+                    crate::engine::nnue_v2q_runtime::NnueV2TargetMode::MaterialResidual
+                } else {
+                    crate::engine::nnue_v2q_runtime::NnueV2TargetMode::Cp
+                };
                 if profile.uses_nnue_eval() && mode != required {
                     return Err(format!(
                         "--nnue-model: artifact target_mode '{}' does not \
@@ -807,6 +810,27 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                         mode.name(),
                         required.name()
                     ));
+                }
+                // S11-B2: fail-closed feature-set match (the R12 hybrid
+                // profile requires a v4 V2R12 artifact; other NNUE
+                // profiles require V2 artifacts).
+                if profile.uses_nnue_eval() {
+                    use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+                    let required_fs =
+                        if profile == search::SearchProfile::CurrentFinalNnueV2QMaterialR12 {
+                            NnueFeatureSetId::V2R12
+                        } else {
+                            NnueFeatureSetId::V2
+                        };
+                    if model.feature_set() != required_fs {
+                        return Err(format!(
+                            "--nnue-model: artifact feature_set '{:?}' \
+                             does not match profile (requires '{:?}') \
+                             (fail closed)",
+                            model.feature_set(),
+                            required_fs
+                        ));
+                    }
                 }
                 Some(Arc::new(model))
             }
@@ -827,7 +851,12 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
 
 #[derive(Debug)]
 enum StartupCommand {
-    Run((search::SearchProfile, Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>)),
+    Run(
+        (
+            search::SearchProfile,
+            Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
+        ),
+    ),
     Help,
 }
 
@@ -1447,22 +1476,16 @@ mod tests {
 
     #[test]
     fn s80_help_text_advertises_the_eval2_candidate() {
-        let err = parse_startup_profile(&[
-            "--profile".to_string(),
-            "nope".to_string(),
-        ])
-        .unwrap_err();
+        let err =
+            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
         assert!(err.contains("current-final-eval2"), "got: {}", err);
     }
 
     /// S9-A: The rejection message must advertise all LOO candidates.
     #[test]
     fn s9a_help_text_advertises_loo_candidates() {
-        let err = parse_startup_profile(&[
-            "--profile".to_string(),
-            "nope".to_string(),
-        ])
-        .unwrap_err();
+        let err =
+            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
         assert!(
             err.contains("current-final-no-pawn-structure"),
             "got: {}",
