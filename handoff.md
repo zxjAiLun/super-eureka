@@ -22,10 +22,11 @@
 S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +71.3 Elo）；S10 全季
 NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena 全拒，H0 裁定
 MULTIFACTORIAL。S11-A R12 sidecar 是 NNUE 计划最大离线突破。**S11-B2/B3 完成：R12
-hybrid reference 四层 parity 全 PASS、NPS 0.58 → B5 PAUSED；S11-B4-A 完成（GO
-决议）：relation-state recompute + delta FT update——attack-map/state/diff-chain
-全 bitwise parity，成本门 median 448 ns/edge（门 1500/理想 1000，3.3× 余量），
-投影 NPS ~0.85-0.92。下一步 B4-B：搜索栈集成 + 配对 NPS 裁决（0.90/0.80 门）。**
+hybrid reference 四层 parity 全 PASS、NPS 0.58 → B5 PAUSED；S11-B4-A 完成：relation
+delta 成本门 448 ns/edge（playout corpus microcost）；S11-B4-B 完成（`38aaeee`）：
+incremental R12 搜索栈——全 parity（含 24-FEN 树一致性 0 mismatch）+ 配对 NPS
+**0.9488 ≥ 0.90**，**B5 解锁**。下一步：B5（256 roots × 100k 固定节点 search
+validation）待审批方放行。**
 
 ## 当前生产行为
 
@@ -150,25 +151,22 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
   它同时消掉 scan 与批量重加，预期 eval 税 ~1.5-2×；工程量为新子项目
   （slider ray 开闭、victim 联动、king move perspective 变换）。
 
-### S11-B4（进行中）
+### S11-B4（已完成）
 
-- **B4-A 完成（`ebd95ca`，GO 决议，详见
-  docs/dev-log/2026-09-07-s11-b4a-relation-delta.md）**：审批方向修正——不做
-  "完整局部依赖 incremental updater"，改做 relation-state recompute + delta FT
-  update。`Position::attack_map`（u64×2，逐位 == is_square_attacked）、
-  `R12RelationState`（[u8;64] physical state，perspective 无关）、
-  `r12_apply_relation_delta` / `r12_rebuild_perspective`（king-move 稀有路径）。
-  Parity：1.28M attack bits、10k corpus state-rows、10k 边 ratchet（combined ==
-  full refresh，含 king 路径）全 0 mismatch。**成本门：median 448.1 ns/edge**
-  （冻结门 1500、理想 1000）。途中两个真 bug：king-move 漏另一视角 diff（单测
-  抓到，差一行 32）；corpus 重 seed 条件永真死循环（两次超时后定位）。
-- **B4-B（下一步，待执行）**：搜索栈集成——frame 携带 combined accumulator +
-  [u8;64] state；push_child = V2 delta + relation diff（king: mover 视角重建）；
-  fresh R12 保留为 oracle 不删；parity 资产复用（full==fresh==incremental：
-  10k corpus / ~20k transitions / 定向 fixtures / fixed-node 树一致）；然后同一
-  24-FEN、200k-node、同 binary 配对 NPS；门不变：≥0.90 解锁 B5，0.80-0.90 一次
-  纯性能优化机会，<0.80 停止 productionization（不升级成维护 attack
-  dependency graph 的大型真增量系统）。
+- **B4-A（`ebd95ca`，详见 docs/dev-log/2026-09-07-s11-b4a-relation-delta.md）**：
+  `Position::attack_map`（u64×2，逐位 == is_square_attacked）、`R12RelationState`
+  （[u8;64]）、diff FT 应用。Parity 全 bitwise；成本门 median 448 ns/edge（合法
+  playout corpus microcost——不是 B1 真实搜索边分布的无偏估计）。
+- **B4-B（`38aaeee`，详见 docs/dev-log/2026-09-07-s11-b4b-incremental-stack.md）**：
+  按审批冻结细节：`frames: Vec<AccumulatorFor>` 原封不动 + `Option<Vec<R12Relation
+  State>>` 并行栈（非 inc 路径零额外拷贝）；API 拆分保证 child state 每边只
+  recompute 一次；fresh oracle profile 保留，新增 `current-final-nnue-v2q-material-
+  r12-inc`（同 binary 三路径）。Parity：inc-stack 200 转移 + 29 null push == full
+  refresh；24-FEN × 50k 树一致性 17 字段 0 mismatch。**配对 NPS median 0.9488 ≥
+  0.90 → 门 PASS，B5 解锁**。分类：opening/middlegame 0.94-1.05；tactical ~0.90；
+  endgame 0.80-0.91（稀疏位置 E3 eval 极快，~450ns/边固定成本占比大）。
+- **B5（待审批方放行）**：256 roots × 100k 固定节点 search validation（lockbox
+  scorer 已就绪）；这是 R12 生产化路线的最后离线门。
 
 ### S11 已知陷阱（本轮实测）
 
@@ -239,11 +237,12 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ### 推荐下一步（按序）
 
-1. **S11-B4-B 执行**：搜索栈集成（combined accumulator + relation state 入
-   frame；fresh oracle 保留）；parity 复用（full==fresh==incremental：10k
-   corpus + ~20k transitions + 定向 fixtures + fixed-node 树一致）；同一协议
-   重跑配对 NPS，按 0.90/0.80 门裁决；
-2. NPS ≥ 0.90 → 申请 B5（256 roots × 100k search validation）；
+1. **S11-B5（待审批方放行后执行）**：256 roots × 100k 固定节点 search
+   validation（lockbox scorer `tools\s10\j0_lockbox.py` / e2668d8 统一版已就绪；
+   H0-C roots 缓存 `C:\Users\81489\AppData\Local\Temp\opencode\h0c-cache\`）——
+   R12 inc vs E3 的 bestmove/PV/搜索质量对比，是 Arena 前最后离线门；
+2. B5 过门后：Arena SPRT（需独立开局、双臂同 binary、`current-final-nnue-v2q-
+   material-r12-inc` vs `current-final`）；
 3. 无论方向：handoff + dev-log 按制度更新。
 
 ## 关键文件导航
@@ -268,6 +267,13 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-07 · S11-B4-B incremental R12 search stack · `38aaeee`**
+  按冻结细节集成（frames 原样 + Option relation 栈；child state 单次
+  recompute API；fresh oracle 保留 + `-inc` 新 profile）。Parity 全 PASS
+  （含 24-FEN × 50k 树一致性 17 字段 0 mismatch、inc-stack 200 转移 +
+  29 null push）。配对 NPS **median 0.9488 ≥ 0.90** → 门 PASS，**B5 解锁**。
+  分类：opening/mid 0.94-1.05、tactical ~0.90、endgame 0.80-0.91。
+  开发文档：docs/dev-log/2026-09-07-s11-b4b-incremental-stack.md
 - **2026-09-07 · S11-B4-A relation delta · `ebd95ca`**
   审批 GO 后实现 attack-map + [u8;64] relation state + diff FT 应用
   （king-move 稀有路径）。Parity 全 bitwise（1.28M attack bits / 10k
