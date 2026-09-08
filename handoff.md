@@ -21,11 +21,12 @@
 
 S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +71.3 Elo）；S10 全季
 NNUE 生产化建成但三轮 Arena 全拒；S11 R12 链（fresh 0.58 → delta 448ns → 栈
-0.9488 → B5 平手）收尾，不继续 transfer 归因。**S12 完成：Bullet 配方
+0.9488 → B5 平手）收尾，不继续 transfer 归因。**S12 CLOSE / PARITY：Bullet 配方
 （SCReLU + 8 桶 FT256 + sigmoid 得分损失）全栈落地（v5 artifact、parity 全 PASS、
-NPS 持平 E3），204 秒训练的模型与生产 current-final 筛选赛 64-64 完全平手
-（−2.7 ± 30.7）——"值得续测"，不升 SPRT。R12-inc vs SF2400 的 1+0 计 Elo live
-match 仍在跑（`6a07cc07…`）。**
+NPS 持平 E3）并保留为生产级 NNUE 基础设施；R0 早期筛选（128 局）与生产
+current-final 平手（W/D/L 55/17/56，49.61%，pentanomial [10,5,34,6,9]）；R1
+batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变）——按冻结
+协议收尾。R12-inc vs SF2400 的 1+0 计 Elo live match 仍在跑（`6a07cc07…`）。**
 
 ## 当前生产行为
 
@@ -274,6 +275,12 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-08 · S12-R1 batch-cadence repair FAIL → S12 CLOSE / PARITY · `5b4ba04`/`55718d8`**
+  单变量 batch 1024→16384（真 16×，Bullet cadence）。best epoch 4、val 0.009657
+  （门 0.00910、R0 0.009204）——曲线略平但形态不变，cadence 假设否决。未导出
+  未比赛；R0 128 局早期屏幕（W/D/L 55/17/56 = 49.61%）为最终对抗结果。残余差距
+  记录：数据规模/刷新（~100M 数据流 vs 固定 780k）与 game-result 混合——若重开
+  训练线，数据供给是首要杠杆。开发文档：docs/dev-log/2026-09-08-s12-r1-repair-close.md
 - **2026-09-08 · S12 Bullet-recipe 全栈 + 生产筛选赛 · `dfe60df`/`876e4fe`**
   SCReLU+8桶 FT256+sigmoid(400) 得分损失;v5 artifact(116B header+head_kind);
   Rust loader/kernel/head-aware 化;current-final-s12 profile。Parity 全 PASS
