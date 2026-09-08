@@ -26,6 +26,16 @@
 !/results/s10/**
 !/results/s11/
 !/results/s11/**
+!/results/s12/
+!/results/s12/**
+# S12: model binaries/checkpoints local-only; summaries + layouts tracked
+data/s12/**
+!data/s12/r1/
+data/s12/r1/*
+!data/s12/r1/seed-20260908/
+data/s12/r1/seed-20260908/*
+!data/s12/r1/seed-20260908/*.json
+!data/s12/r1/seed-20260908/*.layout.json
 /results/s10/bakeoff/
 /results/s10/stage2_holdout/
 /results/s10/deterministic_replay/

@@ -105,16 +105,54 @@ impl NnueFeatureSetId {
 
 /// S11-B2: version-aware header size. v1-v3 share the historical
 /// 108-byte header; v4 inserts the `feature_set` u32 before the source
-/// SHAs (112 bytes). Payload offsets are derived from THIS, never from
-/// a global constant — a global bump would shift every v1-v3 payload
-/// by 4 bytes and silently corrupt old artifacts.
+/// SHAs (112 bytes). v5 (S12) additionally inserts `head_kind` after
+/// `feature_set` (120 bytes; SCReLU + 8 material-count output buckets).
+/// Payload offsets are derived from THIS, never from a global constant —
+/// a global bump would shift every v1-v3 payload by 4 bytes and silently
+/// corrupt old artifacts.
 const fn header_bytes(version: u32) -> usize {
     match version {
         1 | 2 | 3 => 108,
         4 => 112,
+        // v5: v4 + head_kind u32 = 8 + 11*4 + 64 = 116
+        5 => 116,
         // Unreachable in practice: versions are validated before layout.
-        _ => 112,
+        _ => 116,
     }
+}
+
+/// S12: the head kind carried by a v5 artifact. v1-v4 artifacts carry
+/// the legacy ClippedReLU 32-32-1 head implicitly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NnueHeadKind {
+    /// Legacy: ClippedReLU -> 32 -> ClippedReLU -> 32 -> ClippedReLU -> 1
+    LegacyDense,
+    /// S12 Bullet recipe: SCReLU activations and ONE linear
+    /// (2*ft_width -> 8) output layer selected by Bullet's
+    /// material-count bucket ((popcount(occ)-2)/4, kings included).
+    ScreluBuckets,
+}
+
+impl NnueHeadKind {
+    fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(NnueHeadKind::LegacyDense),
+            1 => Some(NnueHeadKind::ScreluBuckets),
+            _ => None,
+        }
+    }
+}
+
+/// S12: Bullet's MaterialCount::<8> output bucket for a position —
+/// `(popcount(occupancy) - 2) / 4` where the count includes both kings.
+/// MUST match tools/s12/s12_train.py::output_bucket exactly.
+#[inline]
+pub fn s12_output_bucket(pos: &Position) -> usize {
+    let occ = pos.board().iter().filter(|p| p.is_some()).count();
+    // Legal boards are [2, 32]; non-legal inputs (e.g. test fixtures)
+    // are clamped into the last bucket rather than panicking — the
+    // bucket only routes the output head.
+    (occ.saturating_sub(2).min(30)) / 4
 }
 
 /// S10-G1: the two AUTHENTICATED feature-transformer widths. The runtime
@@ -441,6 +479,9 @@ pub struct NnueV2QuantizedModel {
     /// v4). Selects full-refresh feature extraction and the hybrid
     /// evaluation path.
     feature_set: NnueFeatureSetId,
+    /// S12: head architecture (v1-v4 implicitly legacy dense; v5 carries
+    /// it explicitly). Selects the forward path.
+    head_kind: NnueHeadKind,
 }
 
 /// Per-width tensor bundle. `ft_weights` is [inputs][W] row-major;
@@ -520,7 +561,7 @@ impl NnueV2QuantizedModel {
                 }
                 NnueV2TargetMode::Cp
             }
-            2 | 3 | 4 => NnueV2TargetMode::from_u32(mode_raw)
+            2 | 3 | 4 | 5 => NnueV2TargetMode::from_u32(mode_raw)
                 .ok_or_else(|| format!("nnue-v2q-probe: bad target_mode {mode_raw}"))?,
             other => {
                 return Err(format!("nnue-v2q-probe: bad version {other}"));
@@ -530,12 +571,13 @@ impl NnueV2QuantizedModel {
         // v1-v3: implicit V2, inputs MUST be exactly 22528 (unchanged
         // historical contract). v4: explicit word, cross-checked against
         // the feature set's exact input dim — any mismatch fails closed.
-        let (feature_set, sha_off) = match version {
+        // v5 (S12): same as v4 plus the `head_kind` word after it.
+        let (feature_set, head_kind, sha_off) = match version {
             1 | 2 | 3 => {
                 if inputs != NNUE_INPUTS_V2 as u32 {
                     return Err(format!("nnue-v2q-probe: bad inputs {inputs}"));
                 }
-                (NnueFeatureSetId::V2, 44usize)
+                (NnueFeatureSetId::V2, NnueHeadKind::LegacyDense, 44usize)
             }
             4 => {
                 let fs_raw = u32::from_le_bytes(data[44..48].try_into().unwrap());
@@ -548,18 +590,50 @@ impl NnueV2QuantizedModel {
                         feature_set.inputs()
                     ));
                 }
-                (feature_set, 48usize)
+                (feature_set, NnueHeadKind::LegacyDense, 48usize)
+            }
+            5 => {
+                let fs_raw = u32::from_le_bytes(data[44..48].try_into().unwrap());
+                let feature_set = NnueFeatureSetId::from_u32(fs_raw)
+                    .ok_or_else(|| format!("nnue-v2q-probe: bad feature_set {fs_raw}"))?;
+                if inputs != feature_set.inputs() as u32 {
+                    return Err(format!(
+                        "nnue-v2q-probe: inputs {inputs} does not match \
+                         feature_set {feature_set:?} (expected {})",
+                        feature_set.inputs()
+                    ));
+                }
+                let hk_raw = u32::from_le_bytes(data[48..52].try_into().unwrap());
+                let head_kind = NnueHeadKind::from_u32(hk_raw)
+                    .ok_or_else(|| format!("nnue-v2q-probe: bad head_kind {hk_raw}"))?;
+                // v5 first recipe: SCReLU buckets head only, V2R12 only,
+                // FT256 only (the frozen S12 contract).
+                if head_kind != NnueHeadKind::ScreluBuckets {
+                    return Err(format!(
+                        "nnue-v2q-probe: v5 supports only SCReLU-buckets \
+                         head, got {head_kind:?}"
+                    ));
+                }
+                if feature_set != NnueFeatureSetId::V2R12 {
+                    return Err(format!(
+                        "nnue-v2q-probe: v5 supports only V2R12, got \
+                         {feature_set:?}"
+                    ));
+                }
+                (feature_set, head_kind, 52usize)
             }
             _ => unreachable!("version validated above"),
         };
         // S10-G1: v1/v2 are strictly FT128; v3 accepts 128 OR 256 — the
         // two AUTHENTICATED widths (never an arbitrary header value).
         // S11-B2: v4 is FT128-only (the frozen R12 runtime contract).
+        // S12: v5 is FT256-only (the S12 recipe).
         let width = match (version, ft_width_raw) {
             (1, 128) | (2, 128) => FtWidth::W128,
             (3, 128) => FtWidth::W128,
             (3, 256) => FtWidth::W256,
             (4, 128) => FtWidth::W128,
+            (5, 256) => FtWidth::W256,
             _ => {
                 return Err(format!(
                     "nnue-v2q-probe: bad ft_width {ft_width_raw} for \
@@ -597,17 +671,24 @@ impl NnueV2QuantizedModel {
         // consumer (Arena D0's immutable model-artifact SHA gate pins the
         // exact bytes a tournament may launch with).
 
-        let layout = PayloadLayout::derive(feature_set.inputs(), width, header_bytes(version))?;
-        if data.len() != layout.total_bytes {
+        // S11-B2: feature-set-specific proven accumulator bound (V2: 31,
+        // V2R12: 61) — the format contract's overflow gate.
+        let max_features = feature_set.max_features_per_perspective();
+        // S12: the v5 (SCReLU-buckets) payload layout is validated inside
+        // the v5 branch below; the legacy layout check applies only to
+        // legacy heads.
+        let layout = if head_kind == NnueHeadKind::ScreluBuckets {
+            PayloadLayout::derive(0, FtWidth::W128, header_bytes(5))?
+        } else {
+            PayloadLayout::derive(feature_set.inputs(), width, header_bytes(version))?
+        };
+        if head_kind != NnueHeadKind::ScreluBuckets && data.len() != layout.total_bytes {
             return Err(format!(
                 "nnue-v2q-probe: bad length {} != expected {}",
                 data.len(),
                 layout.total_bytes
             ));
         }
-        // S11-B2: feature-set-specific proven accumulator bound (V2: 31,
-        // V2R12: 61) — the format contract's overflow gate.
-        let max_features = feature_set.max_features_per_perspective();
 
         macro_rules! load_weights {
             ($w:literal) => {{
@@ -663,6 +744,78 @@ impl NnueV2QuantizedModel {
             }};
         }
 
+        // S12: the v5 payload layout differs from the legacy dense
+        // layout (FT + ONE bucketed linear head). Branch BEFORE the
+        // legacy layout check.
+        if head_kind == NnueHeadKind::ScreluBuckets {
+            if version != 5 || width != FtWidth::W256 {
+                return Err("nnue-v2q-probe: SCReLU-buckets head requires v5 FT256".to_string());
+            }
+            let w = 256usize;
+            let dense_in = 2 * w;
+            let ft_w_count = feature_set.inputs() * w;
+            let ft_b_count = w;
+            let l1_w_count = 8 * dense_in;
+            let l1_b_count = 8usize;
+            let hdr = header_bytes(5);
+            let mut off = hdr;
+            let ft_weights = read_i16s(data, off, ft_w_count)?;
+            off += ft_w_count * 2;
+            let ft_bias = read_i32s(data, off, ft_b_count)?;
+            off += ft_b_count * 4;
+            let head_weights = read_i16s(data, off, l1_w_count)?;
+            off += l1_w_count * 2;
+            let head_bias = read_i32s(data, off, l1_b_count)?;
+            off += l1_b_count * 4;
+            if off != data.len() {
+                return Err(format!(
+                    "nnue-v2q-probe: bad length {} != expected {off}",
+                    data.len()
+                ));
+            }
+            // proven bounds: FT accumulator (i32) and the shifted head
+            // output (i32); the head MAC itself accumulates in i64
+            // (construction bound 512*32768*4096 + 2^31 << 2^63).
+            let ft_bound = max_abs_i32(&ft_bias) + max_features * max_abs_i16(&ft_weights);
+            let z_bound = max_abs_i32(&head_bias) as i64
+                + dense_in as i64 * max_abs_i16(&head_weights) as i64 * NNUE_V2Q_QA as i64;
+            if ft_bound > i32::MAX as i64 || (z_bound >> NNUE_V2Q_DENSE_Z_SHIFT) > i32::MAX as i64 {
+                return Err(format!(
+                    "nnue-v2q-probe: v5 payload exceeds proven bounds \
+                     (ft={ft_bound}, z>>12={})",
+                    z_bound >> NNUE_V2Q_DENSE_Z_SHIFT
+                ));
+            }
+            let weights = Weights {
+                ft_weights,
+                ft_bias,
+                l1_weight: head_weights,
+                l1_bias: head_bias,
+                // unused by the SCReLU head; zero-length sentinels
+                l2_weight: Vec::new(),
+                l2_bias: Vec::new(),
+                out_weight: Vec::new(),
+                out_bias: Vec::new(),
+            };
+            #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
+            let l1_backend = if is_avx2_detected() {
+                L1Backend::Avx2
+            } else {
+                L1Backend::Scalar
+            };
+            #[cfg(any(not(target_arch = "x86_64"), feature = "force_scalar_l1"))]
+            let l1_backend = L1Backend::Scalar;
+            return Ok(NnueV2QuantizedModel {
+                weights: WeightsFor::W256(weights),
+                source_fp32_artifact_sha256,
+                source_checkpoint_sha256,
+                l1_backend,
+                target_mode,
+                feature_set,
+                head_kind,
+            });
+        }
+
         let weights = match width {
             FtWidth::W128 => WeightsFor::W128(load_weights!(128)),
             FtWidth::W256 => WeightsFor::W256(load_weights!(256)),
@@ -685,6 +838,7 @@ impl NnueV2QuantizedModel {
             l1_backend,
             target_mode,
             feature_set,
+            head_kind,
         })
     }
 
@@ -698,6 +852,11 @@ impl NnueV2QuantizedModel {
     /// dispatch full-refresh extraction and hybrid evaluation.
     pub fn feature_set(&self) -> NnueFeatureSetId {
         self.feature_set
+    }
+
+    /// S12: the head architecture of this artifact.
+    pub fn head_kind(&self) -> NnueHeadKind {
+        self.head_kind
     }
 
     /// S10-F1: semantic mode carried by this artifact. Callers MUST check
@@ -716,6 +875,8 @@ impl NnueV2QuantizedModel {
     /// Single fact path: full_accumulator -> evaluate_raw_from_accumulator.
     /// S11-B2: feature-set aware (V2R12 full refresh includes the
     /// relation sidecar rows).
+    /// S12: head-aware — SCReLU-buckets artifacts run the bucketed
+    /// linear head from the same (possibly incremental) accumulator.
     pub fn evaluate_raw(&self, pos: &Position) -> i32 {
         match &self.weights {
             WeightsFor::W128(w) => {
@@ -724,7 +885,32 @@ impl NnueV2QuantizedModel {
             }
             WeightsFor::W256(w) => {
                 let acc = full_acc::<256>(w, pos, self.feature_set);
-                dense_forward::<256>(w, pos, &acc, self.l1_backend)
+                if self.head_kind == NnueHeadKind::ScreluBuckets {
+                    screlu_bucket_forward(w, pos, &acc)
+                } else {
+                    dense_forward::<256>(w, pos, &acc, self.l1_backend)
+                }
+            }
+        }
+    }
+
+    /// Dense/SCReLU forward from an (incremental or fresh) accumulator.
+    /// `pos` supplies the side-to-move (+ the S12 output bucket).
+    pub fn evaluate_raw_from_accumulator(&self, pos: &Position, acc: &AccumulatorFor) -> i32 {
+        if self.head_kind == NnueHeadKind::ScreluBuckets {
+            match (&self.weights, acc) {
+                (WeightsFor::W256(w), AccumulatorFor::W256(a)) => screlu_bucket_forward(w, pos, a),
+                _ => panic!("accumulator width does not match model"),
+            }
+        } else {
+            match (&self.weights, acc) {
+                (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
+                    dense_forward::<128>(w, pos, a, self.l1_backend)
+                }
+                (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                    dense_forward::<256>(w, pos, a, self.l1_backend)
+                }
+                _ => panic!("accumulator width does not match model"),
             }
         }
     }
@@ -892,7 +1078,11 @@ impl NnueV2QuantizedModel {
             (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
                 let mut hybrid = *a;
                 add_fresh_relation_rows::<256>(w, pos, &mut hybrid);
-                dense_forward::<256>(w, pos, &hybrid, self.l1_backend)
+                if self.head_kind == NnueHeadKind::ScreluBuckets {
+                    screlu_bucket_forward(w, pos, &hybrid)
+                } else {
+                    dense_forward::<256>(w, pos, &hybrid, self.l1_backend)
+                }
             }
             _ => panic!("accumulator width does not match model"),
         }
@@ -1051,20 +1241,6 @@ impl NnueV2QuantizedModel {
             }
             (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
                 update_acc_for_move(w, a, delta, child)
-            }
-            _ => panic!("accumulator width does not match model"),
-        }
-    }
-
-    /// Dense forward pass from an (incremental or fresh) accumulator.
-    /// `pos` supplies ONLY the side-to-move for the STM/NSTM ordering.
-    pub fn evaluate_raw_from_accumulator(&self, pos: &Position, acc: &AccumulatorFor) -> i32 {
-        match (&self.weights, acc) {
-            (WeightsFor::W128(w), AccumulatorFor::W128(a)) => {
-                dense_forward::<128>(w, pos, a, self.l1_backend)
-            }
-            (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
-                dense_forward::<256>(w, pos, a, self.l1_backend)
             }
             _ => panic!("accumulator width does not match model"),
         }
@@ -1530,6 +1706,53 @@ fn update_acc_for_move<const W: usize>(
         stats.delta_updates += deltas;
     }
     stats
+}
+
+/// S12: SCReLU + single bucketed linear head (FT256 only).
+///
+/// Integer semantics (must match tools/s12/s12_export.py):
+///   y[j] = clamp(A[j], 0, QA)^2 / QA          (SCReLU, [0, QA])
+///   z    = head_bias[bucket] + sum_j q_w[bucket][j] * y[j]  (i64 MAC)
+///   raw  = round_half_away(z >> DENSE_Z_SHIFT)
+/// `l1_weight` is [8][512] row-major (one row per bucket); `l1_bias`
+/// is [8]. The bucket is Bullet's material count: (occ - 2) / 4.
+fn screlu_bucket_forward<const W: usize>(
+    w: &Weights<W>,
+    pos: &Position,
+    acc: &NnueV2Accumulator<W>,
+) -> i32 {
+    debug_assert!(W == 256, "S12 head is FT256-only");
+    let (own_acc, opp_acc) = match pos.side_to_move() {
+        Color::White => (&acc.white, &acc.black),
+        Color::Black => (&acc.black, &acc.white),
+    };
+    let bucket = s12_output_bucket(pos);
+    let dense_in = 2 * W;
+    let row = bucket * dense_in;
+
+    // SCReLU activations (STM ++ NSTM, mirroring the training concat).
+    let mut z = w.l1_bias[bucket] as i64;
+    let mut act = |a: i32| -> i64 {
+        let c = clamp_i(a, 0, NNUE_V2Q_QA as i32) as i64;
+        c * c / (NNUE_V2Q_QA as i64)
+    };
+    for i in 0..W {
+        let y = act(own_acc[i]);
+        z += w.l1_weight[row + i] as i64 * y;
+    }
+    for i in 0..W {
+        let y = act(opp_acc[i]);
+        z += w.l1_weight[row + W + i] as i64 * y;
+    }
+
+    // shift with round-half-away (same as the legacy head)
+    let denom = 1i64 << NNUE_V2Q_DENSE_Z_SHIFT;
+    let raw = if z >= 0 {
+        (z + denom / 2) / denom
+    } else {
+        -((-z + denom / 2) / denom)
+    };
+    raw as i32
 }
 
 /// Dense forward pass (ClippedReLU -> L1 -> L2 -> out). L1 accumulates

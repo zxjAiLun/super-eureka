@@ -1,0 +1,32 @@
+{
+  "artifact_path": "data\\s12\\r1\\seed-20260908\\nnue-s12-screlu-buckets-v5.bin",
+  "artifact_sha256": "5006ee4f44f52d4810a8e9e412ada9be5b8403cc61100b637bef1f3954484d30",
+  "total_bytes": 11936916,
+  "magic": "EUNN2Q01",
+  "format_version": 5,
+  "feature_set": "v2r12",
+  "head_kind": "screlu-8-material-buckets",
+  "target_mode": "material-residual",
+  "inputs": 23296,
+  "ft_width": 256,
+  "shifts": {
+    "ft": 12,
+    "dense_w": 12,
+    "dense_z": 12
+  },
+  "qa": 4096,
+  "n_features_max_per_perspective": 61,
+  "source_checkpoint": "data\\s12\\r1\\seed-20260908\\checkpoint_s12_v2r12_s20260908.pt",
+  "source_checkpoint_sha256": "6bb24b350215c6681b2251e012a11c0f2dda470e22648b6bada654b8ae0425e4",
+  "proven_bounds": {
+    "ft_accumulator_bound": 89900,
+    "l1_z_bound": 3338812510,
+    "l1_z_bound_shifted": 815139
+  },
+  "quantized_layer_sizes": {
+    "ft_weights_bytes": 11927552,
+    "ft_bias_bytes": 1024,
+    "l1_weight_bytes": 8192,
+    "l1_bias_bytes": 32
+  }
+}

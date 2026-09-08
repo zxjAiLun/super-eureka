@@ -291,6 +291,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
         search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
             "current-final-nnue-v2q-material-r12-inc"
         }
+        search::SearchProfile::CurrentFinalS12 => "current-final-s12",
         search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
         _ => "unsupported",
     }
@@ -367,12 +368,8 @@ fn write_uci_handshake_with_profile<W: Write>(
         // S11: name the R12 relation-sidecar variant (fresh oracle vs
         // incremental stack) when an NNUE profile is active.
         let network = match profile {
-            search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => {
-                "nnue-v2r12-fresh-hybrid"
-            }
-            search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
-                "nnue-v2r12-incremental"
-            }
+            search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => "nnue-v2r12-fresh-hybrid",
+            search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => "nnue-v2r12-incremental",
             _ => "nnue-v2q",
         };
         writeln!(out, "info string network {network}")?;
@@ -795,6 +792,7 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     "current-final-nnue-v2q-material-r12-inc" => {
                         search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
                     }
+                    "current-final-s12" => search::SearchProfile::CurrentFinalS12,
                     "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
@@ -852,17 +850,16 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 // artifact; other NNUE profiles require V2 artifacts).
                 if profile.uses_nnue_eval() {
                     use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-                    let required_fs =
-                        if matches!(
-                            profile,
-                            search::SearchProfile::CurrentFinalNnueV2QMaterialR12
-                                | search::SearchProfile::
-                                      CurrentFinalNnueV2QMaterialR12Inc
-                        ) {
-                            NnueFeatureSetId::V2R12
-                        } else {
-                            NnueFeatureSetId::V2
-                        };
+                    let required_fs = if matches!(
+                        profile,
+                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12
+                            | search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
+                            | search::SearchProfile::CurrentFinalS12
+                    ) {
+                        NnueFeatureSetId::V2R12
+                    } else {
+                        NnueFeatureSetId::V2
+                    };
                     if model.feature_set() != required_fs {
                         return Err(format!(
                             "--nnue-model: artifact feature_set '{:?}' \

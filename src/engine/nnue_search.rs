@@ -358,6 +358,16 @@ impl NnueSearchState {
                         crate::engine::nnue_v2q_runtime::AccumulatorFor::W128(s),
                         NnuePerspective::Black,
                     ) => c.white = s.white,
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W256(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W256(s),
+                        NnuePerspective::White,
+                    ) => c.black = s.black,
+                    (
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W256(c),
+                        crate::engine::nnue_v2q_runtime::AccumulatorFor::W256(s),
+                        NnuePerspective::Black,
+                    ) => c.white = s.white,
                     _ => unreachable!(),
                 }
             } else {

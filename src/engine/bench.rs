@@ -228,6 +228,7 @@ fn profile_str(p: SearchProfile) -> &'static str {
         SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
             "current-final-nnue-v2q-material-r12-inc"
         }
+        SearchProfile::CurrentFinalS12 => "current-final-s12",
     }
 }
 
@@ -509,9 +510,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     "current-final-nnue-v2q-material-r12-inc" => {
                         SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
                     }
+                    "current-final-s12" => SearchProfile::CurrentFinalS12,
                     other => {
                         return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc)",
+                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc|current-final-s12)",
                             other
                         ));
                     }
@@ -1812,6 +1814,7 @@ fn run_one(
                 cfg.profile,
                 SearchProfile::CurrentFinalNnueV2QMaterialR12
                     | SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
+                    | SearchProfile::CurrentFinalS12
             ) {
                 NnueFeatureSetId::V2R12
             } else {
@@ -4917,13 +4920,13 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
         ),
         // king castle
         (
-            "r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
             "e1g1",
             "king_castle_white",
         ),
         // queen castle
         (
-            "r3k2r/pppqpppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQPPPP/R3K2R b KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1",
             "e8c8",
             "queen_castle_black",
         ),

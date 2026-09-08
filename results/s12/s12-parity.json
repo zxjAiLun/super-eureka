@@ -1,0 +1,15 @@
+{
+ "schema_version": 1,
+ "stage": "s12_parity",
+ "n": 2000,
+ "seed": 2026090802,
+ "layer_B_python_int_vs_rust": {
+  "mismatches": 0,
+  "pass": true
+ },
+ "layer_A_fp32_vs_int_residual_cp": {
+  "mean": 0.43,
+  "p95": 1.022,
+  "max": 3.103
+ }
+}
