@@ -12,5 +12,18 @@
  "elo_estimate": -2.7,
  "elo_ci95": 30.7,
  "verdict": "PARITY: a 204-second-trained S12 (best epoch 2, patience-stopped) matches production CurrentFinal dead even. Per the frozen plan this is 'worth continued testing' territory, not a lead; the result is notable mainly because the S12 recipe reached production parity with ~3.5 minutes of training on existing labels.",
- "note": "Screen ran 128 games (rounds=128, repeat=2 pairing within); the plan's 256-game scale would halve the CI to ~\u00b122 \u2014 worth rerunning only if a longer-trained checkpoint shows a lead."
+ "note": "Screen ran 128 games (rounds=128, repeat=2 pairing within); the plan's 256-game scale would halve the CI to ~\u00b122 \u2014 worth rerunning only if a longer-trained checkpoint shows a lead.",
+ "stats_convention": "W/D/L from S12's perspective; score points; score%; pentanomial per opening pair [pair-loss, loss+draw, win+loss, draw+draw, win+draw, pair-win as 0..2 S12 points]",
+ "S12_W": 55,
+ "draws": 17,
+ "S12_L": 56,
+ "score_points": "63.5 / 128",
+ "pentanomial_pts0to2": [
+  10,
+  5,
+  34,
+  6,
+  9
+ ],
+ "screen_kind": "EARLY SCREEN (128 games, not the frozen 256); PARITY / INFORMATIVE"
 }
