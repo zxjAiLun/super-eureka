@@ -21,12 +21,13 @@
 
 S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +71.3 Elo）；S10 全季
 NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena 全拒，H0 裁定
-MULTIFACTORIAL。S11-A R12 sidecar 是 NNUE 计划最大离线突破。**S11-B2/B3 完成：R12
-hybrid reference 四层 parity 全 PASS、NPS 0.58 → B5 PAUSED；S11-B4-A 完成：relation
-delta 成本门 448 ns/edge（playout corpus microcost）；S11-B4-B 完成（`38aaeee`）：
-incremental R12 搜索栈——全 parity（含 24-FEN 树一致性 0 mismatch）+ 配对 NPS
-**0.9488 ≥ 0.90**，**B5 解锁**。下一步：B5（256 roots × 100k 固定节点 search
-validation）待审批方放行。**
+MULTIFACTORIAL。S11-A R12 sidecar 是 NNUE 计划最大离线突破。**S11-B 全链完成：
+fresh reference 0.58 → relation delta 448ns/edge → incremental 栈 NPS 0.9488 →
+B5 搜索验证（256×100k，双框架：历史门全 PASS 但同 harness 配对为 parity-ish
+——mean +2.0cp vs 同跑 E3、acc20/top1 +0.8/+2.4pp、zero-phase 弱尾；anti-drift
+FLAGGED 已诊断，尾部质量差异源于未入库的 H0-E 原 harness）。绑定框架待审批方
+裁定。R12-inc vs SF2400 计入 Elo 的 1+0 live match 进行中
+（`6a07cc07…`）。**
 
 ## 当前生产行为
 
@@ -165,8 +166,16 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
   refresh；24-FEN × 50k 树一致性 17 字段 0 mismatch。**配对 NPS median 0.9488 ≥
   0.90 → 门 PASS，B5 解锁**。分类：opening/middlegame 0.94-1.05；tactical ~0.90；
   endgame 0.80-0.91（稀疏位置 E3 eval 极快，~450ns/边固定成本占比大）。
-- **B5（待审批方放行）**：256 roots × 100k 固定节点 search validation（lockbox
-  scorer 已就绪）；这是 R12 生产化路线的最后离线门。
+- **B5（`22c94e9`，详见 docs/dev-log/2026-09-08-s11-b5-search-validation.md）**：
+  256 roots × 100k 双臂同 binary 重跑。结果双框架:历史门(mean≤64.6/acc20≥66.2/
+  p90≤100)= 41.4/66.8/97 **全 PASS**;但同 harness 配对 = R12 mean **+2.0cp 差于**
+  同跑 E3(39.4),仅 acc20/acc50/top1 小幅占优。anti-drift FLAGGED:本轮 E3 mean
+  39.4 vs 历史 69.6 是纯尾部质量(bulk:median 0=0、p90 93=93、acc20 -1.2pp 完全
+  吻合;H0-E 原搜索脚本未入库不可审计)。zero-phase 弱尾(58.2→65.2)与 S11-A
+  static 一致。**绑定框架待审批方裁定;未做任何 Arena 准备(协议 STOP)。**
+- **SF2400 live match(进行中)**：tournament `6a07cc07-82a4-416d-842b-eaca40a4a9a6`,
+  bullet 1+0 计入 Elo,Eureka R12-inc vs SF18 Elo-2400 锚点,500 pairs(1000 局)。
+  部署记录 results/s11/r12-vs-sf2400/README.md。
 
 ### S11 已知陷阱（本轮实测）
 
@@ -237,12 +246,12 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ### 推荐下一步（按序）
 
-1. **S11-B5（待审批方放行后执行）**：256 roots × 100k 固定节点 search
-   validation（lockbox scorer `tools\s10\j0_lockbox.py` / e2668d8 统一版已就绪；
-   H0-C roots 缓存 `C:\Users\81489\AppData\Local\Temp\opencode\h0c-cache\`）——
-   R12 inc vs E3 的 bestmove/PV/搜索质量对比，是 Arena 前最后离线门；
-2. B5 过门后：Arena SPRT（需独立开局、双臂同 binary、`current-final-nnue-v2q-
-   material-r12-inc` vs `current-final`）；
+1. **B5 框架裁定（审批方）**：历史门 PASS vs 同 harness 配对 parity-ish——若以
+   配对为准，R12 与 E3 在完整搜索中平手，Arena SPRT 的期望优势有限；若以历史门
+   为准，进入 Arena preparation（provenance/opening exclusion/build manifest 由
+   审批方冻结后执行）；
+2. **SF2400 match 观察**：1+0 计入 Elo 的 live 对局（无需脚本，网站上直接看）；
+   结果与 B5 互为印证——R12 实战强度首读数；
 3. 无论方向：handoff + dev-log 按制度更新。
 
 ## 关键文件导航
@@ -267,6 +276,14 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
+  R12-inc 部署至 Arena 服务器(build `20260908-562e77c-s11b4b-r12inc-8eacd0c1`,
+  manifest 补 model_artifacts 后重注册);计入 Elo 的 1+0 match
+  `6a07cc07…` 启动(500 pairs vs SF2400 锚点)。B5:256×100k 双臂重跑,
+  历史门全 PASS 但同 harness 配对 parity-ish(mean +2.0cp vs 同跑 E3),
+  anti-drift FLAGGED(纯尾部质量,H0-E 原 harness 未入库),绑定框架待裁定。
+  途中修复:UCI 启动 feature-set 门拒绝 -inc profile 的 V2R12 artifact(562e77c)。
+  开发文档:docs/dev-log/2026-09-08-s11-b5-search-validation.md
 - **2026-09-07 · S11-B4-B incremental R12 search stack · `38aaeee`**
   按冻结细节集成（frames 原样 + Option relation 栈；child state 单次
   recompute API；fresh oracle 保留 + `-inc` 新 profile）。Parity 全 PASS
