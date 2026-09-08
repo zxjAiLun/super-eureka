@@ -1,6 +1,6 @@
 # ChessEngineDemo Handoff
 
-> 状态快照：2026-09-07（晚）
+> 状态快照：2026-09-08
 > 仓库：`E:\AUbuntuProject\project\chessenginedemo`
 > 工作分支：`s10/nnue-production-foundation`（已推送至 `7025c56`）
 > `main` HEAD：`3dae2fa`（S9-B2 closeout，2026-08-26）
@@ -20,14 +20,12 @@
 ## 一句话结论
 
 S4-S9 已完成核心性能、搜索选择性与 Eval2 晋级（S8 正式 SPRT +71.3 Elo）；S10 全季
-NNUE 生产化在 runtime / 量化 / 增量栈上全部建成，但三轮 Arena 全拒，H0 裁定
-MULTIFACTORIAL。S11-A R12 sidecar 是 NNUE 计划最大离线突破。**S11-B 全链完成：
-fresh reference 0.58 → relation delta 448ns/edge → incremental 栈 NPS 0.9488 →
-B5 搜索验证（256×100k，双框架：历史门全 PASS 但同 harness 配对为 parity-ish
-——mean +2.0cp vs 同跑 E3、acc20/top1 +0.8/+2.4pp、zero-phase 弱尾；anti-drift
-FLAGGED 已诊断，尾部质量差异源于未入库的 H0-E 原 harness）。绑定框架待审批方
-裁定。R12-inc vs SF2400 计入 Elo 的 1+0 live match 进行中
-（`6a07cc07…`）。**
+NNUE 生产化建成但三轮 Arena 全拒；S11 R12 链（fresh 0.58 → delta 448ns → 栈
+0.9488 → B5 平手）收尾，不继续 transfer 归因。**S12 完成：Bullet 配方
+（SCReLU + 8 桶 FT256 + sigmoid 得分损失）全栈落地（v5 artifact、parity 全 PASS、
+NPS 持平 E3），204 秒训练的模型与生产 current-final 筛选赛 64-64 完全平手
+（−2.7 ± 30.7）——"值得续测"，不升 SPRT。R12-inc vs SF2400 的 1+0 计 Elo live
+match 仍在跑（`6a07cc07…`）。**
 
 ## 当前生产行为
 
@@ -276,6 +274,14 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-08 · S12 Bullet-recipe 全栈 + 生产筛选赛 · `dfe60df`/`876e4fe`**
+  SCReLU+8桶 FT256+sigmoid(400) 得分损失;v5 artifact(116B header+head_kind);
+  Rust loader/kernel/head-aware 化;current-final-s12 profile。Parity 全 PASS
+  （PyInt↔Rust bit-exact、FP32↔quant 0.43cp、full↔inc 0 mismatch、树一致
+  24/24、NPS 178.8k≈E3）。训练 204s（best epoch 2，val MAE 132.8）。筛选赛
+  vs 生产 current-final：**64-64（49.6%）完全平手**——"值得续测"，不升 SPRT。
+  决策点：追加训练预算 / 接受平手 / 256 局缩 CI。途中修复 B2 时代非法 castle
+  fixture（34 子）。开发文档：docs/dev-log/2026-09-08-s12-bullet-recipe.md
 - **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
   R12-inc 部署至 Arena 服务器(build `20260908-562e77c-s11b4b-r12inc-8eacd0c1`,
   manifest 补 model_artifacts 后重注册);计入 Elo 的 1+0 match
