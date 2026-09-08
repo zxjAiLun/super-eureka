@@ -126,12 +126,22 @@ def train_s12(
     lr: float = 1e-3,
     final_lr_frac: float = 0.3 ** 5,     # Bullet: 0.001 * 0.3^5
     weight_decay: float = 1e-5,
-    batch_size: int = 1024,
+    batch_size: int = 16384,
     max_epochs: int = 20,
     max_gpu_seconds: float = 3600.0,
     patience: int = 6,
     device_name: str | None = None,
+    wdl_proportion: float = 0.0,
 ) -> dict:
+    """S13: when wdl_proportion > 0, each train position's target is
+    Bullet's blend
+        t = wdl_p * game_result_stm + (1 - wdl_p) * sigmoid(cp / 400)
+    (game_result_stm derived from the record's game_result_white and
+    the FEN's side to move — REAL game outcomes, never SF WDL). The
+    prediction stays sigmoid((material + 1000*out) / 400); loss stays
+    MSE. Validation is ALWAYS scored with the SAME blend for
+    checkpoint selection, so the selection metric matches the training
+    objective. wdl_proportion=0.0 keeps the exact S12 behavior."""
     import chess as _chess
 
     assert feature_set == "v2r12", "S12 first recipe: V2+R12 inputs"
@@ -181,6 +191,14 @@ def train_s12(
         stm_is_white = r["fen"].split()[1] == "w"
         target_cp = max(-CLIP_CP, min(CLIP_CP,
                                       float(lbl["teacher_cp_stm"])))
+        # S13: game result from the RECORD (real outcome), STM view
+        game_result_stm = None
+        if wdl_proportion > 0.0:
+            grw = r.get("game_result_white")
+            if grw is None:
+                # no result on this record -> excluded when blending
+                continue
+            game_result_stm = grw if stm_is_white else 1.0 - grw
         splits[r["split"]].append({
             "position_id": pid,
             "white": exp["white"],
@@ -192,6 +210,7 @@ def train_s12(
             "target_cp": target_cp,
             "material_cp_stm": float(material_stm[pid]),
             "bucket": _bucket_of_fen(r["fen"]),
+            "game_result_stm": game_result_stm,
         })
 
     train_items = splits["train"]
@@ -207,6 +226,18 @@ def train_s12(
     val_material = torch.tensor(
         [it["material_cp_stm"] for it in val_items],
         dtype=torch.float32, device=device)
+    # S13: per-item blended targets for validation (matches the train
+    # objective when blending). Positions lacking a game result use the
+    # pure score target (train excludes them; validation keeps them at
+    # 0-weight result for a stable val metric — they are a tiny
+    # minority and their score component still evaluates).
+    val_result_stm = torch.tensor(
+        [it.get("game_result_stm")
+         if it.get("game_result_stm") is not None else
+         float("nan") for it in val_items],
+        dtype=torch.float32, device=device)
+    val_has_result = ~torch.isnan(val_result_stm)
+    val_result_stm = torch.nan_to_num(val_result_stm, nan=0.0)
 
     # ---- model / optimizer / schedule ----
     model = S12Model(num_inputs=num_inputs, ft_width=ft_width).to(device)
@@ -229,6 +260,17 @@ def train_s12(
                    teacher_cp: torch.Tensor) -> torch.Tensor:
         pred = torch.sigmoid(eval_cp / SCORE_SCALE)
         tgt = torch.sigmoid(teacher_cp / SCORE_SCALE)
+        return torch.mean((pred - tgt) ** 2)
+
+    def blended_loss(eval_cp: torch.Tensor, teacher_cp: torch.Tensor,
+                     result_stm: torch.Tensor) -> torch.Tensor:
+        """Bullet value-trainer target:
+        t = wdl_p * result + (1 - wdl_p) * sigmoid(cp / 400),
+        prediction = sigmoid(eval_cp / 400), MSE."""
+        pred = torch.sigmoid(eval_cp / SCORE_SCALE)
+        score_tgt = torch.sigmoid(teacher_cp / SCORE_SCALE)
+        tgt = (wdl_proportion * result_stm
+               + (1.0 - wdl_proportion) * score_tgt)
         return torch.mean((pred - tgt) ** 2)
 
     g = torch.Generator()
@@ -269,11 +311,18 @@ def train_s12(
             material = torch.tensor(
                 [it["material_cp_stm"] for it in batch_items],
                 dtype=torch.float32, device=device)
+            result_stm = torch.tensor(
+                [it.get("game_result_stm") or 0.0
+                 for it in batch_items],
+                dtype=torch.float32, device=device)
 
             optimizer.zero_grad()
             out = model(stm_ind, stm_off, nstm_ind, nstm_off, buckets)
             eval_cp = material + TARGET_SCALE * out
-            loss = score_loss(eval_cp, teacher_cp)
+            if wdl_proportion > 0.0:
+                loss = blended_loss(eval_cp, teacher_cp, result_stm)
+            else:
+                loss = score_loss(eval_cp, teacher_cp)
             loss.backward()
             optimizer.step()
             scheduler.step()
@@ -283,13 +332,22 @@ def train_s12(
             break
         train_loss = accum / n_train
 
-        # validation: NEW loss + composed MAE (for reporting continuity)
+        # validation: same objective as training (blend when blending);
+        # composed MAE always reported for continuity
         model.eval()
         with torch.no_grad():
             out = model(val_stm_ind, val_stm_off, val_nstm_ind,
                         val_nstm_off, val_buckets)
             eval_cp = val_material + TARGET_SCALE * out
-            v_loss = score_loss(eval_cp, val_teacher_cp).item()
+            if wdl_proportion > 0.0:
+                # blended val loss only over positions WITH a result
+                # (the train objective's population)
+                sel = val_has_result
+                v_loss = blended_loss(
+                    eval_cp[sel], val_teacher_cp[sel],
+                    val_result_stm[sel]).item()
+            else:
+                v_loss = score_loss(eval_cp, val_teacher_cp).item()
             v_mae = torch.mean(
                 torch.abs(eval_cp - val_teacher_cp)).item()
         history.append({"epoch": epoch, "train_loss": train_loss,
@@ -321,7 +379,13 @@ def train_s12(
         out = model(val_stm_ind, val_stm_off, val_nstm_ind,
                     val_nstm_off, val_buckets)
         eval_cp = val_material + TARGET_SCALE * out
-        restored_loss = score_loss(eval_cp, val_teacher_cp).item()
+        if wdl_proportion > 0.0:
+            sel = val_has_result
+            restored_loss = blended_loss(
+                eval_cp[sel], val_teacher_cp[sel],
+                val_result_stm[sel]).item()
+        else:
+            restored_loss = score_loss(eval_cp, val_teacher_cp).item()
         restored_mae = torch.mean(
             torch.abs(eval_cp - val_teacher_cp)).item()
     assert abs(restored_loss - best_val_loss) < 1e-6, \
@@ -342,9 +406,18 @@ def train_s12(
             "activation": "screlu",
             "head": "linear(512, 8) bucket-select",
             "score": "eval_cp = material_cp_stm + 1000 * out",
-            "loss": f"mse(sigmoid(eval_cp/{SCORE_SCALE}), "
-                    f"sigmoid(teacher_cp/{SCORE_SCALE}))",
+            "loss": (
+                f"blend(wdl_p={wdl_proportion}): "
+                f"{wdl_proportion}*game_result_stm + "
+                f"{1.0 - wdl_proportion}*sigmoid(cp/"
+                f"{SCORE_SCALE:.0f}), mse vs sigmoid(eval_cp/"
+                f"{SCORE_SCALE:.0f})"
+                if wdl_proportion > 0.0 else
+                f"mse(sigmoid(eval_cp/{SCORE_SCALE}), "
+                f"sigmoid(teacher_cp/{SCORE_SCALE}))"
+            ),
             "target_mode": "material-residual",
+            "wdl_proportion": wdl_proportion,
             "dataset_sha256": ds["dataset_sha"],
             "best_epoch": best_epoch,
             "best_val_loss": best_val_loss,
@@ -389,13 +462,18 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--max-epochs", type=int, default=20)
     ap.add_argument("--max-gpu-seconds", type=float, default=3600.0)
-    ap.add_argument("--batch-size", type=int, default=1024)
+    ap.add_argument("--batch-size", type=int, default=16384)
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--wdl-proportion", type=float, default=0.0,
+                    help="S13: Bullet blend weight of the REAL game "
+                         "result vs sigmoid(cp/400) in the target "
+                         "(0.75 = the Bullet example; 0 = pure S12)")
     args = ap.parse_args()
     train_s12(args.dataset, args.engine, args.seed, args.out,
               max_epochs=args.max_epochs,
               max_gpu_seconds=args.max_gpu_seconds,
-              batch_size=args.batch_size, lr=args.lr)
+              batch_size=args.batch_size, lr=args.lr,
+              wdl_proportion=args.wdl_proportion)
     return 0
 
 

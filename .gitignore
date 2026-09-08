@@ -41,6 +41,15 @@ data/s12/r1-b16384/*
 !data/s12/r1-b16384/seed-20260908/
 data/s12/r1-b16384/seed-20260908/*
 !data/s12/r1-b16384/seed-20260908/*.json
+# S13: same convention (summaries/layouts tracked, binaries local)
+!data/s13/
+data/s13/*
+!data/s13/r1-blend075/
+data/s13/r1-blend075/*
+!data/s13/r1-blend075/seed-20260908/
+data/s13/r1-blend075/seed-20260908/*
+!data/s13/r1-blend075/seed-20260908/*.json
+!data/s13/r1-blend075/seed-20260908/*.layout.json
 /results/s10/bakeoff/
 /results/s10/stage2_holdout/
 /results/s10/deterministic_replay/
