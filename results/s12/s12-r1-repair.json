@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "stage": "s12_r1_repair",
+  "date": "2026-09-08",
+  "single_variable": {
+    "changed": "effective batch_size 1024 -> 16384 (Bullet 629ee500 cadence; true 16x batch, one optimizer.step + scheduler.step per 16384 — no gradient accumulation needed, VRAM sufficient)",
+    "frozen": "architecture, V2+R12, FT256, SCReLU, 8 buckets, material residual, sigmoid/400, data/teacher, seed 20260908, AdamW lr 1e-3, wd, cosine, max 20 epochs / 1 GPU-hour, patience 6"
+  },
+  "training_history": [
+    {"epoch": 1, "val_loss": 0.011983, "val_mae": 149.8},
+    {"epoch": 2, "val_loss": 0.010156, "val_mae": 139.1},
+    {"epoch": 3, "val_loss": 0.009694, "val_mae": 136.4},
+    {"epoch": 4, "val_loss": 0.009657, "val_mae": 136.1},
+    {"epoch": 5, "val_loss": 0.009766, "val_mae": 137.6},
+    {"epoch": 6, "val_loss": 0.009864, "val_mae": 138.3},
+    {"epoch": 7, "val_loss": 0.010008, "val_mae": 139.3},
+    {"epoch": 8, "val_loss": 0.010143, "val_mae": 140.5},
+    {"epoch": 9, "val_loss": 0.010289, "val_mae": 141.6},
+    {"epoch": 10, "val_loss": 0.010422, "val_mae": 142.5}
+  ],
+  "result": {
+    "best_epoch": 4,
+    "best_val_loss": 0.009657,
+    "best_val_mae": 136.1,
+    "elapsed_seconds": 225.1,
+    "budget_hit": "patience"
+  },
+  "gate": {
+    "stop_bar": "best val loss < 0.00910 -> export + 256-game screen",
+    "actual": 0.009657,
+    "r0_canonical": 0.009204,
+    "pass": false
+  },
+  "verdict": "S12-R1 FAIL per the frozen stop gate. The 16x batch repair made the val curve slightly flatter (best epoch 2 -> 4, gentler degradation slope) but did NOT change the fundamental shape: monotone val degradation after an early best, at a WORSE absolute value than R0. The optimizer-cadence hypothesis was tested as a single variable and rejected. Per protocol: no export, no screen, S12 closes as PARITY (R0 128-game early screen 64-64).",
+  "interpretation_note": "The remaining gap to Bullet's recipe (sequential dataloader over ~100M-position datastreams vs our 780k fixed set, game-result mixing, larger hl) is out of scope for S12's one-repair budget. The epoch-2-then-degrade pattern on a 780k-position fixed dataset is consistent with rapid memorization of a small corpus rather than cadence alone."
+}
