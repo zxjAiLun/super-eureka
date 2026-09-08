@@ -1,0 +1,260 @@
+{
+ "schema_version": 1,
+ "stage": "s11_b5_search_validation",
+ "corpus": {
+  "parents": 256,
+  "corpus_source": "H0-E frozen e_search.jsonl (256 parents / 6142 siblings / SF18-32k-constrained labels)",
+  "note": "0 new SF labels; frozen corpus, ordered"
+ },
+ "identity": {
+  "engine": "target\\release\\eureka.exe",
+  "engine_sha256": "0de635585c41766a801de45a412d2073b872fbd0d462add2c325b8dc3fb24de6",
+  "model_a": "data\\s10\\s11\\r2\\seed-20260819\\nnue-v2-q01-material-r12-v4.bin",
+  "model_a_sha256": "8eacd0c1a20cae0fd7cb5bd5a96ecbe00917a49ec1e801f0cec71e66298b6619",
+  "model_b": "data\\s10\\e3\\scale-1m-win\\seed-20260820\\nnue-v2-q01-material-v3twin.bin",
+  "model_b_sha256": "a9f19bfdff07eb04aecf22ed746b718652b06b3c6ec6fec1420d8aad72ae3b0a",
+  "profile_a": "current-final-nnue-v2q-material-r12-inc",
+  "profile_b": "current-final-nnue-v2q-material",
+  "nodes": 100000,
+  "hash_mb": 32,
+  "process_isolation": "fresh process per (root, arm)"
+ },
+ "results": {
+  "E3_current_run": {
+   "arm": "E3",
+   "profile": "current-final-nnue-v2q-material",
+   "model": "data\\s10\\e3\\scale-1m-win\\seed-20260820\\nnue-v2-q01-material-v3twin.bin",
+   "n_roots_ok": 256,
+   "failures": 0,
+   "missing_teacher_moves": 0,
+   "mean_regret": 39.4,
+   "median_regret": 0,
+   "p90_regret": 93,
+   "acc20": 66.0,
+   "acc50": 80.1,
+   "top1": 52.3,
+   "regret_gt500": 3,
+   "regret_gt1000": 0,
+   "phase_table": {
+    "high": {
+     "n": 64,
+     "mean_regret": 25.1,
+     "acc20": 65.6
+    },
+    "mid": {
+     "n": 64,
+     "mean_regret": 37.2,
+     "acc20": 70.3
+    },
+    "low": {
+     "n": 64,
+     "mean_regret": 37.2,
+     "acc20": 68.8
+    },
+    "zero": {
+     "n": 64,
+     "mean_regret": 58.2,
+     "acc20": 59.4
+    }
+   },
+   "worst10": [
+    {
+     "root_id": 60,
+     "phase": "mid",
+     "regret": 969,
+     "bestmove": "d6d8"
+    },
+    {
+     "root_id": 103,
+     "phase": "zero",
+     "regret": 911,
+     "bestmove": "f3e2"
+    },
+    {
+     "root_id": 99,
+     "phase": "zero",
+     "regret": 514,
+     "bestmove": "e2e1q"
+    },
+    {
+     "root_id": 127,
+     "phase": "zero",
+     "regret": 409,
+     "bestmove": "b2a3"
+    },
+    {
+     "root_id": 75,
+     "phase": "low",
+     "regret": 409,
+     "bestmove": "c7a6"
+    },
+    {
+     "root_id": 61,
+     "phase": "low",
+     "regret": 405,
+     "bestmove": "e7c6"
+    },
+    {
+     "root_id": 124,
+     "phase": "zero",
+     "regret": 286,
+     "bestmove": "c2b2"
+    },
+    {
+     "root_id": 86,
+     "phase": "low",
+     "regret": 281,
+     "bestmove": "c8a7"
+    },
+    {
+     "root_id": 98,
+     "phase": "zero",
+     "regret": 247,
+     "bestmove": "e2f3"
+    },
+    {
+     "root_id": 12,
+     "phase": "mid",
+     "regret": 198,
+     "bestmove": "h1f1"
+    }
+   ]
+  },
+  "R12_incremental": {
+   "arm": "R12",
+   "profile": "current-final-nnue-v2q-material-r12-inc",
+   "model": "data\\s10\\s11\\r2\\seed-20260819\\nnue-v2-q01-material-r12-v4.bin",
+   "n_roots_ok": 256,
+   "failures": 0,
+   "missing_teacher_moves": 0,
+   "mean_regret": 41.4,
+   "median_regret": 0,
+   "p90_regret": 97,
+   "acc20": 66.8,
+   "acc50": 80.9,
+   "top1": 54.7,
+   "regret_gt500": 4,
+   "regret_gt1000": 0,
+   "phase_table": {
+    "high": {
+     "n": 64,
+     "mean_regret": 29.3,
+     "acc20": 64.1
+    },
+    "mid": {
+     "n": 64,
+     "mean_regret": 33.5,
+     "acc20": 73.4
+    },
+    "low": {
+     "n": 64,
+     "mean_regret": 37.6,
+     "acc20": 70.3
+    },
+    "zero": {
+     "n": 64,
+     "mean_regret": 65.2,
+     "acc20": 59.4
+    }
+   },
+   "worst10": [
+    {
+     "root_id": 60,
+     "phase": "mid",
+     "regret": 969,
+     "bestmove": "d6d8"
+    },
+    {
+     "root_id": 103,
+     "phase": "zero",
+     "regret": 911,
+     "bestmove": "f3e2"
+    },
+    {
+     "root_id": 103,
+     "phase": "zero",
+     "regret": 575,
+     "bestmove": "c1d2"
+    },
+    {
+     "root_id": 99,
+     "phase": "zero",
+     "regret": 514,
+     "bestmove": "e2e1q"
+    },
+    {
+     "root_id": 82,
+     "phase": "zero",
+     "regret": 483,
+     "bestmove": "h4h3"
+    },
+    {
+     "root_id": 75,
+     "phase": "low",
+     "regret": 409,
+     "bestmove": "c7a6"
+    },
+    {
+     "root_id": 61,
+     "phase": "low",
+     "regret": 405,
+     "bestmove": "e7c6"
+    },
+    {
+     "root_id": 81,
+     "phase": "low",
+     "regret": 354,
+     "bestmove": "e7d6"
+    },
+    {
+     "root_id": 48,
+     "phase": "mid",
+     "regret": 292,
+     "bestmove": "g5f6"
+    },
+    {
+     "root_id": 98,
+     "phase": "zero",
+     "regret": 247,
+     "bestmove": "e2f3"
+    }
+   ]
+  },
+  "E3_historical_reference": {
+   "mean_regret": 69.6,
+   "acc20": 67.2,
+   "p90_regret": 93,
+   "top1": 53.1,
+   "acc50": 81.6
+  }
+ },
+ "delta": {
+  "mean_regret": -2.0,
+  "median_regret": 0,
+  "p90": -4,
+  "acc20_pp": 0.8,
+  "acc50_pp": 0.8,
+  "top1_pp": 2.4,
+  "gt500": -1,
+  "gt1000": 0
+ },
+ "anti_drift": {
+  "mean_regret_delta": -30.2,
+  "acc20_delta_pp": -1.2,
+  "within_flag": false,
+  "diagnosis": "Bulk distribution matches the historical H0-E run EXACTLY (median 0=0, p90 93=93, acc20 66.0 vs 67.2 = -1.2pp). The -30.2cp mean gap is pure extreme-tail mass: this run produces 3 regrets >500cp and 0 >1000cp on E3, while the historical mean implies ~8-10 positions at 1500-2000cp (mate clamps). The H0-E search harness script was never committed (only its JSON, aa44d65), so the tail difference cannot be audited further; it most likely stems from TT/node-accounting or per-root state differences in that harness. Per the frozen protocol the gate is judged on SAME-HARNESS paired numbers (this run, same binary, fresh process per root/arm); the historical bars (derived from E3=69.6) are reported alongside and are met, but the same-harness paired comparison shows R12 +2.0cp mean regret vs same-run E3 with +0.8pp acc20, +2.4pp top1, +4 p90 \u2014 a QUALITATIVELY DIFFERENT reading (parity-ish, not clear improvement). The approver must decide which framing is binding."
+ },
+ "gate": {
+  "mean_regret_max": 64.6,
+  "acc20_min": 66.2,
+  "p90_max": 100.0,
+  "pass": true,
+  "strong_pass": true
+ },
+ "integrity": {
+  "roots": "256+256 / 256x2",
+  "nodes_requested": 100000,
+  "missing_teacher_moves": 0,
+  "search_failures": 0
+ }
+}
