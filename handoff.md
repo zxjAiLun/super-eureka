@@ -25,8 +25,12 @@ NNUE 生产化建成但三轮 Arena 全拒；S11 R12 链（fresh 0.58 → delta 
 （SCReLU + 8 桶 FT256 + sigmoid 得分损失）全栈落地（v5 artifact、parity 全 PASS、
 NPS 持平 E3）并保留为生产级 NNUE 基础设施；R0 早期筛选（128 局）与生产
 current-final 平手（W/D/L 55/17/56，49.61%，pentanomial [10,5,34,6,9]）；R1
-batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变）——按冻结
-协议收尾。R12-inc vs SF2400 的 1+0 计 Elo live match 仍在跑（`6a07cc07…`）。**
+batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变）；**S13-A
+真实结果 blend FAIL（256 局 12.89%，-332 Elo——0.75 权重的在线快棋真实胜负
+压垮 SF teacher 信号）**。NNUE 训练线两个便宜杠杆（cadence、result blend）均
+已单变量否决；剩余杠杆 = 数据供给（5M+ fresh + 双信号，需新标注算力，未授权）。
+工程资产保留：v5 runtime + current-final-s12 profile 生产可用；current-final
+仍是生产引擎。R12-inc vs SF2400 的 1+0 计 Elo live match 仍在跑（`6a07cc07…`）。**
 
 ## 当前生产行为
 
@@ -275,6 +279,12 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-08 · S13-A real-result blend FAIL · `a0b2f4b`/`28ecf77`**
+  Preflight：1M corpus 每 position 自带真实 game result（游戏-不相交）；
+  [%eval] 仅 13.6% → 走 S13-A（0.75 result / 0.25 sigmoid(cp/400) blend，
+  其余全冻结）。训练仍 epoch-2 即恶化（纯 CP MAE 166.5）。256 局全新
+  opening screen：**W/D/L 21/24/211 = 12.89%（-331.9 ± 32.4）→ FAIL/STOP**。
+  开发文档：docs/dev-log/2026-09-08-s13-result-blend.md
 - **2026-09-08 · S12-R1 batch-cadence repair FAIL → S12 CLOSE / PARITY · `5b4ba04`/`55718d8`**
   单变量 batch 1024→16384（真 16×，Bullet cadence）。best epoch 4、val 0.009657
   （门 0.00910、R0 0.009204）——曲线略平但形态不变，cadence 假设否决。未导出
