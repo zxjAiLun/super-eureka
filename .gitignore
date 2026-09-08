@@ -28,6 +28,8 @@
 !/results/s11/**
 !/results/s12/
 !/results/s12/**
+!/results/s13/
+!/results/s13/**
 # S12: model binaries/checkpoints local-only; summaries + layouts tracked
 data/s12/**
 !data/s12/r1/

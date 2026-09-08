@@ -1,0 +1,43 @@
+{
+ "schema_version": 1,
+ "stage": "s13_screen",
+ "protocol": "256 games = 128 fresh opening pairs (openings 65-192 of the frozen s3-promotion book, never used in S12-R0), both colors, same binary, 10+0.1, Hash 16, 1 thread",
+ "engines": {
+  "candidate": "current-final-s12 profile + nnue-s13-blend-v5.bin (770db5f4...)",
+  "baseline": "current-final (production HCE Eval2)"
+ },
+ "training": {
+  "recipe": "S13-A: existing 780k CP-labeled corpus + Bullet 0.75/0.25 blend (0.75 * real game result STM + 0.25 * sigmoid(teacher_cp/400)); everything else identical to S12-R1 (batch 16384, seed 20260908, 20 epochs/1h budget, patience 6)",
+  "best_epoch": 2,
+  "best_val_loss_blended": 0.115533,
+  "val_mae_pure_cp": 166.5,
+  "preflight_findings": {
+   "game_results": "PRESENT per position in the E1 pool cache + 1M corpus (game_result_white 1.0/0.5/0.0, real outcomes; splits game-disjoint, 0 crossing)",
+   "existing_scores": "NOT universally available (only 13.6% of source PGNs carry [%eval]) -> S13-A route per the approved tree",
+   "labeled_with_both": 779590
+  }
+ },
+ "identity_validation": {
+  "python_int_vs_rust": "n=300 bit-exact PASS",
+  "uci_smoke": "PASS (network nnue-v2q, bestmove produced)"
+ },
+ "result": {
+  "games": 256,
+  "S13_W": 21,
+  "draws": 24,
+  "S13_L": 211,
+  "score_points": "33.0 / 256",
+  "score_percent": 12.89,
+  "elo_descriptive": -331.9,
+  "elo_ci95": 32.4,
+  "pentanomial_0to2": [
+   89,
+   17,
+   18,
+   3,
+   1
+  ]
+ },
+ "verdict": "S13 FAIL / STOP per the frozen screen bands (12.89% << 48%). The Bullet 0.75 result-weighted blend on the existing CP corpus is catastrophically worse than CP-only training. Notably the val MAE on pure CP also degraded (166.5 vs 132.8) and the same epoch-2-then-degrade shape persisted \u2014 the blend did not fix the early-best pattern either.",
+ "interpretation": "The 0.75/0.75-blend weights the REAL outcome of ~2300-rated online blitz games heavily over a 16k-node SF18 teacher. Bullet's recipe works with its own data pipeline (self-play + engine-quality games + fresh streams); grafting the blend constant onto our corpus was the cheap test and it failed decisively. Data-supply remains the untested lever (5M+ fresh positions with BOTH signals), but that requires new labeling compute and is NOT authorized this round."
+}
