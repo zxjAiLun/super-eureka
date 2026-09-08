@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "stage": "s12_screen",
+ "protocol": "same binary, 10+0.1, Hash 16, 1 thread, alternating colors, s3-promotion frozen 500-opening book, sequential",
+ "engines": {
+  "candidate": "current-final-s12 + nnue-s12-screlu-buckets-v5.bin (5006ee4f...)",
+  "baseline": "current-final (production HCE Eval2)"
+ },
+ "games": 128,
+ "score": "64-64",
+ "score_percent": 49.6,
+ "elo_estimate": -2.7,
+ "elo_ci95": 30.7,
+ "verdict": "PARITY: a 204-second-trained S12 (best epoch 2, patience-stopped) matches production CurrentFinal dead even. Per the frozen plan this is 'worth continued testing' territory, not a lead; the result is notable mainly because the S12 recipe reached production parity with ~3.5 minutes of training on existing labels.",
+ "note": "Screen ran 128 games (rounds=128, repeat=2 pairing within); the plan's 256-game scale would halve the CI to ~\u00b122 \u2014 worth rerunning only if a longer-trained checkpoint shows a lead."
+}
