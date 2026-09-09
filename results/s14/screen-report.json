@@ -1,0 +1,33 @@
+{
+ "schema_version": 1,
+ "stage": "s14_screen",
+ "protocol": "256 games = 128 fresh opening pairs (book lines 193-320 of the frozen s3-promotion openings, disjoint from R0 1-64 and S13 65-192), both colors, same binary, 10+0.1, Hash 16, 1 search thread, concurrency 6",
+ "engines": {
+  "candidate": "current-final-s12 profile + S14 data-supply net (329b7170...)",
+  "baseline": "current-final (production HCE)"
+ },
+ "artifact_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+ "engine_sha256": "95c259b6e6a5975e5ace3afe50d8de13ccc431a2269860af5d3509c158e1fbad",
+ "result": {
+  "games": 256,
+  "games_total_in_pgn": 256,
+  "unfinished": 0,
+  "S14_W": 129,
+  "draws": 39,
+  "S14_L": 88,
+  "score_points": "148.5 / 256",
+  "score_percent": 58.01,
+  "elo_descriptive": 56.1,
+  "elo_ci95": 38.6,
+  "pentanomial_0to2": [
+   14,
+   12,
+   52,
+   19,
+   31
+  ],
+  "pairs": 128
+ },
+ "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
+ "verdict": "PROMISING"
+}

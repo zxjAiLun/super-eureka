@@ -1,0 +1,32 @@
+{
+  "artifact_path": "data\\s14\\run\\seed-20260908\\nnue-s14-datasupply-v5.bin",
+  "artifact_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+  "total_bytes": 11936916,
+  "magic": "EUNN2Q01",
+  "format_version": 5,
+  "feature_set": "v2r12",
+  "head_kind": "screlu-8-material-buckets",
+  "target_mode": "material-residual",
+  "inputs": 23296,
+  "ft_width": 256,
+  "shifts": {
+    "ft": 12,
+    "dense_w": 12,
+    "dense_z": 12
+  },
+  "qa": 4096,
+  "n_features_max_per_perspective": 61,
+  "source_checkpoint": "data\\s14\\run\\checkpoint_s14_v2r12_s20260908.pt",
+  "source_checkpoint_sha256": "d4a13cf32629eff85bb782e4ddbdd4b70233413de2209f18f7514eae33e983a4",
+  "proven_bounds": {
+    "ft_accumulator_bound": 230111,
+    "l1_z_bound": 4247059028,
+    "l1_z_bound_shifted": 1036879
+  },
+  "quantized_layer_sizes": {
+    "ft_weights_bytes": 11927552,
+    "ft_bias_bytes": 1024,
+    "l1_weight_bytes": 8192,
+    "l1_bias_bytes": 32
+  }
+}

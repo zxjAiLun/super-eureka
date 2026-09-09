@@ -30,6 +30,9 @@
 !/results/s12/**
 !/results/s13/
 !/results/s13/**
+!/results/s14/
+!/results/s14/**
+/results/s14/screen-cutechess.log
 # S12: model binaries/checkpoints local-only; summaries + layouts tracked
 data/s12/**
 !data/s12/r1/
@@ -52,6 +55,17 @@ data/s13/r1-blend075/*
 data/s13/r1-blend075/seed-20260908/*
 !data/s13/r1-blend075/seed-20260908/*.json
 !data/s13/r1-blend075/seed-20260908/*.layout.json
+# S14: same convention (training summary + layout + screen artifacts
+# tracked; checkpoint .pt, quantized .bin, and the big Fishtest data/logs
+# stay local-only)
+data/s14/**
+!data/s14/run/
+data/s14/run/*
+!data/s14/run/*.json
+!data/s14/run/seed-20260908/
+data/s14/run/seed-20260908/*
+!data/s14/run/seed-20260908/*.json
+!data/s14/run/seed-20260908/*.layout.json
 /results/s10/bakeoff/
 /results/s10/stage2_holdout/
 /results/s10/deterministic_replay/
