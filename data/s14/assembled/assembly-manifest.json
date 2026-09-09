@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "stage": "s14_assembly",
+ "target": 4220410,
+ "kept": 4220410,
+ "dropped_corpus_overlap": 32,
+ "dropped_internal_dup": 2418,
+ "input_shards": 48,
+ "scan_order": "worker-id, shard-idx (deterministic)",
+ "teacher_cp_raw_stats": {
+  "mean": 6.39,
+  "min": -8261.0,
+  "max": 8251.0,
+  "abs_gt_2000": 2642
+ }
+}

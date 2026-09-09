@@ -1,0 +1,12 @@
+{
+ "accepted": 4300007,
+ "games_seen": 4300114,
+ "parse_error_games": 0,
+ "replay_error_games": 0,
+ "games_base_unknown": 0,
+ "games_no_eligible": 107,
+ "tests_used": 48,
+ "tests_skipped_no_meta": 0,
+ "elapsed_s": 7588.2,
+ "throughput_games_per_s": 566.7
+}
