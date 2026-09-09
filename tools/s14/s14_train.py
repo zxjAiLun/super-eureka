@@ -292,7 +292,6 @@ def train_s14(
     device_name: str | None = None,
     limit_fishtest: int = 0,
 ) -> dict:
-    t_start = time.time()
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -367,6 +366,9 @@ def train_s14(
     presentations = 0
     passes = 0
     budget_hit = None
+    # The wall-clock budget starts when optimization begins. Data loading,
+    # validation preparation, and model/optimizer setup are excluded.
+    t_start = time.time()
     model.train()
 
     def maybe_checkpoint(step: int):
