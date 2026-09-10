@@ -74,8 +74,8 @@ pub(crate) enum SearchProfile {
 
 /// Canonical current production profile. UCI startup defaults, the default
 /// UCI handshake, and the normal production search entry all resolve here.
-/// `--profile current-final` and the retained S7.4A alias select the exact
-/// same production search semantics.
+/// `--profile current-final` and the retained `current-final-s12` S14
+/// compatibility alias select the exact same production search semantics.
 pub(crate) const PRODUCTION_PROFILE: SearchProfile = SearchProfile::CurrentFinal;
 
 /// Explicit historical rollback profile. `--profile current` selects this;
@@ -3284,8 +3284,11 @@ struct RootIteration {
     move_scores: Vec<(Move, i32)>,
 }
 
-/// Negamax with alpha-beta. Returns `None` if the search was asked to
-/// abort. A `None` is a directive to unwind *immediately*: the caller
+/// Historical/reference negamax entry retained for correctness tests and
+/// downstream API compatibility. It intentionally uses [`ROLLBACK_PROFILE`]
+/// and is not the production engine entry; UCI and bench call the explicit
+/// profile-aware search path. Returns `None` if the search was asked to abort.
+/// A `None` is a directive to unwind *immediately*: the caller
 /// must undo the move it made in THIS node and propagate `None` upward.
 /// We never leave the position with a move applied when returning `None`.
 pub fn negamax(
@@ -3316,7 +3319,8 @@ pub fn negamax(
     r
 }
 
-/// Private search entry. Acquires (counts) exactly one node, then hands off
+/// Private historical/reference entry. Acquires (counts) exactly one node,
+/// then hands off
 /// to the body ([`negamax_entered_impl`]). Every recursive child goes through
 /// [`probe_child_draw`] (which itself calls `try_enter_node` once) and recurses
 /// into `negamax_entered_impl`, so node accounting stays in exactly one place
@@ -5372,7 +5376,11 @@ fn order_moves(pos: &Position, moves: &mut [Move]) {
     }
 }
 
-/// Quiescence search that acquires (counts) a node first. This is the entry
+/// Historical/reference quiescence entry retained for correctness tests and
+/// downstream API compatibility. It intentionally uses [`ROLLBACK_PROFILE`]
+/// and is not the production engine entry; UCI and bench reach qsearch through
+/// their explicit profile-aware main search. It acquires (counts) a node first.
+/// This is the entry
 /// point for the *recursive* calls made from within quiescence itself. The
 /// depth-0 leaf in `negamax` instead calls [`quiescence_entered_impl`] directly,
 /// because that node has already been counted — keeping node accounting in
@@ -5386,9 +5394,8 @@ pub fn quiescence(
     ctx: &SearchContext,
     limits: &SearchLimits,
 ) -> Option<i32> {
-    // The public qsearch API is the historical correctness path. It must not
-    // inherit candidate state left behind by a private profile search on a
-    // reused context or Position.
+    // Historical/reference entry: never inherit profile state from a reused
+    // context.
     ctx.see_enabled.store(false, Ordering::Relaxed);
     // Public entry: throwaway PV table, discarded on return.
     let mut pv = PvTable::default();
@@ -5405,7 +5412,8 @@ pub fn quiescence(
     r
 }
 
-/// Recursive quiescence entry: acquires (counts) the node, then hands off to
+/// Historical/reference recursive quiescence entry. It acquires (counts) the
+/// node, then hands off to
 /// the body ([`quiescence_entered_impl`]). This is the variant called by the
 /// quiescence body for its own recursion — it carries the live [`PvTable`].
 ///
@@ -5428,9 +5436,7 @@ fn quiescence_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    // The public qsearch path keeps the historical correctness policy: no
-    // specialized movegen, no SEE pruning (the `Current` profile with both
-    // qsearch candidate switches off).
+    // Historical/reference qsearch policy for direct in-module tests.
     quiescence_entered_impl_with_profile(
         pos,
         ply,
@@ -6622,12 +6628,11 @@ fn root_search_with_aspiration(
 /// Returns the best move of the last *fully completed* iteration, or a
 /// legal fallback if we were stopped before any iteration finished. The
 /// root position is never left corrupted, no matter where the abort lands.
-/// Public entry (unchanged signature). Builds a single-root history so
-/// the search still threads a `SearchPath`, then delegates to the
-/// history-aware implementation. Existing callers (and their tests)
-/// keep compiling. TT is DISABLED here — the public API and the UCI
-/// production path stay TT-disabled until the dedicated UCI Hash option
-/// lands in a later stage.
+/// Public historical/reference entry (unchanged signature), retained for
+/// correctness tests and downstream API compatibility. It intentionally uses
+/// [`ROLLBACK_PROFILE`] and a disabled TT; it is not the UCI/bench production
+/// route, both of which call [`search_best_move_with_history_tt_and_profile`]
+/// with an explicit profile.
 pub fn search_best_move(
     pos: &mut Position,
     limits: &SearchLimits,
@@ -6650,7 +6655,9 @@ pub fn search_best_move(
     r
 }
 
-/// History-aware entry used by the in-crate `search` tests. TT is DISABLED.
+/// History-aware reference entry used only by in-crate `search` tests. It
+/// intentionally preserves [`ROLLBACK_PROFILE`] semantics and keeps TT
+/// disabled; production callers use the explicit profile-aware entry.
 ///
 /// Contract (debug-checked): `game_history` is non-empty and its last
 /// element equals the current position's Zobrist key.

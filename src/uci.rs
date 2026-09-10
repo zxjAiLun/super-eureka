@@ -337,7 +337,7 @@ fn write_uci_handshake_with_profile<W: Write>(
     writeln!(out, "info string profile {profile_name}")?;
     // Baseline and production ship in the SAME binary, so the eval line names
     // the integrated-positional evaluator for CurrentFinal. When the unified
-    // evaluation backend selects NNUE (startup legacy profile or UCI
+    // evaluation backend selects NNUE (the S14 compatibility launch or UCI
     // `Evaluation=nnue`), the eval line names the network instead.
     let nnue_active = eval_backend.evaluation == Evaluation::Nnue;
     writeln!(
@@ -686,8 +686,8 @@ fn handle_setoption(
 
 /// The resolved startup selection: which search profile runs (always
 /// [`search::PRODUCTION_PROFILE`] or [`search::ROLLBACK_PROFILE`]), the
-/// profile name to report in the handshake (a legacy NNUE name is preserved
-/// verbatim for the handshake), and the optional startup-owned NNUE model
+/// profile name to report in the handshake (`current-final-s12` is preserved
+/// verbatim for the S14 compatibility launch), and the optional startup-owned NNUE model
 /// (Arc-shared model + the resolved path for the backend's `eval_file`).
 #[derive(Debug)]
 struct StartupSelection {
@@ -700,23 +700,22 @@ struct StartupSelection {
 /// candidate. The default is [`search::PRODUCTION_PROFILE`] (`current-final`);
 /// explicitly selected `current` resolves to [`search::ROLLBACK_PROFILE`].
 ///
-/// The seven historical NNUE profile names remain accepted as launch aliases
-/// (tournament/GUI handshakes depend on them): each maps to the production
-/// search profile with the unified evaluation backend initialized to
-/// `Evaluation::Nnue` from `--nnue-model`. Every other name is rejected.
+/// The canonical production/rollback names and `current-final-s12` are
+/// accepted. `current-final-s12` is the compatibility launch alias for the
+/// current S14 composition (CurrentFinal search + the supplied NNUE artifact).
+/// The other historical NNUE names are rejected fail-closed because they
+/// encoded experiment-specific execution semantics that the unified backend
+/// must not pretend to reproduce.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
-    const SUPPORTED_PROFILES: &str = "current|current-final|current-final-nnue-v2q-full|\
-current-final-nnue-v2q|current-final-nnue-v2q-material|\
-current-final-nnue-v2q-material-cal-fut|current-final-nnue-v2q-material-r12|\
-current-final-nnue-v2q-material-r12-inc|current-final-s12";
-    const NNUE_PROFILES: &[&str] = &[
+    const SUPPORTED_PROFILES: &str = "current|current-final|current-final-s12";
+    const S14_COMPAT_PROFILE: &str = "current-final-s12";
+    const HISTORICAL_NNUE_PROFILES: &[&str] = &[
         "current-final-nnue-v2q-full",
         "current-final-nnue-v2q",
         "current-final-nnue-v2q-material",
         "current-final-nnue-v2q-material-cal-fut",
         "current-final-nnue-v2q-material-r12",
         "current-final-nnue-v2q-material-r12-inc",
-        "current-final-s12",
     ];
 
     let mut profile = search::PRODUCTION_PROFILE;
@@ -749,17 +748,14 @@ current-final-nnue-v2q-material-r12-inc|current-final-s12";
                         profile = search::SearchProfile::CurrentFinal;
                         profile_name = "current-final";
                     }
-                    legacy if NNUE_PROFILES.contains(&legacy) => {
-                        // S14 convergence: a legacy NNUE profile name selects
-                        // the production search profile; the unified eval
-                        // backend carries the startup model (see the fail-
-                        // closed model requirement below).
-                        profile = search::SearchProfile::CurrentFinal;
-                        profile_name = NNUE_PROFILES
-                            .iter()
-                            .copied()
-                            .find(|n| *n == legacy)
-                            .expect("legacy name is in NNUE_PROFILES");
+                    S14_COMPAT_PROFILE => {
+                        profile = search::PRODUCTION_PROFILE;
+                        profile_name = S14_COMPAT_PROFILE;
+                    }
+                    historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
+                        return Err(format!(
+                            "historical NNUE profile '{historical}' has been removed; checkout the historical commit to reproduce that experiment"
+                        ));
                     }
                     other => {
                         return Err(format!(
@@ -787,19 +783,11 @@ current-final-nnue-v2q-material-r12-inc|current-final-s12";
         }
     }
 
-    // The resolved startup selection: which search profile runs (always
-    // [`search::PRODUCTION_PROFILE`] or [`search::ROLLBACK_PROFILE`]), the
-    // profile name to report in the handshake (a legacy NNUE name is preserved
-    // verbatim for the handshake), and the optional startup-owned NNUE model.
-    // The seven historical NNUE profile names remain accepted as launch
-    // aliases (tournament/GUI handshakes depend on them): each maps to the
-    // production search profile with the unified evaluation backend
-    // initialized to `Evaluation::Nnue` from `--nnue-model`, which is then
-    // REQUIRED (fail closed, exactly as before the entry convergence).
-    // `--nnue-model` under a classical profile name loads the model into the
-    // unified backend while keeping `Evaluation=classical` (a GUI can still
-    // activate it via `Evaluation=nnue`).
-    let legacy_nnue = profile_name != "current" && profile_name != "current-final";
+    // `current-final-s12` is the one retained NNUE compatibility launch:
+    // it selects CurrentFinal search and starts the unified backend in NNUE
+    // mode with the supplied artifact. Canonical names merely preload a model
+    // while keeping `Evaluation=classical`; a GUI can activate it later.
+    let s14_compat = profile_name == S14_COMPAT_PROFILE;
     let startup_model = match nnue_model_path.as_deref() {
         Some(path) => {
             let resolved = resolve_nnue_model_path(path);
@@ -813,7 +801,7 @@ current-final-nnue-v2q-material-r12-inc|current-final-s12";
             }
         }
         None => {
-            if legacy_nnue {
+            if s14_compat {
                 return Err(format!(
                     "profile '{profile_name}' requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
                 ));
@@ -841,14 +829,9 @@ fn print_startup_help() {
     println!("Profiles:");
     println!("  current        (rollback search policy)");
     println!("  current-final  (production search policy; default)");
-    println!("Legacy NNUE aliases (require --nnue-model, play Evaluation=nnue):");
-    println!("  current-final-nnue-v2q-full");
-    println!("  current-final-nnue-v2q");
-    println!("  current-final-nnue-v2q-material");
-    println!("  current-final-nnue-v2q-material-cal-fut");
-    println!("  current-final-nnue-v2q-material-r12");
-    println!("  current-final-nnue-v2q-material-r12-inc");
+    println!("S14 compatibility alias (requires --nnue-model, plays Evaluation=nnue):");
     println!("  current-final-s12");
+    println!("Other historical NNUE profiles were removed; checkout their historical commits to reproduce them.");
 }
 
 /// Run the UCI loop using the canonical production profile.
@@ -864,7 +847,7 @@ pub fn run() {
 ///
 /// The profile is fixed for the process lifetime, which makes the executable
 /// directly usable by fastchess/OpenBench as either the promoted default
-/// binary or an explicitly selected legacy alias. The UCI evaluation backend
+/// binary or the retained S14 compatibility launch. The UCI evaluation backend
 /// is the sole orthogonal configurable dimension: it can replace static
 /// evaluation, but never profile identity or search policy.
 pub fn run_with_args(args: &[String]) -> Result<(), String> {
@@ -898,7 +881,7 @@ fn run_with_profile(selection: &StartupSelection) {
         profile_name,
         startup_model,
     } = selection;
-    let legacy_nnue = *profile_name != "current" && *profile_name != "current-final";
+    let s14_compat = *profile_name == "current-final-s12";
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -909,14 +892,14 @@ fn run_with_profile(selection: &StartupSelection) {
     // The active background search, if any. `None` while idle.
     let mut active: Option<ActiveSearch> = None;
     // S14 unified entry: every launcher initializes the SAME evaluation
-    // backend. A legacy NNUE profile name seeds it with the startup-owned
-    // model and `Evaluation=nnue`; `--nnue-model` under a classical profile
+    // backend. The retained S14 compatibility alias seeds it with the
+    // startup-owned model and `Evaluation=nnue`; `--nnue-model` under a
     // retains the model with `Evaluation=classical`; otherwise a verified
     // neighbor model is auto-discovered (still bit-identical play while the
     // default mode is classical).
     let mut eval_backend = if let Some((model, path)) = startup_model {
         EvalBackendConfig {
-            evaluation: if legacy_nnue {
+            evaluation: if s14_compat {
                 Evaluation::Nnue
             } else {
                 Evaluation::Classical
@@ -1371,31 +1354,32 @@ mod tests {
         );
     }
 
-    /// The rejection message must advertise the full supported set.
+    /// The rejection message must advertise the complete canonical set.
     #[test]
     fn help_text_advertises_the_supported_profile_set() {
         let err =
             parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
-        assert!(err.contains("current"), "got: {}", err);
-        assert!(err.contains("current-final"), "got: {}", err);
-        for alias in [
-            "current-final-nnue-v2q-full",
-            "current-final-nnue-v2q",
-            "current-final-nnue-v2q-material",
-            "current-final-nnue-v2q-material-cal-fut",
-            "current-final-nnue-v2q-material-r12",
-            "current-final-nnue-v2q-material-r12-inc",
-            "current-final-s12",
-        ] {
-            assert!(err.contains(alias), "must list {alias}: {err}");
-        }
+        assert!(
+            err.contains("current|current-final|current-final-s12"),
+            "got: {err}"
+        );
     }
 
-    /// A legacy NNUE alias maps to the production search profile, preserves
-    /// its historical name for the handshake, and REQUIRES --nnue-model.
+    /// The retained S14 alias maps to production search and still requires a
+    /// model so the startup backend cannot silently fall back to classical.
     #[test]
-    fn legacy_nnue_aliases_map_to_production_and_require_a_model() {
-        // Every alias fails closed without --nnue-model, naming the alias.
+    fn current_final_s12_maps_to_production_and_requires_a_model() {
+        let err =
+            parse_startup_profile(&["--profile".to_string(), "current-final-s12".to_string()])
+                .unwrap_err();
+        assert!(err.contains("requires --nnue-model"), "got: {err}");
+        assert!(err.contains("fail closed"), "got: {err}");
+    }
+
+    /// The six experiment-specific NNUE aliases must be rejected even when a
+    /// model path is supplied: accepting one would invent historical semantics.
+    #[test]
+    fn historical_nnue_profiles_are_rejected_fail_closed() {
         for alias in [
             "current-final-nnue-v2q-full",
             "current-final-nnue-v2q",
@@ -1403,15 +1387,25 @@ mod tests {
             "current-final-nnue-v2q-material-cal-fut",
             "current-final-nnue-v2q-material-r12",
             "current-final-nnue-v2q-material-r12-inc",
-            "current-final-s12",
         ] {
-            let err =
-                parse_startup_profile(&["--profile".to_string(), alias.to_string()]).unwrap_err();
-            assert!(
-                err.contains("requires --nnue-model") && err.contains("fail closed"),
-                "{alias}: got: {err}"
-            );
-            assert!(err.contains(alias), "error must name the alias: {err}");
+            for args in [
+                vec!["--profile".to_string(), alias.to_string()],
+                vec![
+                    "--profile".to_string(),
+                    alias.to_string(),
+                    "--nnue-model".to_string(),
+                    "unused.bin".to_string(),
+                ],
+            ] {
+                let err = parse_startup_profile(&args).unwrap_err();
+                assert!(err.contains("historical NNUE profile"), "{alias}: {err}");
+                assert!(err.contains("has been removed"), "{alias}: {err}");
+                assert!(
+                    err.contains("checkout the historical commit to reproduce that experiment"),
+                    "{alias}: {err}"
+                );
+                assert!(err.contains(alias), "error must name the alias: {err}");
+            }
         }
     }
 
@@ -1922,8 +1916,8 @@ mod tests {
     }
 
     /// With the unified eval backend, UCI evaluator options are honored for
-    /// every launch identity; a legacy alias seed is just Evaluation=nnue in
-    /// the same config.
+    /// every launch identity; the S14 compatibility launch seed is simply
+    /// `Evaluation=nnue` in the same config.
     #[test]
     fn unified_config_honors_uci_evaluation_options() {
         let mut config = EvalBackendConfig {

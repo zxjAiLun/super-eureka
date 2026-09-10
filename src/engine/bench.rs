@@ -126,11 +126,11 @@ struct BenchArgs {
     nodes: u64,
     /// Search profile (default: the production profile).
     profile: SearchProfile,
-    /// The exact `--profile` name as resolved (preserves legacy NNUE alias
-    /// identity in bench output).
+    /// The exact `--profile` name as resolved (preserves the S14
+    /// compatibility alias identity in bench output).
     profile_name: &'static str,
-    /// True when the resolved profile name is a legacy NNUE alias (an NNUE
-    /// model is required and loaded for the search).
+    /// True when `current-final-s12` selected the NNUE compatibility launch
+    /// (an NNUE model is required and loaded for the search).
     nnue_profile: bool,
     /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
@@ -179,7 +179,7 @@ struct BenchArgs {
 }
 
 /// Render a `SearchProfile` as its CLI string (also used in bench output).
-/// The seven legacy NNUE alias names are preserved via
+/// The retained S14 compatibility alias is preserved via
 /// [`BenchArgs::profile_name`], not through the enum.
 fn profile_str(p: SearchProfile) -> &'static str {
     match p {
@@ -188,18 +188,18 @@ fn profile_str(p: SearchProfile) -> &'static str {
     }
 }
 
-/// The seven historical NNUE profile names, still accepted by `--profile`
-/// (and required to keep the historical launch/GUI handshakes working). Each
-/// maps to the production search profile with an NNUE evaluator loaded from
-/// `--nnue-model`.
-const NNUE_PROFILE_ALIASES: &[&str] = &[
+/// Retained compatibility alias for current S14 launches.
+const S14_COMPAT_PROFILE: &str = "current-final-s12";
+
+/// Historical NNUE profiles whose names encoded experiment-specific execution
+/// semantics that the unified backend cannot safely reproduce.
+const HISTORICAL_NNUE_PROFILES: &[&str] = &[
     "current-final-nnue-v2q-full",
     "current-final-nnue-v2q",
     "current-final-nnue-v2q-material",
     "current-final-nnue-v2q-material-cal-fut",
     "current-final-nnue-v2q-material-r12",
     "current-final-nnue-v2q-material-r12-inc",
-    "current-final-s12",
 ];
 
 /// One measured search result.
@@ -419,29 +419,30 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .next()
                     .ok_or_else(|| "bench: --profile requires a value".to_string())?
                     .clone();
-                // Supported set: the two live variants plus the seven
-                // historical NNUE aliases (each mapped to CurrentFinal with
-                // an NNUE model loaded from --nnue-model).
-                if let Some(alias) = NNUE_PROFILE_ALIASES
-                    .iter()
-                    .copied()
-                    .find(|n| *n == v.as_str())
-                {
-                    profile = SearchProfile::CurrentFinal;
-                    profile_name = alias;
-                    nnue_profile = true;
-                } else {
-                    profile = match v.as_str() {
-                        "current" => SearchProfile::Current,
-                        "current-final" => SearchProfile::CurrentFinal,
-                        other => {
-                            return Err(format!(
-                                "bench: invalid --profile '{}' (expected current|current-final|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-cal-fut|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc|current-final-s12)",
-                                other
-                            ));
-                        }
-                    };
-                    profile_name = profile_str(profile);
+                match v.as_str() {
+                    "current" => {
+                        profile = SearchProfile::Current;
+                        profile_name = profile_str(profile);
+                    }
+                    "current-final" => {
+                        profile = SearchProfile::CurrentFinal;
+                        profile_name = profile_str(profile);
+                    }
+                    S14_COMPAT_PROFILE => {
+                        profile = SearchProfile::CurrentFinal;
+                        profile_name = S14_COMPAT_PROFILE;
+                        nnue_profile = true;
+                    }
+                    historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
+                        return Err(format!(
+                            "bench: historical NNUE profile '{historical}' has been removed; checkout the historical commit to reproduce that experiment"
+                        ));
+                    }
+                    other => {
+                        return Err(format!(
+                            "bench: invalid --profile '{other}' (expected current|current-final|current-final-s12)"
+                        ));
+                    }
                 }
             }
             "--fixture" => {
@@ -1671,7 +1672,7 @@ fn run_one(
     let limits = limits_for(actual_limit);
 
     // S10-C2B/S14: load the quantized model ONCE per run (never per node /
-    // per go) for the legacy NNUE alias profiles. The artifact's own
+    // per go) for the retained S14 compatibility launch. The artifact's own
     // metadata decides material composition and the delivery mechanism
     // (`for_search`); the loader fail-closes on anything unsupported.
     // S10-C3-0: diagnostics are OPT-IN. Normal performance runs build the
@@ -2588,7 +2589,7 @@ fn print_help() {
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
-        "  --profile <reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety>  search profile (default reference == M4.0 baseline)"
+        "  --profile <current|current-final|current-final-s12>  search profile (default current-final; current-final-s12 requires --nnue-model)"
     );
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
@@ -3834,12 +3835,12 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
                     .next()
                     .ok_or("eval-site-capture: --profile requires a value")?;
                 profile = Some(match v.as_str() {
-                    // Legacy NNUE aliases resolve to the production profile;
-                    // the model metadata drives the evaluator.
-                    "current-final-nnue-v2q-material" | "current-final-nnue-v2q" => {
-                        SearchProfile::CurrentFinal
+                    "current-final" | S14_COMPAT_PROFILE => SearchProfile::CurrentFinal,
+                    historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
+                        return Err(format!(
+                            "eval-site-capture: historical NNUE profile '{historical}' has been removed; checkout the historical commit to reproduce that experiment"
+                        ));
                     }
-                    "current-final" => SearchProfile::CurrentFinal,
                     other => {
                         return Err(format!("eval-site-capture: unsupported profile '{other}'"))
                     }
@@ -3931,7 +3932,7 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
 }
 
 /// S11-B1: `bench relation-churn --fen <fen> [--nodes N] --profile
-/// current-final-nnue-v2q-material --nnue-model <bin>` — run ONE fixed-node
+/// current-final-s12 --nnue-model <bin>` — run ONE fixed-node
 /// search with the relation-churn recorder enabled; emits one JSON object
 /// with the churn distribution and per-class breakdowns.
 #[cfg(feature = "diagnostic_relation_churn")]
@@ -3963,8 +3964,11 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
                     .next()
                     .ok_or("relation-churn: --profile requires a value")?;
                 profile = match v.as_str() {
-                    "current-final-nnue-v2q-material" | "current-final-nnue-v2q" => {
-                        SearchProfile::CurrentFinal
+                    S14_COMPAT_PROFILE => SearchProfile::CurrentFinal,
+                    historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
+                        return Err(format!(
+                            "relation-churn: historical NNUE profile '{historical}' has been removed; checkout the historical commit to reproduce that experiment"
+                        ));
                     }
                     other => return Err(format!("relation-churn: unsupported profile '{other}'")),
                 };
@@ -6035,18 +6039,33 @@ mod tests {
         assert_eq!(f.profile_name, "current-final");
         assert!(!f.nnue_profile);
 
-        // Every historical NNUE alias still parses; each maps to the
-        // production search profile with an NNUE model requirement.
-        for alias in NNUE_PROFILE_ALIASES {
-            let parsed = parse_args(&[
+        let s14 = parse_args(&[
+            "profile".to_string(),
+            "--profile".to_string(),
+            S14_COMPAT_PROFILE.to_string(),
+        ])
+        .unwrap();
+        assert_eq!(s14.profile, SearchProfile::CurrentFinal);
+        assert_eq!(s14.profile_name, S14_COMPAT_PROFILE);
+        assert!(s14.nnue_profile);
+
+        for historical in HISTORICAL_NNUE_PROFILES {
+            let err = parse_args(&[
                 "profile".to_string(),
                 "--profile".to_string(),
-                alias.to_string(),
+                historical.to_string(),
             ])
-            .unwrap();
-            assert_eq!(parsed.profile, SearchProfile::CurrentFinal, "{alias}");
-            assert_eq!(parsed.profile_name, *alias, "{alias}");
-            assert!(parsed.nnue_profile, "{alias}");
+            .err()
+            .expect("historical profile must be rejected");
+            assert!(
+                err.contains("historical NNUE profile"),
+                "{historical}: {err}"
+            );
+            assert!(err.contains("has been removed"), "{historical}: {err}");
+            assert!(
+                err.contains("checkout the historical commit to reproduce that experiment"),
+                "{historical}: {err}"
+            );
         }
     }
 
