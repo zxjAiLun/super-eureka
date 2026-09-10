@@ -18,7 +18,8 @@ use crate::chess::types::Move;
 
 use crate::engine::nnue::NnuePerspective;
 use crate::engine::nnue_v2q_runtime::{
-    AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel, R12RelationState,
+    material_cp_stm, AccumulatorFor, NnueMoveDelta, NnueV2QuantizedModel, NnueV2TargetMode,
+    R12RelationState,
 };
 
 /// Which accumulator delivery mechanism a search uses.
@@ -146,6 +147,26 @@ impl NnueSearchState {
         self.r12_incremental
     }
 
+    /// S14 entry unification: build the state the way every production entry
+    /// point must. The delivery mechanism is chosen from the ARTIFACT
+    /// METADATA — a V2R12 model gets the incremental R12 relation stack,
+    /// everything else the plain V2 incremental stack — instead of from a
+    /// startup profile. Full refresh stays the reference implementation for
+    /// diagnostics/correctness checks via [`with_options`].
+    pub fn for_search(
+        model: Arc<NnueV2QuantizedModel>,
+        root: &Position,
+        telemetry: bool,
+        audit: bool,
+    ) -> Self {
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        if model.feature_set() == NnueFeatureSetId::V2R12 {
+            Self::with_r12_incremental(model, NnueSearchMode::Incremental, root, telemetry, audit)
+        } else {
+            Self::with_options(model, NnueSearchMode::Incremental, root, telemetry, audit)
+        }
+    }
+
     /// Full constructor. `telemetry` enables stack counters;
     /// `audit` enables the per-eval deep comparison (implies telemetry
     /// being meaningful; both freeze at construction — C3-0 hygiene).
@@ -230,9 +251,10 @@ impl NnueSearchState {
     /// S11-B4-B: for the incremental-R12 state the stack top IS the
     /// combined accumulator — compared directly (the audit semantics
     /// switch with the stack semantics; still returns the fresh score).
-    pub fn evaluate_cp_i32_audited(&self, pos: &Position) -> i32 {
+    /// Returns the RAW network output (no material composition).
+    pub fn evaluate_raw_cp_i32_audited(&self, pos: &Position) -> i32 {
         if !self.audit_enabled {
-            return self.evaluate_cp_i32(pos);
+            return self.evaluate_raw_cp_i32(pos);
         }
         let diag = self
             .diagnostics
@@ -466,7 +488,9 @@ impl NnueSearchState {
         &mut self.frames
     }
 
-    /// Integer NNUE evaluation of `pos` under the configured mode.
+    /// RAW integer NNUE output of `pos` under the configured mode — the
+    /// network's own value, BEFORE any material composition. Do not use this
+    /// for search decisions: use [`evaluate_full_cp_i32`] instead.
     /// - FullRefresh: full accumulator + dense (reference path).
     /// - Incremental: dense from the current top frame (the position at
     ///   the current stack top MUST be `pos`).
@@ -474,7 +498,7 @@ impl NnueSearchState {
     ///   the V2-BASE accumulator; fresh relation rows are recomputed
     ///   and added on top before the dense forward (no relation
     ///   caching/deltas — frozen reference protocol).
-    pub fn evaluate_cp_i32(&self, pos: &Position) -> i32 {
+    pub fn evaluate_raw_cp_i32(&self, pos: &Position) -> i32 {
         match self.mode {
             NnueSearchMode::FullRefresh => self.model.evaluate_cp_i32(pos),
             NnueSearchMode::Incremental => {
@@ -494,6 +518,33 @@ impl NnueSearchState {
                     }
                 }
             }
+        }
+    }
+
+    /// FULL side-to-move evaluation of `pos`: the raw network output composed
+    /// with the canonical material term when (and only when) the artifact is a
+    /// `material_residual` model. The composition is decided by the MODEL
+    /// metadata — never by a startup profile — so the same artifact is scored
+    /// identically no matter which entry point loaded it (CLI, GUI or bench).
+    /// This is the only evaluation exit the search may use.
+    #[inline]
+    pub fn evaluate_full_cp_i32(&self, pos: &Position) -> i32 {
+        self.compose_full(self.evaluate_raw_cp_i32(pos), pos)
+    }
+
+    /// Audited variant of [`evaluate_full_cp_i32`] (deep-comparison counters
+    /// when the state was built with `audit = true`).
+    #[inline]
+    pub fn evaluate_full_cp_i32_audited(&self, pos: &Position) -> i32 {
+        self.compose_full(self.evaluate_raw_cp_i32_audited(pos), pos)
+    }
+
+    #[inline]
+    fn compose_full(&self, raw: i32, pos: &Position) -> i32 {
+        if self.model.target_mode() == NnueV2TargetMode::MaterialResidual {
+            raw.saturating_add(material_cp_stm(pos))
+        } else {
+            raw
         }
     }
 
@@ -670,7 +721,7 @@ mod tests {
         let state =
             NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, false, true);
         assert!(state.audit_enabled());
-        let _ = state.evaluate_cp_i32_audited(&pos);
+        let _ = state.evaluate_raw_cp_i32_audited(&pos);
         let snap = state.audit_snapshot();
         assert!(snap.eval_calls > 0, "audit must count evals");
     }
@@ -721,7 +772,7 @@ mod tests {
             NnueSearchState::with_options(model, NnueSearchMode::Incremental, &pos, true, true);
         // Corrupt the top frame's first lane deliberately.
         state.frames_mut()[0].white_mut()[0] = state.top().white()[0].wrapping_add(1);
-        let _ = state.evaluate_cp_i32_audited(&pos);
+        let _ = state.evaluate_raw_cp_i32_audited(&pos);
         let snap = state.audit_snapshot();
         assert_eq!(snap.eval_calls, 1);
         assert!(snap.lane_mismatches > 0, "audit must detect corruption");

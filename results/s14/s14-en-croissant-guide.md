@@ -24,28 +24,32 @@ powershell -ExecutionPolicy Bypass -File tools\stage_s14_gui.ps1 -Build
 - `nnue-s14-datasupply-v5.bin` —— 冻结 S14 模型（脚本做 SHA-256 校验，不符即拒绝）
 - `EN-CROISSANT-S14.txt` —— 配置说明（engine 路径 + `EvalFile`/`NnueMode` 选项值 + CLI 等价形式）
 
-## ⚠️ 现状（2026-09-10 定位）：选项路线暂不能用于 S14
+## En Croissant 设置（S14 已可用 —— 需本修复之后的引擎）
 
-En Croissant 的引擎配置 = `path` + `settings`（UCI 选项），**没有启动参数字段**。
+En Croissant 的引擎配置 = `path` + `settings`（UCI 选项），**没有启动参数字段**；
+S14 用下面两个选项启用（`EN-CROISSANT-S14.txt` 里有同样的内容）：
 
-实测（同一局面 `position startpos moves e2e3 e7e6 d1g4 d8e7 g4e6`，黑方应吃后；depth 1→10）：
+- Command（引擎路径）：`<repo>\target\release\eureka.exe`
+- Settings：
+  - `Evaluation` = `nnue`（默认 `classical` = HCE）
+  - `EvalFile` = `<repo>\target\release\nnue-s14-datasupply-v5.bin`（绝对路径；staging 脚本已放好）
+  - `Hash` 保持默认 16 即可
 
-| 配置 | 结果 | 判定 |
-|---|---|---|
-| HCE（默认 `engine profile: current-final`） | cp +843，`e7e6`（赢后） | ✅ 正确 |
-| S14 profile（`--profile current-final-s12 --nnue-model …`） | cp +684，`f7e6`（赢后） | ✅ 正确 |
-| 选项路线（`EvalFile`=S14 + `NnueMode=nnue-v2q`） | **cp −20，`d7d5`（送后）** | ❌ **评估错误** |
+要点：
 
-根因：S14 artifact 是 **material-residual + V2R12** 模型；"material 组合"与"R12 关系特征"
-在代码里按**启动 profile** 启用（`search.rs:2754`、`uci.rs:983`），而选项路线跑的是 classical
-profile → 两者都不启用 → 神经网络的**残差输出被当成绝对分** → 评估≈0 → 送后。选项路线加载
-`EvalFile` 时也**没有** target_mode/feature_set 校验（profile 路线有，见 `uci.rs:829+`），
-所以会静默接受。
+- **评估器由模型元数据决定**（material-residual 组合、R12 关系栈、增量方式都在评估器内部
+  自动处理），不再需要 `NnueMode` / `nnue-v2q-full` 这类格式选项（旧配置里的 `NnueMode`
+  会被忽略）。
+- 选项路线与 profile 路线（`--profile current-final-s12 --nnue-model …`）使用**同一个
+  评估器构建入口**，评分一致；全量重算保留为诊断/正确性对照用途。
+- 切换评估器/模型会**清空置换表**（旧评估器产生的分数不得复用），并有
+  `evaluator changed; transposition table cleared` 提示。
+- `Evaluation=nnue` 但没有可加载的 `EvalFile` 时 fail-closed（`refusing to search`），
+  不会静默回退 HCE。
+- ⚠️ 以上需要**本修复之后构建的引擎**；旧 exe 仍有"残差被当绝对分"的缺陷——先
+  `cargo build --release` 再用。
 
-**在修好之前：En Croissant 里不要用 `EvalFile` + `NnueMode` 加载 S14**——把 `EvalFile`/`NnueMode`
-保持默认（等价于跑 HCE）。S14 请走下面的 CLI / Arena profile 形式。
-
-## CLI / 支持启动参数的 GUI（当前唯一正确的 S14 入口）
+## CLI / 支持启动参数的 GUI（等价形式）
 
 ```text
 --profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin
@@ -53,7 +57,7 @@ profile → 两者都不启用 → 神经网络的**残差输出被当成绝对�
 
 - 相对路径的 `--nnue-model` **先按 `eureka.exe` 所在目录解析**（模型已 stage 在同目录），
   因此不依赖工作目录；绝对路径照常可用；找不到仍是 fail-closed 启动报错。
-- 该模式下 `EvalFile`/`NnueMode` 选项被引擎忽略（`fixed by the startup NNUE profile`）。
+- 该模式下 `EvalFile`/`Evaluation` 选项被引擎忽略（`fixed by the startup NNUE profile`）。
 
 ## 验证
 

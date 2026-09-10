@@ -2751,16 +2751,12 @@ fn evaluate_profiled(
     let result = if let Some(nnue) = nnue {
         // Exact KQK/KRK mop-up override first (mirrors the Eval2 early-exit),
         // then the NNUE evaluator.
-        let base = if profile.uses_nnue_material_residual() {
-            // S10-F1: the artifact predicts a cp residual; compose with the
-            // canonical material term. The mode match itself is enforced
-            // fail-closed at model-load time (a material artifact cannot be
-            // attached to a pure profile or vice versa).
-            nnue.evaluate_cp_i32_audited(pos)
-                .saturating_add(crate::engine::nnue_v2q_runtime::material_cp_stm(pos))
-        } else {
-            nnue.evaluate_cp_i32_audited(pos)
-        };
+        // The evaluator returns the FULL side-to-move score: a
+        // `material_residual` artifact composes the canonical material term
+        // inside the evaluator, decided by the model's own metadata — never
+        // by this startup profile (S14 fix: the profile must not decide how a
+        // model's output is interpreted).
+        let base = nnue.evaluate_full_cp_i32_audited(pos);
         crate::engine::eval::exact_mop_up_for_search(pos, base).unwrap_or(base)
     } else if profile.uses_phase_affine_eval() {
         evaluate_phase_affine(pos)
@@ -10414,7 +10410,7 @@ mod tests {
                 pos,
             );
             // The NNUE arm's base (network, no mop-up).
-            let nnue_base = state.evaluate_cp_i32(pos);
+            let nnue_base = state.evaluate_raw_cp_i32(pos);
             // Full NNUE arm (mop-up applied to the NNUE base).
             let nnue_full = evaluate_profiled(
                 pos,

@@ -2161,6 +2161,53 @@ mod tests {
         out
     }
 
+    /// S14: synthetic artifact whose RAW network output is identically zero
+    /// (final layer weights + bias zeroed) — lets tests assert the evaluator's
+    /// composition semantics in isolation (e.g. full score == material for a
+    /// material-residual model, from both perspectives).
+    fn synthetic_zero_output_artifact_bytes(fen: &str, mode: NnueV2TargetMode) -> Vec<u8> {
+        let mut out = synthetic_artifact_bytes_with_mode(fen, mode);
+        let layout = layout128();
+        let tail = layout.out_w_count * 2 + 4;
+        let start = out.len() - tail;
+        for b in &mut out[start..] {
+            *b = 0;
+        }
+        out
+    }
+
+    /// S14: a zero-residual material model must score EXACTLY the canonical
+    /// material from both perspectives — the composition is driven by the
+    /// artifact's own metadata (target_mode), never by a startup profile.
+    #[test]
+    fn s14_full_score_equals_material_for_zero_residual_model() {
+        use crate::engine::nnue_search::NnueSearchState;
+        let fens = [
+            // white to move
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            // black to move
+            "rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        ];
+        for fen in fens {
+            let bytes =
+                synthetic_zero_output_artifact_bytes(fen, NnueV2TargetMode::MaterialResidual);
+            let model = std::sync::Arc::new(NnueV2QuantizedModel::from_bytes(&bytes).unwrap());
+            let pos = parse_fen(fen).unwrap();
+            let state =
+                NnueSearchState::for_search(std::sync::Arc::clone(&model), &pos, false, false);
+            assert_eq!(
+                state.evaluate_raw_cp_i32(&pos),
+                0,
+                "zero-residual raw output must be 0 ({fen})"
+            );
+            assert_eq!(
+                state.evaluate_full_cp_i32(&pos),
+                material_cp_stm(&pos),
+                "full score must equal the canonical material ({fen})"
+            );
+        }
+    }
+
     /// S10-C3-C2: both L1 backends must produce identical raw outputs.
     /// On AVX2 machines this exercises AVX2-vs-AVX2 (same path); the
     /// cross-backend gate runs in the feature-forced CI/bench comparison

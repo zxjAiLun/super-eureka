@@ -4848,7 +4848,7 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
                 state.push_null_child();
                 null_pushes += 1;
                 // evaluate on the null child must equal full refresh
-                let ev = state.evaluate_cp_i32(&pos);
+                let ev = state.evaluate_raw_cp_i32(&pos);
                 let full_raw = model.evaluate_raw(&pos);
                 let expect = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::cp_i32_from_raw(
                     full_raw,
@@ -4880,7 +4880,7 @@ fn run_nnue_v2q_r12_parity(args: &[String]) -> Result<(), String> {
                     .filter(|(a, b)| a != b)
                     .count() as u64;
             }
-            let ev = state.evaluate_cp_i32(&pos);
+            let ev = state.evaluate_raw_cp_i32(&pos);
             let full_raw = model.evaluate_raw(&pos);
             let expect =
                 crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::cp_i32_from_raw(full_raw);

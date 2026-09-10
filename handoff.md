@@ -336,6 +336,16 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 统一评估语义（模型驱动）+ 修 GUI/缓存 · 本提交**
+  `evaluate_profiled` 不再按 profile 决定材料组合；`NnueSearchState` 拆分
+  `evaluate_raw_cp_i32*`（原始输出）与 `evaluate_full_cp_i32*`（完整分：按
+  `target_mode` 在评估器内部组合 material）；增量方式由 artifact 元数据自动选择
+  （`for_search`：V2R12 → 关系增量栈）；UCI 选项 `NnueMode` → `Evaluation =
+  classical|nnue`，CLI/GUI 共用同一构建入口（`SearchNnueBackend::from_model`）；
+  评估器/模型变更即清空置换表（修复 `EvalUpdated` 不清缓存）。修复 En Croissant
+  选项式配置 S14 送后（根因见下条）。测试：合成零残差模型 full==material（双方
+  视角）、TT 清空、缺失模型 fail-closed（release lib 446 PASS）；WSL smoke：
+  选项式与 profile 式同局面同分同着（f7e6，cp 695）。
 - **2026-09-10 · 定位：选项路线（EvalFile+NnueMode）加载 S14 评估错误（GUI 送后复现 + 根因）· 本提交**
   复现局面 `startpos moves e2e3 e7e6 d1g4 d8e7 g4e6`（黑方应吃后；depth 1→10）：
   HCE → cp +843 / `e7e6` ✅；`--profile current-final-s12 --nnue-model S14` → cp +684 / `f7e6` ✅；

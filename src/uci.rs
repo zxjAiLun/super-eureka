@@ -41,45 +41,44 @@ const DEFAULT_EVAL_FILE_NAME: &str = "nnue-v2-q01.bin";
 
 type NnueModel = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel;
 
-/// S10-D GUI: UCI-selectable NNUE delivery mode. This is intentionally
-/// orthogonal to the process-fixed startup profile: it changes evaluator
-/// delivery only, never search policy or the reported profile identity.
+/// S14 unified entry: which evaluator the engine plays. `Classical` is the
+/// currently maintained handcrafted (HCE) evaluation; `Nnue` selects the NNUE
+/// evaluator built from the artifact at `EvalFile`. The artifact's own metadata
+/// decides how it is computed (material-residual composition, relation-feature
+/// handling, incremental delivery), so no model-format knob is exposed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum NnueMode {
+enum Evaluation {
     #[default]
-    Off,
-    V2q,
-    V2qFull,
+    Classical,
+    Nnue,
 }
 
-impl NnueMode {
+impl Evaluation {
     fn parse(value: &str) -> Option<Self> {
-        if value.eq_ignore_ascii_case("off") {
-            Some(Self::Off)
-        } else if value.eq_ignore_ascii_case("nnue-v2q") {
-            Some(Self::V2q)
-        } else if value.eq_ignore_ascii_case("nnue-v2q-full") {
-            Some(Self::V2qFull)
+        if value.eq_ignore_ascii_case("classical") {
+            Some(Self::Classical)
+        } else if value.eq_ignore_ascii_case("nnue") {
+            Some(Self::Nnue)
         } else {
             None
         }
     }
 
-    fn search_mode(self) -> Option<crate::engine::nnue_search::NnueSearchMode> {
+    fn name(self) -> &'static str {
         match self {
-            Self::Off => None,
-            Self::V2q => Some(crate::engine::nnue_search::NnueSearchMode::Incremental),
-            Self::V2qFull => Some(crate::engine::nnue_search::NnueSearchMode::FullRefresh),
+            Self::Classical => "classical",
+            Self::Nnue => "nnue",
         }
     }
 }
 
-/// S10-D GUI evaluation-backend configuration. `mode = Off` is the exact
-/// pre-S10-D path. A loaded model is retained while off so a GUI can configure
-/// `EvalFile` and `NnueMode` in either order without a transient fallback.
+/// S14 unified evaluation configuration, shared by every entry point (UCI
+/// options, startup `--nnue-model`, bench). A loaded model is retained while
+/// `Classical` so a GUI can configure `EvalFile` and `Evaluation` in either
+/// order without a transient fallback.
 #[derive(Default)]
 struct EvalBackendConfig {
-    mode: NnueMode,
+    evaluation: Evaluation,
     eval_file: String,
     model: Option<Arc<NnueModel>>,
 }
@@ -91,7 +90,7 @@ impl EvalBackendConfig {
         };
         match NnueModel::load(&path) {
             Ok(model) => Self {
-                mode: NnueMode::Off,
+                evaluation: Evaluation::Classical,
                 eval_file: path.to_string_lossy().into_owned(),
                 model: Some(Arc::new(model)),
             },
@@ -148,6 +147,21 @@ struct SearchNnueBackend {
     /// S11-B4-B: construct the state with the incremental R12 relation
     /// frames (combined accumulator + [u8; 64] relation state).
     r12_incremental: bool,
+}
+
+impl SearchNnueBackend {
+    /// S14: build the backend from the ARTIFACT. The delivery mechanism is a
+    /// property of the model (a V2R12 artifact gets the incremental R12
+    /// relation stack, everything else the plain V2 incremental stack), so the
+    /// same artifact is handled identically whichever entry point loaded it.
+    fn from_model(model: Arc<NnueModel>) -> Self {
+        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
+        Self {
+            r12_incremental: model.feature_set() == NnueFeatureSetId::V2R12,
+            model,
+            mode: crate::engine::nnue_search::NnueSearchMode::Incremental,
+        }
+    }
 }
 
 /// Parse a UCI time token (milliseconds) into a `Duration`, clamping to
@@ -358,7 +372,8 @@ fn write_uci_handshake_with_profile<W: Write>(
     )?;
     writeln!(
         out,
-        "option name NnueMode type combo default off var off var nnue-v2q var nnue-v2q-full"
+        "option name Evaluation type combo default {} var classical var nnue",
+        eval_backend.evaluation.name()
     )?;
     if startup_tt_failed {
         writeln!(
@@ -577,7 +592,7 @@ fn parse_hash_setoption(tokens: &[&str]) -> HashOptionCommand {
 enum EvalOptionCommand {
     Unknown,
     EvalFile(Option<String>),
-    NnueMode(Option<NnueMode>),
+    Evaluation(Option<Evaluation>),
 }
 
 fn parse_eval_setoption(tokens: &[&str]) -> EvalOptionCommand {
@@ -586,7 +601,7 @@ fn parse_eval_setoption(tokens: &[&str]) -> EvalOptionCommand {
     };
     match name.as_str() {
         "evalfile" => EvalOptionCommand::EvalFile(value),
-        "nnuemode" => EvalOptionCommand::NnueMode(value.as_deref().and_then(NnueMode::parse)),
+        "evaluation" => EvalOptionCommand::Evaluation(value.as_deref().and_then(Evaluation::parse)),
         _ => EvalOptionCommand::Unknown,
     }
 }
@@ -644,28 +659,48 @@ fn handle_uci_setoption(
                 }
             }
         }
-        EvalOptionCommand::NnueMode(mode) => {
+        EvalOptionCommand::Evaluation(requested) => {
             if profile.uses_nnue_eval() {
                 println!(
-                    "info string NnueMode is fixed by the startup NNUE profile; option ignored"
+                    "info string Evaluation is fixed by the startup NNUE profile; option ignored"
                 );
                 let _ = io::stdout().flush();
                 return SetoptionOutcome::Ignored;
             }
             stop_and_join(active);
-            match mode {
-                Some(mode) => {
-                    eval_backend.mode = mode;
+            match requested {
+                Some(evaluation) => {
+                    eval_backend.evaluation = evaluation;
+                    if evaluation == Evaluation::Nnue && eval_backend.model.is_none() {
+                        // Explicit, never silent: the value is kept so a later
+                        // successful EvalFile activates it, but nothing plays
+                        // until a model is actually loaded.
+                        println!(
+                            "info string Evaluation=nnue needs a loadable EvalFile; \
+                             NNUE stays inactive until one is loaded"
+                        );
+                        let _ = io::stdout().flush();
+                    }
                     SetoptionOutcome::EvalUpdated
                 }
                 None => {
-                    println!("info string invalid NnueMode value");
+                    println!("info string invalid Evaluation value (expected classical|nnue)");
                     let _ = io::stdout().flush();
                     SetoptionOutcome::Invalid
                 }
             }
         }
     }
+}
+
+/// Clear the transposition table after the evaluator or model changed.
+/// Table entries carry scores produced by the PREVIOUS evaluator; keeping
+/// them would let stale values steer the next search.
+fn clear_tt_on_evaluator_change(tt: &Arc<Mutex<TranspositionTable>>) {
+    let mut guard = lock_tt_recover(tt);
+    guard.clear();
+    println!("info string evaluator changed; transposition table cleared");
+    let _ = io::stdout().flush();
 }
 
 /// Handle a `setoption` line. The handler owns the lifecycle rules:
@@ -968,34 +1003,24 @@ fn select_search_nnue_backend(
     startup_nnue_model: &Option<Arc<NnueModel>>,
     eval_backend: &EvalBackendConfig,
 ) -> Result<Option<SearchNnueBackend>, &'static str> {
+    // S14: the evaluator is built from the ARTIFACT in every entry point. The
+    // delivery mechanism (plain V2 incremental vs the R12 relation stack) and
+    // the score composition are properties of the model, never of a profile.
     if profile.uses_nnue_eval() {
         let model = startup_nnue_model
             .clone()
             .ok_or("startup NNUE profile has no loaded model; refusing to search")?;
-        let mode = if profile.uses_nnue_incremental_stack() {
-            crate::engine::nnue_search::NnueSearchMode::Incremental
-        } else {
-            crate::engine::nnue_search::NnueSearchMode::FullRefresh
-        };
-        return Ok(Some(SearchNnueBackend {
-            model,
-            mode,
-            r12_incremental: profile.uses_nnue_r12_incremental_frames(),
-        }));
+        return Ok(Some(SearchNnueBackend::from_model(model)));
     }
 
-    let Some(mode) = eval_backend.mode.search_mode() else {
+    if eval_backend.evaluation != Evaluation::Nnue {
         return Ok(None);
-    };
+    }
     let model = eval_backend
         .model
         .clone()
-        .ok_or("NnueMode requires a loadable EvalFile; refusing to search")?;
-    Ok(Some(SearchNnueBackend {
-        model,
-        mode,
-        r12_incremental: false,
-    }))
+        .ok_or("Evaluation=nnue requires a loadable EvalFile; refusing to search")?;
+    Ok(Some(SearchNnueBackend::from_model(model)))
 }
 
 fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<Arc<NnueModel>>) {
@@ -1092,6 +1117,11 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
                     handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut eval_backend);
                 if outcome == SetoptionOutcome::Resized {
                     startup_tt_notice_pending = false;
+                }
+                if outcome == SetoptionOutcome::EvalUpdated {
+                    // S14: table entries hold scores produced by the PREVIOUS
+                    // evaluator/model — they must not outlive it.
+                    clear_tt_on_evaluator_change(&tt);
                 }
             }
             "go" => {
@@ -1880,23 +1910,23 @@ mod tests {
             .iter()
             .position(|line| *line == "option name EvalFile type string default <empty>")
             .expect("EvalFile option present");
-        let mode_idx = lines
+        let evaluation_idx = lines
             .iter()
             .position(|line| {
                 *line
-                    == "option name NnueMode type combo default off var off var nnue-v2q var nnue-v2q-full"
+                    == "option name Evaluation type combo default classical var classical var nnue"
             })
-            .expect("NnueMode option present");
+            .expect("Evaluation option present");
         let uciok_idx = lines.iter().position(|line| *line == "uciok").unwrap();
-        assert!(eval_file_idx < mode_idx);
-        assert!(mode_idx < uciok_idx);
+        assert!(eval_file_idx < evaluation_idx);
+        assert!(evaluation_idx < uciok_idx);
     }
 
     #[test]
     fn s10d_handshake_reports_auto_discovered_filename() {
         let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
         let config = EvalBackendConfig {
-            mode: NnueMode::Off,
+            evaluation: Evaluation::Classical,
             eval_file: "C:\\engines\\nnue-v2-q01.bin".to_string(),
             model: Some(Arc::new(NnueModel::from_bytes(&bytes).unwrap())),
         };
@@ -2062,24 +2092,23 @@ mod tests {
     fn s10d_setoption_parser_matrix() {
         let cases = [
             (
-                "setoption name NnueMode value NNUE-V2Q",
-                EvalOptionCommand::NnueMode(Some(NnueMode::V2q)),
+                "setoption name Evaluation value NNUE",
+                EvalOptionCommand::Evaluation(Some(Evaluation::Nnue)),
             ),
             (
-                "setoption NAME NNUEMODE VALUE nnue-v2q-full",
-                EvalOptionCommand::NnueMode(Some(NnueMode::V2qFull)),
+                "setoption NAME EVALUATION VALUE classical",
+                EvalOptionCommand::Evaluation(Some(Evaluation::Classical)),
             ),
             (
-                "setoption name NnueMode value off",
-                EvalOptionCommand::NnueMode(Some(NnueMode::Off)),
-            ),
-            ("setoption name NnueMode", EvalOptionCommand::NnueMode(None)),
-            (
-                "setoption name NnueMode value surprise",
-                EvalOptionCommand::NnueMode(None),
+                "setoption name Evaluation",
+                EvalOptionCommand::Evaluation(None),
             ),
             (
-                "setoption name Unknown value nnue-v2q",
+                "setoption name Evaluation value surprise",
+                EvalOptionCommand::Evaluation(None),
+            ),
+            (
+                "setoption name Unknown value nnue",
                 EvalOptionCommand::Unknown,
             ),
         ];
@@ -2099,15 +2128,15 @@ mod tests {
     }
 
     #[test]
-    fn s10d_enabled_mode_without_model_fails_closed() {
+    fn s14_evaluation_nnue_without_model_fails_closed() {
         let config = EvalBackendConfig {
-            mode: NnueMode::V2q,
+            evaluation: Evaluation::Nnue,
             ..EvalBackendConfig::default()
         };
         let result = select_search_nnue_backend(search::PRODUCTION_PROFILE, &None, &config);
         assert_eq!(
             result.err(),
-            Some("NnueMode requires a loadable EvalFile; refusing to search")
+            Some("Evaluation=nnue requires a loadable EvalFile; refusing to search")
         );
     }
 
@@ -2123,12 +2152,12 @@ mod tests {
         let mut config = EvalBackendConfig::default();
         let tt = Arc::new(Mutex::new(TranspositionTable::disabled()));
         let mut active = None;
-        let tokens: Vec<&str> = "setoption name NnueMode value off"
+        let tokens: Vec<&str> = "setoption name Evaluation value classical"
             .split_whitespace()
             .collect();
         let outcome = handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut config);
         assert_eq!(outcome, SetoptionOutcome::Ignored);
-        assert_eq!(config.mode, NnueMode::Off);
+        assert_eq!(config.evaluation, Evaluation::Classical);
         assert!(config.model.is_none());
     }
 
@@ -2137,7 +2166,7 @@ mod tests {
         let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
         let original_model = Arc::new(NnueModel::from_bytes(&bytes).unwrap());
         let mut config = EvalBackendConfig {
-            mode: NnueMode::V2q,
+            evaluation: Evaluation::Nnue,
             eval_file: "known-good.bin".to_string(),
             model: Some(original_model.clone()),
         };
@@ -2149,7 +2178,30 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(config.eval_file, "known-good.bin");
         assert!(Arc::ptr_eq(config.model.as_ref().unwrap(), &original_model));
-        assert_eq!(config.mode, NnueMode::V2q);
+        assert_eq!(config.evaluation, Evaluation::Nnue);
+    }
+
+    /// S14: an evaluator/model change must clear the transposition table —
+    /// its entries carry scores produced by the PREVIOUS evaluator.
+    #[test]
+    fn s14_evaluator_change_clears_the_transposition_table() {
+        use crate::engine::tt::{Bound, TTEntry, TtKey};
+        let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
+        tt.lock().unwrap().store(TTEntry {
+            key: TtKey::new(1, 0, 0),
+            depth: 6,
+            score: 123,
+            bound: Bound::Exact,
+            best_move: None,
+        });
+        assert!(tt.lock().unwrap().probe(TtKey::new(1, 0, 0)).is_some());
+
+        clear_tt_on_evaluator_change(&tt);
+
+        assert!(
+            tt.lock().unwrap().probe(TtKey::new(1, 0, 0)).is_none(),
+            "stale scores must not survive an evaluator change"
+        );
     }
 
     #[test]
@@ -2157,12 +2209,12 @@ mod tests {
         let mut game = GameState::startpos();
         let tt = Arc::new(Mutex::new(TranspositionTable::new_mb(1).unwrap()));
         let config = EvalBackendConfig {
-            mode: NnueMode::V2qFull,
+            evaluation: Evaluation::Nnue,
             eval_file: "configured.bin".to_string(),
             model: None,
         };
         ucinewgame_reset(&mut game, &tt);
-        assert_eq!(config.mode, NnueMode::V2qFull);
+        assert_eq!(config.evaluation, Evaluation::Nnue);
         assert_eq!(config.eval_file, "configured.bin");
     }
 
