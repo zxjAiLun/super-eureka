@@ -1,5 +1,8 @@
 # Eureka NNUE 试用指南（En Croissant / 任意 UCI GUI）
 
+> ⚠️ 本文件为 S10 时代（`nnue-v2-q01.bin` / v2q 模型）流程。S14 最新推荐配置见
+> [../s14/s14-en-croissant-guide.md](../s14/s14-en-croissant-guide.md)。以下内容保留作历史参考。
+
 NNUE 版本已可以通过 UCI 直接使用。En Croissant 不需要命令行参数：
 `EvalFile` 与 `NnueMode` 会出现在引擎的高级设置中。启动 profile 仍在
 整个进程内固定；这些选项只替换评估器，不改变搜索策略或 profile 身份。

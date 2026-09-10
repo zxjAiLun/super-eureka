@@ -312,11 +312,19 @@ python -m unittest discover -s tools -p "test_*.py"
   `data\s10\e3\scale-1m-win\seed-20260820\`（E3 基准 artifact）、
   H0-C roots 缓存 `C:\Users\81489\AppData\Local\Temp\opencode\h0c-cache\`
 - H0 总结论：[results/s10/s10-h0-master-closeout.md](results/s10/s10-h0-master-closeout.md)
-- NNUE 试用指南：[results/s10/s10-nnue-tryout-guide.md](results/s10/s10-nnue-tryout-guide.md)
+- NNUE 试用指南：[results/s10/s10-nnue-tryout-guide.md](results/s10/s10-nnue-tryout-guide.md)（S10 时代，历史参考）
+- S14 本地 GUI 指南（En Croissant）：[results/s14/s14-en-croissant-guide.md](results/s14/s14-en-croissant-guide.md)
 - 每轮开发文档：[docs/dev-log/](docs/dev-log/)（2026-09-07 起）
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · S14 本地 GUI 工作流（staging 脚本 + En Croissant 指南）· 本提交**
+  新增 `tools\stage_s14_gui.ps1`：SHA 校验冻结 S14 模型后 stage 进 `target\release\`，
+  并生成 `EN-CROISSANT-S14.txt`（engine 路径 + args 行）；`-Build` 可选先跑
+  `cargo build --release`（需先关闭 En Croissant，否则 exe 被锁）。新增
+  `results/s14/s14-en-croissant-guide.md`；旧 S10 试用指南加过期提示。
+  推荐配置 = `--profile current-final-s12 --nnue-model <staged path>`；该模式下
+  EvalFile/NnueMode 被引擎忽略（无需手动配置）。本机 exe 已实测通过。
 - **2026-09-10 · 命名规范对齐 + 构建身份复核 · `ca6ad3c` + 本提交**
   新增"术语与版本命名"一节（HCE-20260825 / S11-R12 / S12-R0 / S14 四名制；`current-final`
   仅作 Arena channel 名），closeout 状态表旧写法同步修正。构建复核：本地 WSL 重建 promotion
