@@ -336,13 +336,19 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 文档 repair #2：En Croissant 配置改为选项式（UCI 选项）· 本提交**
+  En Croissant 的引擎配置为 `path` + `settings`（UCI 选项），**没有启动参数字段**——修订指南与
+  staging 脚本说明：S14 配置 = `EvalFile` = `target\release\nnue-s14-datasupply-v5.bin` +
+  `NnueMode` = `nnue-v2q`；`--profile current-final-s12 --nnue-model …` 保留为 CLI/支持参数的
+  GUI 形式。实测（当前 exe）：选项式可加载 S14 并正常出着；缺失 EvalFile 时 fail-closed
+  （"refusing to search"，bestmove 0000）。选项路线对 V2R12 模型走 fresh 关系行（评估一致、
+  速度略低），正式测量仍用 Arena preset / profile。
 - **2026-09-10 · `--nnue-model` 相对路径按 exe 目录解析（GUI UX 小修复）· 本提交**
   绝对路径不变；相对路径先按 `eureka.exe` 所在目录解析，不存在再按原样，缺失仍 fail-closed
   （不回退旧模型）；无参数默认启动不变。新增 3 个单元测试（release lib 444 tests PASS）；
   clippy 无新增；WSL UCI smoke 通过（cwd 与 exe 目录不同时短参数可用、绝对路径不变、
-  缺失报 startup_error）。En Croissant 配置缩成
-  `--profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin`；staging 脚本与
-  S14 GUI 指南同步更新。开发代码：src/uci.rs。
+  缺失报 startup_error）。staging 脚本与
+  S14 GUI 指南同步更新（En Croissant 实为选项式配置，见下条修订）。开发代码：src/uci.rs。
 - **2026-09-10 · 文档 repair（S14=CP-only 勘误；默认启动澄清；channel/profile 前缀规则）· 本提交**
   修正 S14 描述（此前误写"真实结果双信号"；实为 S12-R0 配方逐字 CP-only + 5.0M 数据池）；
   明确"默认产物 ≠ promotion 引擎"——binary 能力对齐，但无参数默认启动仍是 HCE；补记云端从未
@@ -353,8 +359,8 @@ python -m unittest discover -s tools -p "test_*.py"
   并生成 `EN-CROISSANT-S14.txt`（engine 路径 + args 行）；`-Build` 可选先跑
   `cargo build --release`（需先关闭 En Croissant，否则 exe 被锁）。新增
   `results/s14/s14-en-croissant-guide.md`；旧 S10 试用指南加过期提示。
-  推荐配置 = `--profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin`（相对名按 exe 目录解析）；该模式下
-  EvalFile/NnueMode 被引擎忽略（无需手动配置）。本机 exe 已实测通过。
+  配置修订：En Croissant 用 UCI 选项（`EvalFile` + `NnueMode`），见 2026-09-10 修订条目；
+  `--profile ...` 形式适用于 CLI/支持参数的 GUI。本机 exe 已实测通过。
 - **2026-09-10 · 命名规范对齐 + 构建身份复核 · `ca6ad3c` + 本提交**
   新增"术语与版本命名"一节（HCE-20260825 / S11-R12 / S12-R0 / S14 四名制；`current-final`
   仅作 Arena channel 名），closeout 状态表旧写法同步修正。构建复核：本地 WSL 重建 promotion
