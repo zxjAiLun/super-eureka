@@ -28,12 +28,14 @@ current-final 平手（W/D/L 55/17/56，49.61%，pentanomial [10,5,34,6,9]）；
 batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变）；**S13-A
 真实结果 blend FAIL（256 局 12.89%，-332 Elo——0.75 权重的在线快棋真实胜负
 压垮 SF teacher 信号）**。NNUE 训练线两个便宜杠杆（cadence、result blend）均
-已单变量否决；剩余杠杆 = 数据供给（5M+ fresh + 双信号，需新标注算力，未授权）。
+已单变量否决；剩余杠杆 = 数据供给（5M+ fresh + 双信号，需新标注算力，未授权；
+S14 实做 = CP-only + 5.0M 数据池，未采用双信号）。
 工程资产保留：v5 runtime + current-final-s12 profile 生产可用；current-final
 仍是生产引擎。R12-inc vs SF2400 的 1+0 计 Elo live match 仍在跑（`6a07cc07…`）。**
 
-**S14 更新（2026-09-10）**：S14（数据供给 4.22M Fishtest 位置 + 真实结果双信号）训练
-完成、屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判 **ACCEPT_H1**
+**S14 更新（2026-09-10）**：S14 = **S12-R0 配方逐字（CP-only），只把数据池扩到 5.0M**
+（779,590 canonical CP + 4,220,410 fresh Fishtest；**未用真实结果 blend**——那是 S13、已 FAIL）。
+训练完成、屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判 **ACCEPT_H1**
 （LLR 2.9696 ≥ 2.9444，177/500 pairs，354 局）。用户裁定：**S14 = PROMOTION-QUALIFIED
 （棋力审批已获，不因 HOLD 作废）；生产默认保持 HCE-20260825，切换 HOLD**——
 阻断项为受控 rollback 控制面缺位（生产级运维安全，非棋力）；无需任何补充比赛。
@@ -48,13 +50,16 @@ batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变�
 | **HCE-20260825** | 旧生产引擎 = CurrentFinal search + HCE Eval2 = Arena EngineVersion `ce-currentfinal-20260825` |
 | **S11-R12** | 旧 NNUE（FT128）+ R12；历史候选 |
 | **S12-R0** | FT256 + SCReLU + 8 桶、780k 数据；NNUE 架构基线 |
-| **S14** | S12 架构 + R12 + 5M 级数据供给训练 + CurrentFinal search = **当前最强 Eureka**；promotion SPRT `ACCEPT_H1`（binary `dceacfb7…`、model `329b7170…`、源码 `b3145e1`） |
+| **S14** | S12 架构 + R12 + **CP-only 配方** + 5.0M 数据池 + CurrentFinal search = **当前最强 Eureka**；promotion SPRT `ACCEPT_H1`（binary `dceacfb7…`、model `329b7170…`、源码 `b3145e1`） |
 
-- `current-final` **只允许作为 Arena production channel 名**（指针，当前 → HCE-20260825）；
-  不得用作引擎/版本名（禁用 "current-final 很强"、"current-final-s12 版本"、"S12 production" 一类说法）。
-- 两层歧义备忘：引擎内部 profile `--profile current-final`（=旧 HCE）≠ channel 名；
-  `--profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin` 实际加载的是 **S14** 权重
-  （alias 名不跟踪模型身份）。
+- `current-final` 有两个合法身份：**`Arena channel: current-final`**（指针，当前 → HCE-20260825）
+  与 **`engine profile: current-final`**（源码里真实存在的 profile 名）。**书写强制前缀**：单独
+  说 `current-final` 默认指 Arena channel；凡指 profile 必须写 `profile:` 前缀（如
+  `engine profile: current-final`、`engine profile: current-final-s12`）。禁用无前缀的模糊说法
+  （"current-final 很强"、"current-final-s12 版本"、"S12 production"）。
+- 两层歧义备忘：`engine profile: current-final`（=旧 HCE）≠ `Arena channel: current-final`；
+  `engine profile: current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin` 实际加载的是 **S14**
+  权重（alias 名不跟踪模型身份）。
 - 对齐事实（2026-09-10 实测）：本地 / GitHub / 服务器引擎代码 = `b3145e1`（当前 HEAD `ca6ad3c`
   仅文档）。最强组合已部署服务器并过 SPRT；生产 channel 仍指向 HCE-20260825——"已部署最强"
   ≠ "线上默认在用"。
@@ -63,12 +68,23 @@ batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变�
 
 - promotion binary `dceacfb7…` = 本地 WSL 构建（git-archive `b3145e1` + rustc 1.94.1 +
   `cargo build --release --locked` + `EUREKA_GIT_SHA/_SHORT/_DIRTY` env、`DATE` 留空）；
-  **未走 GitHub 云端 workflow**（该 workflow 历史仅 2 次运行：8/5 失败、8/29 成功 @ `9ef078f`）。
+  **未走 GitHub 云端 workflow**（该 workflow 历史仅 2 次运行：8/5 失败、8/29 成功 @ `9ef078f`）；
+  云端**从未实际构建过 `b3145e1`**——"同 recipe 会得到等价程序"是合理推断，不是实测。
 - 复现实测：同环境重建 → 与 `dceacfb7` **仅差 6 字节**（RUNPATH 内嵌的 rustc 随机临时目录名），
   其余 1,201,706 字节逐字节一致。该 RUNPATH 仅在"登录 shell（`cc`=zig cc，clang 18.1.6）"
   构建时注入；非登录/云端环境（gcc + rust-lld 21）产物无 RUNPATH、字节不同但引擎等价。
-- 结论：**"默认构建"= 同源同引擎；跨环境（本地 vs 云端）不要指望二进制哈希一致，
-  逐字节复现只差构建路径元数据。**
+- **默认启动澄清**：最新 release binary 已**包含并能运行**当前最强 S14 配置（binary 能力/来源
+  与 promotion 对齐），但其**无参数默认启动仍是 HCE**（`engine profile: current-final`）；S14 仍需
+  显式 `--profile current-final-s12 --nnue-model …`。**不要写"默认产物就是 promotion 引擎"。**
+  跨环境（本地 vs 云端）不要指望二进制哈希一致，逐字节复现只差构建路径元数据。
+
+```text
+当前版本关系（2026-09-10）：
+引擎源码版本        b3145e1（文档 HEAD 以分支 tip 为准）
+服务器最新 binary   dceacfb7…（来自 b3145e1）
+当前最强运行配置    S14 NNUE + CurrentFinal Search（model 329b7170…；SPRT ACCEPT_H1）
+当前 binary 默认启动 HCE（engine profile: current-final），不是 S14
+```
 
 ## 当前生产行为
 
@@ -318,6 +334,11 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 文档 repair（S14=CP-only 勘误；默认启动澄清；channel/profile 前缀规则）· 本提交**
+  修正 S14 描述（此前误写"真实结果双信号"；实为 S12-R0 配方逐字 CP-only + 5.0M 数据池）；
+  明确"默认产物 ≠ promotion 引擎"——binary 能力对齐，但无参数默认启动仍是 HCE；补记云端从未
+  构建 `b3145e1`（仅 recipe 等价推断）；`current-final` 命名改为强制 `Arena channel:` /
+  `engine profile:` 前缀。
 - **2026-09-10 · S14 本地 GUI 工作流（staging 脚本 + En Croissant 指南）· 本提交**
   新增 `tools\stage_s14_gui.ps1`：SHA 校验冻结 S14 模型后 stage 进 `target\release\`，
   并生成 `EN-CROISSANT-S14.txt`（engine 路径 + args 行）；`-Build` 可选先跑
@@ -331,7 +352,7 @@ python -m unittest discover -s tools -p "test_*.py"
   二进制与 `dceacfb7` 仅差 6 字节（RUNPATH 随机段），其余逐字节一致；云端 workflow 从未构建
   `b3145e1`。
 - **2026-09-10 · S14 promotion SPRT closeout — ACCEPT_H1 / PROMOTION-QUALIFIED，production HOLD · `b3145e1` + closeout 提交**
-  S14（数据供给 + 双信号）屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判
+  S14（S12-R0 配方逐字、CP-only、数据池 5.0M）屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判
   **ACCEPT_H1**（LLR 2.9696 ≥ 2.9444，177/500 pairs，354 局，W/D/L 198/62/94，
   ptnml [15,15,54,37,56]，同 binary `dceacfb7…`，非计分）。用户裁定：
   **S14 = PROMOTION-QUALIFIED；生产切换 HOLD**——部署 V2.1 控制面无可验证的受控
