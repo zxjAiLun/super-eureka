@@ -34,9 +34,8 @@ use crate::chess::Move;
 use crate::chess::ZobristKey;
 use crate::engine::eval::{evaluate_components_white, Eval2Mask};
 use crate::engine::search::{
-    search_best_move_with_history_and_tt, search_best_move_with_history_tt_and_profile,
-    SearchContext, SearchDiagnostics, SearchLimits, SearchOutcome, SearchProfile, SearchStats,
-    MATE,
+    search_best_move_with_history_tt_and_profile, SearchContext, SearchDiagnostics, SearchLimits,
+    SearchOutcome, SearchProfile, SearchStats, MATE,
 };
 use crate::engine::time::{compute_budget, TimeInput};
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
@@ -125,8 +124,14 @@ struct BenchArgs {
     repeat: u32,
     /// Throughput/profile node budget (default 100_000).
     nodes: u64,
-    /// Search profile (default reference == M4.0 baseline behavior).
+    /// Search profile (default: the production profile).
     profile: SearchProfile,
+    /// The exact `--profile` name as resolved (preserves legacy NNUE alias
+    /// identity in bench output).
+    profile_name: &'static str,
+    /// True when the resolved profile name is a legacy NNUE alias (an NNUE
+    /// model is required and loaded for the search).
+    nnue_profile: bool,
     /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
     /// Optional one-off FEN for a profile run. The CLI process owns the
@@ -174,63 +179,28 @@ struct BenchArgs {
 }
 
 /// Render a `SearchProfile` as its CLI string (also used in bench output).
+/// The seven legacy NNUE alias names are preserved via
+/// [`BenchArgs::profile_name`], not through the enum.
 fn profile_str(p: SearchProfile) -> &'static str {
     match p {
-        SearchProfile::M4Reference => "reference",
-        SearchProfile::M41Reference => "m4.1",
-        SearchProfile::PvsReference => "pvs",
-        SearchProfile::SeeCandidate => "see",
-        SearchProfile::AspirationCandidate => "aspiration",
-        SearchProfile::LmrCandidate => "lmr",
-        SearchProfile::NullMoveCandidate => "null",
-        SearchProfile::FutilityCandidate => "futility",
         SearchProfile::Current => "current",
-        SearchProfile::CurrentLmr => "current-lmr",
-        SearchProfile::CurrentThreatAware => "current-threat-aware",
-        SearchProfile::CurrentThreatAwareNoQchecks => "current-threat-aware-no-qchecks",
-        SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
-        SearchProfile::CurrentThreatAwareEvalOnly => "current-threat-aware-eval-only",
-        SearchProfile::CurrentThreatAwareOrderOnly => "current-threat-aware-order-only",
-        SearchProfile::CurrentEval2 => "current-eval2",
-        SearchProfile::CurrentQsearchMovegen => "current-qsearch-movegen",
-        SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
-        SearchProfile::CurrentQsearchFastPruning => "current-qsearch-fast-pruning",
-        SearchProfile::CurrentAspiration => "current-aspiration",
-        SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
-        SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
-        SearchProfile::CurrentAspirationLmrFutilitySee => "current-aspiration-lmr-futility-see",
         SearchProfile::CurrentFinal => "current-final",
-        SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
-        SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
-        SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
-        SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
-        SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
-        SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
-        SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
-        SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
-        SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
-        SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
-        SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
-        SearchProfile::CurrentFinalEval2 => "current-final-eval2",
-        SearchProfile::CurrentFinalNoPawnStructure => "current-final-no-pawn-structure",
-        SearchProfile::CurrentFinalNoMobility => "current-final-no-mobility",
-        SearchProfile::CurrentFinalNoPieceActivity => "current-final-no-piece-activity",
-        SearchProfile::CurrentFinalNoRookActivity => "current-final-no-rook-activity",
-        SearchProfile::CurrentFinalNoDevelopmentSpace => "current-final-no-development-space",
-        SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
-        SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
-        SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
-        SearchProfile::CurrentFinalNnueV2QMaterial => "current-final-nnue-v2q-material",
-        SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
-            "current-final-nnue-v2q-material-cal-fut"
-        }
-        SearchProfile::CurrentFinalNnueV2QMaterialR12 => "current-final-nnue-v2q-material-r12",
-        SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
-            "current-final-nnue-v2q-material-r12-inc"
-        }
-        SearchProfile::CurrentFinalS12 => "current-final-s12",
     }
 }
+
+/// The seven historical NNUE profile names, still accepted by `--profile`
+/// (and required to keep the historical launch/GUI handshakes working). Each
+/// maps to the production search profile with an NNUE evaluator loaded from
+/// `--nnue-model`.
+const NNUE_PROFILE_ALIASES: &[&str] = &[
+    "current-final-nnue-v2q-full",
+    "current-final-nnue-v2q",
+    "current-final-nnue-v2q-material",
+    "current-final-nnue-v2q-material-cal-fut",
+    "current-final-nnue-v2q-material-r12",
+    "current-final-nnue-v2q-material-r12-inc",
+    "current-final-s12",
+];
 
 /// One measured search result.
 struct BenchResult {
@@ -294,7 +264,9 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         Suite::Ablation => 1,
     };
     let mut nodes = 100_000u64;
-    let mut profile = SearchProfile::M4Reference;
+    let mut profile = SearchProfile::CurrentFinal;
+    let mut profile_name: &'static str = "current-final";
+    let mut nnue_profile = false;
     let mut fixture: Option<&'static str> = None;
     let mut custom_fen: Option<&'static str> = None;
     let mut profile_limit: Option<LimitKind> = None;
@@ -447,77 +419,30 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .next()
                     .ok_or_else(|| "bench: --profile requires a value".to_string())?
                     .clone();
-                profile = match v.as_str() {
-                    "reference" => SearchProfile::M4Reference,
-                    "m4.1" => SearchProfile::M41Reference,
-                    "pvs" => SearchProfile::PvsReference,
-                    "see" => SearchProfile::SeeCandidate,
-                    "aspiration" => SearchProfile::AspirationCandidate,
-                    "lmr" => SearchProfile::LmrCandidate,
-                    "null" => SearchProfile::NullMoveCandidate,
-                    "futility" => SearchProfile::FutilityCandidate,
-                    "current" => SearchProfile::Current,
-                    "current-lmr" => SearchProfile::CurrentLmr,
-                    "current-threat-aware" => SearchProfile::CurrentThreatAware,
-                    "current-threat-aware-no-qchecks" => SearchProfile::CurrentThreatAwareNoQchecks,
-                    "current-threat-aware-eval-order" => SearchProfile::CurrentThreatAwareEvalOrder,
-                    "current-threat-aware-eval-only" => SearchProfile::CurrentThreatAwareEvalOnly,
-                    "current-threat-aware-order-only" => SearchProfile::CurrentThreatAwareOrderOnly,
-                    "current-eval2" => SearchProfile::CurrentEval2,
-                    "current-qsearch-movegen" => SearchProfile::CurrentQsearchMovegen,
-                    "current-qsearch-pruning" => SearchProfile::CurrentQsearchPruning,
-                    "current-qsearch-fast-pruning" => SearchProfile::CurrentQsearchFastPruning,
-                    "current-aspiration" => SearchProfile::CurrentAspiration,
-                    "current-aspiration-lmr" => SearchProfile::CurrentAspirationLmr,
-                    "current-aspiration-lmr-futility" => {
-                        SearchProfile::CurrentAspirationLmrFutility
-                    }
-                    "current-aspiration-lmr-futility-see" => {
-                        SearchProfile::CurrentAspirationLmrFutilitySee
-                    }
-                    "current-final" => SearchProfile::CurrentFinal,
-                    "current-final-root-history" => SearchProfile::CurrentFinalRootHistory,
-                    "current-final-root-prev-score" => SearchProfile::CurrentFinalRootPrevScore,
-                    "current-final-legality-fast" => SearchProfile::CurrentFinalLegalityFast,
-                    "current-final-single-buffer" => SearchProfile::CurrentFinalSingleBuffer,
-                    "current-final-single-generation" => {
-                        SearchProfile::CurrentFinalSingleGeneration
-                    }
-                    "current-final-qsearch-lazy" => SearchProfile::CurrentFinalQsearchLazy,
-                    "current-final-qsearch-delta" => SearchProfile::CurrentFinalQsearchDelta,
-                    "current-final-lmr-null-window" => SearchProfile::CurrentFinalLmrNullWindow,
-                    "current-final-single-evasion" => SearchProfile::CurrentFinalSingleEvasion,
-                    "current-final-bounded-check2" => SearchProfile::CurrentFinalBoundedCheck2,
-                    "current-final-phase-affine" => SearchProfile::CurrentFinalPhaseAffine,
-                    "current-final-eval2" => SearchProfile::CurrentFinalEval2,
-                    "current-final-no-pawn-structure" => SearchProfile::CurrentFinalNoPawnStructure,
-                    "current-final-no-mobility" => SearchProfile::CurrentFinalNoMobility,
-                    "current-final-no-piece-activity" => SearchProfile::CurrentFinalNoPieceActivity,
-                    "current-final-no-rook-activity" => SearchProfile::CurrentFinalNoRookActivity,
-                    "current-final-no-development-space" => {
-                        SearchProfile::CurrentFinalNoDevelopmentSpace
-                    }
-                    "current-final-no-king-safety" => SearchProfile::CurrentFinalNoKingSafety,
-                    "current-final-nnue-v2q-full" => SearchProfile::CurrentFinalNnueV2QFull,
-                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
-                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
-                    "current-final-nnue-v2q-material-cal-fut" => {
-                        SearchProfile::CurrentFinalNnueV2QMaterialCalFut
-                    }
-                    "current-final-nnue-v2q-material-r12" => {
-                        SearchProfile::CurrentFinalNnueV2QMaterialR12
-                    }
-                    "current-final-nnue-v2q-material-r12-inc" => {
-                        SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
-                    }
-                    "current-final-s12" => SearchProfile::CurrentFinalS12,
-                    other => {
-                        return Err(format!(
-                            "bench: invalid --profile '{}' (expected reference|m4.1|pvs|see|aspiration|lmr|null|futility|current|current-lmr|current-threat-aware|current-threat-aware-no-qchecks|current-threat-aware-eval-order|current-threat-aware-eval-only|current-threat-aware-order-only|current-eval2|current-qsearch-movegen|current-qsearch-pruning|current-qsearch-fast-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-root-history|current-final-root-prev-score|current-final-legality-fast|current-final-single-buffer|current-final-single-generation|current-final-qsearch-lazy|current-final-qsearch-delta|current-final-lmr-null-window|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc|current-final-s12)",
-                            other
-                        ));
-                    }
-                };
+                // Supported set: the two live variants plus the seven
+                // historical NNUE aliases (each mapped to CurrentFinal with
+                // an NNUE model loaded from --nnue-model).
+                if let Some(alias) = NNUE_PROFILE_ALIASES
+                    .iter()
+                    .copied()
+                    .find(|n| *n == v.as_str())
+                {
+                    profile = SearchProfile::CurrentFinal;
+                    profile_name = alias;
+                    nnue_profile = true;
+                } else {
+                    profile = match v.as_str() {
+                        "current" => SearchProfile::Current,
+                        "current-final" => SearchProfile::CurrentFinal,
+                        other => {
+                            return Err(format!(
+                                "bench: invalid --profile '{}' (expected current|current-final|current-final-nnue-v2q-full|current-final-nnue-v2q|current-final-nnue-v2q-material|current-final-nnue-v2q-material-cal-fut|current-final-nnue-v2q-material-r12|current-final-nnue-v2q-material-r12-inc|current-final-s12)",
+                                other
+                            ));
+                        }
+                    };
+                    profile_name = profile_str(profile);
+                }
             }
             "--fixture" => {
                 if suite != Suite::Throughput && suite != Suite::Profile && suite != Suite::Ablation
@@ -686,6 +611,8 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         repeat,
         nodes,
         profile,
+        profile_name,
+        nnue_profile,
         fixture,
         custom_fen,
         profile_limit: if suite == Suite::Profile {
@@ -726,10 +653,10 @@ fn smoke_fixtures() -> Vec<Fixture> {
             limit: LimitKind::Depth(3),
             history: None,
             locked: Some(Locked {
-                nodes: 1149,
-                score: 50,
-                best_move: "b1c3",
-                pv: &["b1c3", "b8c6", "g1f3"],
+                nodes: 665,
+                score: 98,
+                best_move: "d2d4",
+                pv: &["d2d4", "d7d5", "g1f3"],
             }),
         },
         Fixture {
@@ -739,7 +666,7 @@ fn smoke_fixtures() -> Vec<Fixture> {
             limit: LimitKind::Depth(3),
             history: None,
             locked: Some(Locked {
-                nodes: 969,
+                nodes: 768,
                 score: 990,
                 best_move: "e4a4",
                 pv: &["e4a4", "h4h3", "a4h4", "h8g7", "h4h3"],
@@ -863,18 +790,9 @@ fn throughput_fixtures() -> Vec<Fixture> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Dispatch one search through the selected profile.
-///
-/// - `reference` calls the exact M4.0 entry
-///   ([`search_best_move_with_history_and_tt`]), preserving the historical
-///   baseline byte-for-byte;
-/// - `m4.1` and `current` call the profile-aware entry. `m4.1` selects
-///   [`SearchProfile::M41Reference`] (M4.1 full-window quiet ordering,
-///   no PVS); `current` selects [`SearchProfile::Current`] (M4.1 ordering
-///   + PVS). `reference` uses the exact M4.0 entry.
-///
-/// Commit 5 keeps `search.rs` untouched: it only selects which *existing*
-/// entry to drive, and never alters search semantics.
+/// Dispatch one search through the selected profile. All profiles go through
+/// the profile-aware entry; NNUE delivery is driven by the optional
+/// search-local state.
 fn search_one(
     pos: &mut Position,
     hist: &[ZobristKey],
@@ -884,23 +802,7 @@ fn search_one(
     profile: SearchProfile,
     nnue_state: Option<crate::engine::nnue_search::NnueSearchState>,
 ) -> Option<SearchOutcome> {
-    if profile == SearchProfile::M4Reference {
-        let _ = nnue_state; // M4Reference never carries an NNUE state.
-        search_best_move_with_history_and_tt(pos, hist, limits, ctx, tt)
-    } else if profile.uses_nnue_eval() {
-        let state = nnue_state.expect("NNUE profile requires --nnue-model (fail closed)");
-        search_best_move_with_history_tt_and_profile(
-            pos,
-            hist,
-            limits,
-            ctx,
-            tt,
-            profile,
-            Some(state),
-        )
-    } else {
-        search_best_move_with_history_tt_and_profile(pos, hist, limits, ctx, tt, profile, None)
-    }
+    search_best_move_with_history_tt_and_profile(pos, hist, limits, ctx, tt, profile, nnue_state)
 }
 
 /// Effective history for a fixture: explicit if provided, else the single root key.
@@ -1573,11 +1475,13 @@ fn validate(
             ));
         }
     }
-    // Locked exact assertions (disabled mode, reference profile only).
-    // `1149`/`963` precise locks belong to `M4Reference`; under `Current`
-    // a fixed-depth run may legitimately produce different node counts,
-    // bestmoves, and PVs, so the lock must not be applied.
-    if mode == BenchMode::Disabled && profile == SearchProfile::M4Reference {
+    // Locked exact assertions (disabled mode, canonical production name
+    // only). The locked numbers belong to the exact `current-final`
+    // policy; under `current` (and the legacy aliases, reported under
+    // their own names) a fixed-depth run may legitimately produce
+    // different node counts, bestmoves, and PVs, so the lock must not be
+    // applied there.
+    if mode == BenchMode::Disabled && profile == SearchProfile::CurrentFinal {
         if let Some(locked) = &fx.locked {
             if outcome.score != Some(locked.score) {
                 return Err(format!(
@@ -1766,17 +1670,14 @@ fn run_one(
 
     let limits = limits_for(actual_limit);
 
-    // S10-C2B: load the frozen quantized model ONCE per run (never per
-    // node / per go) for the NNUE candidate profiles.
+    // S10-C2B/S14: load the quantized model ONCE per run (never per node /
+    // per go) for the legacy NNUE alias profiles. The artifact's own
+    // metadata decides material composition and the delivery mechanism
+    // (`for_search`); the loader fail-closes on anything unsupported.
     // S10-C3-0: diagnostics are OPT-IN. Normal performance runs build the
     // state with telemetry/audit OFF (zero atomic RMW on hot paths).
     let want_diagnostics = cfg.nnue_audit || cfg.nnue_stack_telemetry;
-    let (nnue_state, nnue_state_handle) = if cfg.profile.uses_nnue_eval() {
-        if cfg.nnue_audit && !cfg.profile.uses_nnue_incremental_stack() {
-            return Err(
-                "bench: --nnue-audit requires --profile current-final-nnue-v2q".to_string(),
-            );
-        }
+    let (nnue_state, nnue_state_handle) = if cfg.nnue_profile {
         let path = cfg.nnue_model.as_deref().ok_or_else(|| {
             "bench: NNUE profile requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
                 .to_string()
@@ -1784,75 +1685,14 @@ fn run_one(
         let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
             std::path::Path::new(path),
         )?;
-        // S10-F1: fail-closed semantic-mode match between the artifact and
-        // the requested profile (a material-residual artifact under a pure
-        // profile, or the reverse, is refused).
-        {
-            use crate::engine::nnue_v2q_runtime::NnueV2TargetMode;
-            let required = if cfg.profile.uses_nnue_material_residual() {
-                NnueV2TargetMode::MaterialResidual
-            } else {
-                NnueV2TargetMode::Cp
-            };
-            if model.target_mode() != required {
-                return Err(format!(
-                    "bench: --nnue-model artifact target_mode '{}' does not \
-                     match profile '{}' (requires '{}') (fail closed)",
-                    model.target_mode().name(),
-                    profile_str(cfg.profile),
-                    required.name()
-                ));
-            }
-        }
-        // S11-B2: fail-closed feature-set match between the artifact and
-        // the requested profile (the R12 profiles require a v4 V2R12
-        // artifact; a V2 artifact under them — or the reverse — is
-        // refused).
-        {
-            use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-            let required_fs = if matches!(
-                cfg.profile,
-                SearchProfile::CurrentFinalNnueV2QMaterialR12
-                    | SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
-                    | SearchProfile::CurrentFinalS12
-            ) {
-                NnueFeatureSetId::V2R12
-            } else {
-                NnueFeatureSetId::V2
-            };
-            if model.feature_set() != required_fs {
-                return Err(format!(
-                    "bench: --nnue-model artifact feature_set '{:?}' does \
-                     not match profile '{}' (requires '{:?}') (fail closed)",
-                    model.feature_set(),
-                    profile_str(cfg.profile),
-                    required_fs
-                ));
-            }
-        }
-        let state = if cfg.profile.uses_nnue_r12_incremental_frames() {
-            crate::engine::nnue_search::NnueSearchState::with_r12_incremental(
-                std::sync::Arc::new(model),
-                crate::engine::nnue_search::NnueSearchMode::Incremental,
-                &pos,
-                want_diagnostics,
-                cfg.nnue_audit,
-            )
-        } else {
-            crate::engine::nnue_search::NnueSearchState::with_options(
-                std::sync::Arc::new(model),
-                if cfg.profile.uses_nnue_incremental_stack() {
-                    crate::engine::nnue_search::NnueSearchMode::Incremental
-                } else {
-                    crate::engine::nnue_search::NnueSearchMode::FullRefresh
-                },
-                &pos,
-                want_diagnostics,
-                cfg.nnue_audit,
-            )
-        };
+        let state = crate::engine::nnue_search::NnueSearchState::for_search(
+            std::sync::Arc::new(model),
+            &pos,
+            want_diagnostics,
+            cfg.nnue_audit,
+        );
         // Keep a read handle: the Arc model is shared; diagnostics are
-        // read via the state BEFORE it moves into the search — so instead
+        // read via the state BEFORE it moves into the search - so instead
         // we retain an Arc<NnueDiagnostics> clone when enabled.
         let handle = state.diagnostics.clone();
         (Some(state), handle)
@@ -1880,11 +1720,7 @@ fn run_one(
 
     // Evidence lines only when diagnostics were explicitly requested.
     if let Some(diag) = nnue_state_handle.as_ref() {
-        let mode = if cfg.profile.uses_nnue_incremental_stack() {
-            "incremental"
-        } else {
-            "full"
-        };
+        let mode = "incremental";
         use std::sync::atomic::Ordering as O;
         let t = crate::engine::nnue_search::TelemetrySnapshot {
             pushes: diag.pushes.load(O::Relaxed),
@@ -2021,7 +1857,7 @@ fn run_one(
         suite: cfg.suite.as_str(),
         fixture: fx.id,
         mode: mode.as_str(),
-        profile: profile_str(cfg.profile),
+        profile: cfg.profile_name,
         repeat,
         limit: limit_str,
         score: outcome.score,
@@ -2563,14 +2399,8 @@ fn fixtures_for(cfg: &BenchArgs) -> Vec<Fixture> {
     }
 }
 
-fn ablation_profiles() -> [SearchProfile; 5] {
-    [
-        SearchProfile::Current,
-        SearchProfile::CurrentAspiration,
-        SearchProfile::CurrentAspirationLmr,
-        SearchProfile::CurrentAspirationLmrFutility,
-        SearchProfile::CurrentAspirationLmrFutilitySee,
-    ]
+fn ablation_profiles() -> [SearchProfile; 2] {
+    [SearchProfile::Current, SearchProfile::CurrentFinal]
 }
 
 fn print_summary(
@@ -2726,7 +2556,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let summary_profile = if cfg.suite == Suite::Ablation {
         "all"
     } else {
-        profile_str(cfg.profile)
+        cfg.profile_name
     };
     print_summary(cfg.suite, &modes, &fixtures, &results, summary_profile);
     Ok(())
@@ -4004,8 +3834,11 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
                     .next()
                     .ok_or("eval-site-capture: --profile requires a value")?;
                 profile = Some(match v.as_str() {
-                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
-                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
+                    // Legacy NNUE aliases resolve to the production profile;
+                    // the model metadata drives the evaluator.
+                    "current-final-nnue-v2q-material" | "current-final-nnue-v2q" => {
+                        SearchProfile::CurrentFinal
+                    }
                     "current-final" => SearchProfile::CurrentFinal,
                     other => {
                         return Err(format!("eval-site-capture: unsupported profile '{other}'"))
@@ -4051,42 +3884,19 @@ fn run_eval_site_capture(args: &[String]) -> Result<(), String> {
         ..Default::default()
     };
 
-    let nnue_state = if profile.uses_nnue_eval() {
-        let path = nnue_model
-            .as_deref()
-            .ok_or("eval-site-capture: NNUE profile requires --nnue-model")?;
-        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(path),
-        )?;
-        {
-            use crate::engine::nnue_v2q_runtime::NnueV2TargetMode;
-            let required = if profile.uses_nnue_material_residual() {
-                NnueV2TargetMode::MaterialResidual
-            } else {
-                NnueV2TargetMode::Cp
-            };
-            if model.target_mode() != required {
-                return Err(format!(
-                    "eval-site-capture: artifact target_mode '{}' does not \
-                     match profile (requires '{}') (fail closed)",
-                    model.target_mode().name(),
-                    required.name()
-                ));
-            }
+    let nnue_state = match nnue_model.as_deref() {
+        Some(path) => {
+            let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
+                std::path::Path::new(path),
+            )?;
+            Some(crate::engine::nnue_search::NnueSearchState::for_search(
+                Arc::new(model),
+                &pos,
+                false,
+                false,
+            ))
         }
-        Some(crate::engine::nnue_search::NnueSearchState::with_options(
-            Arc::new(model),
-            if profile.uses_nnue_incremental_stack() {
-                crate::engine::nnue_search::NnueSearchMode::Incremental
-            } else {
-                crate::engine::nnue_search::NnueSearchMode::FullRefresh
-            },
-            &pos,
-            false,
-            false,
-        ))
-    } else {
-        None
+        None => None,
     };
 
     crate::engine::search::eval_site_capture::enable(400_000);
@@ -4129,7 +3939,7 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
     use crate::engine::nnue_search::relation_churn;
     let mut fen: Option<String> = None;
     let mut nodes: u64 = 50_000;
-    let mut profile = SearchProfile::CurrentFinalNnueV2QMaterial;
+    let mut profile = SearchProfile::CurrentFinal;
     let mut nnue_model: Option<String> = None;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -4153,8 +3963,9 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
                     .next()
                     .ok_or("relation-churn: --profile requires a value")?;
                 profile = match v.as_str() {
-                    "current-final-nnue-v2q-material" => SearchProfile::CurrentFinalNnueV2QMaterial,
-                    "current-final-nnue-v2q" => SearchProfile::CurrentFinalNnueV2QIncremental,
+                    "current-final-nnue-v2q-material" | "current-final-nnue-v2q" => {
+                        SearchProfile::CurrentFinal
+                    }
                     other => return Err(format!("relation-churn: unsupported profile '{other}'")),
                 };
             }
@@ -4180,9 +3991,8 @@ fn run_relation_churn(args: &[String]) -> Result<(), String> {
         .ok_or("relation-churn: --nnue-model is required")?;
     let model =
         crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(path))?;
-    let nnue_state = crate::engine::nnue_search::NnueSearchState::with_options(
+    let nnue_state = crate::engine::nnue_search::NnueSearchState::for_search(
         std::sync::Arc::new(model),
-        crate::engine::nnue_search::NnueSearchMode::Incremental,
         &pos,
         false,
         false,
@@ -4318,10 +4128,7 @@ fn run_search_calibration(args: &[String]) -> Result<(), String> {
     let fen = fen.ok_or("search-calibration: --fen is required")?;
     let (active_kind, profile) = match active {
         "hce" => (ActiveKind::Hce, SearchProfile::CurrentFinal),
-        "nnue" => (
-            ActiveKind::NnueMaterial,
-            SearchProfile::CurrentFinalNnueV2QMaterial,
-        ),
+        "nnue" => (ActiveKind::NnueMaterial, SearchProfile::CurrentFinal),
         other => {
             return Err(format!(
                 "search-calibration: --active must be hce|nnue, got '{other}'"
@@ -4334,15 +4141,14 @@ fn run_search_calibration(args: &[String]) -> Result<(), String> {
     let mut tt =
         TranspositionTable::new_mb(32).map_err(|e| format!("search-calibration: TT alloc: {e}"))?;
 
-    let nnue_state = if profile.uses_nnue_eval() {
+    let nnue_state = if active_kind == ActiveKind::NnueMaterial {
         let path = nnue_model
             .as_deref()
             .ok_or("search-calibration: nnue active requires --nnue-model")?;
-        Some(crate::engine::nnue_search::NnueSearchState::with_options(
+        Some(crate::engine::nnue_search::NnueSearchState::for_search(
             std::sync::Arc::new(crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
                 std::path::Path::new(path),
             )?),
-            crate::engine::nnue_search::NnueSearchMode::Incremental,
             &pos,
             false,
             false,
@@ -6043,8 +5849,10 @@ mod tests {
         assert_eq!(c.mode, BenchMode::Disabled);
         assert_eq!(c.repeat, 3);
         assert_eq!(c.nodes, 100_000);
-        // --profile defaults to reference (M4.0 baseline).
-        assert_eq!(c.profile, SearchProfile::M4Reference);
+        // --profile defaults to the production profile.
+        assert_eq!(c.profile, SearchProfile::CurrentFinal);
+        assert_eq!(c.profile_name, "current-final");
+        assert!(!c.nnue_profile);
 
         let d = parse_args(&["ablation".to_string()]).unwrap();
         assert_eq!(d.suite, Suite::Ablation);
@@ -6167,8 +5975,9 @@ mod tests {
         assert_eq!(a.mode, BenchMode::Warm);
         assert_eq!(a.repeat, 2);
         assert_eq!(a.nodes, 50_000);
-        // unspecified --profile stays at the reference default.
-        assert_eq!(a.profile, SearchProfile::M4Reference);
+        // unspecified --profile stays at the production default.
+        assert_eq!(a.profile, SearchProfile::CurrentFinal);
+        assert_eq!(a.profile_name, "current-final");
 
         let b = parse_args(&[
             "profile".to_string(),
@@ -6213,185 +6022,40 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(r.profile, SearchProfile::Current);
+        assert_eq!(r.profile_name, "current");
+        assert!(!r.nnue_profile);
 
         let f = parse_args(&[
             "standard".to_string(),
             "--profile".to_string(),
-            "reference".to_string(),
+            "current-final".to_string(),
         ])
         .unwrap();
-        assert_eq!(f.profile, SearchProfile::M4Reference);
+        assert_eq!(f.profile, SearchProfile::CurrentFinal);
+        assert_eq!(f.profile_name, "current-final");
+        assert!(!f.nnue_profile);
 
-        // Commit 5 exposes `m4.1` on the CLI; it maps to the M4.1 full-window
-        // reference profile (quiet ordering, no PVS).
-        let m = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "m4.1".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(m.profile, SearchProfile::M41Reference);
-
-        let a = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "aspiration".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(a.profile, SearchProfile::AspirationCandidate);
-
-        let q = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "current-qsearch-movegen".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(q.profile, SearchProfile::CurrentQsearchMovegen);
-
-        let p = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "current-qsearch-pruning".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(p.profile, SearchProfile::CurrentQsearchPruning);
-
-        let p = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "current-qsearch-fast-pruning".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(p.profile, SearchProfile::CurrentQsearchFastPruning);
-
-        let e2 = parse_args(&[
-            "standard".to_string(),
-            "--profile".to_string(),
-            "current-eval2".to_string(),
-        ])
-        .unwrap();
-        assert_eq!(e2.profile, SearchProfile::CurrentEval2);
-
-        for (name, expected) in [
-            (
-                "current-threat-aware-eval-only",
-                SearchProfile::CurrentThreatAwareEvalOnly,
-            ),
-            (
-                "current-threat-aware-order-only",
-                SearchProfile::CurrentThreatAwareOrderOnly,
-            ),
-        ] {
+        // Every historical NNUE alias still parses; each maps to the
+        // production search profile with an NNUE model requirement.
+        for alias in NNUE_PROFILE_ALIASES {
             let parsed = parse_args(&[
                 "profile".to_string(),
                 "--profile".to_string(),
-                name.to_string(),
+                alias.to_string(),
             ])
             .unwrap();
-            assert_eq!(parsed.profile, expected);
-        }
-
-        for (name, expected) in [
-            ("current-aspiration", SearchProfile::CurrentAspiration),
-            (
-                "current-aspiration-lmr",
-                SearchProfile::CurrentAspirationLmr,
-            ),
-            (
-                "current-aspiration-lmr-futility",
-                SearchProfile::CurrentAspirationLmrFutility,
-            ),
-            (
-                "current-aspiration-lmr-futility-see",
-                SearchProfile::CurrentAspirationLmrFutilitySee,
-            ),
-            ("current-final", SearchProfile::CurrentFinal),
-            (
-                "current-final-bounded-check2",
-                SearchProfile::CurrentFinalBoundedCheck2,
-            ),
-        ] {
-            let parsed = parse_args(&[
-                "profile".to_string(),
-                "--profile".to_string(),
-                name.to_string(),
-            ])
-            .unwrap();
-            assert_eq!(parsed.profile, expected);
+            assert_eq!(parsed.profile, SearchProfile::CurrentFinal, "{alias}");
+            assert_eq!(parsed.profile_name, *alias, "{alias}");
+            assert!(parsed.nnue_profile, "{alias}");
         }
     }
 
     #[test]
     fn profile_str_maps_all_variants() {
         // Compile-time exhaustiveness: every `SearchProfile` variant maps to a
-        // stable CLI string. Commit 5 exposes `m4.1` on the CLI (see
-        // `parse_valid_profile`); it round-trips through `profile_str`.
-        assert_eq!(profile_str(SearchProfile::M4Reference), "reference");
-        assert_eq!(profile_str(SearchProfile::M41Reference), "m4.1");
-        assert_eq!(profile_str(SearchProfile::PvsReference), "pvs");
-        assert_eq!(profile_str(SearchProfile::SeeCandidate), "see");
-        assert_eq!(
-            profile_str(SearchProfile::AspirationCandidate),
-            "aspiration"
-        );
-        assert_eq!(profile_str(SearchProfile::LmrCandidate), "lmr");
-        assert_eq!(profile_str(SearchProfile::NullMoveCandidate), "null");
-        assert_eq!(profile_str(SearchProfile::FutilityCandidate), "futility");
+        // stable CLI string that round-trips through `--profile`.
         assert_eq!(profile_str(SearchProfile::Current), "current");
-        assert_eq!(profile_str(SearchProfile::CurrentEval2), "current-eval2");
-        assert_eq!(
-            profile_str(SearchProfile::CurrentThreatAware),
-            "current-threat-aware"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentThreatAwareNoQchecks),
-            "current-threat-aware-no-qchecks"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentThreatAwareEvalOrder),
-            "current-threat-aware-eval-order"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentThreatAwareEvalOnly),
-            "current-threat-aware-eval-only"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentThreatAwareOrderOnly),
-            "current-threat-aware-order-only"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentQsearchMovegen),
-            "current-qsearch-movegen"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentQsearchPruning),
-            "current-qsearch-pruning"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentQsearchFastPruning),
-            "current-qsearch-fast-pruning"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentAspiration),
-            "current-aspiration"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentAspirationLmr),
-            "current-aspiration-lmr"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentAspirationLmrFutility),
-            "current-aspiration-lmr-futility"
-        );
-        assert_eq!(
-            profile_str(SearchProfile::CurrentAspirationLmrFutilitySee),
-            "current-aspiration-lmr-futility-see"
-        );
         assert_eq!(profile_str(SearchProfile::CurrentFinal), "current-final");
-        assert_eq!(
-            profile_str(SearchProfile::CurrentFinalBoundedCheck2),
-            "current-final-bounded-check2"
-        );
     }
 
     #[test]
@@ -6584,7 +6248,9 @@ mod tests {
             mode: BenchMode::Disabled,
             repeat: 1,
             nodes: 100_000,
-            profile: SearchProfile::M4Reference,
+            profile: SearchProfile::CurrentFinal,
+            profile_name: "current-final",
+            nnue_profile: false,
             fixture: None,
             custom_fen: None,
             profile_limit: None,
@@ -6623,6 +6289,8 @@ mod tests {
             repeat: 1,
             nodes: 100_000,
             profile: SearchProfile::CurrentFinal,
+            profile_name: "current-final",
+            nnue_profile: false,
             fixture: None,
             custom_fen: None,
             profile_limit: Some(limit),
@@ -6707,7 +6375,9 @@ mod tests {
             mode: BenchMode::Cold,
             repeat: 1,
             nodes: 100_000,
-            profile: SearchProfile::M4Reference,
+            profile: SearchProfile::CurrentFinal,
+            profile_name: "current-final",
+            nnue_profile: false,
             fixture: None,
             custom_fen: None,
             profile_limit: None,
@@ -6770,7 +6440,9 @@ mod tests {
             mode: BenchMode::Warm,
             repeat: 1,
             nodes: 100_000,
-            profile: SearchProfile::M4Reference,
+            profile: SearchProfile::CurrentFinal,
+            profile_name: "current-final",
+            nnue_profile: false,
             fixture: None,
             custom_fen: None,
             profile_limit: None,
@@ -6819,20 +6491,22 @@ mod tests {
     fn smoke_defaults_to_reference_profile() {
         let a = parse_args(&["smoke".to_string()]).unwrap();
         assert_eq!(a.suite, Suite::Smoke);
-        assert_eq!(a.profile, SearchProfile::M4Reference);
+        assert_eq!(a.profile, SearchProfile::CurrentFinal);
     }
 
     #[test]
-    fn smoke_reference_locks_exactly() {
-        // `bench smoke` (and `bench smoke --profile reference`) must still
-        // enforce the exact EVAL 1A 1149 / 969 locks.
+    fn smoke_locks_exactly_under_production_profile() {
+        // `bench smoke` (default, and `--profile current-final`) must still
+        // enforce the exact production-profile locks (665 / 768 nodes).
         for fx in smoke_fixtures() {
             let cfg = BenchArgs {
                 suite: Suite::Smoke,
                 mode: BenchMode::Disabled,
                 repeat: 1,
                 nodes: 100_000,
-                profile: SearchProfile::M4Reference,
+                profile: SearchProfile::CurrentFinal,
+                profile_name: "current-final",
+                nnue_profile: false,
                 fixture: None,
                 custom_fen: None,
                 profile_limit: None,
@@ -6853,16 +6527,12 @@ mod tests {
             };
             let r = run_one(&cfg, &fx, BenchMode::Disabled, 1).unwrap();
             let locked = fx.locked.expect("smoke fixture must be locked");
-            assert_eq!(r.nodes, locked.nodes, "{} reference nodes", fx.id);
-            assert_eq!(
-                r.best_move, locked.best_move,
-                "{} reference bestmove",
-                fx.id
-            );
-            assert_eq!(r.score, Some(locked.score), "{} reference score", fx.id);
+            assert_eq!(r.nodes, locked.nodes, "{} locked nodes", fx.id);
+            assert_eq!(r.best_move, locked.best_move, "{} locked bestmove", fx.id);
+            assert_eq!(r.score, Some(locked.score), "{} locked score", fx.id);
             let pv_uci: Vec<String> = r.pv.split_whitespace().map(|s| s.to_string()).collect();
             let want: Vec<String> = locked.pv.iter().map(|s| s.to_string()).collect();
-            assert_eq!(pv_uci, want, "{} reference PV", fx.id);
+            assert_eq!(pv_uci, want, "{} locked PV", fx.id);
         }
     }
 
@@ -6879,6 +6549,8 @@ mod tests {
                 repeat: 1,
                 nodes: 100_000,
                 profile: SearchProfile::Current,
+                profile_name: "current",
+                nnue_profile: false,
                 fixture: None,
                 custom_fen: None,
                 profile_limit: None,
@@ -6912,9 +6584,9 @@ mod tests {
     #[test]
     fn current_profile_ignores_reference_lock() {
         // Direct contract test: with a deliberately-wrong locked block,
-        // `validate` under `Current` must NOT error, while under
-        // `M4Reference` it must. This proves the lock is scoped to the
-        // reference profile regardless of Current's actual output.
+        // `validate` under `Current` must NOT error, while under the
+        // canonical production identity it must. This proves the lock is
+        // scoped to the production profile regardless of Current's output.
         let fx = Fixture {
             id: "t",
             fen: START_FEN,
@@ -6981,7 +6653,7 @@ mod tests {
             &limits,
             &ctx2,
             &mut tt2,
-            SearchProfile::M4Reference,
+            SearchProfile::CurrentFinal,
             None,
         )
         .unwrap();
@@ -6989,7 +6661,7 @@ mod tests {
         let refr = validate(
             &fx,
             BenchMode::Disabled,
-            SearchProfile::M4Reference,
+            SearchProfile::CurrentFinal,
             &snap2,
             &pos2,
             &hist2,
@@ -6999,7 +6671,7 @@ mod tests {
         );
         assert!(
             refr.is_err(),
-            "M4Reference profile must enforce the exact lock"
+            "production profile must enforce the exact lock"
         );
     }
 
@@ -7020,7 +6692,9 @@ mod tests {
             mode: BenchMode::Disabled,
             repeat: 1,
             nodes: n,
-            profile: SearchProfile::M4Reference,
+            profile: SearchProfile::CurrentFinal,
+            profile_name: "current-final",
+            nnue_profile: false,
             fixture: None,
             custom_fen: None,
             profile_limit: None,
@@ -7074,7 +6748,7 @@ mod tests {
             &limits,
             &ctx,
             &mut tt,
-            SearchProfile::M4Reference,
+            SearchProfile::CurrentFinal,
             None,
         )
         .unwrap();
@@ -7084,7 +6758,7 @@ mod tests {
         let under = validate(
             &fx,
             BenchMode::Disabled,
-            SearchProfile::M4Reference,
+            SearchProfile::CurrentFinal,
             &snap,
             &pos,
             &hist,
@@ -7109,7 +6783,7 @@ mod tests {
         let no_stop = validate(
             &fx,
             BenchMode::Disabled,
-            SearchProfile::M4Reference,
+            SearchProfile::CurrentFinal,
             &snap,
             &pos,
             &hist,

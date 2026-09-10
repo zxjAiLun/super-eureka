@@ -336,6 +336,35 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 正式入口收敛 + SearchProfile 清理（49 → 2 变体）· 本提交**
+  `SearchProfile` 收敛为恰好两个变体：`Current`（回滚）与 `CurrentFinal`（生产）；
+  其余 47 个实验候选/兼容别名（M4Reference/M41Reference、threat-aware 系列、
+  Aspiration 累积栈、Eval2/LOO 消融、phase-affine、全部 NNUE 候选与 S12 别名）全部删除
+  （历史在 git 与 `results/**`）。随之删除失去意义的 21 个 flag 函数（`uses_nnue_eval`、
+  `uses_legality_fast`、`uses_qsearch_pruning`、`eval2_mask`、threat/forcing 系列等），
+  保留 8 个并收缩为两变体匹配；`SearchFeaturePolicy` 的 `qsearch_delta`/`bounded_check2_extension`
+  恒为 false（热路径字段保留，归因管线不变）。死路径清理：`evaluate_phase_affine` /
+  `evaluate_threat_aware` / `evaluate_integrated_positional_masked` 从
+  `evaluate_profiled` 摘除（eval.rs 的 masked/phase-affine 助手仍被 bench eval 子命令引用故保留；
+  threat_aware 仍有 eval.rs 自测引用故保留）；threat 排序/legacy forcing/`probe_tt_for_search_exact_depth`/
+  `order_moves_with_hash`/S4.1 根排序助手/fast-SEE 面全部删除；公共入口（`search_best_move`、
+  `negamax` 等）改挂 `ROLLBACK_PROFILE`。UCI：`--profile` 接受 `current`/`current-final` +
+  7 个历史 NNUE 别名（映射为 CurrentFinal + 统一后端 `Evaluation=Nnue`，仍 fail-closed 要求
+  `--nnue-model`；握手保留原名字符串）；启动模型折叠进 `EvalBackendConfig`（单一评估器路径，
+  `select_search_nnue_backend` 仅剩一个分支，状态构建走 `NnueSearchState::for_search`）；
+  "profile 固定评估器、setoption 忽略"特例随统一配置移除（setoption 对所有启动身份生效）。
+  bench：`--profile`/`profile_str` 收缩到同一集合（别名经 `profile_name` 保留输出身份），
+  ablation 套件改为 `[Current, CurrentFinal]`，smoke 锁重锚到 CurrentFinal（665/768 节点），
+  M2.4/M3.0 节点锁重锚到回滚 profile（770/755）。测试：删除已关闭实验的 40+ 个测试
+  （NNUE 候选族、S6-C1/S9-A 防漂移、qsearch delta/fast-SEE、M4 参照基线等），
+  `search_validation` 生产轮以 `current-final` 跑通（`d10-unique-underpromotion` 记录为
+  平分 tie-break 差异豁免；K-vs-KN 胜超出 depth-5 视野，两 profile 同为 cp 0）。
+  语义不变约束：NNUE 数值、`Evaluation`/`EvalFile` 选项、`NnueSearchState::for_search`、
+  CurrentFinal 默认搜索行为均未改动。验证：fmt clean；release lib 394 PASS（修复 pruner
+  遗留的重复 `#[test]` 注册后 401→394 为真实计数）；integration 114 PASS（含 s2/s3/s10_gui/
+  search_validation）；clippy 相对基线 0 新增；legacy smoke：`--profile current-final-s12
+  --nnue-model …` 握手报 `info string profile current-final-s12` + `eval nnue-v2q` 且搜索正常，
+  material 别名、`current`、无参数默认启动均复验通过。
 - **2026-09-10 · 统一评估语义（模型驱动）+ 修 GUI/缓存 · 本提交**
   `evaluate_profiled` 不再按 profile 决定材料组合；`NnueSearchState` 拆分
   `evaluate_raw_cp_i32*`（原始输出）与 `evaluate_full_cp_i32*`（完整分：按

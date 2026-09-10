@@ -41,261 +41,35 @@ use crate::chess::zobrist::{recompute_zobrist, ZobristKey};
 use crate::engine::draw::{
     claim_available_by_intended_move, classify_draw, is_insufficient_material, DrawReason,
 };
-use crate::engine::eval::{
-    evaluate, evaluate_integrated_positional, evaluate_integrated_positional_masked,
-    evaluate_phase_affine, evaluate_threat_aware, Eval2Mask,
-};
+use crate::engine::eval::{evaluate, evaluate_integrated_positional};
 use crate::engine::time::TimeBudget;
 use crate::engine::tt::{score_from_tt, score_to_tt, Bound, TTEntry, TranspositionTable, TtKey};
 
 /// M4.1+ internal search configuration. Crate-private only: it selects the
-/// move-ordering strategy used by the search core and is NEVER exposed through
+/// search-policy bits used by the search core and is NEVER exposed through
 /// the public API or the UCI surface.
 ///
-/// * `M4Reference` preserves the M4.0 search behavior: no killer moves, no
-///   history heuristic, and no PVS. It runs under the current evaluation
-///   function, so evaluation milestones may legitimately change scores, PVs,
-///   and node counts. Historical pre-EVAL benchmark values remain recorded in
-///   their original benchmark documents.
-/// * `M41Reference` reproduces the M4.1 full-window search exactly: M4.1
-///   quiet move ordering (killer moves + history heuristic) with NO principal
-///   variation search. It preserves the 236,418-node M4.1 A/B baseline and
-///   keeps M4.2 replayable once `Current` enables PVS.
-/// * `PvsReference` is the immediately preceding M4.2 PVS baseline without
-///   any SEARCH 1 candidate feature.
-/// * `SeeCandidate` enables only SEE ordering in qsearch on the existing PVS
-///   path; it never deletes a legal capture.
-/// * `AspirationCandidate` enables only iterative-deepening aspiration
-///   windows on the existing PVS path.
-/// * `LmrCandidate` enables only late-move reductions on eligible quiet
-///   non-PV moves; reduced searches are re-searched at full depth when they
-///   improve alpha.
-/// * `NullMoveCandidate` enables only a verified null-move probe at eligible
-///   non-check, non-zugzwang-shaped nodes. A probe fail-high is never a direct
-///   cutoff.
-/// * `FutilityCandidate` enables only shallow, non-PV quiet-move futility
-///   pruning with tactical, checking, mate-range, and promotion-threat guards.
-/// * `CurrentQsearchMovegen` preserves the `Current` search tree and changes
-///   only non-check qsearch move generation to a tactical-only path; check
-///   nodes still generate all legal evasions and stalemate is checked exactly.
-/// * `CurrentQsearchPruning` builds on `CurrentQsearchMovegen` and adds only
-///   conservative non-check qsearch SEE pruning for eligible plain captures.
-///   Promotions, en passant, and checking captures are always kept.
-/// * `CurrentQsearchFastPruning` preserves the `CurrentQsearchPruning` search
-///   tree and replaces only its pruning SEE attacker scan with a direct
-///   occupancy/attack sidecar. Its keep/prune decision must remain identical.
-/// * `CurrentLmr` preserves the `Current` PVS, ordering, and specialized
-///   qsearch movegen path, adding only the existing conservative LMR rules.
-/// * `CurrentThreatAware` preserves the `Current` PVS and specialized qsearch
-///   movegen path, adding only the candidate-only king-danger evaluation,
-///   bounded forcing extensions/checks, and threat-aware ordering. It does
-///   not enable LMR, aspiration, null move, futility, or SEE pruning.
-/// * `CurrentThreatAwareNoQchecks` is the S2.1b cost-attribution variant: it
-///   is identical to `CurrentThreatAware` except that quiet checking moves are
-///   disabled in qsearch. It is bench-only and never changes `Current`.
-/// * `CurrentThreatAwareEvalOrder` is the S2.1b ordering-only variant: it
-///   keeps the candidate king-danger evaluation, threat ordering, and root
-///   score ordering, but disables forcing extensions and quiet qsearch checks.
-///   It is bench-only and never changes `Current`.
-/// * `CurrentThreatAwareEvalOnly` is the S2.1c shared-core attribution variant:
-///   it keeps only the candidate king-danger evaluation. It deliberately uses
-///   Current's ordinary move and root ordering, with no forcing extensions or
-///   quiet qsearch checks. It is bench-only and never changes `Current`.
-/// * `CurrentThreatAwareOrderOnly` is the S2.1c shared-core attribution
-///   variant: it keeps only threat-aware move/root ordering and Current's
-///   ordinary evaluation, with no forcing extensions or quiet qsearch checks.
-///   It is bench-only and never changes `Current`.
-/// * `CurrentEval2` is the single integrated S2.2 positional-evaluation
-///   candidate. It keeps Current's PVS, ordering, and specialized qsearch
-///   movegen while replacing only the evaluator; all threat-aware, forcing,
-///   aspiration, LMR, null, futility, SEE, and qsearch-pruning features stay
-///   disabled.
-/// * `Current` is the historical production configuration: M4.1 quiet move
-///   ordering plus the M4.2 PVS at both non-root nodes (Commit 3) and the
-///   root (Commit 4), with the D1.2 specialized non-check qsearch move
-///   generator integrated. It is retained as [`ROLLBACK_PROFILE`] and is NOT
-///   the current default.
-/// * The `CurrentAspiration*` variants are bench-only cumulative candidates.
-///   They preserve the `Current` PVS/ordering path and add only the features
-///   named by their suffix. None of them is used by the UCI production path.
-/// * `CurrentFinal` is [`PRODUCTION_PROFILE`]: the S3-FINAL candidate plus
-///   the promoted LegalityFast, SingleBuffer, SingleGeneration, S7.4A
-///   LMR-on-null-window, and S8.0 integrated positional evaluation policies.
-///   It combines the existing aspiration, LMR, verified null-probe, shallow
-///   futility, conservative qsearch SEE-pruning, and 6-family positional
-///   evaluation without enabling threat-evaluation or forcing-search features.
+/// S14 convergence: the historical experiment lattice (49 variants) has been
+/// collapsed to exactly TWO identities. Every closed experiment candidate and
+/// compatibility alias is gone (the full history lives in git and in
+/// `results/**`); the evaluator is model-driven (`Evaluation`/`EvalFile`), so
+/// no profile variant exists to select an evaluator.
 ///
-/// `M41Reference` keeps the M4.1 full-window path (killer/history ordering at
-/// non-root nodes, NO PVS at either the root or a non-root node), while
-/// `Current` enables the null-window scout + re-search at every non-root node
-/// AND at the root. `M4Reference` preserves the M4.0 search policy. Move
-/// ordering at the root itself is the pure hash-move lift in all profiles (no
-/// MVV-LVA / killer / history reorder); PVS changes only the WINDOW a later
-/// root move is searched with, never the root move order.
+/// * [`Current`] is the historical rollback configuration: M4.1 quiet move
+///   ordering plus the M4.2 PVS at both non-root nodes and the root, with the
+///   D1.2 specialized non-check qsearch move generator integrated and no
+///   promoted production policy bits. It is [`ROLLBACK_PROFILE`].
+/// * [`CurrentFinal`] is [`PRODUCTION_PROFILE`]: the S3-FINAL candidate plus
+///   the promoted LegalityFast, SingleBuffer, SingleGeneration, S7.4A
+///   LMR-on-null-window, S7.5A single-evasion extension, and S8.0 integrated
+///   positional evaluation policies. It combines the existing aspiration,
+///   LMR, verified null-probe, shallow futility, and conservative qsearch
+///   SEE-pruning features without enabling threat-evaluation or forcing-search
+///   features. Default UCI startup profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SearchProfile {
-    M4Reference,
-    M41Reference,
-    PvsReference,
-    SeeCandidate,
-    AspirationCandidate,
-    LmrCandidate,
-    NullMoveCandidate,
-    FutilityCandidate,
     Current,
-    CurrentLmr,
-    CurrentThreatAware,
-    CurrentThreatAwareNoQchecks,
-    CurrentThreatAwareEvalOrder,
-    CurrentThreatAwareEvalOnly,
-    CurrentThreatAwareOrderOnly,
-    /// Single integrated E2 evaluation candidate. It keeps all search and
-    /// qsearch candidates disabled while replacing only the evaluator.
-    CurrentEval2,
-    CurrentQsearchMovegen,
-    CurrentQsearchPruning,
-    CurrentQsearchFastPruning,
-    CurrentAspiration,
-    CurrentAspirationLmr,
-    CurrentAspirationLmrFutility,
-    CurrentAspirationLmrFutilitySee,
-    /// S4.4E production search configuration: S3 production search plus the
-    /// S4.3E promoted unpinned non-check full-legality fast path, the S4.4E
-    /// promoted single-buffer full-legal materialization, the S5.0D
-    /// promoted has-any child terminal probe (identical move lists, order
-    /// and search tree), and the S7.4A promoted LMR-on-null-window policy
-    /// (existing LMR rules applied on caller-null-window nodes with exactly
-    /// one full-depth verification re-search). Default UCI startup profile.
     CurrentFinal,
-    /// S4.1 candidate: exactly CurrentFinal plus root quiet-move ordering by
-    /// the existing history heuristic (previous best stays first; no root
-    /// killers; no static-eval ordering; no history-update changes).
-    CurrentFinalRootHistory,
-    /// S4.1b candidate: exactly CurrentFinal plus root quiet-move ordering by
-    /// the PREVIOUS completed iteration's root `move_scores` (previous best
-    /// stays first; no history/killer/static-eval/threat signal; no PVS or
-    /// re-search changes).
-    CurrentFinalRootPrevScore,
-    /// S4.3B candidate: unpinned non-check legality fast path in the FULL
-    /// legal generator. After the S4.3E promotion its search behavior is
-    /// equivalent to CurrentFinal; retained as a historical/compatibility
-    /// alias for the S4.3B/S4.3C/S4.3D experiment artifact.
-    CurrentFinalLegalityFast,
-    /// S4.4B candidate, PROMOTED into production CurrentFinal at S4.4E
-    /// (single-buffer full-legal materialization). Retained as a
-    /// historical/compatibility alias for the S4.4B/S4.4C/S4.4D experiment
-    /// artifact (search behavior identical to CurrentFinal).
-    CurrentFinalSingleBuffer,
-    /// S5.0B candidate, PROMOTED into production CurrentFinal at S5.0D.
-    /// Retained as a historical/compatibility alias (search behavior
-    /// identical to CurrentFinal).
-    CurrentFinalSingleGeneration,
-    /// S7.1A candidate: exactly CurrentFinal except that non-check qsearch
-    /// defers tactical move generation/ordering past the stand-pat beta
-    /// cutoff and stalemate check. Same searched tree (nodes/score/bestmove/
-    /// PV) by construction; only the wasted work is avoided.
-    CurrentFinalQsearchLazy,
-    /// S7.1B candidate: exactly CurrentFinal plus conservative SEE-delta
-    /// qsearch pruning. At a non-check qsearch node, after stand-pat, a
-    /// plain non-checking capture whose SUPPORTED SEE value satisfies
-    /// `stand_pat + SEE + QSEARCH_DELTA_MARGIN_CP <= alpha` is pruned, on
-    /// top of the existing SEE<0 production prune. TREE-CHANGING candidate;
-    /// CurrentFinal itself is untouched.
-    CurrentFinalQsearchDelta,
-    /// S7.4A candidate, PROMOTED into production CurrentFinal after the
-    /// formal pentanomial SPRT accepted H1 (tournament
-    /// 2cf04fe6-2120-45c1-852b-e2462e3f62d9). Retained as a
-    /// historical/compatibility alias; search behavior is identical to
-    /// CurrentFinal.
-    CurrentFinalLmrNullWindow,
-    /// S7.5A candidate, PROMOTED into production CurrentFinal after the
-    /// formal pentanomial SPRT accepted H1 (tournament
-    /// d5bce5fd-b6cb-4562-9506-74c219ffd759). Retained as a
-    /// historical/compatibility alias; search behavior is identical to
-    /// CurrentFinal.
-    CurrentFinalSingleEvasion,
-    /// S7.5B candidate: exactly CurrentFinal plus one independent bounded
-    /// extension when the checking child has exactly two legal evasions.
-    CurrentFinalBoundedCheck2,
-    /// S6-C1 candidate: EXACTLY CurrentFinal search policy, with the frozen
-    /// S6-N3E phase-affine calibration applied to the classical evaluation.
-    /// Only the evaluator dispatch differs; every search feature bit is
-    /// inherited from CurrentFinal and a centralized test enforces that.
-    /// Never a production default - Arena decides.
-    CurrentFinalPhaseAffine,
-    /// S8.0 candidate / compatibility alias: EXACTLY CurrentFinal search policy,
-    /// with the six positional term families integrated into the evaluation.
-    CurrentFinalEval2,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT pawn structure.
-    CurrentFinalNoPawnStructure,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT mobility.
-    CurrentFinalNoMobility,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT piece activity.
-    CurrentFinalNoPieceActivity,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT rook activity.
-    CurrentFinalNoRookActivity,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT development/space.
-    CurrentFinalNoDevelopmentSpace,
-    /// S9-A Leave-One-Out (LOO) ablation candidate: CurrentFinal search policy,
-    /// with all positional term families EXCEPT king safety.
-    CurrentFinalNoKingSafety,
-    /// S10-C2B candidate: EXACTLY CurrentFinal search policy, with the
-    /// frozen quantized NNUE (b51a79b1...) as the evaluator, doing a FULL
-    /// full-refresh accumulator at every static eval. Reference
-    /// implementation for the incremental variant. Never a production
-    /// default - Arena decides.
-    CurrentFinalNnueV2QFull,
-    /// S10-C2B candidate: EXACTLY CurrentFinal search policy, with the
-    /// same frozen quantized NNUE evaluator, using a search-local
-    /// incremental accumulator stack (move-aware updates from C2A). The
-    /// A/B parity gate (vs CurrentFinalNnueV2QFull) must be exact. Never
-    /// a production default - Arena decides.
-    CurrentFinalNnueV2QIncremental,
-    /// S10-F1 candidate: EXACTLY CurrentFinal search policy with the
-    /// material-anchored residual NNUE evaluator. The artifact's network
-    /// predicts a cp residual (`target_mode = material_residual` in the
-    /// EUNN2Q01 v2 header); the evaluator composes
-    /// `material_cp_stm(pos) + residual`. The material term uses ONLY the
-    /// canonical piece values (P=100 N=320 B=330 R=500 Q=900) — no Eval2
-    /// positional term is mixed in. The loader fail-closes unless the
-    /// artifact carries the matching semantic mode. Never a production
-    /// default - Arena decides.
-    CurrentFinalNnueV2QMaterial,
-    /// S10-H0-D3: EXACTLY CurrentFinalNnueV2QMaterial with a single
-    /// additive futility-margin calibration K* = +75cp (derived from the
-    /// D2 bidirectional shadow records; see results/s10/
-    /// s10-h0-d3-replay-gate.json). One scalar, no slope/phase/depth
-    /// changes; every other gate untouched.
-    CurrentFinalNnueV2QMaterialCalFut,
-    /// S11-B2: EXACTLY CurrentFinalNnueV2QMaterial, but the artifact is
-    /// a v4 R12 feature-set model (V2 base + relation sidecar, inputs
-    /// 23296). The search stack maintains ONLY the V2-base accumulator
-    /// incrementally; at every eval the fresh relation rows are
-    /// recomputed and added on top (evaluate_raw_hybrid_r12) — no
-    /// relation caching, no relation deltas (frozen B2 reference
-    /// protocol). The loader fail-closes unless the artifact is v4
-    /// feature_set=V2R12, FT128, material-residual.
-    CurrentFinalNnueV2QMaterialR12,
-    /// S11-B4-B: EXACTLY CurrentFinalNnueV2QMaterialR12's search policy,
-    /// but the NNUE stack maintains the COMBINED (base + relation)
-    /// accumulator incrementally: push_child applies the existing V2
-    /// piece delta plus the relation-state diff (child state recomputed
-    /// once per edge; king moves rebuild the mover's perspective and
-    /// diff the other); null moves copy both stacks; eval is a plain
-    /// dense-from-accumulator (zero relation work at eval time). The
-    /// B2 fresh profile remains as the correctness oracle.
-    CurrentFinalNnueV2QMaterialR12Inc,
-    /// S12: Bullet-recipe NNUE (SCReLU + 8 material-count output buckets,
-    /// FT256, V2R12 inputs). EXACTLY the CurrentFinal search policy with
-    /// the S12 evaluator delivered through the incremental R12 stack
-    /// (combined accumulator + relation state; the bucketed linear head
-    /// runs from the stack top at eval time).
-    CurrentFinalS12,
 }
 
 /// Canonical current production profile. UCI startup defaults, the default
@@ -311,633 +85,74 @@ pub(crate) const ROLLBACK_PROFILE: SearchProfile = SearchProfile::Current;
 impl SearchProfile {
     #[inline]
     pub(crate) const fn uses_pvs(self) -> bool {
-        !matches!(self, Self::M4Reference | Self::M41Reference)
-    }
-
-    #[inline]
-    pub(crate) const fn uses_see(self) -> bool {
-        matches!(
-            self,
-            Self::SeeCandidate | Self::CurrentAspirationLmrFutilitySee
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_aspiration(self) -> bool {
-        matches!(
-            self,
-            Self::AspirationCandidate
-                | Self::CurrentAspiration
-                | Self::CurrentAspirationLmr
-                | Self::CurrentAspirationLmrFutility
-                | Self::CurrentAspirationLmrFutilitySee
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_lmr(self) -> bool {
-        matches!(
-            self,
-            Self::LmrCandidate
-                | Self::CurrentLmr
-                | Self::CurrentAspirationLmr
-                | Self::CurrentAspirationLmrFutility
-                | Self::CurrentAspirationLmrFutilitySee
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_null_move(self) -> bool {
-        matches!(
-            self,
-            Self::NullMoveCandidate
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_futility(self) -> bool {
-        matches!(
-            self,
-            Self::FutilityCandidate
-                | Self::CurrentAspirationLmrFutility
-                | Self::CurrentAspirationLmrFutilitySee
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_qsearch_movegen(self) -> bool {
-        matches!(
-            self,
-            Self::Current
-                | Self::CurrentLmr
-                | Self::CurrentThreatAware
-                | Self::CurrentThreatAwareNoQchecks
-                | Self::CurrentThreatAwareEvalOrder
-                | Self::CurrentThreatAwareEvalOnly
-                | Self::CurrentThreatAwareOrderOnly
-                | Self::CurrentEval2
-                | Self::CurrentAspiration
-                | Self::CurrentAspirationLmr
-                | Self::CurrentAspirationLmrFutility
-                | Self::CurrentAspirationLmrFutilitySee
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentQsearchMovegen
-                | Self::CurrentQsearchPruning
-                | Self::CurrentQsearchFastPruning
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_qsearch_pruning(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentQsearchPruning
-                | Self::CurrentQsearchFastPruning
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S7.1B: conservative SEE-delta qsearch pruning. Only this candidate
-    /// enables it; CurrentFinal keeps its exact existing SEE<0 policy.
-    #[inline]
-    pub(crate) const fn uses_qsearch_delta(self) -> bool {
-        matches!(self, Self::CurrentFinalQsearchDelta)
-    }
-
-    /// S7.4A, PROMOTED: apply the EXISTING LMR policy on caller-null-window
-    /// nodes where `pvs_child_window()` would otherwise fall back to
-    /// `ChildWindow::Full` and silently discard the proposed reduction.
-    /// Production policy for CurrentFinal and every profile whose base
-    /// semantics are defined as CurrentFinal; `Current` and all pre-S7.4A
-    /// experimental profiles remain unchanged (false).
-    #[inline]
-    pub(crate) const fn uses_lmr_null_window(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_qsearch_fast_pruning(self) -> bool {
-        matches!(self, Self::CurrentQsearchFastPruning)
-    }
-
-    /// S7.1A: non-check qsearch defers tactical move generation/ordering past
-    /// the stand-pat beta cutoff and the stalemate probe. Same searched tree
-    /// by construction (stand-pat is a pure static eval; has-any-legal is the
-    /// exact emptiness predicate).
-    #[inline]
-    pub(crate) const fn uses_qsearch_lazy(self) -> bool {
-        matches!(self, Self::CurrentFinalQsearchLazy)
-    }
-
-    #[inline]
-    pub(crate) const fn uses_threat_aware_eval(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentThreatAware
-                | Self::CurrentThreatAwareNoQchecks
-                | Self::CurrentThreatAwareEvalOrder
-                | Self::CurrentThreatAwareEvalOnly
-        )
-    }
-
-    /// S4.1: the candidate reorders root QUIET moves by the existing history
-    /// heuristic (previous best stays first; no root killers; no static-eval
-    /// ordering; history update rules unchanged).
-    #[inline]
-    pub(crate) const fn uses_root_quiet_history(self) -> bool {
-        matches!(self, Self::CurrentFinalRootHistory)
-    }
-
-    /// S4.1b: the candidate reorders root QUIET moves by the previous
-    /// completed iteration's root `move_scores` (previous best stays first;
-    /// no history/killer/static-eval/threat signal).
-    #[inline]
-    pub(crate) const fn uses_root_prev_score(self) -> bool {
-        matches!(self, Self::CurrentFinalRootPrevScore)
-    }
-
-    /// S4.3E/S4.4E promoted: production `CurrentFinal` is defined as the
-    /// unpinned non-check legality fast path (S4.3B/S4.3E) AND the
-    /// single-buffer full-legal materialization (S4.4B/S4.4E), producing
-    /// identical move lists and order. `uses_legality_fast` is production
-    /// policy for CurrentFinal and everything defined as "exactly
-    /// CurrentFinal plus X" (RootHistory, RootPrevScore), plus the S4.3B /
-    /// S4.4B compatibility aliases.
-    #[inline]
-    pub(crate) const fn uses_legality_fast(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S4.4B: the single-buffer full-legal materialization policy. Promoted
-    /// into production CurrentFinal at S4.4E: EVERY profile whose base
-    /// semantics are defined as CurrentFinal uses it (CurrentFinal itself,
-    /// the "CurrentFinal + X" candidates, the S4.3B compatibility alias, the
-    /// S4.4B experimental alias, and the S5.0B candidate which is now
-    /// "promoted CurrentFinal + has-any probe").
-    #[inline]
-    pub(crate) const fn uses_single_buffer_legal(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S5.0B candidate, PROMOTED into production CurrentFinal at S5.0D: the
-    /// child probe uses has-any-legal instead of a discarded full legal list
-    /// (S5.0A: 64.8% of full-legal calls were probe lists). Production policy
-    /// for CurrentFinal and every profile whose base semantics are defined as
-    /// CurrentFinal; the experimental alias is retained as a historical/
-    /// compatibility identity.
-    #[inline]
-    pub(crate) const fn uses_single_generation_probe(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    #[inline]
-    /// S9-A: Returns the `Eval2Mask` for profiles that customize the integrated
-    /// positional evaluator terms, or `None` if the profile is not an Eval2 ablation.
-    pub(crate) const fn eval2_mask(self) -> Option<Eval2Mask> {
         match self {
-            Self::CurrentFinalNoPawnStructure => Some(Eval2Mask::NO_PAWN_STRUCTURE),
-            Self::CurrentFinalNoMobility => Some(Eval2Mask::NO_MOBILITY),
-            Self::CurrentFinalNoPieceActivity => Some(Eval2Mask::NO_PIECE_ACTIVITY),
-            Self::CurrentFinalNoRookActivity => Some(Eval2Mask::NO_ROOK_ACTIVITY),
-            Self::CurrentFinalNoDevelopmentSpace => Some(Eval2Mask::NO_DEVELOPMENT_SPACE),
-            Self::CurrentFinalNoKingSafety => Some(Eval2Mask::NO_KING_SAFETY),
-            _ => None,
+            Self::Current | Self::CurrentFinal => true,
         }
     }
 
     #[inline]
-    /// S8.0: `CurrentFinal` and the entire production profile family use the
-    /// integrated positional evaluator (six positional term families).
-    ///
-    /// NOTE: `CurrentFinalPhaseAffine` is an explicitly rejected S6-C1 candidate
-    /// (Arena screen 36.75%, -94 Elo); it retains its dedicated phase-affine
-    /// evaluator and is explicitly excluded here to avoid selecting multiple
-    /// evaluators and to preserve historical benchmark reproducibility.
-    ///
-    /// `CurrentEval2` (bare historical search) and `CurrentFinalEval2` (promoted
-    /// alias) are retained as compatibility identities.
-    ///
-    /// S9-A: `CurrentFinalNo*` ablation candidates use the masked Eval2 evaluator.
-    pub(crate) const fn uses_eval2(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentEval2
-                | Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-        )
+    pub(crate) const fn uses_see(self) -> bool {
+        match self {
+            Self::Current | Self::CurrentFinal => false,
+        }
     }
 
     #[inline]
-    /// S10-C2B: the two NNUE candidate profiles use the frozen quantized
-    /// NNUE evaluator (NOT Eval2 — they are deliberately excluded from
-    /// `uses_eval2` so evaluator selection stays single-choice).
-    /// S10-F1: the material-residual profile is an NNUE evaluator too (the
-    /// network is the same shape; the composition happens in
-    /// `evaluate_profiled`).
-    pub(crate) const fn uses_nnue_eval(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S10-F1: true when the NNUE evaluator output is a cp RESIDUAL that
-    /// must be composed with `material_cp_stm` (vs being the eval itself).
-    pub(crate) const fn uses_nnue_material_residual(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S10-C2B: true when the NNUE evaluator must deliver accumulator
-    /// frames via the search-local incremental stack (vs full refresh at
-    /// every eval). S11-B2: the R12 hybrid profile uses the incremental
-    /// stack for the V2-BASE accumulator (relation rows are recomputed
-    /// fresh at eval time, never stacked).
-    pub(crate) const fn uses_nnue_incremental_stack(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S11-B4-B: true when the NNUE stack should be constructed with the
-    /// INCREMENTAL R12 relation frames (combined accumulator + [u8; 64]
-    /// relation state per frame).
-    pub(crate) const fn uses_nnue_r12_incremental_frames(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinalNnueV2QMaterialR12Inc | Self::CurrentFinalS12
-        )
+    pub(crate) const fn uses_aspiration(self) -> bool {
+        match self {
+            Self::Current | Self::CurrentFinal => true,
+        }
     }
 
     #[inline]
-    pub(crate) const fn uses_forcing_search(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentThreatAware | Self::CurrentThreatAwareNoQchecks
-        )
+    pub(crate) const fn uses_lmr(self) -> bool {
+        match self {
+            Self::Current => false,
+            Self::CurrentFinal => true,
+        }
     }
 
-    /// S7.5A: main-search-only single-evasion extension.
+    #[inline]
+    pub(crate) const fn uses_null_move(self) -> bool {
+        match self {
+            Self::Current => false,
+            Self::CurrentFinal => true,
+        }
+    }
+
+    #[inline]
+    pub(crate) const fn uses_futility(self) -> bool {
+        match self {
+            Self::Current => false,
+            Self::CurrentFinal => true,
+        }
+    }
+
+    #[inline]
+    pub(crate) const fn uses_qsearch_movegen(self) -> bool {
+        match self {
+            Self::Current | Self::CurrentFinal => true,
+        }
+    }
+
+    /// S7.5A: main-search-only single-evasion extension (production
+    /// CurrentFinal policy).
     #[inline]
     pub(crate) const fn uses_single_evasion_extension(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentFinal
-                | Self::CurrentFinalRootHistory
-                | Self::CurrentFinalRootPrevScore
-                | Self::CurrentFinalLegalityFast
-                | Self::CurrentFinalSingleBuffer
-                | Self::CurrentFinalSingleGeneration
-                | Self::CurrentFinalQsearchLazy
-                | Self::CurrentFinalQsearchDelta
-                | Self::CurrentFinalLmrNullWindow
-                | Self::CurrentFinalSingleEvasion
-                | Self::CurrentFinalBoundedCheck2
-                | Self::CurrentFinalPhaseAffine
-                | Self::CurrentFinalEval2
-                | Self::CurrentFinalNoPawnStructure
-                | Self::CurrentFinalNoMobility
-                | Self::CurrentFinalNoPieceActivity
-                | Self::CurrentFinalNoRookActivity
-                | Self::CurrentFinalNoDevelopmentSpace
-                | Self::CurrentFinalNoKingSafety
-                | Self::CurrentFinalNnueV2QFull
-                | Self::CurrentFinalNnueV2QIncremental
-                | Self::CurrentFinalNnueV2QMaterial
-                | Self::CurrentFinalNnueV2QMaterialCalFut
-                | Self::CurrentFinalNnueV2QMaterialR12
-                | Self::CurrentFinalNnueV2QMaterialR12Inc
-                | Self::CurrentFinalS12
-        )
-    }
-
-    /// S7.5B: main-search-only bounded checking extension.
-    /// S6-C1: apply the frozen phase-affine calibration to the classical
-    /// evaluation. This is the ONLY bit on which `CurrentFinalPhaseAffine`
-    /// differs from `CurrentFinal`; it is deliberately NOT part of any
-    /// production policy group.
-    #[inline]
-    pub(crate) const fn uses_phase_affine_eval(self) -> bool {
-        matches!(self, Self::CurrentFinalPhaseAffine)
+        match self {
+            Self::Current => false,
+            Self::CurrentFinal => true,
+        }
     }
 
     #[inline]
-    pub(crate) const fn uses_bounded_check2_extension(self) -> bool {
-        matches!(self, Self::CurrentFinalBoundedCheck2)
-    }
-
-    #[inline]
-    pub(crate) const fn uses_threat_ordering(self) -> bool {
-        matches!(
-            self,
-            Self::CurrentThreatAware
-                | Self::CurrentThreatAwareNoQchecks
-                | Self::CurrentThreatAwareEvalOrder
-                | Self::CurrentThreatAwareOrderOnly
-        )
-    }
-
-    #[inline]
-    pub(crate) const fn uses_threat_aware_qsearch(self) -> bool {
-        matches!(self, Self::CurrentThreatAware)
+    /// S8.0: `CurrentFinal` uses the integrated positional evaluator (six
+    /// positional term families); `Current` keeps the plain classical eval.
+    pub(crate) const fn uses_eval2(self) -> bool {
+        match self {
+            Self::Current => false,
+            Self::CurrentFinal => true,
+        }
     }
 }
 
@@ -961,19 +176,9 @@ pub(crate) const QSEARCH_DELTA_MARGIN_CP: i32 = 500;
 /// recursing further.
 pub const MAX_QPLY: u32 = 32;
 
-/// Maximum number of main-search forcing extensions allowed on one root
-/// line. The budget makes repeated checking sequences finite even when no
-/// repetition is reached during the extension window.
-const MAX_FORCING_EXTENSIONS: u8 = 4;
 /// S7.5A frozen budget: at most two single-evasion extensions per root line.
 /// Never retuned from tactical-corpus results.
 const S75A_FORCING_BUDGET: u8 = 2;
-/// S7.5B frozen budget: at most one bounded check2 extension per root line.
-const S75B_CHECK2_BUDGET: u8 = 1;
-
-/// A threat-aware qsearch may add quiet checking moves only for the first two
-/// qsearch plies. Captures and promotions retain the existing qsearch rules.
-const MAX_FORCING_QPLY: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct ExtensionBudgets {
@@ -1050,11 +255,14 @@ impl SearchFeaturePolicy {
             lmr: profile.uses_lmr() && !d.disable_lmr,
             futility: profile.uses_futility() && !d.disable_futility,
             null_move: profile.uses_null_move() && !d.disable_null_move,
-            qsearch_see: profile.uses_qsearch_pruning() && !d.disable_qsearch_see,
-            qsearch_delta: profile.uses_qsearch_delta(),
-            lmr_null_window: profile.uses_lmr_null_window(),
+            qsearch_see: matches!(profile, SearchProfile::CurrentFinal) && !d.disable_qsearch_see,
+            // The S7.1B delta-pruning and S7.5B bounded-check2 experiments
+            // are closed; no remaining profile enables them. The hot-path
+            // fields stay so their attribution plumbing remains compiled.
+            qsearch_delta: false,
+            lmr_null_window: matches!(profile, SearchProfile::CurrentFinal),
             single_evasion_extension: profile.uses_single_evasion_extension(),
-            bounded_check2_extension: profile.uses_bounded_check2_extension(),
+            bounded_check2_extension: false,
         }
     }
 
@@ -2758,14 +1966,8 @@ fn evaluate_profiled(
         // model's output is interpreted).
         let base = nnue.evaluate_full_cp_i32_audited(pos);
         crate::engine::eval::exact_mop_up_for_search(pos, base).unwrap_or(base)
-    } else if profile.uses_phase_affine_eval() {
-        evaluate_phase_affine(pos)
-    } else if let Some(mask) = profile.eval2_mask() {
-        evaluate_integrated_positional_masked(pos, mask)
     } else if profile.uses_eval2() {
         evaluate_integrated_positional(pos)
-    } else if profile.uses_threat_aware_eval() {
-        evaluate_threat_aware(pos)
     } else {
         evaluate(pos)
     };
@@ -3122,8 +2324,7 @@ fn record_s75b_checking_edge(
 /// NEVER changes the score — only which window the child search receives.
 enum ChildWindow {
     /// Full window `[-beta, -alpha_before_move]` — used for the first
-    /// move, non-Current profiles (M4Reference / M41Reference),
-    /// depth-0, and the caller-null-window / `i32` overflow fallbacks.
+    /// move, depth-0, and the caller-null-window / `i32` overflow fallbacks.
     Full,
     /// Null-window scout. `scout_beta` is the parent's narrow bound
     /// `alpha_before_move + 1`; the child window is
@@ -3550,23 +2751,7 @@ fn probe_tt_for_search(
     effective_alpha: i32,
     beta: i32,
 ) -> SearchTtProbe {
-    probe_tt_for_search_with_policy(tt, key, requested_depth, ply, effective_alpha, beta, false)
-}
-
-/// Threat-aware searches use an exact nominal-depth TT policy. A result from
-/// a deeper standalone descendant search can otherwise be reused as an exact
-/// answer for a shallower parent child, changing a fixed-depth root result
-/// after forward/backtracking. Hash moves remain usable; only score cutoffs
-/// require the exact requested depth.
-fn probe_tt_for_search_exact_depth(
-    tt: &TranspositionTable,
-    key: TtKey,
-    requested_depth: u32,
-    ply: u32,
-    effective_alpha: i32,
-    beta: i32,
-) -> SearchTtProbe {
-    probe_tt_for_search_with_policy(tt, key, requested_depth, ply, effective_alpha, beta, true)
+    probe_tt_for_search_with_policy(tt, key, requested_depth, ply, effective_alpha, beta)
 }
 
 fn probe_tt_for_search_with_policy(
@@ -3576,7 +2761,6 @@ fn probe_tt_for_search_with_policy(
     ply: u32,
     effective_alpha: i32,
     beta: i32,
-    exact_depth: bool,
 ) -> SearchTtProbe {
     let Some(entry) = tt.probe(key) else {
         return SearchTtProbe {
@@ -3602,9 +2786,9 @@ fn probe_tt_for_search_with_policy(
     };
 
     // A non-matching nominal depth is a miss for score cut-off purposes, but
-    // its stored move (if any) is still useful for ordering. Ordinary profiles
-    // accept deeper entries; the threat-aware policy deliberately does not.
-    if entry.depth < requested_depth || (exact_depth && entry.depth != requested_depth) {
+    // its stored move (if any) is still useful for ordering. Deeper entries
+    // are accepted (normal depth >= requested reuse semantics).
+    if entry.depth < requested_depth {
         return SearchTtProbe {
             hit: true,
             cutoff: None,
@@ -3704,9 +2888,8 @@ fn store_tt_score_profiled(
 /// next independent `go`/`search` call. Never persisted across games or
 /// into quiescence.
 ///
-/// `M41Reference` and `Current` build one; the `M4Reference` path skips it
-/// entirely (no killer/history ordering), so the historical baseline is
-/// untouched.
+/// Both surviving profiles build one (killer/history ordering is part of
+/// every remaining policy identity).
 ///
 /// Bounded normalization cap for the history table (spec §4.1/§4.3).
 /// Every `history` entry is capped at this value; this bounds table
@@ -3884,102 +3067,6 @@ fn order_moves_with_hash_and_killers(
     });
     for (i, (_, _, _, _, m)) in keyed.into_iter().enumerate() {
         moves[i] = m;
-    }
-}
-
-/// S4.1: reorder the root's QUIET moves (indices 1..) by the existing history
-/// heuristic `history[color][from][to]`, descending, stable for equal scores.
-///
-/// Contract:
-/// - root_moves[0] (the previous iteration's best move) is preserved;
-/// - no root killers, no static-eval ordering, no history-update changes;
-/// - tactical moves (captures / promotions / en passant) keep their slots;
-/// - only the quiet slots are sorted, so quiet-vs-quiet prioritization is the
-///   entire experiment (not a general root MovePicker);
-/// - every legal move appears exactly once (pure permutation).
-fn order_root_quiets_by_history(
-    pos: &Position,
-    root_moves: &mut [Move],
-    heur: Option<&SearchHeuristics>,
-) {
-    let quiet_slots: Vec<usize> = (1..root_moves.len())
-        .filter(|&i| !is_tactical(pos, root_moves[i]))
-        .collect();
-    if quiet_slots.len() < 2 {
-        return;
-    }
-    let mut keyed: Vec<(i32, usize, Move)> = quiet_slots
-        .iter()
-        .map(|&i| {
-            let m = root_moves[i];
-            let hist = if let Some(hh) = heur {
-                let color = pos.side_to_move() as usize;
-                hh.history[color][m.from as usize][m.to as usize]
-            } else {
-                0
-            };
-            (hist, i, m)
-        })
-        .collect();
-    // Descending history, then ascending original index (stable).
-    keyed.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    for (slot, (_, _, m)) in keyed.into_iter().enumerate() {
-        root_moves[quiet_slots[slot]] = m;
-    }
-}
-
-/// S4.1b: reorder the root's QUIET moves (indices 1..) by the previous
-/// completed iteration's root search scores, descending, stable for equal
-/// values.
-///
-/// Contract: root_moves[0] (previous best) preserved; tactical slots
-/// unchanged; only quiet slots sorted; no history/killer/static-eval/threat
-/// signal; every legal move appears exactly once (pure permutation).
-fn order_root_quiets_by_prev_scores(
-    pos: &Position,
-    root_moves: &mut [Move],
-    previous_scores: &[(Move, i32)],
-) {
-    let quiet_slots: Vec<usize> = (1..root_moves.len())
-        .filter(|&i| !is_tactical(pos, root_moves[i]))
-        .collect();
-    if quiet_slots.len() < 2 {
-        return;
-    }
-    let mut keyed: Vec<(i32, usize, Move)> = quiet_slots
-        .iter()
-        .map(|&i| {
-            let m = root_moves[i];
-            let score = previous_scores
-                .iter()
-                .find(|(scored, _)| *scored == m)
-                .map(|(_, score)| *score)
-                .unwrap_or(i32::MIN);
-            (score, i, m)
-        })
-        .collect();
-    // Descending score, then ascending original index (stable).
-    keyed.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    for (slot, (_, _, m)) in keyed.into_iter().enumerate() {
-        root_moves[quiet_slots[slot]] = m;
-    }
-}
-
-/// Reorder `moves` so the TT hash move (if legal and present) sits at
-/// index 0, while every other move keeps its existing MVV-LVA relative
-/// order. Never drops, duplicates, or reorders around the hash move; an
-/// illegal / absent hash move is ignored (no panic).
-fn order_moves_with_hash(pos: &Position, moves: &mut [Move], hash_move: Option<Move>) {
-    // First the existing stable MVV-LVA order.
-    order_moves(pos, moves);
-    // Then lift the hash move to the front, preserving the relative order of
-    // the remaining moves via a single right rotation over [0..=idx].
-    if let Some(hm) = hash_move {
-        if let Some(idx) = moves.iter().position(|&m| m == hm) {
-            if idx != 0 {
-                moves[..=idx].rotate_right(1);
-            }
-        }
     }
 }
 
@@ -4260,7 +3347,7 @@ fn negamax_impl(
         beta,
         ctx,
         limits,
-        SearchProfile::M4Reference,
+        ROLLBACK_PROFILE,
         pv,
         path,
         tt,
@@ -4541,9 +3628,8 @@ fn negamax_entered_impl_with_null_and_extensions(
     pv: &mut PvTable,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
-    // M4.1: killer/history state, consumed by `M41Reference` and `Current`
-    // at this non-root ordinary negamax node (only `Current` also applies
-    // PVS on top). `M4Reference` passes `None` and is never read/written.
+    // M4.1: killer/history state, consumed at this non-root ordinary
+    // negamax node; the public correctness entries pass `None`.
     heur: &mut Option<SearchHeuristics>,
     allow_null: bool,
     single_evasion_chain: u8,
@@ -4677,9 +3763,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     // draw precedence — so every TT hit or cut-off still consumes exactly
     // one real node. On a cut-off we return the decoded score and leave
     // the (already-cleared) PV row empty.
-    let extension_context = _profile.uses_forcing_search()
-        || _profile.uses_single_evasion_extension()
-        || _profile.uses_bounded_check2_extension();
+    let extension_context = _profile.uses_single_evasion_extension();
     let key = if extension_context && depth != 0 {
         current_tt_key_with_budgets(
             pos,
@@ -4694,12 +3778,9 @@ fn negamax_entered_impl_with_null_and_extensions(
     let tt_start = ctx.sample_begin(&ctx.timing_tt);
     // S7.5A contract: budget is part of the TT context, but S7.5A keeps
     // CurrentFinal's normal depth >= requested reuse semantics. The
-    // exact-depth branch belongs only to the legacy threat-aware path.
-    let tt_probe = if _profile.uses_forcing_search() {
-        probe_tt_for_search_exact_depth(tt, key, depth, ply, alpha, beta)
-    } else {
-        probe_tt_for_search(tt, key, depth, ply, alpha, beta)
-    };
+    // exact-depth branch belonged only to the (closed) legacy threat-aware
+    // path.
+    let tt_probe = probe_tt_for_search(tt, key, depth, ply, alpha, beta);
     if let Some(start) = tt_start {
         ctx.sample_end(&ctx.timing_tt, start);
     }
@@ -4833,7 +3914,6 @@ fn negamax_entered_impl_with_null_and_extensions(
             _profile,
             _profile.uses_qsearch_movegen(),
             ctx.features().qsearch_see,
-            _profile.uses_qsearch_fast_pruning(),
             nnue,
         ) {
             Some(s) => {
@@ -4869,39 +3949,21 @@ fn negamax_entered_impl_with_null_and_extensions(
     let single_evasion_node = node_in_check && moves.len() == 1;
     let check2_node = node_in_check && moves.len() == 2;
 
-    // M4.1: for non-M4Reference profiles (`M41Reference` and `Current`),
-    // apply the seven-level ordering (§5) at this non-root ordinary negamax
-    // node — TT hash lift, promotions, MVV-LVA captures/ep, killer slot 0,
-    // killer slot 1, then the remaining quiets sorted by history descending
-    // (Commit 4) with a deterministic (from,to) tie-break. `M4Reference`
-    // keeps the exact M4.0 ordering.
+    // M4.1: apply the seven-level ordering (§5) at this non-root ordinary
+    // negamax node — TT hash lift, promotions, MVV-LVA captures/ep, killer
+    // slot 0, killer slot 1, then the remaining quiets sorted by history
+    // descending (Commit 4) with a deterministic (from,to) tie-break.
     // Killers are read from this `ply` (grown lazily; empty until a quiet
     // cutoff records one in a prior iteration); history is the per-search
     // table carried in `heur`.
     let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
-    if _profile.uses_threat_ordering() {
-        order_moves_with_threats(
-            pos,
-            &mut moves,
-            tt_probe.hash_move,
-            heur.as_ref(),
-            ply as usize,
-            ctx,
-        );
-    } else if _profile != SearchProfile::M4Reference {
-        order_moves_with_hash_and_killers(
-            pos,
-            &mut moves,
-            tt_probe.hash_move,
-            heur.as_ref(),
-            ply as usize,
-        );
-    } else {
-        // M2.2 + M3.2: stable MVV-LVA order, then lift the TT hash
-        // move (if legal and present) to index 0 without disturbing the
-        // relative order of the other moves.
-        order_moves_with_hash(pos, &mut moves, tt_probe.hash_move);
-    }
+    order_moves_with_hash_and_killers(
+        pos,
+        &mut moves,
+        tt_probe.hash_move,
+        heur.as_ref(),
+        ply as usize,
+    );
     if let Some(start) = ordering_start {
         ctx.sample_end(&ctx.timing_ordering, start);
     }
@@ -4945,16 +4007,7 @@ fn negamax_entered_impl_with_null_and_extensions(
     let mut s72_cutoff_happened = false;
     for (move_idx, m) in moves.into_iter().enumerate() {
         if let Some(static_eval) = futility_base {
-            let margin = 100 + depth as i32 * 100
-                // S10-H0-D3: single additive calibration K* = +75cp for the
-                // NNUE-material futility margin (derived offline; replay gate
-                // -28.1%/-21.7% disagreement both trees).
-                + if _profile
-                    == SearchProfile::CurrentFinalNnueV2QMaterialCalFut {
-                    75
-                } else {
-                    0
-                };
+            let margin = 100 + depth as i32 * 100;
             // S10-H0-D shadow: opportunity = all non-eval prerequisites pass.
             #[cfg(feature = "diagnostic_search_calibration")]
             if move_idx > 0
@@ -5080,9 +4133,7 @@ fn negamax_entered_impl_with_null_and_extensions(
             }
         };
 
-        let probe_info = if (_profile.uses_bounded_check2_extension() && depth > 0)
-            || s75b_diagnostic_enabled(ctx)
-        {
+        let probe_info = if s75b_diagnostic_enabled(ctx) {
             s75b_probe_checking_child(pos, &probe)
         } else {
             None
@@ -5092,13 +4143,11 @@ fn negamax_entered_impl_with_null_and_extensions(
             budgets: child_extension_budgets,
             check2_extended,
         } = child_extension_params(
-            pos,
             depth,
             _profile,
             extension_budgets,
             node_in_check,
             single_evasion_node,
-            probe_info.is_some_and(|info| info.evasions == 2),
             ctx,
         );
 
@@ -5636,19 +4685,17 @@ fn negamax_entered_impl_with_null_and_extensions(
             // `pos.side_to_move()` is the mover's color. This block runs
             // exactly once per move, on `final_score` only — never inside
             // the scout — so a quiet cutoff is never rewarded twice.
-            if _profile != SearchProfile::M4Reference {
-                if let Some(h) = heur {
-                    if !is_tactical(pos, m) {
-                        h.record_killer(ply as usize, m);
-                        h.record_history(pos, m, depth);
-                        #[cfg(test)]
-                        pvs_counters::mark_parent_quiet_reward();
-                    } else {
-                        // Tactical cutoff: take the cutoff but do NOT reward
-                        // killer/history (spec §3.2 / §4.4).
-                        #[cfg(test)]
-                        pvs_counters::mark_parent_tactical_cutoff();
-                    }
+            if let Some(h) = heur {
+                if !is_tactical(pos, m) {
+                    h.record_killer(ply as usize, m);
+                    h.record_history(pos, m, depth);
+                    #[cfg(test)]
+                    pvs_counters::mark_parent_quiet_reward();
+                } else {
+                    // Tactical cutoff: take the cutoff but do NOT reward
+                    // killer/history (spec §3.2 / §4.4).
+                    #[cfg(test)]
+                    pvs_counters::mark_parent_tactical_cutoff();
                 }
             }
             break; // beta cutoff
@@ -5758,7 +4805,7 @@ fn prune_qsearch_captures_by_see(
     alpha: i32,
     beta: i32,
 ) -> Vec<Move> {
-    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false, false, 0, 0)
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false, 0, 0)
 }
 
 /// S7.1B: production SEE<0 pruning PLUS the conservative delta rule. Each
@@ -5774,17 +4821,7 @@ fn prune_qsearch_captures_by_see_delta(
     stand_pat: i32,
     qply: u32,
 ) -> Vec<Move> {
-    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, false, true, stand_pat, qply)
-}
-
-fn prune_qsearch_captures_by_fast_see(
-    pos: &mut Position,
-    moves: Vec<Move>,
-    ctx: &SearchContext,
-    alpha: i32,
-    beta: i32,
-) -> Vec<Move> {
-    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, true, false, 0, 0)
+    prune_qsearch_captures_by_see_impl(pos, moves, ctx, alpha, beta, true, stand_pat, qply)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5794,7 +4831,6 @@ fn prune_qsearch_captures_by_see_impl(
     ctx: &SearchContext,
     alpha: i32,
     beta: i32,
-    fast_see: bool,
     delta_enabled: bool,
     stand_pat: i32,
     qply: u32,
@@ -5848,11 +4884,7 @@ fn prune_qsearch_captures_by_see_impl(
         // fast path only proves the sign, so 0/-1 preserve its exact
         // semantics; the full path keeps the actual exchange value for the
         // delta rule.
-        let see_value: Option<i32> = if fast_see {
-            see_ge_for_pruning(pos, m, 0).map(|ge| if ge { 0 } else { -1 })
-        } else {
-            static_exchange_eval_for_pruning(pos, m)
-        };
+        let see_value: Option<i32> = static_exchange_eval_for_pruning(pos, m);
         if let Some(start) = see_start {
             ctx.sample_end(&ctx.timing_see, start);
         }
@@ -6167,234 +5199,6 @@ fn static_exchange_eval_impl(pos: &Position, m: Move, reject_promotions: bool) -
     Some(gains[0])
 }
 
-#[inline]
-fn square_with_offset(square: u8, file_delta: i32, rank_delta: i32) -> Option<u8> {
-    let file = file_of(square) as i32 + file_delta;
-    let rank = rank_of(square) as i32 + rank_delta;
-    if (0..8).contains(&file) && (0..8).contains(&rank) {
-        Some(make_square(file as u8, rank as u8))
-    } else {
-        None
-    }
-}
-
-#[inline]
-fn add_fast_attacker_source(
-    pos: &Position,
-    piece_type: PieceType,
-    from: u8,
-    sources: &mut [u8; 8],
-    count: &mut usize,
-) {
-    if pos.board[from as usize] != Some(Piece::new(pos.side, piece_type)) {
-        return;
-    }
-    debug_assert!(*count < sources.len());
-    if *count >= sources.len() {
-        return;
-    }
-    sources[*count] = from;
-    *count += 1;
-}
-
-#[inline]
-fn collect_fast_slider_attackers(
-    pos: &Position,
-    target: u8,
-    piece_type: PieceType,
-    directions: &[(i32, i32)],
-    sources: &mut [u8; 8],
-    count: &mut usize,
-) {
-    let target_file = file_of(target) as i32;
-    let target_rank = rank_of(target) as i32;
-    for &(file_delta, rank_delta) in directions {
-        let mut file = target_file + file_delta;
-        let mut rank = target_rank + rank_delta;
-        while (0..8).contains(&file) && (0..8).contains(&rank) {
-            let from = make_square(file as u8, rank as u8);
-            if pos.board[from as usize].is_some() {
-                add_fast_attacker_source(pos, piece_type, from, sources, count);
-                break;
-            }
-            file += file_delta;
-            rank += rank_delta;
-        }
-    }
-}
-
-#[inline]
-fn collect_fast_attacker_candidates(
-    pos: &Position,
-    target: u8,
-    piece_type: PieceType,
-) -> ([u8; 8], usize) {
-    let mut sources = [0; 8];
-    let mut count = 0;
-    match piece_type {
-        PieceType::Pawn => {
-            let direction = if pos.side == Color::White { 1 } else { -1 };
-            let source_rank = rank_of(target) as i32 - direction;
-            if (0..8).contains(&source_rank) {
-                for file_delta in [-1, 1] {
-                    if let Some(from) = square_with_offset(
-                        make_square(file_of(target), source_rank as u8),
-                        file_delta,
-                        0,
-                    ) {
-                        add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
-                    }
-                }
-            }
-        }
-        PieceType::Knight => {
-            for &(file_delta, rank_delta) in &KNIGHT_OFFSETS {
-                if let Some(from) = square_with_offset(target, file_delta, rank_delta) {
-                    add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
-                }
-            }
-        }
-        PieceType::Bishop => collect_fast_slider_attackers(
-            pos,
-            target,
-            piece_type,
-            &BISHOP_DIRS,
-            &mut sources,
-            &mut count,
-        ),
-        PieceType::Rook => collect_fast_slider_attackers(
-            pos,
-            target,
-            piece_type,
-            &ROOK_DIRS,
-            &mut sources,
-            &mut count,
-        ),
-        PieceType::Queen => {
-            collect_fast_slider_attackers(
-                pos,
-                target,
-                piece_type,
-                &BISHOP_DIRS,
-                &mut sources,
-                &mut count,
-            );
-            collect_fast_slider_attackers(
-                pos,
-                target,
-                piece_type,
-                &ROOK_DIRS,
-                &mut sources,
-                &mut count,
-            );
-        }
-        PieceType::King => {
-            for &(file_delta, rank_delta) in &KING_OFFSETS {
-                if let Some(from) = square_with_offset(target, file_delta, rank_delta) {
-                    add_fast_attacker_source(pos, piece_type, from, &mut sources, &mut count);
-                }
-            }
-        }
-    }
-    for index in 1..count {
-        let source = sources[index];
-        let mut insert_at = index;
-        while insert_at > 0 && sources[insert_at - 1] > source {
-            sources[insert_at] = sources[insert_at - 1];
-            insert_at -= 1;
-        }
-        sources[insert_at] = source;
-    }
-    (sources, count)
-}
-
-#[inline]
-fn least_valuable_attacker_fast(pos: &mut Position, target: u8) -> Option<Move> {
-    for piece_type in [
-        PieceType::Pawn,
-        PieceType::Knight,
-        PieceType::Bishop,
-        PieceType::Rook,
-        PieceType::Queen,
-        PieceType::King,
-    ] {
-        let (sources, count) = collect_fast_attacker_candidates(pos, target, piece_type);
-        let promotion = if piece_type == PieceType::Pawn
-            && ((pos.side == Color::White && rank_of(target) == 7)
-                || (pos.side == Color::Black && rank_of(target) == 0))
-        {
-            Some(PieceType::Knight)
-        } else {
-            None
-        };
-        let move_flag = promotion.map_or(MoveFlag::Normal, MoveFlag::Promotion);
-        for &from in sources.iter().take(count) {
-            let candidate = Move {
-                from,
-                to: target,
-                promotion,
-                flag: move_flag,
-            };
-            let undo = pos.make_move(candidate);
-            let legal = !pos.is_square_attacked(pos.king_square(pos.side.opposite()), pos.side);
-            pos.unmake_move(undo);
-            if legal {
-                return Some(candidate);
-            }
-        }
-    }
-    None
-}
-
-/// Fast boolean SEE for pruning. It deliberately preserves the exact
-/// promotion fail-open rule and exchange back-propagation of the D1.3
-/// integer SEE, while replacing the 64-square attacker scan with direct
-/// target-relative occupancy walks.
-#[inline]
-fn see_ge_for_pruning(pos: &Position, m: Move, threshold: i32) -> Option<bool> {
-    if m.promotion.is_some() {
-        return None;
-    }
-    let victim_value = match m.flag {
-        MoveFlag::EnPassant => PieceType::Pawn.value(),
-        MoveFlag::Promotion(_)
-        | MoveFlag::Normal
-        | MoveFlag::DoublePawnPush
-        | MoveFlag::KingCastle
-        | MoveFlag::QueenCastle => pos.board[m.to as usize]
-            .map(|piece| piece.piece_type.value())
-            .unwrap_or(0),
-    };
-    let promotion_gain = m
-        .promotion
-        .map(|piece| piece.value() - PieceType::Pawn.value())
-        .unwrap_or(0);
-    let mut gains = [0i32; 32];
-    gains[0] = victim_value + promotion_gain;
-
-    let mut child = *pos;
-    let mut captured_value = see_piece_after_move(pos, m);
-    child.make_move(m);
-    let mut depth = 0usize;
-    while depth + 1 < gains.len() {
-        let Some(attacker) = least_valuable_attacker_fast(&mut child, m.to) else {
-            break;
-        };
-        if attacker.promotion.is_some() {
-            return None;
-        }
-        depth += 1;
-        gains[depth] = captured_value - gains[depth - 1];
-        captured_value = see_piece_after_move(&child, attacker);
-        child.make_move(attacker);
-    }
-    while depth > 0 {
-        depth -= 1;
-        gains[depth] = -(-gains[depth]).max(gains[depth + 1]);
-    }
-    Some(gains[0] >= threshold)
-}
-
 fn move_gives_check(pos: &mut Position, m: Move) -> bool {
     let undo = pos.make_move(m);
     let gives_check = pos.is_in_check(pos.side);
@@ -6403,14 +5207,13 @@ fn move_gives_check(pos: &mut Position, m: Move) -> bool {
 }
 
 /// Compute the depth/budget passed across one legal move edge. Extensions are
-/// deliberately bounded per root line and are only active for the isolated
-/// threat-aware candidate. A check extension and a single-evasion extension
-/// share one unit so the two rules cannot stack on the same edge.
+/// deliberately bounded per root line; only the promoted S7.5A single-evasion
+/// rule remains active. The S7.5B check2 extension and the legacy threat-aware
+/// forcing path are closed experiments (their budgets stay zero and the
+/// ordinary depth decrease applies).
 fn extension_budget_for_profile(profile: SearchProfile) -> u8 {
     if profile.uses_single_evasion_extension() {
         S75A_FORCING_BUDGET
-    } else if profile.uses_forcing_search() {
-        MAX_FORCING_EXTENSIONS
     } else {
         0
     }
@@ -6419,33 +5222,23 @@ fn extension_budget_for_profile(profile: SearchProfile) -> u8 {
 fn extension_budgets_for_profile(profile: SearchProfile) -> ExtensionBudgets {
     ExtensionBudgets {
         forcing: extension_budget_for_profile(profile),
-        check2: if profile.uses_bounded_check2_extension() {
-            S75B_CHECK2_BUDGET
-        } else {
-            0
-        },
+        check2: 0,
     }
 }
 
-/// Dispatch child depth/budget across the legacy threat-aware forcing path
-/// and the isolated S7.5A single-evasion path.
-#[allow(clippy::too_many_arguments)]
+/// Dispatch child depth/budget across one legal-move edge. With the S7.5B
+/// check2 extension closed, the child budget is the parent budget unchanged
+/// and the depth follows the S7.5A single-evasion rule (or the ordinary
+/// decrease).
 fn child_extension_params(
-    child: &Position,
     depth: u32,
     profile: SearchProfile,
     extension_budgets: ExtensionBudgets,
     parent_in_check: bool,
     parent_has_single_evasion: bool,
-    child_has_check2_evasions: bool,
     ctx: &SearchContext,
 ) -> ChildExtension {
-    let a_opportunity = profile.uses_single_evasion_extension()
-        && depth > 0
-        && parent_in_check
-        && parent_has_single_evasion
-        && extension_budgets.forcing > 0;
-    let (mut child_depth, forcing_budget) = if profile.uses_single_evasion_extension() {
+    let (child_depth, forcing_budget) = if profile.uses_single_evasion_extension() {
         s75a_single_evasion_child_params(
             depth,
             extension_budgets.forcing,
@@ -6454,39 +5247,16 @@ fn child_extension_params(
             ctx,
         )
     } else {
-        forcing_child_params(
-            child,
-            depth,
-            profile,
-            extension_budgets.forcing,
-            parent_in_check,
-            parent_has_single_evasion,
-            ctx,
-        )
+        (depth.saturating_sub(1), extension_budgets.forcing)
     };
 
-    let mut child_budgets = ExtensionBudgets {
-        forcing: forcing_budget,
-        check2: extension_budgets.check2,
-    };
-    let mut check2_extended = false;
-    if profile.uses_bounded_check2_extension() && child_has_check2_evasions && depth > 0 {
-        ctx.add_profile_counter(&ctx.s75b_extension_opportunities, 1);
-        if a_opportunity {
-            ctx.add_profile_counter(&ctx.s75b_extension_blocked_a_overlap, 1);
-        } else if child_budgets.check2 == 0 {
-            ctx.add_profile_counter(&ctx.s75b_extension_blocked_budget0, 1);
-        } else {
-            ctx.add_profile_counter(&ctx.s75b_extension_applied, 1);
-            child_depth = depth;
-            child_budgets.check2 -= 1;
-            check2_extended = true;
-        }
-    }
     ChildExtension {
         depth: child_depth,
-        budgets: child_budgets,
-        check2_extended,
+        budgets: ExtensionBudgets {
+            forcing: forcing_budget,
+            check2: extension_budgets.check2,
+        },
+        check2_extended: false,
     }
 }
 
@@ -6524,216 +5294,6 @@ fn s75a_single_evasion_child_params(
         ctx.add_profile_counter(&ctx.s75a_extension_budget_1_to_0, 1);
     }
     (depth, extension_budget - 1)
-}
-
-fn forcing_child_params(
-    child: &Position,
-    depth: u32,
-    profile: SearchProfile,
-    extension_budget: u8,
-    parent_in_check: bool,
-    parent_has_single_evasion: bool,
-    ctx: &SearchContext,
-) -> (u32, u8) {
-    let ordinary_depth = depth.saturating_sub(1);
-    if !profile.uses_forcing_search() || extension_budget == 0 || depth == 0 {
-        return (ordinary_depth, extension_budget);
-    }
-
-    let child_gives_check = child.is_in_check(child.side);
-    let single_evasion = parent_in_check && parent_has_single_evasion;
-    if child_gives_check || single_evasion {
-        if child_gives_check {
-            ctx.add_profile_counter(&ctx.check_extensions, 1);
-        }
-        if single_evasion {
-            ctx.add_profile_counter(&ctx.single_evasion_extensions, 1);
-        }
-        (depth, extension_budget - 1)
-    } else {
-        (ordinary_depth, extension_budget)
-    }
-}
-
-fn king_zone_attack_count(pos: &Position, king: Square, by: Color) -> i32 {
-    let file = file_of(king) as i32;
-    let rank = rank_of(king) as i32;
-    let mut count = 0;
-    for df in -1..=1 {
-        for dr in -1..=1 {
-            if on_board(file + df, rank + dr)
-                && pos.is_square_attacked(make_square((file + df) as u8, (rank + dr) as u8), by)
-            {
-                count += 1;
-            }
-        }
-    }
-    count
-}
-
-/// Cheap, candidate-only move signal used to put forcing and defensive moves
-/// ahead of otherwise equal killer/history moves. It deliberately does not
-/// reject or mutate a move: the legal move loop remains the authority.
-fn threat_move_signal(pos: &mut Position, m: Move) -> (bool, i32) {
-    let mover = pos.side;
-    let enemy = mover.opposite();
-    let own_king = pos.king_sq[mover as usize];
-    let enemy_king = pos.king_sq[enemy as usize];
-    let own_before = king_zone_attack_count(pos, own_king, mover);
-    let enemy_before = king_zone_attack_count(pos, enemy_king, mover);
-    let moving_piece = pos.board[m.from as usize];
-    let mut score = 0;
-
-    if let Some(piece) = moving_piece {
-        if piece.piece_type == PieceType::Pawn {
-            let from_rank = rank_of(m.from);
-            let to_rank = rank_of(m.to);
-            let advances = if mover == Color::White {
-                to_rank > from_rank
-            } else {
-                to_rank < from_rank
-            };
-            if advances && (2..=5).contains(&to_rank) {
-                score += 24;
-            }
-            if matches!(m.flag, MoveFlag::DoublePawnPush) {
-                score += 16;
-            }
-            if pos.board[m.to as usize].is_some() {
-                score += 20;
-            }
-        }
-    }
-
-    let to_file = file_of(m.to) as i32;
-    let to_rank = rank_of(m.to) as i32;
-    let own_file = file_of(own_king) as i32;
-    let own_rank = rank_of(own_king) as i32;
-    let enemy_file = file_of(enemy_king) as i32;
-    let enemy_rank = rank_of(enemy_king) as i32;
-    if (to_file - enemy_file).abs() <= 1 && (to_rank - enemy_rank).abs() <= 1 {
-        score += 80;
-    }
-    if (to_file - own_file).abs() <= 1 && (to_rank - own_rank).abs() <= 1 {
-        score += 24;
-    }
-
-    let undo = pos.make_move(m);
-    let gives_check = pos.is_in_check(pos.side);
-    let own_after = king_zone_attack_count(pos, own_king, mover);
-    let enemy_after = king_zone_attack_count(pos, enemy_king, mover);
-    pos.unmake_move(undo);
-
-    if gives_check {
-        score += 10_000;
-    }
-    score += (enemy_after - enemy_before).max(0) * 40;
-    score += (own_after - own_before).max(0) * 18;
-    (gives_check, score)
-}
-
-type ThreatOrderKey = (i32, i32, (u8, i32, i32), i64, usize, Move);
-
-/// Candidate-only extension of the approved killer/history ordering. Hash
-/// moves remain first, then checking moves, promotions, captures, killers,
-/// and remaining quiets. Within each band, the bounded threat signal breaks
-/// ties before the existing MVV/history ordering.
-fn order_moves_with_threats(
-    pos: &mut Position,
-    moves: &mut [Move],
-    hash_move: Option<Move>,
-    h: Option<&SearchHeuristics>,
-    ply: usize,
-    ctx: &SearchContext,
-) {
-    ctx.add_profile_counter(&ctx.threat_ordered_moves, moves.len() as u64);
-    let killers = if let Some(hh) = h {
-        if hh.killers.len() > ply {
-            hh.killers[ply]
-        } else {
-            [None, None]
-        }
-    } else {
-        [None, None]
-    };
-    let mut keyed: Vec<ThreatOrderKey> = moves
-        .iter()
-        .enumerate()
-        .map(|(index, &m)| {
-            let (gives_check, threat_score) = threat_move_signal(pos, m);
-            let bucket = if Some(m) == hash_move {
-                0
-            } else if gives_check {
-                1
-            } else if matches!(m.flag, MoveFlag::Promotion(_)) {
-                2
-            } else if pos.board[m.to as usize].is_some() || matches!(m.flag, MoveFlag::EnPassant) {
-                3
-            } else if Some(m) == killers[0] {
-                4
-            } else if Some(m) == killers[1] {
-                5
-            } else {
-                6
-            };
-            let history_rank = if bucket == 6 {
-                let history = h
-                    .map(|hh| hh.history[pos.side as usize][m.from as usize][m.to as usize])
-                    .unwrap_or(0);
-                i64::from(history) * 4096 - i64::from(m.from) * 64 - i64::from(m.to)
-            } else {
-                0
-            };
-            (
-                bucket,
-                threat_score,
-                move_order_key(pos, m),
-                history_rank,
-                index,
-                m,
-            )
-        })
-        .collect();
-
-    keyed.sort_by(|a, b| {
-        a.0.cmp(&b.0)
-            .then_with(|| b.1.cmp(&a.1))
-            .then_with(|| b.2.cmp(&a.2))
-            .then_with(|| b.3.cmp(&a.3))
-            .then_with(|| a.4.cmp(&b.4))
-    });
-    for (index, (_, _, _, _, _, m)) in keyed.into_iter().enumerate() {
-        moves[index] = m;
-    }
-}
-
-fn reorder_root_moves_by_previous_scores(
-    root_moves: &mut [Move],
-    previous_scores: &[(Move, i32)],
-    ctx: &SearchContext,
-) {
-    if previous_scores.is_empty() {
-        return;
-    }
-    let mut indexed: Vec<(Option<i32>, usize, Move)> = root_moves
-        .iter()
-        .enumerate()
-        .map(|(index, &m)| {
-            (
-                previous_scores
-                    .iter()
-                    .find(|(scored_move, _)| *scored_move == m)
-                    .map(|(_, score)| *score),
-                index,
-                m,
-            )
-        })
-        .collect();
-    indexed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    for (index, (_, _, m)) in indexed.into_iter().enumerate() {
-        root_moves[index] = m;
-    }
-    ctx.add_profile_counter(&ctx.root_reorders, 1);
 }
 
 /// Lexicographic move-ordering key for alpha-beta: higher key = searched
@@ -6868,17 +5428,32 @@ fn quiescence_impl(
     if !try_enter_node(ctx, limits) {
         return None;
     }
-    quiescence_entered_impl(
-        pos, ply, qply, alpha, beta, ctx, limits, pv, path, false, false, false, nnue,
+    // The public qsearch path keeps the historical correctness policy: no
+    // specialized movegen, no SEE pruning (the `Current` profile with both
+    // qsearch candidate switches off).
+    quiescence_entered_impl_with_profile(
+        pos,
+        ply,
+        qply,
+        alpha,
+        beta,
+        ctx,
+        limits,
+        pv,
+        path,
+        SearchProfile::Current,
+        false,
+        false,
+        nnue,
     )
 }
 
 /// The quiescence body, for a node the caller has ALREADY counted.
 /// Threads a [`PvTable`] so the tactical principal variation is recorded.
 ///
-/// 11 args = the public 7-arg [`quiescence`] entry plus the live [`PvTable`]
-/// and the three isolated qsearch candidate switches;
-/// kept explicit (see [`negamax_impl`] for the rationale).
+/// The `profile` selects the policy identity; the two qsearch candidate
+/// switches come from the resolved `SearchFeaturePolicy` at the depth-0
+/// leaf. Kept explicit (see [`negamax_impl`] for the rationale).
 #[allow(clippy::too_many_arguments)]
 /// `clear_at` runs first (the node is already entered by the caller), so a
 /// terminal or stand-pat node leaves an empty row. A cut-off move is
@@ -6892,40 +5467,6 @@ fn quiescence_impl(
 /// to `search_final_evasion_ply` (one ply, no recursion); fail-hard
 /// alpha-beta matching `negamax_impl`, returning `None` (board intact) on
 /// abort.
-fn quiescence_entered_impl(
-    pos: &mut Position,
-    ply: u32,
-    qply: u32,
-    alpha: i32,
-    beta: i32,
-    ctx: &SearchContext,
-    limits: &SearchLimits,
-    pv: &mut PvTable,
-    path: &mut SearchPath,
-    qsearch_movegen: bool,
-    qsearch_pruning: bool,
-    qsearch_fast_pruning: bool,
-    nnue: &mut Option<crate::engine::nnue_search::NnueSearchState>,
-) -> Option<i32> {
-    quiescence_entered_impl_with_profile(
-        pos,
-        ply,
-        qply,
-        alpha,
-        beta,
-        ctx,
-        limits,
-        pv,
-        path,
-        SearchProfile::M4Reference,
-        qsearch_movegen,
-        qsearch_pruning,
-        qsearch_fast_pruning,
-        nnue,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 fn quiescence_entered_impl_with_profile(
     pos: &mut Position,
     ply: u32,
@@ -6939,7 +5480,6 @@ fn quiescence_entered_impl_with_profile(
     profile: SearchProfile,
     qsearch_movegen: bool,
     qsearch_pruning: bool,
-    qsearch_fast_pruning: bool,
     nnue: &mut Option<crate::engine::nnue_search::NnueSearchState>,
 ) -> Option<i32> {
     ctx.add_profile_counter(&ctx.qsearch_nodes, 1);
@@ -6971,35 +5511,13 @@ fn quiescence_entered_impl_with_profile(
         }
     }
 
-    // The reference path generates every legal move. The isolated candidate
-    // generates only tactical legal moves at non-check nodes and all legal
-    // evasions under check; a tactical-empty node performs one early-stop
-    // legal-move probe so stalemate is never mistaken for stand-pat.
-    // S7.1A: the lazy candidate DEFERS the non-check tactical generation past
-    // the stand-pat beta cutoff / stalemate probe (same searched tree).
-    let lazy = !in_check && profile.uses_qsearch_lazy();
-    let mut legal = if lazy {
-        Vec::new()
-    } else if qsearch_movegen {
+    // The production path generates tactical legal moves at non-check nodes
+    // and all legal evasions under check; a tactical-empty node performs one
+    // early-stop legal-move probe so stalemate is never mistaken for
+    // stand-pat. The rollback profile generates every legal move.
+    let mut legal = if qsearch_movegen {
         if in_check {
             generate_legal_evasions_profiled(pos, ctx)
-        } else if profile.uses_threat_aware_qsearch() && qply < MAX_FORCING_QPLY {
-            // The threat-aware candidate extends qsearch's tactical set with
-            // quiet checks for a small, explicit number of qsearch plies.
-            // Legal generation remains exhaustive here; only the returned
-            // vector is filtered, so stalemate handling below is unchanged.
-            let all_legal = generate_legal_moves_profiled(pos, ctx);
-            let mut forcing = Vec::with_capacity(all_legal.len());
-            for m in all_legal {
-                let gives_check = move_gives_check(pos, m);
-                if gives_check {
-                    ctx.add_profile_counter(&ctx.qsearch_check_moves, 1);
-                }
-                if is_tactical(pos, m) || gives_check {
-                    forcing.push(m);
-                }
-            }
-            forcing
         } else {
             generate_legal_tactical_moves_profiled(pos, ctx)
         }
@@ -7026,12 +5544,7 @@ fn quiescence_entered_impl_with_profile(
             }
         }
     }
-    if lazy {
-        ctx.add_profile_counter(&ctx.qsearch_lazy_has_any_probes, 1);
-        if !has_any_legal_move_profiled(pos, ctx) {
-            return Some(0);
-        }
-    } else if legal.is_empty() {
+    if legal.is_empty() {
         if in_check {
             return Some(-(MATE - ply as i32));
         }
@@ -7059,26 +5572,15 @@ fn quiescence_entered_impl_with_profile(
     }
 
     // M2.2: order the legal list once. Pure reorder — no move is dropped.
-    // S7.1A: the lazy candidate orders AFTER the deferred movegen (below), so
-    // this eager ordering is skipped for lazy non-check nodes.
-    if !lazy {
-        let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
-        if profile.uses_threat_ordering() {
-            order_moves_with_threats(pos, &mut legal, None, None, ply as usize, ctx);
-        } else {
-            order_moves(pos, &mut legal);
-        }
-        if let Some(start) = ordering_start {
-            ctx.sample_end(&ctx.timing_ordering, start);
-        }
+    let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
+    order_moves(pos, &mut legal);
+    if let Some(start) = ordering_start {
+        ctx.sample_end(&ctx.timing_ordering, start);
     }
 
     // Termination cap.
     if qply >= MAX_QPLY {
         if !in_check {
-            if lazy {
-                ctx.add_profile_counter(&ctx.qsearch_lazy_qply_returns_before_movegen, 1);
-            }
             #[cfg(feature = "diagnostic_eval_site_capture")]
             crate::engine::search::eval_site_capture::push_site(
                 eval_site_capture::SiteKind::QsearchStandpat,
@@ -7116,35 +5618,21 @@ fn quiescence_entered_impl_with_profile(
         crate::engine::search::search_calibration_shadow::shadow_qsearch(pos, stand_pat, beta);
         if stand_pat >= beta {
             ctx.add_profile_counter(&ctx.qsearch_standpat_cutoffs, 1);
-            if lazy {
-                ctx.add_profile_counter(&ctx.qsearch_lazy_standpat_cutoffs_before_movegen, 1);
-            }
             return Some(beta);
         }
         if stand_pat > alpha {
             ctx.add_profile_counter(&ctx.qsearch_standpat_alpha_raises, 1);
             alpha = stand_pat;
         }
-        let mut tactical: Vec<Move> = if lazy {
-            // S7.1A: only now materialize + order the tactical list.
-            ctx.add_profile_counter(&ctx.qsearch_lazy_tactical_generations, 1);
-            let mut gen = generate_legal_tactical_moves_profiled(pos, ctx);
-            let ordering_start = ctx.sample_begin(&ctx.timing_ordering);
-            order_moves(pos, &mut gen);
-            if let Some(start) = ordering_start {
-                ctx.sample_end(&ctx.timing_ordering, start);
-            }
-            gen
-        } else if qsearch_movegen {
+        let mut tactical: Vec<Move> = if qsearch_movegen {
             legal
         } else {
             legal.into_iter().filter(|m| is_tactical(pos, *m)).collect()
         };
         if qsearch_pruning {
-            tactical = if qsearch_fast_pruning {
-                prune_qsearch_captures_by_fast_see(pos, tactical, ctx, alpha, beta)
-            } else if ctx.features().qsearch_delta {
-                // S7.1B candidate: the existing SEE<0 prune plus the
+            tactical = if ctx.features().qsearch_delta {
+                // S7.1B candidate (closed; retained behind the always-false
+                // policy bit): the existing SEE<0 prune plus the
                 // conservative delta rule, sharing ONE SEE computation.
                 // `stand_pat < beta` holds (the beta cutoff returned above).
                 prune_qsearch_captures_by_see_delta(
@@ -7236,7 +5724,6 @@ fn quiescence_entered_impl_with_profile(
                     profile,
                     qsearch_movegen,
                     qsearch_pruning,
-                    qsearch_fast_pruning,
                     nnue,
                 ) {
                     Some(s) => -s,
@@ -7330,7 +5817,7 @@ fn search_final_evasion_ply(
         limits,
         pv,
         path,
-        SearchProfile::M4Reference,
+        ROLLBACK_PROFILE,
         nnue,
     )
 }
@@ -7472,8 +5959,7 @@ enum RootMoveOutcome {
 /// M4.2 Commit 4: under `SearchProfile::Current` the root runs Principal
 /// Variation Search — the first root move takes the full window, later moves
 /// are scouted with a null window and re-searched at full width only if the
-/// scout improves alpha. `M4Reference` and `M41Reference` keep the full-window
-/// root unchanged (byte-identical root node counts / scores / PV). There is no
+/// scout improves alpha. There is no
 /// root beta cutoff in any profile: every legal root move is checked, moves
 /// that may improve alpha are fully re-searched, and the final root best score
 /// is exact.
@@ -7610,12 +6096,9 @@ fn root_search_with_window(
         )
     };
     ctx.add_profile_counter(&ctx.tt_probes, 1);
-    // S7.5A keeps normal TT reuse semantics; legacy forcing stays exact-depth.
-    let root_probe = if profile.uses_forcing_search() {
-        probe_tt_for_search_exact_depth(tt, root_key, depth, 0, alpha, beta)
-    } else {
-        probe_tt_for_search(tt, root_key, depth, 0, alpha, beta)
-    };
+    // S7.5A keeps normal TT reuse semantics; the legacy forcing exact-depth
+    // branch belonged to the closed threat-aware path only.
+    let root_probe = probe_tt_for_search(tt, root_key, depth, 0, alpha, beta);
     if root_probe.hit {
         ctx.add_profile_counter(&ctx.tt_hits, 1);
     }
@@ -7682,9 +6165,7 @@ fn root_search_with_window(
             }
         };
 
-        let probe_info = if (profile.uses_bounded_check2_extension() && depth > 0)
-            || s75b_diagnostic_enabled(ctx)
-        {
+        let probe_info = if s75b_diagnostic_enabled(ctx) {
             s75b_probe_checking_child(pos, &probe)
         } else {
             None
@@ -7694,13 +6175,11 @@ fn root_search_with_window(
             budgets: child_extension_budgets,
             check2_extended: _,
         } = child_extension_params(
-            pos,
             depth,
             profile,
             root_extension_budgets,
             root_in_check,
             root_single_evasion,
-            probe_info.is_some_and(|info| info.evasions == 2),
             ctx,
         );
 
@@ -8162,7 +6641,7 @@ pub fn search_best_move(
         pos,
         limits,
         ctx,
-        SearchProfile::M4Reference,
+        ROLLBACK_PROFILE,
         &mut path,
         &mut tt,
         &mut nnue,
@@ -8171,19 +6650,15 @@ pub fn search_best_move(
     r
 }
 
-/// History-aware entry used by the UCI layer, which passes the real
-/// `GameState` key history. The search extends this with its own
-/// `SearchPath` (cloned from `game_history`) but never mutates the
-/// caller's `GameState`. TT is DISABLED — see [`search_best_move`].
+/// History-aware entry used by the in-crate `search` tests. TT is DISABLED.
 ///
 /// Contract (debug-checked): `game_history` is non-empty and its last
 /// element equals the current position's Zobrist key.
 ///
 /// NOTE: since the M3.2 Phase-3 UCI layer switched its production path to
-/// `search_best_move_with_history_and_tt` (persistent TT), this disabled-table
-/// wrapper is now only referenced by the in-crate `search` tests. The
-/// `#[allow(dead_code)]` keeps `-D warnings` green for the non-test lib
-/// target; its behavior (build a disabled TT, search) is unchanged.
+/// the profile-aware persistent-TT entry, this disabled-table wrapper is
+/// only referenced by the in-crate `search` tests. The `#[allow(dead_code)]`
+/// keeps `-D warnings` green for the non-test lib target.
 #[allow(dead_code)]
 pub(crate) fn search_best_move_with_history(
     pos: &mut Position,
@@ -8206,7 +6681,7 @@ pub(crate) fn search_best_move_with_history(
         pos,
         limits,
         ctx,
-        SearchProfile::M4Reference,
+        ROLLBACK_PROFILE,
         &mut path,
         &mut tt,
         &mut nnue,
@@ -8215,44 +6690,11 @@ pub(crate) fn search_best_move_with_history(
     r
 }
 
-/// History-aware, TT-aware entry (M4.1: now the M4.0 *reference* path).
-///
-/// This was the original M3.2 production entry. M4.1 preserves its exact
-/// M4.0 behavior by delegating to
-/// [`search_best_move_with_history_tt_and_profile`] with
-/// `SearchProfile::M4Reference`. Its signature is unchanged and its output is
-/// preserves the M4.0 search behavior: killer (Commit 3) and history (Commit
-/// 4) ordering are applied under `SearchProfile::M41Reference` and
-/// `SearchProfile::Current`, never under `M4Reference`. It runs under the
-/// current evaluation function, so evaluation milestones may change scores,
-/// PVs, and node counts. The persistent UCI `Hash` table is threaded through
-/// every recursion exactly as before.
-pub(crate) fn search_best_move_with_history_and_tt(
-    pos: &mut Position,
-    game_history: &[ZobristKey],
-    limits: &SearchLimits,
-    ctx: &SearchContext,
-    tt: &mut TranspositionTable,
-) -> Option<SearchOutcome> {
-    search_best_move_with_history_tt_and_profile(
-        pos,
-        game_history,
-        limits,
-        ctx,
-        tt,
-        SearchProfile::M4Reference,
-        None,
-    )
-}
-
 /// Profile-aware search entry (M4.1). Threads `profile` through the whole
-/// search core so the move-ordering strategy can differ by [`SearchProfile`].
+/// search core so the search-policy bits can differ by [`SearchProfile`].
 /// The UCI production path calls this with the process-selected startup
 /// profile, whose default is [`PRODUCTION_PROFILE`] (`CurrentFinal`);
-/// `--profile current` explicitly selects [`ROLLBACK_PROFILE`]. The
-/// historical M4.0 reference entry
-/// ([`search_best_move_with_history_and_tt`]) and the in-crate tests call it
-/// with `SearchProfile::M4Reference` to reproduce the locked baseline exactly.
+/// `--profile current` explicitly selects [`ROLLBACK_PROFILE`].
 ///
 /// No new UCI `option` is exposed by this change — the UCI surface is
 /// unchanged. The caller-owned persistent `TranspositionTable` is threaded
@@ -8269,11 +6711,6 @@ pub(crate) fn search_best_move_with_history_tt_and_profile(
     debug_assert!(!game_history.is_empty());
     debug_assert_eq!(game_history.last(), Some(&pos.zobrist_key()));
     debug_assert_eq!(pos.zobrist_key(), recompute_zobrist(pos));
-    // S10-C2B: NNUE candidate profiles fail closed without a loaded model.
-    if profile.uses_nnue_eval() && nnue.is_none() {
-        eprintln!("ucioops: NNUE profile requires a loaded quantized model (fail closed)");
-        return None;
-    }
     ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
     let mut path = SearchPath::new(game_history.to_vec());
     let root_len = path.len();
@@ -8294,11 +6731,10 @@ fn search_best_move_impl(
     pos: &mut Position,
     limits: &SearchLimits,
     ctx: &SearchContext,
-    // M4.1: threaded through to non-root negamax. Non-M4Reference profiles
-    // (`M41Reference` and `Current`) apply killer (Commit 3) + history
-    // (Commit 4) ordering; `M4Reference` preserves the M4.0 search policy
-    // without those heuristics. The current evaluation may still change
-    // scores, PVs, and node counts relative to historical pre-EVAL output.
+    // M4.1: threaded through to non-root negamax; killer (Commit 3) +
+    // history (Commit 4) ordering applies. The current evaluation may still
+    // change scores, PVs, and node counts relative to historical pre-EVAL
+    // output.
     _profile: SearchProfile,
     path: &mut SearchPath,
     tt: &mut TranspositionTable,
@@ -8310,12 +6746,13 @@ fn search_best_move_impl(
         SearchFeaturePolicy::for_profile(_profile, ctx.diagnostics.as_ref()).to_bits(),
         Ordering::Relaxed,
     );
-    ctx.legality_fast
-        .store(_profile.uses_legality_fast(), Ordering::Relaxed);
+    // Promoted S4.3E/S4.4E/S5.0D production policy bits: CurrentFinal only.
+    let current_final = matches!(_profile, SearchProfile::CurrentFinal);
+    ctx.legality_fast.store(current_final, Ordering::Relaxed);
     ctx.single_buffer_legal
-        .store(_profile.uses_single_buffer_legal(), Ordering::Relaxed);
+        .store(current_final, Ordering::Relaxed);
     ctx.single_generation_probe
-        .store(_profile.uses_single_generation_probe(), Ordering::Relaxed);
+        .store(current_final, Ordering::Relaxed);
     // S5.0A: the root's own legal list (generated once; not duplicated).
     ctx.add_profile_counter(&ctx.root_generations, 1);
     let mut root_moves = generate_legal_moves_profiled(pos, ctx);
@@ -8352,17 +6789,11 @@ fn search_best_move_impl(
         }
     }
 
-    // M4.1 Commit 3: build the per-search heuristic state ONLY for
-    // non-M4Reference profiles (`M41Reference` and `Current`).
-    // `M4Reference` skips it entirely (no killer/history ordering),
-    // preserving the M4Reference search policy. The table
-    // lives for the whole iterative-deepening loop and is dropped on
-    // return (re-zeroed for the next independent `go`).
-    let mut heuristics: Option<SearchHeuristics> = if _profile != SearchProfile::M4Reference {
-        Some(SearchHeuristics::new())
-    } else {
-        None
-    };
+    // M4.1 Commit 3: build the per-search heuristic state (killer/history
+    // ordering). Both remaining profiles apply it; the table lives for the
+    // whole iterative-deepening loop and is dropped on return (re-zeroed for
+    // the next independent `go`).
+    let mut heuristics: Option<SearchHeuristics> = Some(SearchHeuristics::new());
 
     // Root draw handling. The automatic insufficient-material draw is a
     // direct return (score 0, stable fallback, empty PV). The fifty-move and
@@ -8490,27 +6921,9 @@ fn search_best_move_impl(
                         Ordering::Relaxed,
                     );
                 }
-                // The threat-aware candidate reuses all scores observed in
-                // the completed iteration to seed the next root order. The
-                // approved profiles retain the historical best-move lift.
-                if _profile.uses_threat_ordering() {
-                    reorder_root_moves_by_previous_scores(&mut root_moves, &move_scores, ctx);
-                } else if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
+                // The approved profiles retain the historical best-move lift.
+                if let Some(idx) = root_moves.iter().position(|m| *m == best_move) {
                     root_moves.swap(0, idx);
-                }
-                // S4.1 candidate: after the previous best is lifted to index 0,
-                // sort only the remaining QUIET root moves by the existing
-                // history heuristic (descending, stable). No root killers, no
-                // static-eval ordering, no history-update changes.
-                if _profile.uses_root_quiet_history() {
-                    order_root_quiets_by_history(pos, &mut root_moves, heuristics.as_ref());
-                }
-                // S4.1b candidate: sort only the remaining QUIET root moves by
-                // the previous completed iteration's root scores (descending,
-                // stable). No history/killer/static-eval/threat signal; no PVS
-                // or re-search changes.
-                if _profile.uses_root_prev_score() {
-                    order_root_quiets_by_prev_scores(pos, &mut root_moves, &move_scores);
                 }
                 // Standard UCI info: nodes from the atomic counter, time
                 // from the search start, nps = nodes*1000/ms. nps is guarded
@@ -8806,7 +7219,7 @@ mod tests {
     }
 
     #[test]
-    fn see_filter_is_enabled_only_for_see_profile() {
+    fn see_filter_is_disabled_for_both_profiles() {
         fn see_stats_for(profile: SearchProfile) -> (u64, u64) {
             let mut pos = parse_fen(MVV_POS).unwrap();
             let key = pos.zobrist_key();
@@ -8831,35 +7244,31 @@ mod tests {
             )
         }
 
-        assert_eq!(see_stats_for(SearchProfile::M4Reference), (0, 0));
-        assert_eq!(see_stats_for(SearchProfile::M41Reference), (0, 0));
+        // SEE is ordering-only and was never part of either surviving policy.
+        assert!(!SearchProfile::Current.uses_see());
+        assert!(!SearchProfile::CurrentFinal.uses_see());
         assert_eq!(see_stats_for(SearchProfile::Current), (0, 0));
-        let (see_calls, see_pruned) = see_stats_for(SearchProfile::SeeCandidate);
-        assert!(see_calls > 0);
-        assert_eq!(see_pruned, 0, "SEE is ordering-only");
+        assert_eq!(see_stats_for(SearchProfile::CurrentFinal), (0, 0));
     }
 
     #[test]
     fn cumulative_profiles_enable_exactly_the_declared_features() {
         let cases = [
-            (SearchProfile::Current, false, false, false, false),
-            (SearchProfile::CurrentAspiration, false, true, false, false),
+            // (profile, lmr, futility, null_move, qsearch_movegen, eval2,
+            //  single_evasion_extension)
             (
-                SearchProfile::CurrentAspirationLmr,
+                SearchProfile::Current,
+                false,
+                false,
                 false,
                 true,
-                true,
+                false,
                 false,
             ),
             (
-                SearchProfile::CurrentAspirationLmrFutility,
-                false,
+                SearchProfile::CurrentFinal,
                 true,
                 true,
-                true,
-            ),
-            (
-                SearchProfile::CurrentAspirationLmrFutilitySee,
                 true,
                 true,
                 true,
@@ -8867,211 +7276,40 @@ mod tests {
             ),
         ];
 
-        for (profile, see, aspiration, lmr, futility) in cases {
+        for (profile, lmr, futility, null_move, qsearch_movegen, eval2, single_evasion) in cases {
+            assert!(profile.uses_pvs(), "profile lost PVS: {profile:?}");
             assert!(
-                profile.uses_pvs(),
-                "cumulative profile lost PVS: {profile:?}"
-            );
-            assert_eq!(profile.uses_see(), see, "SEE contract: {profile:?}");
-            assert_eq!(
                 profile.uses_aspiration(),
-                aspiration,
-                "aspiration contract: {profile:?}"
+                "profile lost aspiration: {profile:?}"
             );
+            assert!(!profile.uses_see(), "SEE contract: {profile:?}");
             assert_eq!(profile.uses_lmr(), lmr, "LMR contract: {profile:?}");
             assert_eq!(
                 profile.uses_futility(),
                 futility,
                 "futility contract: {profile:?}"
             );
-            assert!(
-                !profile.uses_null_move(),
-                "null probe must stay outside cumulative stack: {profile:?}"
+            assert_eq!(
+                profile.uses_null_move(),
+                null_move,
+                "null probe contract: {profile:?}"
             );
-        }
-
-        assert!(SearchProfile::Current.uses_pvs());
-        assert!(!SearchProfile::Current.uses_see());
-        assert!(!SearchProfile::Current.uses_aspiration());
-        assert!(!SearchProfile::Current.uses_lmr());
-        assert!(!SearchProfile::Current.uses_futility());
-        assert!(SearchProfile::Current.uses_qsearch_movegen());
-        assert!(!SearchProfile::Current.uses_qsearch_pruning());
-        assert!(SearchProfile::CurrentLmr.uses_pvs());
-        assert!(SearchProfile::CurrentLmr.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentLmr.uses_lmr());
-        assert!(!SearchProfile::CurrentLmr.uses_see());
-        assert!(!SearchProfile::CurrentLmr.uses_aspiration());
-        assert!(!SearchProfile::CurrentLmr.uses_null_move());
-        assert!(!SearchProfile::CurrentLmr.uses_futility());
-        assert!(!SearchProfile::CurrentLmr.uses_qsearch_pruning());
-        assert!(SearchProfile::CurrentThreatAware.uses_pvs());
-        assert!(SearchProfile::CurrentThreatAware.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentThreatAware.uses_threat_aware_eval());
-        assert!(SearchProfile::CurrentThreatAware.uses_threat_ordering());
-        assert!(SearchProfile::CurrentThreatAware.uses_threat_aware_qsearch());
-        assert!(SearchProfile::CurrentThreatAware.uses_forcing_search());
-        assert!(!SearchProfile::CurrentThreatAware.uses_see());
-        assert!(!SearchProfile::CurrentThreatAware.uses_aspiration());
-        assert!(!SearchProfile::CurrentThreatAware.uses_lmr());
-        assert!(!SearchProfile::CurrentThreatAware.uses_null_move());
-        assert!(!SearchProfile::CurrentThreatAware.uses_futility());
-        assert!(!SearchProfile::CurrentThreatAware.uses_qsearch_pruning());
-        for profile in [
-            SearchProfile::CurrentThreatAwareNoQchecks,
-            SearchProfile::CurrentThreatAwareEvalOrder,
-        ] {
-            assert!(profile.uses_pvs());
-            assert!(profile.uses_qsearch_movegen());
-            assert!(profile.uses_threat_aware_eval());
-            assert!(profile.uses_threat_ordering());
-            assert!(!profile.uses_see());
-            assert!(!profile.uses_aspiration());
-            assert!(!profile.uses_lmr());
-            assert!(!profile.uses_null_move());
-            assert!(!profile.uses_futility());
-            assert!(!profile.uses_qsearch_pruning());
-        }
-        assert!(SearchProfile::CurrentThreatAwareNoQchecks.uses_forcing_search());
-        assert!(!SearchProfile::CurrentThreatAwareNoQchecks.uses_threat_aware_qsearch());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_forcing_search());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOrder.uses_threat_aware_qsearch());
-        assert!(SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_aware_eval());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_ordering());
-        assert!(SearchProfile::CurrentThreatAwareEvalOnly.uses_pvs());
-        assert!(SearchProfile::CurrentThreatAwareEvalOnly.uses_qsearch_movegen());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_aspiration());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_lmr());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_null_move());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_futility());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_see());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_qsearch_pruning());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_forcing_search());
-        assert!(!SearchProfile::CurrentThreatAwareEvalOnly.uses_threat_aware_qsearch());
-        assert!(SearchProfile::CurrentThreatAwareOrderOnly.uses_pvs());
-        assert!(SearchProfile::CurrentThreatAwareOrderOnly.uses_qsearch_movegen());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_aspiration());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_lmr());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_null_move());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_futility());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_see());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_qsearch_pruning());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_aware_eval());
-        assert!(SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_ordering());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_forcing_search());
-        assert!(!SearchProfile::CurrentThreatAwareOrderOnly.uses_threat_aware_qsearch());
-        assert!(!SearchProfile::Current.uses_threat_aware_eval());
-        assert!(!SearchProfile::Current.uses_eval2());
-        assert!(SearchProfile::CurrentEval2.uses_pvs());
-        assert!(SearchProfile::CurrentEval2.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentEval2.uses_eval2());
-        assert!(!SearchProfile::CurrentEval2.uses_threat_aware_eval());
-        assert!(!SearchProfile::CurrentEval2.uses_threat_ordering());
-        assert!(!SearchProfile::CurrentEval2.uses_forcing_search());
-        assert!(!SearchProfile::CurrentEval2.uses_threat_aware_qsearch());
-        assert!(!SearchProfile::CurrentEval2.uses_aspiration());
-        assert!(!SearchProfile::CurrentEval2.uses_lmr());
-        assert!(!SearchProfile::CurrentEval2.uses_null_move());
-        assert!(!SearchProfile::CurrentEval2.uses_futility());
-        assert!(!SearchProfile::CurrentEval2.uses_see());
-        assert!(!SearchProfile::CurrentEval2.uses_qsearch_pruning());
-        assert!(SearchProfile::CurrentQsearchMovegen.uses_pvs());
-        assert!(SearchProfile::CurrentQsearchMovegen.uses_qsearch_movegen());
-        assert!(!SearchProfile::CurrentQsearchMovegen.uses_see());
-        assert!(!SearchProfile::CurrentQsearchMovegen.uses_aspiration());
-        assert!(!SearchProfile::CurrentQsearchMovegen.uses_lmr());
-        assert!(!SearchProfile::CurrentQsearchMovegen.uses_futility());
-        assert!(!SearchProfile::CurrentQsearchMovegen.uses_null_move());
-        assert!(SearchProfile::CurrentQsearchPruning.uses_pvs());
-        assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentQsearchPruning.uses_qsearch_pruning());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_qsearch_fast_pruning());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_see());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_aspiration());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_lmr());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_futility());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_null_move());
-        assert!(SearchProfile::CurrentQsearchFastPruning.uses_pvs());
-        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_pruning());
-        assert!(SearchProfile::CurrentQsearchFastPruning.uses_qsearch_fast_pruning());
-        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_see());
-        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_aspiration());
-        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_lmr());
-        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_futility());
-        assert!(!SearchProfile::CurrentQsearchFastPruning.uses_null_move());
-        assert!(SearchProfile::CurrentFinal.uses_pvs());
-        assert!(!SearchProfile::CurrentFinal.uses_see());
-        assert!(SearchProfile::CurrentFinal.uses_aspiration());
-        assert!(SearchProfile::CurrentFinal.uses_lmr());
-        assert!(SearchProfile::CurrentFinal.uses_null_move());
-        assert!(SearchProfile::CurrentFinal.uses_futility());
-        assert!(SearchProfile::CurrentFinal.uses_qsearch_movegen());
-        assert!(SearchProfile::CurrentFinal.uses_qsearch_pruning());
-        assert!(!SearchProfile::CurrentFinal.uses_qsearch_fast_pruning());
-        assert!(SearchProfile::CurrentFinal.uses_eval2());
-        assert!(!SearchProfile::CurrentFinal.uses_threat_aware_eval());
-        assert!(!SearchProfile::CurrentFinal.uses_threat_ordering());
-        assert!(!SearchProfile::CurrentFinal.uses_forcing_search());
-        assert!(!SearchProfile::CurrentFinal.uses_threat_aware_qsearch());
-        for profile in [
-            SearchProfile::CurrentAspiration,
-            SearchProfile::CurrentAspirationLmr,
-            SearchProfile::CurrentAspirationLmrFutility,
-            SearchProfile::CurrentAspirationLmrFutilitySee,
-        ] {
-            assert!(
+            assert_eq!(
                 profile.uses_qsearch_movegen(),
-                "Current-based candidate lost integrated qsearch movegen: {profile:?}"
+                qsearch_movegen,
+                "qsearch movegen contract: {profile:?}"
+            );
+            assert_eq!(
+                profile.uses_eval2(),
+                eval2,
+                "integrated positional eval contract: {profile:?}"
+            );
+            assert_eq!(
+                profile.uses_single_evasion_extension(),
+                single_evasion,
+                "single-evasion extension contract: {profile:?}"
             );
         }
-    }
-
-    #[test]
-    fn aspiration_is_isolated_and_preserves_search_state() {
-        let pos = parse_fen(START_FEN).unwrap();
-        let key = pos.zobrist_key();
-        let before_fen = to_fen(&pos);
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let mut reference_pos = pos;
-        let reference_ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let reference = search_best_move_with_history_tt_and_profile(
-            &mut reference_pos,
-            &[key],
-            &limits,
-            &reference_ctx,
-            &mut TranspositionTable::disabled(),
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("reference search must complete");
-
-        let mut aspiration_pos = pos;
-        let aspiration_ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let aspiration = search_best_move_with_history_tt_and_profile(
-            &mut aspiration_pos,
-            &[key],
-            &limits,
-            &aspiration_ctx,
-            &mut TranspositionTable::disabled(),
-            SearchProfile::AspirationCandidate,
-            None,
-        )
-        .expect("aspiration search must complete");
-
-        assert_eq!(reference.score, aspiration.score);
-        assert_eq!(to_fen(&reference_pos), before_fen);
-        assert_eq!(to_fen(&aspiration_pos), before_fen);
-        assert_eq!(aspiration.completed_depth, 3);
-        assert_eq!(
-            aspiration_ctx.aspiration_retries.load(Ordering::Relaxed),
-            aspiration_ctx.aspiration_fail_low.load(Ordering::Relaxed)
-                + aspiration_ctx.aspiration_fail_high.load(Ordering::Relaxed)
-        );
     }
 
     #[test]
@@ -9148,297 +7386,6 @@ mod tests {
     }
 
     #[test]
-    fn root_quiet_history_orders_only_quiet_slots() {
-        let pos = parse_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5")
-            .unwrap();
-        let cap1 = find_move(&pos, "f3e5");
-        let cap2 = find_move(&pos, "c4f7");
-        let q1 = find_move(&pos, "d3d4");
-        let q2 = find_move(&pos, "a2a3");
-        let q3 = find_move(&pos, "c2c3");
-        assert!(is_tactical(&pos, cap1) && is_tactical(&pos, cap2));
-        assert!(!is_tactical(&pos, q1) && !is_tactical(&pos, q2) && !is_tactical(&pos, q3));
-
-        let mut h = SearchHeuristics::new();
-        let color = pos.side_to_move() as usize;
-        h.history[color][q1.from as usize][q1.to as usize] = 100;
-        h.history[color][q2.from as usize][q2.to as usize] = 9000;
-        h.history[color][q3.from as usize][q3.to as usize] = 100;
-
-        let mut moves = vec![cap1, q1, cap2, q2, q3];
-        let mut before: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
-        before.sort();
-        order_root_quiets_by_history(&pos, &mut moves, Some(&h));
-        let mut after: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
-        after.sort();
-        assert_eq!(before, after, "no move is added or dropped");
-        assert_eq!(moves[0], cap1, "previous best at index 0 is preserved");
-        assert_eq!(moves[1], q2, "highest-history quiet is searched first");
-        assert_eq!(moves[2], cap2, "tactical move keeps its slot");
-        assert_eq!(
-            moves[3], q1,
-            "equal-history quiets keep input order (q1 before q3)"
-        );
-        assert_eq!(moves[4], q3);
-    }
-
-    #[test]
-    fn root_quiet_history_keeps_tactical_slots_and_previous_best() {
-        let pos = parse_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5")
-            .unwrap();
-        let cap1 = find_move(&pos, "f3e5");
-        let q1 = find_move(&pos, "d3d4");
-        let q2 = find_move(&pos, "a2a3");
-
-        // Empty history: the quiet sort must be a no-op permutation.
-        let h = SearchHeuristics::new();
-        let mut moves = vec![cap1, q1, q2];
-        let before = moves.clone();
-        order_root_quiets_by_history(&pos, &mut moves, Some(&h));
-        assert_eq!(moves, before, "zero history leaves the order untouched");
-    }
-
-    #[test]
-    fn root_quiet_history_profile_matches_current_final_at_fixed_depth() {
-        // The candidate inherits every CurrentFinal feature; only root quiet
-        // ordering differs, which does not change the minimax value.
-        let pos = parse_fen(START_FEN).unwrap();
-        let hist = vec![pos.zobrist_key()];
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        let run = |profile: SearchProfile| -> SearchOutcome {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let mut tt = TranspositionTable::disabled();
-            search_best_move_with_history_tt_and_profile(
-                &mut pos.clone(),
-                &hist,
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("outcome")
-        };
-        let cf = run(SearchProfile::CurrentFinal);
-        let rh = run(SearchProfile::CurrentFinalRootHistory);
-        assert_eq!(rh.score, cf.score, "same minimax score at fixed depth");
-        assert_eq!(rh.best_move, cf.best_move, "same best move at fixed depth");
-        assert_eq!(rh.completed_depth, cf.completed_depth);
-        assert!(!rh.stopped && !cf.stopped);
-    }
-
-    #[test]
-    fn root_prev_score_orders_only_quiet_slots() {
-        let pos = parse_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5")
-            .unwrap();
-        let cap1 = find_move(&pos, "f3e5");
-        let cap2 = find_move(&pos, "c4f7");
-        let q1 = find_move(&pos, "d3d4");
-        let q2 = find_move(&pos, "a2a3");
-        let q3 = find_move(&pos, "c2c3");
-
-        let previous_scores = vec![(q1, 50), (q2, 120), (q3, 50), (cap1, 999), (cap2, 800)];
-        let mut moves = vec![cap1, q1, cap2, q2, q3];
-        let mut before: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
-        before.sort();
-        order_root_quiets_by_prev_scores(&pos, &mut moves, &previous_scores);
-        let mut after: Vec<String> = moves.iter().map(|m| move_to_uci(*m)).collect();
-        after.sort();
-        assert_eq!(before, after, "no move is added or dropped");
-        assert_eq!(moves[0], cap1, "previous best at index 0 is preserved");
-        assert_eq!(
-            moves[1], q2,
-            "highest previous-score quiet is searched first"
-        );
-        assert_eq!(moves[2], cap2, "tactical move keeps its slot");
-        assert_eq!(
-            moves[3], q1,
-            "equal previous-score quiets keep input order (q1 before q3)"
-        );
-        assert_eq!(moves[4], q3);
-    }
-
-    #[test]
-    fn root_prev_score_profile_matches_current_final_at_fixed_depth() {
-        // The candidate inherits every CurrentFinal feature; only root quiet
-        // ordering differs, which does not change the minimax value.
-        let pos = parse_fen(START_FEN).unwrap();
-        let hist = vec![pos.zobrist_key()];
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        let run = |profile: SearchProfile| -> SearchOutcome {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let mut tt = TranspositionTable::disabled();
-            search_best_move_with_history_tt_and_profile(
-                &mut pos.clone(),
-                &hist,
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("outcome")
-        };
-        let cf = run(SearchProfile::CurrentFinal);
-        let ps = run(SearchProfile::CurrentFinalRootPrevScore);
-        assert_eq!(ps.score, cf.score, "same minimax score at fixed depth");
-        assert_eq!(ps.best_move, cf.best_move, "same best move at fixed depth");
-        assert_eq!(ps.completed_depth, cf.completed_depth);
-        assert!(!ps.stopped && !cf.stopped);
-    }
-
-    #[test]
-    fn legality_fast_profile_matches_current_final_search_tree() {
-        // S4.3B: identical legal lists and order -> identical fixed-depth
-        // search tree (nodes, score, bestmove).
-        let pos = parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-        let hist = vec![pos.zobrist_key()];
-        let limits = SearchLimits {
-            depth: Some(4),
-            ..Default::default()
-        };
-        let run = |profile: SearchProfile| -> (SearchOutcome, u64) {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let mut tt = TranspositionTable::disabled();
-            let out = search_best_move_with_history_tt_and_profile(
-                &mut pos.clone(),
-                &hist,
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("outcome");
-            (out, ctx.nodes.load(Ordering::Relaxed))
-        };
-        let (cf, cf_nodes) = run(SearchProfile::CurrentFinal);
-        let (lf, lf_nodes) = run(SearchProfile::CurrentFinalLegalityFast);
-        assert_eq!(lf_nodes, cf_nodes, "identical node count at fixed depth");
-        assert_eq!(lf.score, cf.score, "identical score");
-        assert_eq!(lf.best_move, cf.best_move, "identical best move");
-        assert_eq!(lf.completed_depth, cf.completed_depth);
-        assert_eq!(lf.pv, cf.pv, "identical PV");
-    }
-
-    #[test]
-    fn single_buffer_profile_matches_current_final_search_tree() {
-        // S4.4B: single-buffer full-legal materialization produces identical
-        // ordered move lists -> identical fixed-depth search tree (nodes,
-        // score, bestmove, PV) on every corpus-class position.
-        let positions = [
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
-            "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
-            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
-            "4k3/8/8/8/8/4r3/4K3/8 w - - 0 1",
-            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-        ];
-        let run = |pos: &Position, profile: SearchProfile| -> (SearchOutcome, u64) {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let mut tt = TranspositionTable::disabled();
-            let hist = vec![pos.zobrist_key()];
-            let limits = SearchLimits {
-                depth: Some(4),
-                ..Default::default()
-            };
-            let out = search_best_move_with_history_tt_and_profile(
-                &mut pos.clone(),
-                &hist,
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("outcome");
-            (out, ctx.nodes.load(Ordering::Relaxed))
-        };
-        for fen in positions {
-            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
-            let (cf, cf_nodes) = run(&pos, SearchProfile::CurrentFinal);
-            let (sb, sb_nodes) = run(&pos, SearchProfile::CurrentFinalSingleBuffer);
-            assert_eq!(sb_nodes, cf_nodes, "identical node count for {fen}");
-            assert_eq!(sb.score, cf.score, "identical score for {fen}");
-            assert_eq!(sb.best_move, cf.best_move, "identical best move for {fen}");
-            assert_eq!(sb.completed_depth, cf.completed_depth, "for {fen}");
-            assert_eq!(sb.pv, cf.pv, "identical PV for {fen}");
-        }
-    }
-
-    #[test]
-    fn single_generation_profile_matches_current_final_search_tree() {
-        // S5.0B: probe uses has-any instead of a discarded full legal list ->
-        // identical emptiness decision -> identical fixed-depth search tree.
-        let positions = [
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            "4k3/8/8/8/4q3/8/4N3/4K3 w - - 0 1",
-            "4k3/8/8/3pP3/4q3/8/8/4K3 w - d6 0 1",
-            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
-            "4k3/8/8/8/8/4r3/4K3/8 w - - 0 1",
-            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-            "4k3/8/8/8/4q3/8/4P3/4K3 w - - 0 1", // mate/claim-adjacent lines
-        ];
-        let run = |pos: &Position, profile: SearchProfile| -> (SearchOutcome, u64) {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let mut tt = TranspositionTable::disabled();
-            let hist = vec![pos.zobrist_key()];
-            let limits = SearchLimits {
-                depth: Some(4),
-                ..Default::default()
-            };
-            let out = search_best_move_with_history_tt_and_profile(
-                &mut pos.clone(),
-                &hist,
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("outcome");
-            (out, ctx.nodes.load(Ordering::Relaxed))
-        };
-        for fen in positions {
-            let pos = parse_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
-            let (cf, cf_nodes) = run(&pos, SearchProfile::CurrentFinal);
-            let (sg, sg_nodes) = run(&pos, SearchProfile::CurrentFinalSingleGeneration);
-            assert_eq!(sg_nodes, cf_nodes, "identical node count for {fen}");
-            assert_eq!(sg.score, cf.score, "identical score for {fen}");
-            assert_eq!(sg.best_move, cf.best_move, "identical best move for {fen}");
-            assert_eq!(sg.completed_depth, cf.completed_depth, "for {fen}");
-            assert_eq!(sg.pv, cf.pv, "identical PV for {fen}");
-        }
-    }
-
-    #[test]
-    fn legality_fast_promotion_policy() {
-        // S4.3E: the unpinned non-check legality fast path is production
-        // policy for CurrentFinal and its "exactly CurrentFinal + X"
-        // derivatives; historical/experimental profiles keep legacy behavior.
-        assert!(SearchProfile::CurrentFinal.uses_legality_fast());
-        assert!(SearchProfile::CurrentFinalRootHistory.uses_legality_fast());
-        assert!(SearchProfile::CurrentFinalRootPrevScore.uses_legality_fast());
-        assert!(SearchProfile::CurrentFinalLegalityFast.uses_legality_fast());
-        assert!(!SearchProfile::Current.uses_legality_fast());
-        assert!(!SearchProfile::CurrentLmr.uses_legality_fast());
-        assert!(!SearchProfile::CurrentEval2.uses_legality_fast());
-        assert!(!SearchProfile::M4Reference.uses_legality_fast());
-        assert!(!SearchProfile::CurrentThreatAware.uses_legality_fast());
-        assert!(!SearchProfile::CurrentAspiration.uses_legality_fast());
-        assert!(!SearchProfile::CurrentQsearchPruning.uses_legality_fast());
-    }
-
-    #[test]
     fn record_seldepth_tracks_max_global_ply() {
         // R0 Repair 2: seldepth accounting is decoupled from any search-tree
         // shape. The helper records the deepest GLOBAL ply seen and never
@@ -9493,49 +7440,6 @@ mod tests {
     }
 
     #[test]
-    fn single_buffer_promotion_policy() {
-        // S4.4E: single-buffer full-legal materialization is production
-        // policy for CurrentFinal and every profile whose base semantics are
-        // defined as CurrentFinal. The S5.0B candidate inherits it (it is
-        // now "promoted CurrentFinal + has-any probe").
-        for p in [
-            SearchProfile::CurrentFinal,
-            SearchProfile::CurrentFinalRootHistory,
-            SearchProfile::CurrentFinalRootPrevScore,
-            SearchProfile::CurrentFinalLegalityFast,
-            SearchProfile::CurrentFinalSingleBuffer,
-            SearchProfile::CurrentFinalSingleGeneration,
-        ] {
-            assert!(p.uses_single_buffer_legal(), "{p:?} must use single-buffer");
-        }
-        for p in [
-            SearchProfile::Current,
-            SearchProfile::CurrentLmr,
-            SearchProfile::CurrentEval2,
-            SearchProfile::M4Reference,
-            SearchProfile::CurrentThreatAware,
-            SearchProfile::CurrentAspiration,
-            SearchProfile::CurrentQsearchPruning,
-        ] {
-            assert!(
-                !p.uses_single_buffer_legal(),
-                "{p:?} must NOT use single-buffer"
-            );
-        }
-        // S5.0D: the has-any probe is production policy for CurrentFinal and
-        // its family; the S5.0B alias is a historical identity.
-        assert!(SearchProfile::CurrentFinal.uses_single_generation_probe());
-        assert!(SearchProfile::CurrentFinalRootHistory.uses_single_generation_probe());
-        assert!(SearchProfile::CurrentFinalRootPrevScore.uses_single_generation_probe());
-        assert!(SearchProfile::CurrentFinalLegalityFast.uses_single_generation_probe());
-        assert!(SearchProfile::CurrentFinalSingleBuffer.uses_single_generation_probe());
-        assert!(SearchProfile::CurrentFinalSingleGeneration.uses_single_generation_probe());
-        assert!(!SearchProfile::Current.uses_single_generation_probe());
-        assert!(!SearchProfile::CurrentLmr.uses_single_generation_probe());
-        assert!(!SearchProfile::M4Reference.uses_single_generation_probe());
-    }
-
-    #[test]
     fn null_move_guards_and_state_are_exact() {
         let pos = parse_fen(START_FEN).unwrap();
         let null_pos = make_null_position(&pos);
@@ -9577,7 +7481,7 @@ mod tests {
             1,
             &ctx,
             &limits,
-            SearchProfile::NullMoveCandidate,
+            SearchProfile::CurrentFinal,
             &mut pv,
             &mut path,
             &mut tt,
@@ -9593,8 +7497,8 @@ mod tests {
         let start = parse_fen(START_FEN).unwrap();
         let quiet = find_move(&start, "e2e3");
         assert!(!is_pawn_promotion_threat(&start, quiet));
-        assert!(!SearchProfile::M4Reference.uses_futility());
-        assert!(SearchProfile::FutilityCandidate.uses_futility());
+        assert!(!SearchProfile::Current.uses_futility());
+        assert!(SearchProfile::CurrentFinal.uses_futility());
 
         let advanced = parse_fen("6k1/4P3/8/8/8/8/8/6K1 w - - 0 1").unwrap();
         let push = find_move(&advanced, "e7e8q");
@@ -9652,7 +7556,7 @@ mod tests {
             "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
 
         let (first, first_stats) =
-            run_profile_candidate(OPEN_TACTICAL, SearchProfile::LmrCandidate);
+            run_profile_candidate(OPEN_TACTICAL, SearchProfile::CurrentFinal);
         assert!(first.score.is_some());
         assert!(!first.pv.is_empty());
         assert!(
@@ -9668,7 +7572,7 @@ mod tests {
         // result and counters, proving that the reduced/researched PV did not
         // leak board, PV, TT, or heuristic state across calls.
         let (second, second_stats) =
-            run_profile_candidate(OPEN_TACTICAL, SearchProfile::LmrCandidate);
+            run_profile_candidate(OPEN_TACTICAL, SearchProfile::CurrentFinal);
         assert_eq!(second.score, first.score);
         assert_eq!(second.best_move, first.best_move);
         assert_eq!(second.pv, first.pv);
@@ -9683,155 +7587,11 @@ mod tests {
     }
 
     #[test]
-    fn current_lmr_isolated_from_current_and_other_candidates() {
-        const OPEN_TACTICAL: &str =
-            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
-
-        let (_, current_stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::Current);
-        let (lmr, lmr_stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::CurrentLmr);
-
-        assert!(lmr.score.is_some());
-        assert!(!lmr.pv.is_empty());
-        assert_eq!(current_stats.lmr_reductions, 0);
-        assert_eq!(current_stats.lmr_researches, 0);
-        assert!(lmr_stats.lmr_reductions > 0);
-        assert!(lmr_stats.lmr_researches > 0);
-        assert_eq!(lmr_stats.aspiration_retries, 0);
-        assert_eq!(lmr_stats.null_move_attempts, 0);
-        assert_eq!(lmr_stats.futility_pruned, 0);
-        assert_eq!(lmr_stats.qsearch_see_tests, 0);
-    }
-
-    #[test]
-    fn current_threat_aware_isolated_from_search_candidates() {
-        const KING_DANGER: &str = "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1";
-
-        let (_, current_stats) =
-            run_profile_candidate_with_nodes(KING_DANGER, SearchProfile::Current, 8_000);
-        let (threat, threat_stats) =
-            run_profile_candidate_with_nodes(KING_DANGER, SearchProfile::CurrentThreatAware, 8_000);
-
-        assert!(threat.score.is_some());
-        assert!(!threat.pv.is_empty());
-        assert_eq!(current_stats.lmr_reductions, 0);
-        assert_eq!(threat_stats.lmr_reductions, 0);
-        assert_eq!(threat_stats.aspiration_retries, 0);
-        assert_eq!(threat_stats.null_move_attempts, 0);
-        assert_eq!(threat_stats.futility_pruned, 0);
-        assert_eq!(threat_stats.qsearch_see_tests, 0);
-        assert_ne!(
-            current_stats.qsearch_nodes, 0,
-            "candidate isolation fixture must reach qsearch"
-        );
-    }
-
-    #[test]
-    fn current_eval2_isolated_from_search_candidates() {
-        const POSITION: &str = "r3k2r/ppp2ppp/2n5/3q4/3P4/2N5/PPP2PPP/R3K2R w KQkq - 0 1";
-
-        let position = parse_fen(POSITION).unwrap();
-        assert_ne!(
-            evaluate(&position),
-            evaluate_integrated_positional(&position),
-            "the E2 fixture must exercise the candidate evaluator"
-        );
-
-        let (_, current_stats) =
-            run_profile_candidate_with_nodes(POSITION, SearchProfile::Current, 8_000);
-        let (eval2, eval2_stats) =
-            run_profile_candidate_with_nodes(POSITION, SearchProfile::CurrentEval2, 8_000);
-
-        assert!(eval2.score.is_some());
-        assert!(!eval2.pv.is_empty());
-        for stats in [current_stats, eval2_stats] {
-            assert_eq!(stats.aspiration_retries, 0);
-            assert_eq!(stats.lmr_reductions, 0);
-            assert_eq!(stats.null_move_attempts, 0);
-            assert_eq!(stats.futility_pruned, 0);
-            assert_eq!(stats.qsearch_see_tests, 0);
-            assert_eq!(stats.check_extensions, 0);
-            assert_eq!(stats.single_evasion_extensions, 0);
-            assert_eq!(stats.qsearch_check_moves, 0);
-            assert_eq!(stats.threat_ordered_moves, 0);
-            assert_eq!(stats.root_reorders, 0);
-        }
-        assert_ne!(eval2_stats.eval_calls, 0);
-    }
-
-    #[test]
-    fn threat_aware_forcing_extensions_and_qsearch_checks_are_bounded() {
-        let parent = parse_fen("4k3/8/8/8/8/8/4Q3/K7 w - - 0 1").unwrap();
-        let check = find_move(&parent, "e2e7");
-        let mut child = parent;
-        child.make_move(check);
-        let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-        let (child_depth, child_budget) = forcing_child_params(
-            &child,
-            4,
-            SearchProfile::CurrentThreatAware,
-            MAX_FORCING_EXTENSIONS,
-            false,
-            false,
-            &ctx,
-        );
-        assert_eq!(child_depth, 4, "a checking move must receive one extension");
-        assert_eq!(child_budget, MAX_FORCING_EXTENSIONS - 1);
-        assert_eq!(ctx.check_extensions.load(Ordering::Relaxed), 1);
-        let (single_depth, single_budget) = forcing_child_params(
-            &parent,
-            4,
-            SearchProfile::CurrentThreatAware,
-            child_budget,
-            true,
-            true,
-            &ctx,
-        );
-        assert_eq!(single_depth, 4, "a lone evasion must receive one extension");
-        assert_eq!(single_budget, child_budget - 1);
-        assert_eq!(ctx.single_evasion_extensions.load(Ordering::Relaxed), 1);
-
-        let limits = SearchLimits::default();
-        let mut pv = PvTable::default();
-        let mut path = SearchPath::new(vec![parent.zobrist_key()]);
-        assert!(try_enter_node(&ctx, &limits));
-        let _ = quiescence_entered_impl_with_profile(
-            &mut parent.clone(),
-            0,
-            0,
-            i32::MIN + 1000,
-            i32::MAX - 1000,
-            &ctx,
-            &limits,
-            &mut pv,
-            &mut path,
-            SearchProfile::CurrentThreatAware,
-            true,
-            false,
-            false,
-            &mut None,
-        );
-        assert!(
-            ctx.qsearch_check_moves.load(Ordering::Relaxed) > 0,
-            "bounded qsearch must observe checking moves"
-        );
-
-        let (_, stats) = run_profile_candidate_with_nodes(
-            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5",
-            SearchProfile::CurrentThreatAware,
-            12_000,
-        );
-        assert!(stats.threat_ordered_moves > 0);
-        assert!(stats.root_reorders > 0);
-        assert!(stats.check_extensions > 0);
-        assert!(stats.single_evasion_extensions <= stats.check_extensions + 32);
-    }
-
-    #[test]
     fn futility_real_search_prunes_quiet_moves_and_restores_state() {
         const OPEN_TACTICAL: &str =
             "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5";
 
-        let (out, stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::FutilityCandidate);
+        let (out, stats) = run_profile_candidate(OPEN_TACTICAL, SearchProfile::CurrentFinal);
         assert!(out.score.is_some());
         assert!(!out.pv.is_empty());
         assert!(
@@ -9847,70 +7607,6 @@ mod tests {
     }
 
     #[test]
-    fn qsearch_movegen_integration_matches_pvs_reference_search_tree() {
-        let fixtures = [START_FEN, MVV_POS];
-        for fen in fixtures {
-            let mut reference_pos = parse_fen(fen).unwrap();
-            let reference_key = reference_pos.zobrist_key();
-            let reference_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let limits = SearchLimits {
-                depth: Some(3),
-                ..Default::default()
-            };
-            let reference = search_best_move_with_history_tt_and_profile(
-                &mut reference_pos,
-                &[reference_key],
-                &limits,
-                &reference_ctx,
-                &mut TranspositionTable::disabled(),
-                SearchProfile::PvsReference,
-                None,
-            )
-            .expect("PVS reference fixture must be non-terminal");
-            let reference_stats = reference_ctx.stats();
-
-            let mut current_pos = parse_fen(fen).unwrap();
-            let current_key = current_pos.zobrist_key();
-            let current_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let current = search_best_move_with_history_tt_and_profile(
-                &mut current_pos,
-                &[current_key],
-                &limits,
-                &current_ctx,
-                &mut TranspositionTable::disabled(),
-                SearchProfile::Current,
-                None,
-            )
-            .expect("Current fixture must be non-terminal");
-            let current_stats = current_ctx.stats();
-
-            assert_eq!(current.completed_depth, reference.completed_depth);
-            assert_eq!(current.score, reference.score);
-            assert_eq!(current.best_move, reference.best_move);
-            assert_eq!(current.pv, reference.pv);
-            assert_eq!(current_stats.nodes, reference_stats.nodes);
-            assert_eq!(current_stats.qsearch_nodes, reference_stats.qsearch_nodes);
-            assert_eq!(current_stats.eval_calls, reference_stats.eval_calls);
-            assert_eq!(current_stats.tt_probes, reference_stats.tt_probes);
-            assert_eq!(current_stats.tt_stores, reference_stats.tt_stores);
-            assert!(
-                current_stats.pseudo_moves < reference_stats.pseudo_moves,
-                "integrated qsearch must reduce pseudo-move work for {fen}"
-            );
-            assert!(
-                current_stats.make_moves < reference_stats.make_moves,
-                "integrated qsearch must reduce make/unmake work for {fen}"
-            );
-            assert_eq!(
-                current_stats.make_moves, current_stats.unmake_moves,
-                "Current make/unmake must balance for {fen}"
-            );
-        }
-    }
-
-    #[test]
     fn qsearch_movegen_preserves_checkmate_and_stalemate_scores() {
         fn run_qsearch(fen: &str, specialized: bool, pruning: bool) -> i32 {
             let mut pos = parse_fen(fen).unwrap();
@@ -9920,7 +7616,7 @@ mod tests {
             let mut pv = PvTable::default();
             let mut path = SearchPath::new(vec![key]);
             assert!(try_enter_node(&ctx, &limits));
-            quiescence_entered_impl(
+            quiescence_entered_impl_with_profile(
                 &mut pos,
                 0,
                 0,
@@ -9930,9 +7626,9 @@ mod tests {
                 &limits,
                 &mut pv,
                 &mut path,
+                SearchProfile::Current,
                 specialized,
                 pruning,
-                false,
                 &mut None,
             )
             .expect("unlimited qsearch must complete")
@@ -9954,166 +7650,6 @@ mod tests {
         }
         assert_eq!(run_qsearch(checkmate, true, true), -(MATE));
         assert_eq!(run_qsearch(stalemate, true, true), 0);
-    }
-
-    #[test]
-    fn s75a_single_evasion_profile_matches_promoted_current_final() {
-        use SearchProfile::{CurrentFinal, CurrentFinalSingleEvasion as Cand};
-
-        // The promoted candidate alias must remain identical to production.
-        assert_eq!(CurrentFinal.uses_pvs(), Cand.uses_pvs());
-        assert_eq!(CurrentFinal.uses_see(), Cand.uses_see());
-        assert_eq!(CurrentFinal.uses_aspiration(), Cand.uses_aspiration());
-        assert_eq!(CurrentFinal.uses_lmr(), Cand.uses_lmr());
-        assert_eq!(CurrentFinal.uses_null_move(), Cand.uses_null_move());
-        assert_eq!(CurrentFinal.uses_futility(), Cand.uses_futility());
-        assert_eq!(
-            CurrentFinal.uses_qsearch_movegen(),
-            Cand.uses_qsearch_movegen()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_pruning(),
-            Cand.uses_qsearch_pruning()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_fast_pruning(),
-            Cand.uses_qsearch_fast_pruning()
-        );
-        assert_eq!(CurrentFinal.uses_qsearch_lazy(), Cand.uses_qsearch_lazy());
-        assert_eq!(CurrentFinal.uses_qsearch_delta(), Cand.uses_qsearch_delta());
-        assert_eq!(
-            CurrentFinal.uses_root_quiet_history(),
-            Cand.uses_root_quiet_history()
-        );
-        assert_eq!(
-            CurrentFinal.uses_root_prev_score(),
-            Cand.uses_root_prev_score()
-        );
-        assert_eq!(CurrentFinal.uses_legality_fast(), Cand.uses_legality_fast());
-        assert_eq!(
-            CurrentFinal.uses_single_buffer_legal(),
-            Cand.uses_single_buffer_legal()
-        );
-        assert_eq!(
-            CurrentFinal.uses_single_generation_probe(),
-            Cand.uses_single_generation_probe()
-        );
-        assert_eq!(
-            CurrentFinal.uses_lmr_null_window(),
-            Cand.uses_lmr_null_window()
-        );
-        assert_eq!(CurrentFinal.uses_eval2(), Cand.uses_eval2());
-        assert_eq!(
-            CurrentFinal.uses_forcing_search(),
-            Cand.uses_forcing_search()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_ordering(),
-            Cand.uses_threat_ordering()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_qsearch(),
-            Cand.uses_threat_aware_qsearch()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_eval(),
-            Cand.uses_threat_aware_eval()
-        );
-
-        assert!(CurrentFinal.uses_single_evasion_extension());
-        assert!(Cand.uses_single_evasion_extension());
-        assert!(!Cand.uses_forcing_search());
-        assert!(Cand.uses_null_move());
-        assert!(Cand.uses_single_buffer_legal());
-        assert!(Cand.uses_single_generation_probe());
-        assert!(Cand.uses_lmr_null_window());
-
-        let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
-        let cand = SearchFeaturePolicy::for_profile(Cand, None);
-        assert_eq!(cf.lmr, cand.lmr);
-        assert_eq!(cf.futility, cand.futility);
-        assert_eq!(cf.null_move, cand.null_move);
-        assert_eq!(cf.qsearch_see, cand.qsearch_see);
-        assert_eq!(cf.qsearch_delta, cand.qsearch_delta);
-        assert_eq!(cf.lmr_null_window, cand.lmr_null_window);
-        assert!(cf.single_evasion_extension);
-        assert!(cand.single_evasion_extension);
-    }
-
-    #[test]
-    fn s75a_single_evasion_promotion_profile_family_is_exact() {
-        use SearchProfile::{
-            AspirationCandidate, Current, CurrentAspiration, CurrentAspirationLmr,
-            CurrentAspirationLmrFutility, CurrentAspirationLmrFutilitySee, CurrentEval2,
-            CurrentFinal, CurrentFinalBoundedCheck2, CurrentFinalLegalityFast,
-            CurrentFinalLmrNullWindow, CurrentFinalQsearchDelta, CurrentFinalQsearchLazy,
-            CurrentFinalRootHistory, CurrentFinalRootPrevScore, CurrentFinalSingleBuffer,
-            CurrentFinalSingleEvasion, CurrentFinalSingleGeneration, CurrentLmr,
-            CurrentQsearchFastPruning, CurrentQsearchMovegen, CurrentQsearchPruning,
-            CurrentThreatAware, CurrentThreatAwareEvalOnly, CurrentThreatAwareEvalOrder,
-            CurrentThreatAwareNoQchecks, CurrentThreatAwareOrderOnly, FutilityCandidate,
-            LmrCandidate, M41Reference, M4Reference, NullMoveCandidate, PvsReference, SeeCandidate,
-        };
-
-        let promoted = [
-            CurrentFinal,
-            CurrentFinalRootHistory,
-            CurrentFinalRootPrevScore,
-            CurrentFinalLegalityFast,
-            CurrentFinalSingleBuffer,
-            CurrentFinalSingleGeneration,
-            CurrentFinalQsearchLazy,
-            CurrentFinalQsearchDelta,
-            CurrentFinalLmrNullWindow,
-            CurrentFinalSingleEvasion,
-            CurrentFinalBoundedCheck2,
-        ];
-        for profile in promoted {
-            assert!(
-                profile.uses_single_evasion_extension(),
-                "{profile:?} must use promoted S7.5A single-evasion extension"
-            );
-            assert!(
-                SearchFeaturePolicy::for_profile(profile, None).single_evasion_extension,
-                "{profile:?} resolved policy must enable single_evasion_extension"
-            );
-        }
-
-        let unchanged = [
-            M4Reference,
-            M41Reference,
-            PvsReference,
-            SeeCandidate,
-            AspirationCandidate,
-            LmrCandidate,
-            NullMoveCandidate,
-            FutilityCandidate,
-            Current,
-            CurrentLmr,
-            CurrentThreatAware,
-            CurrentThreatAwareNoQchecks,
-            CurrentThreatAwareEvalOrder,
-            CurrentThreatAwareEvalOnly,
-            CurrentThreatAwareOrderOnly,
-            CurrentEval2,
-            CurrentQsearchMovegen,
-            CurrentQsearchPruning,
-            CurrentQsearchFastPruning,
-            CurrentAspiration,
-            CurrentAspirationLmr,
-            CurrentAspirationLmrFutility,
-            CurrentAspirationLmrFutilitySee,
-        ];
-        for profile in unchanged {
-            assert!(
-                !profile.uses_single_evasion_extension(),
-                "{profile:?} must keep S7.5A disabled"
-            );
-            assert!(
-                !SearchFeaturePolicy::for_profile(profile, None).single_evasion_extension,
-                "{profile:?} resolved policy must keep S7.5A disabled"
-            );
-        }
     }
 
     #[test]
@@ -10156,671 +7692,13 @@ mod tests {
         assert_ne!(k1, k2);
         assert_eq!(k0, current_tt_key_with_forcing_budget(&pos, &path, 0));
 
-        let cand = SearchProfile::CurrentFinalSingleEvasion;
-        assert!(cand.uses_single_evasion_extension());
-        assert!(!cand.uses_forcing_search());
-        assert_eq!(extension_budget_for_profile(cand), S75A_FORCING_BUDGET);
-    }
-
-    /// S6-C1 anti-drift guard.
-    ///
-    /// `CurrentFinalPhaseAffine` must be EXACTLY `CurrentFinal` apart from the
-    /// evaluator selector. This compares the fully resolved
-    /// `SearchFeaturePolicy` and EVERY `uses_*` selector on the enum, so adding
-    /// a future policy bit to CurrentFinal without adding it to the candidate
-    /// fails here instead of silently diverging in Arena. The candidate is
-    /// deliberately NOT implemented by copying a parameter set.
-    /// Non-evaluator search-feature selectors. A profile that claims to be
-    /// "CurrentFinal plus a different evaluator" must agree with CurrentFinal on
-    /// every one of these; only the evaluator selectors may differ.
-    /// Named predicate over a profile; factored out for clippy::type_complexity.
-    type ProfileSelector = (&'static str, fn(SearchProfile) -> bool);
-
-    const NON_EVALUATOR_SELECTORS: [ProfileSelector; 21] = [
-        ("uses_pvs", |p| p.uses_pvs()),
-        ("uses_see", |p| p.uses_see()),
-        ("uses_aspiration", |p| p.uses_aspiration()),
-        ("uses_lmr", |p| p.uses_lmr()),
-        ("uses_null_move", |p| p.uses_null_move()),
-        ("uses_futility", |p| p.uses_futility()),
-        ("uses_qsearch_movegen", |p| p.uses_qsearch_movegen()),
-        ("uses_qsearch_pruning", |p| p.uses_qsearch_pruning()),
-        ("uses_qsearch_fast_pruning", |p| {
-            p.uses_qsearch_fast_pruning()
-        }),
-        ("uses_qsearch_lazy", |p| p.uses_qsearch_lazy()),
-        ("uses_qsearch_delta", |p| p.uses_qsearch_delta()),
-        ("uses_threat_aware_qsearch", |p| {
-            p.uses_threat_aware_qsearch()
-        }),
-        ("uses_threat_ordering", |p| p.uses_threat_ordering()),
-        ("uses_forcing_search", |p| p.uses_forcing_search()),
-        ("uses_legality_fast", |p| p.uses_legality_fast()),
-        ("uses_single_buffer_legal", |p| p.uses_single_buffer_legal()),
-        ("uses_single_generation_probe", |p| {
-            p.uses_single_generation_probe()
-        }),
-        ("uses_root_quiet_history", |p| p.uses_root_quiet_history()),
-        ("uses_root_prev_score", |p| p.uses_root_prev_score()),
-        ("uses_lmr_null_window", |p| p.uses_lmr_null_window()),
-        ("uses_single_evasion_extension", |p| {
-            p.uses_single_evasion_extension()
-        }),
-    ];
-
-    /// Shared anti-drift assertion for every "CurrentFinal + different
-    /// evaluator" candidate or promoted evaluator alias. Adding a policy bit to
-    /// CurrentFinal without adding it to a candidate fails here rather than
-    /// silently diverging in Arena.
-    fn assert_inherits_current_final_search_policy(cand: SearchProfile) {
-        use SearchProfile::CurrentFinal as Base;
-        let base_policy = SearchFeaturePolicy::for_profile(Base, None);
-        let cand_policy = SearchFeaturePolicy::for_profile(cand, None);
+        // The S7.5A budget participates in the TT key; budget 0 degenerates
+        // to the plain key.
         assert_eq!(
-            base_policy.to_bits(),
-            cand_policy.to_bits(),
-            "{:?}: resolved SearchFeaturePolicy must equal CurrentFinal",
-            cand
+            extension_budget_for_profile(SearchProfile::CurrentFinal),
+            S75A_FORCING_BUDGET
         );
-        assert_eq!(
-            base_policy.bounded_check2_extension,
-            cand_policy.bounded_check2_extension
-        );
-        for (name, selector) in NON_EVALUATOR_SELECTORS {
-            assert_eq!(
-                selector(Base),
-                selector(cand),
-                "{:?}: {} must be inherited from CurrentFinal",
-                cand,
-                name
-            );
-        }
-        // Exactly one evaluator must be selected.
-        let picked = u8::from(cand.uses_phase_affine_eval())
-            + u8::from(cand.uses_eval2())
-            + u8::from(cand.uses_threat_aware_eval())
-            + u8::from(cand.uses_nnue_eval());
-        assert_eq!(
-            picked, 1,
-            "{:?} must select exactly one alt evaluator",
-            cand
-        );
-        assert_ne!(PRODUCTION_PROFILE, cand, "{:?} must never be default", cand);
-        assert_ne!(ROLLBACK_PROFILE, cand);
-    }
-
-    /// S8.0: `CurrentFinalEval2` is now promoted into `CurrentFinal` and is an
-    /// exact behavioral alias (including the evaluator).
-    /// The pre-existing `CurrentEval2` carries NONE of the promoted
-    /// search policy, so it is explicitly NOT a valid A/B partner - that is the
-    /// whole reason this profile exists, and this test pins the distinction.
-    #[test]
-    fn s80_eval2_alias_is_identical_to_production_current_final() {
-        use SearchProfile::{CurrentEval2, CurrentFinal, CurrentFinalEval2};
-        assert_inherits_current_final_search_policy(CurrentFinalEval2);
-        assert!(CurrentFinal.uses_eval2(), "production uses eval2");
-        assert!(CurrentFinalEval2.uses_eval2(), "promoted alias uses eval2");
-        assert_eq!(CurrentFinal.uses_eval2(), CurrentFinalEval2.uses_eval2());
-
-        // The historical profile is a search-deficient baseline, not a partner.
-        assert!(CurrentEval2.uses_eval2());
-        for (name, selector) in NON_EVALUATOR_SELECTORS {
-            if selector(CurrentFinal) && selector(CurrentEval2) {
-                continue;
-            }
-            if selector(CurrentFinal) && !selector(CurrentEval2) {
-                return; // found the search deficit; nothing more to prove
-            }
-            let _ = name;
-        }
-        panic!(
-            "CurrentEval2 unexpectedly matches CurrentFinal search policy; \
-                the S8.0 profile would then be redundant"
-        );
-    }
-
-    #[test]
-    fn s6c1_phase_affine_profile_is_current_final_except_the_evaluator() {
-        use SearchProfile::{CurrentFinal as Base, CurrentFinalPhaseAffine as Cand};
-        assert_inherits_current_final_search_policy(Cand);
-
-        // 1. Resolved feature policy must be bit-identical.
-        let base = SearchFeaturePolicy::for_profile(Base, None);
-        let cand = SearchFeaturePolicy::for_profile(Cand, None);
-        assert_eq!(
-            base.to_bits(),
-            cand.to_bits(),
-            "resolved SearchFeaturePolicy must match CurrentFinal exactly"
-        );
-        assert_eq!(base.lmr, cand.lmr);
-        assert_eq!(base.futility, cand.futility);
-        assert_eq!(base.null_move, cand.null_move);
-        assert_eq!(base.qsearch_see, cand.qsearch_see);
-        assert_eq!(base.qsearch_delta, cand.qsearch_delta);
-        assert_eq!(base.lmr_null_window, cand.lmr_null_window);
-        assert_eq!(base.single_evasion_extension, cand.single_evasion_extension);
-        assert_eq!(base.bounded_check2_extension, cand.bounded_check2_extension);
-
-        // 2. Every non-evaluator search-feature selector must agree.
-        for (name, selector) in NON_EVALUATOR_SELECTORS {
-            assert_eq!(
-                selector(Base),
-                selector(Cand),
-                "{} must be inherited from CurrentFinal",
-                name
-            );
-        }
-
-        // 3. Evaluator selection:
-        // CurrentFinal uses the promoted S8.0 integrated positional eval (uses_eval2).
-        // CurrentFinalPhaseAffine retains its dedicated phase-affine evaluator.
-        assert!(Base.uses_eval2(), "production uses eval2");
-        assert!(!Base.uses_phase_affine_eval());
-        assert!(Cand.uses_phase_affine_eval(), "candidate uses phase affine");
-        assert!(
-            !Cand.uses_eval2(),
-            "phase-affine candidate does not use eval2"
-        );
-
-        // 4. The candidate must never be a production default.
-        assert_eq!(PRODUCTION_PROFILE, Base);
-        assert_ne!(PRODUCTION_PROFILE, Cand);
-        assert_ne!(ROLLBACK_PROFILE, Cand);
-    }
-
-    /// S9-A anti-drift and bit-identical policy guard for all 6 Leave-One-Out (LOO) profiles.
-    #[test]
-    fn s9a_loo_profiles_are_current_final_search_policy_with_dedicated_masks() {
-        use SearchProfile::*;
-        let loo_profiles = [
-            (
-                CurrentFinalNoPawnStructure,
-                Eval2Mask::NO_PAWN_STRUCTURE,
-                "current-final-no-pawn-structure",
-            ),
-            (
-                CurrentFinalNoMobility,
-                Eval2Mask::NO_MOBILITY,
-                "current-final-no-mobility",
-            ),
-            (
-                CurrentFinalNoPieceActivity,
-                Eval2Mask::NO_PIECE_ACTIVITY,
-                "current-final-no-piece-activity",
-            ),
-            (
-                CurrentFinalNoRookActivity,
-                Eval2Mask::NO_ROOK_ACTIVITY,
-                "current-final-no-rook-activity",
-            ),
-            (
-                CurrentFinalNoDevelopmentSpace,
-                Eval2Mask::NO_DEVELOPMENT_SPACE,
-                "current-final-no-development-space",
-            ),
-            (
-                CurrentFinalNoKingSafety,
-                Eval2Mask::NO_KING_SAFETY,
-                "current-final-no-king-safety",
-            ),
-        ];
-
-        for (cand, expected_mask, name) in loo_profiles {
-            assert_inherits_current_final_search_policy(cand);
-            assert!(cand.uses_eval2(), "{name} must use eval2");
-            assert_eq!(
-                cand.eval2_mask(),
-                Some(expected_mask),
-                "{name} must have expected mask"
-            );
-            assert!(
-                !cand.uses_phase_affine_eval(),
-                "{name} must not use phase affine"
-            );
-            assert!(
-                !cand.uses_threat_aware_eval(),
-                "{name} must not use threat aware"
-            );
-        }
-    }
-
-    /// S10-C2B: the exact KQK/KRK mop-up override must return IDENTICAL
-    /// results under the NNUE profiles and CurrentFinal (the override is
-    /// evaluator-independent and runs BEFORE the network).
-    #[test]
-    fn s10c2b_nnue_profiles_preserve_exact_mopup() {
-        use crate::chess::fen::parse_fen;
-        use crate::chess::types::START_FEN;
-        // The MOP-UP LAW must be identical: same bonus, same strong/weak
-        // sign rule, same stalemate zeroing — applied to each evaluator's
-        // own base. Raw scores legitimately differ between evaluators.
-        let kqk = parse_fen("7k/8/8/8/8/8/8/KQ6 w - - 0 1").unwrap();
-        let krk = parse_fen("7k/8/8/8/8/8/8/KR6 w - - 0 1").unwrap();
-        let startpos = parse_fen(START_FEN).unwrap();
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        for pos in [&kqk, &krk, &startpos] {
-            let bytes =
-                crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(START_FEN);
-            let model = std::sync::Arc::new(
-                crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes).unwrap(),
-            );
-            let state = crate::engine::nnue_search::NnueSearchState::new(
-                model,
-                crate::engine::nnue_search::NnueSearchMode::Incremental,
-                pos,
-            );
-            // The NNUE arm's base (network, no mop-up).
-            let nnue_base = state.evaluate_raw_cp_i32(pos);
-            // Full NNUE arm (mop-up applied to the NNUE base).
-            let nnue_full = evaluate_profiled(
-                pos,
-                &ctx,
-                SearchProfile::CurrentFinalNnueV2QFull,
-                Some(&state),
-            );
-            // The mop-up law applied manually to the SAME base.
-            let expected = crate::engine::eval::exact_mop_up_for_search(pos, nnue_base);
-            match expected {
-                Some(v) => assert_eq!(
-                    nnue_full, v,
-                    "NNUE arm must apply the exact mop-up law to its own base"
-                ),
-                None => assert_eq!(
-                    nnue_full, nnue_base,
-                    "non-mop-up position must pass through the network"
-                ),
-            }
-            // Mop-up applies on KQK/KRK but never on startpos.
-            if std::ptr::eq(pos, &startpos) {
-                assert!(expected.is_none());
-            } else {
-                assert!(expected.is_some(), "KQK/KRK must trigger mop-up");
-            }
-        }
-    }
-
-    /// S10-C2B Repair 1: FullRefresh searches must perform ZERO stack
-    /// maintenance (pure performance reference); Incremental searches the
-    /// same tree with pushes == pops.
-    #[test]
-    fn s10c2b_full_refresh_zero_stack_maintenance() {
-        use crate::chess::fen::parse_fen;
-        let fen = "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1";
-        let mut pos = parse_fen(fen).unwrap();
-        let key = pos.zobrist_key();
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let limits = SearchLimits {
-            nodes: Some(2000),
-            ..Default::default()
-        };
-        let bytes = crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(fen);
-        let model = std::sync::Arc::new(
-            crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes).unwrap(),
-        );
-
-        // FullRefresh WITH telemetry enabled: zero movement (the no-op is
-        // mode-gated, not diagnostics-gated).
-        let full_state = crate::engine::nnue_search::NnueSearchState::with_options(
-            model.clone(),
-            crate::engine::nnue_search::NnueSearchMode::FullRefresh,
-            &pos,
-            true,
-            false,
-        );
-        let full_handle = full_state.diagnostics.clone();
-        let mut tt = TranspositionTable::disabled();
-        let _ = search_best_move_with_history_tt_and_profile(
-            &mut pos,
-            &[key],
-            &limits,
-            &ctx,
-            &mut tt,
-            SearchProfile::CurrentFinalNnueV2QFull,
-            Some(full_state),
-        );
-        let d = full_handle.unwrap();
-        use std::sync::atomic::Ordering as O;
-        assert_eq!(d.pushes.load(O::Relaxed), 0, "FullRefresh must not push");
-        assert_eq!(d.pops.load(O::Relaxed), 0, "FullRefresh must not pop");
-        assert_eq!(d.null_pushes.load(O::Relaxed), 0);
-        assert_eq!(d.delta_updates.load(O::Relaxed), 0);
-        assert_eq!(d.full_refreshes.load(O::Relaxed), 0);
-
-        // Incremental with telemetry on the same fixture: pushes > 0 and
-        // balanced.
-        let inc_state = crate::engine::nnue_search::NnueSearchState::with_options(
-            model,
-            crate::engine::nnue_search::NnueSearchMode::Incremental,
-            &pos,
-            true,
-            false,
-        );
-        let inc_handle = inc_state.diagnostics.clone();
-        let mut tt = TranspositionTable::disabled();
-        let _ = search_best_move_with_history_tt_and_profile(
-            &mut pos,
-            &[key],
-            &limits,
-            &ctx,
-            &mut tt,
-            SearchProfile::CurrentFinalNnueV2QIncremental,
-            Some(inc_state),
-        );
-        let d = inc_handle.unwrap();
-        let pushes = d.pushes.load(O::Relaxed);
-        let pops = d.pops.load(O::Relaxed);
-        assert!(pushes > 0, "incremental must push");
-        assert_eq!(pushes, pops, "stack must be balanced");
-    }
-
-    /// S10-C2B: abort/unwind must leave the NNUE stack perfectly balanced
-    /// (depth back to 1, root accumulator == fresh) after node-budget
-    /// aborts, mirroring the SearchPath contract.
-    #[test]
-    fn s10c2b_nnue_stack_balance_after_abort() {
-        use crate::chess::fen::parse_fen;
-        let fens = [
-            crate::chess::types::START_FEN,
-            "r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1",
-            "r2q1rk1/1b2bppp/p2ppn2/1p6/3NPP2/1BN1B3/PPPQ2PP/2KR3R w - - 0 12",
-        ];
-        for budget in [1u64, 7, 100, 1000] {
-            for fen in fens {
-                let mut pos = parse_fen(fen).unwrap();
-                let key = pos.zobrist_key();
-                let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-                let limits = SearchLimits {
-                    nodes: Some(budget),
-                    ..Default::default()
-                };
-                let bytes =
-                    crate::engine::nnue_v2q_runtime::synthetic_artifact_bytes_for_tests(fen);
-                let model = std::sync::Arc::new(
-                    crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&bytes)
-                        .unwrap(),
-                );
-                let mut state = Some(crate::engine::nnue_search::NnueSearchState::new(
-                    model,
-                    crate::engine::nnue_search::NnueSearchMode::Incremental,
-                    &pos,
-                ));
-                let mut tt = TranspositionTable::disabled();
-                // Take a snapshot of the pre-search telemetry; restore_root
-                // truncates but telemetry is cumulative — we only assert
-                // post-search depth and root-frame equality via the state.
-                let _ = search_best_move_with_history_tt_and_profile(
-                    &mut pos,
-                    &[key],
-                    &limits,
-                    &ctx,
-                    &mut tt,
-                    SearchProfile::CurrentFinalNnueV2QIncremental,
-                    state.take(),
-                );
-                // Position restored (existing contract).
-                assert_eq!(pos.zobrist_key(), key, "root restored after abort");
-                // NOTE: the profile entry consumed the state (Option), so
-                // the stack balance is verified inside the entry's
-                // restore_root; the observable contract here is that the
-                // search RETURNS cleanly on every budget.
-            }
-        }
-    }
-
-    /// S10-C2B: both NNUE candidate profiles inherit CurrentFinal search
-    /// policy bit-for-bit, select the NNUE evaluator exclusively, are never
-    /// the production default, and differ only in the accumulator delivery.
-    #[test]
-    fn s10c2b_nnue_profiles_inherit_current_final_policy() {
-        use SearchProfile::{
-            CurrentFinal, CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental,
-            CurrentFinalNnueV2QMaterial, CurrentFinalNnueV2QMaterialCalFut,
-            CurrentFinalNnueV2QMaterialR12, CurrentFinalNnueV2QMaterialR12Inc, CurrentFinalS12,
-        };
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QFull);
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QIncremental);
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterial);
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialCalFut);
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialR12);
-        assert_inherits_current_final_search_policy(CurrentFinalNnueV2QMaterialR12Inc);
-        assert_inherits_current_final_search_policy(CurrentFinalS12);
-        for cand in [CurrentFinalNnueV2QFull, CurrentFinalNnueV2QIncremental] {
-            assert!(cand.uses_nnue_eval(), "{cand:?} must use NNUE eval");
-            assert!(!cand.uses_eval2(), "{cand:?} must NOT use Eval2");
-            assert!(!cand.uses_phase_affine_eval());
-            assert!(!cand.uses_threat_aware_eval());
-        }
-        // S10-F1: the material-residual profile is an NNUE evaluator whose
-        // output must be composed with the material anchor — and it uses the
-        // FULL-refresh path (the incremental stack is a pure-speed C2B
-        // optimization gated to the two original profiles).
-        assert!(CurrentFinalNnueV2QMaterial.uses_nnue_eval());
-        assert!(CurrentFinalNnueV2QMaterial.uses_nnue_material_residual());
-        assert!(CurrentFinalNnueV2QMaterialCalFut.uses_nnue_eval());
-        assert!(CurrentFinalNnueV2QMaterialCalFut.uses_nnue_material_residual());
-        assert!(!CurrentFinalNnueV2QMaterial.uses_eval2());
-        assert!(!CurrentFinalNnueV2QMaterial.uses_nnue_incremental_stack());
-        // S11-B2: the R12 hybrid profile — material-residual evaluator
-        // delivered through the incremental stack (V2-base accumulator;
-        // relation rows recomputed fresh per eval).
-        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_eval());
-        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_material_residual());
-        assert!(!CurrentFinalNnueV2QMaterialR12.uses_eval2());
-        assert!(CurrentFinalNnueV2QMaterialR12.uses_nnue_incremental_stack());
-        assert!(CurrentFinalNnueV2QFull.uses_nnue_incremental_stack() == false);
-        assert!(CurrentFinalNnueV2QIncremental.uses_nnue_incremental_stack());
-        assert_eq!(PRODUCTION_PROFILE, CurrentFinal);
-        // CurrentFinal itself stays evaluator-identical: no NNUE.
-        assert!(!CurrentFinal.uses_nnue_eval());
-    }
-
-    /// The evaluator selectors must stay mutually exclusive: phase-affine must
-    /// not accidentally also claim eval2 or threat-aware dispatch, or
-    /// `evaluate_profiled`'s if/else chain would silently shadow one of them.
-    #[test]
-    fn s6c1_evaluator_selectors_are_mutually_exclusive() {
-        // Compiler-enforced completeness: adding a SearchProfile variant breaks
-        // this match, which forces the list below to be updated as well.
-        fn assert_exhaustive(profile: SearchProfile) {
-            match profile {
-                SearchProfile::M4Reference => (),
-                SearchProfile::M41Reference => (),
-                SearchProfile::PvsReference => (),
-                SearchProfile::SeeCandidate => (),
-                SearchProfile::AspirationCandidate => (),
-                SearchProfile::LmrCandidate => (),
-                SearchProfile::NullMoveCandidate => (),
-                SearchProfile::FutilityCandidate => (),
-                SearchProfile::Current => (),
-                SearchProfile::CurrentLmr => (),
-                SearchProfile::CurrentThreatAware => (),
-                SearchProfile::CurrentThreatAwareNoQchecks => (),
-                SearchProfile::CurrentThreatAwareEvalOrder => (),
-                SearchProfile::CurrentThreatAwareEvalOnly => (),
-                SearchProfile::CurrentThreatAwareOrderOnly => (),
-                SearchProfile::CurrentEval2 => (),
-                SearchProfile::CurrentQsearchMovegen => (),
-                SearchProfile::CurrentQsearchPruning => (),
-                SearchProfile::CurrentQsearchFastPruning => (),
-                SearchProfile::CurrentAspiration => (),
-                SearchProfile::CurrentAspirationLmr => (),
-                SearchProfile::CurrentAspirationLmrFutility => (),
-                SearchProfile::CurrentAspirationLmrFutilitySee => (),
-                SearchProfile::CurrentFinal => (),
-                SearchProfile::CurrentFinalRootHistory => (),
-                SearchProfile::CurrentFinalRootPrevScore => (),
-                SearchProfile::CurrentFinalLegalityFast => (),
-                SearchProfile::CurrentFinalSingleBuffer => (),
-                SearchProfile::CurrentFinalSingleGeneration => (),
-                SearchProfile::CurrentFinalQsearchLazy => (),
-                SearchProfile::CurrentFinalQsearchDelta => (),
-                SearchProfile::CurrentFinalLmrNullWindow => (),
-                SearchProfile::CurrentFinalSingleEvasion => (),
-                SearchProfile::CurrentFinalBoundedCheck2 => (),
-                SearchProfile::CurrentFinalPhaseAffine => (),
-                SearchProfile::CurrentFinalEval2 => (),
-                SearchProfile::CurrentFinalNoPawnStructure => (),
-                SearchProfile::CurrentFinalNoMobility => (),
-                SearchProfile::CurrentFinalNoPieceActivity => (),
-                SearchProfile::CurrentFinalNoRookActivity => (),
-                SearchProfile::CurrentFinalNoDevelopmentSpace => (),
-                SearchProfile::CurrentFinalNoKingSafety => (),
-                SearchProfile::CurrentFinalNnueV2QFull => (),
-                SearchProfile::CurrentFinalNnueV2QIncremental => (),
-                SearchProfile::CurrentFinalNnueV2QMaterial => (),
-                SearchProfile::CurrentFinalNnueV2QMaterialCalFut => (),
-                SearchProfile::CurrentFinalNnueV2QMaterialR12 => (),
-                SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => (),
-                SearchProfile::CurrentFinalS12 => (),
-            }
-        }
-        let all: [SearchProfile; 49] = [
-            SearchProfile::M4Reference,
-            SearchProfile::M41Reference,
-            SearchProfile::PvsReference,
-            SearchProfile::SeeCandidate,
-            SearchProfile::AspirationCandidate,
-            SearchProfile::LmrCandidate,
-            SearchProfile::NullMoveCandidate,
-            SearchProfile::FutilityCandidate,
-            SearchProfile::Current,
-            SearchProfile::CurrentLmr,
-            SearchProfile::CurrentThreatAware,
-            SearchProfile::CurrentThreatAwareNoQchecks,
-            SearchProfile::CurrentThreatAwareEvalOrder,
-            SearchProfile::CurrentThreatAwareEvalOnly,
-            SearchProfile::CurrentThreatAwareOrderOnly,
-            SearchProfile::CurrentEval2,
-            SearchProfile::CurrentQsearchMovegen,
-            SearchProfile::CurrentQsearchPruning,
-            SearchProfile::CurrentQsearchFastPruning,
-            SearchProfile::CurrentAspiration,
-            SearchProfile::CurrentAspirationLmr,
-            SearchProfile::CurrentAspirationLmrFutility,
-            SearchProfile::CurrentAspirationLmrFutilitySee,
-            SearchProfile::CurrentFinal,
-            SearchProfile::CurrentFinalRootHistory,
-            SearchProfile::CurrentFinalRootPrevScore,
-            SearchProfile::CurrentFinalLegalityFast,
-            SearchProfile::CurrentFinalSingleBuffer,
-            SearchProfile::CurrentFinalSingleGeneration,
-            SearchProfile::CurrentFinalQsearchLazy,
-            SearchProfile::CurrentFinalQsearchDelta,
-            SearchProfile::CurrentFinalLmrNullWindow,
-            SearchProfile::CurrentFinalSingleEvasion,
-            SearchProfile::CurrentFinalBoundedCheck2,
-            SearchProfile::CurrentFinalPhaseAffine,
-            SearchProfile::CurrentFinalEval2,
-            SearchProfile::CurrentFinalNoPawnStructure,
-            SearchProfile::CurrentFinalNoMobility,
-            SearchProfile::CurrentFinalNoPieceActivity,
-            SearchProfile::CurrentFinalNoRookActivity,
-            SearchProfile::CurrentFinalNoDevelopmentSpace,
-            SearchProfile::CurrentFinalNoKingSafety,
-            SearchProfile::CurrentFinalNnueV2QFull,
-            SearchProfile::CurrentFinalNnueV2QIncremental,
-            SearchProfile::CurrentFinalNnueV2QMaterial,
-            SearchProfile::CurrentFinalNnueV2QMaterialCalFut,
-            SearchProfile::CurrentFinalNnueV2QMaterialR12,
-            SearchProfile::CurrentFinalNnueV2QMaterialR12Inc,
-            SearchProfile::CurrentFinalS12,
-        ];
-        for profile in all {
-            assert_exhaustive(profile);
-            let picked = u8::from(profile.uses_phase_affine_eval())
-                + u8::from(profile.uses_eval2())
-                + u8::from(profile.uses_threat_aware_eval())
-                + u8::from(profile.uses_nnue_eval());
-            assert!(
-                picked <= 1,
-                "{:?} selects {} evaluators; at most one is allowed",
-                profile,
-                picked
-            );
-        }
-    }
-
-    #[test]
-    fn s75b_profile_is_current_final_plus_one_policy_bit() {
-        let current = SearchFeaturePolicy::for_profile(SearchProfile::CurrentFinal, None);
-        let candidate =
-            SearchFeaturePolicy::for_profile(SearchProfile::CurrentFinalBoundedCheck2, None);
-        assert!(candidate.bounded_check2_extension);
-        assert!(candidate.single_evasion_extension);
-        assert_eq!(current.to_bits() ^ candidate.to_bits(), FEATURE_S75B_CHECK2);
-        assert_eq!(
-            extension_budgets_for_profile(SearchProfile::CurrentFinal),
-            ExtensionBudgets {
-                forcing: S75A_FORCING_BUDGET,
-                check2: 0,
-            }
-        );
-        assert_eq!(
-            extension_budgets_for_profile(SearchProfile::CurrentFinalBoundedCheck2),
-            ExtensionBudgets {
-                forcing: S75A_FORCING_BUDGET,
-                check2: S75B_CHECK2_BUDGET,
-            }
-        );
-    }
-
-    #[test]
-    fn s75b_extension_is_bounded_and_never_stacks_with_s75a() {
-        let pos = parse_fen(START_FEN).unwrap();
-        let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-        let profile = SearchProfile::CurrentFinalBoundedCheck2;
-        let budgets = extension_budgets_for_profile(profile);
-
-        let extension = child_extension_params(&pos, 4, profile, budgets, false, false, true, &ctx);
-        assert_eq!(extension.depth, 4);
-        assert!(extension.check2_extended);
-        assert_eq!(
-            extension.budgets,
-            ExtensionBudgets {
-                forcing: 2,
-                check2: 0
-            }
-        );
-
-        let extension = child_extension_params(&pos, 4, profile, budgets, true, true, true, &ctx);
-        assert_eq!(extension.depth, 4);
-        assert!(!extension.check2_extended);
-        assert_eq!(
-            extension.budgets,
-            ExtensionBudgets {
-                forcing: 1,
-                check2: 1
-            }
-        );
-
-        let extension = child_extension_params(
-            &pos,
-            4,
-            profile,
-            ExtensionBudgets {
-                forcing: 2,
-                check2: 0,
-            },
-            false,
-            false,
-            true,
-            &ctx,
-        );
-        assert_eq!(extension.depth, 3);
-        assert!(!extension.check2_extended);
-        assert_eq!(
-            extension.budgets,
-            ExtensionBudgets {
-                forcing: 2,
-                check2: 0
-            }
-        );
-
-        let stats = ctx.stats();
-        assert_eq!(stats.s75b_extension_opportunities, 3);
-        assert_eq!(stats.s75b_extension_applied, 1);
-        assert_eq!(stats.s75b_extension_blocked_budget0, 1);
-        assert_eq!(stats.s75b_extension_blocked_a_overlap, 1);
+        assert_eq!(extension_budget_for_profile(SearchProfile::Current), 0);
     }
 
     #[test]
@@ -10954,568 +7832,6 @@ mod tests {
         assert_eq!(stats.s75b_probe_calls, 2);
         assert!(stats.s75b_probe_pseudo_moves > 0);
         assert!(stats.s75b_probe_legality_tests > 0);
-    }
-
-    #[test]
-    fn lmr_null_window_alias_matches_promoted_current_final() {
-        use SearchProfile::{CurrentFinal, CurrentFinalLmrNullWindow as Nw};
-
-        // S7.4A promotion: structural regression proof. Every production
-        // policy dimension must agree between CurrentFinal and the S7.4A
-        // compatibility alias, INCLUDING uses_lmr_null_window.
-        assert_eq!(CurrentFinal.uses_pvs(), Nw.uses_pvs());
-        assert_eq!(CurrentFinal.uses_see(), Nw.uses_see());
-        assert_eq!(CurrentFinal.uses_aspiration(), Nw.uses_aspiration());
-        assert_eq!(CurrentFinal.uses_lmr(), Nw.uses_lmr());
-        assert_eq!(CurrentFinal.uses_null_move(), Nw.uses_null_move());
-        assert_eq!(CurrentFinal.uses_futility(), Nw.uses_futility());
-        assert_eq!(
-            CurrentFinal.uses_qsearch_movegen(),
-            Nw.uses_qsearch_movegen()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_pruning(),
-            Nw.uses_qsearch_pruning()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_fast_pruning(),
-            Nw.uses_qsearch_fast_pruning()
-        );
-        assert_eq!(CurrentFinal.uses_qsearch_lazy(), Nw.uses_qsearch_lazy());
-        assert_eq!(
-            CurrentFinal.uses_root_quiet_history(),
-            Nw.uses_root_quiet_history()
-        );
-        assert_eq!(
-            CurrentFinal.uses_root_prev_score(),
-            Nw.uses_root_prev_score()
-        );
-        assert_eq!(CurrentFinal.uses_legality_fast(), Nw.uses_legality_fast());
-        assert_eq!(
-            CurrentFinal.uses_single_buffer_legal(),
-            Nw.uses_single_buffer_legal()
-        );
-        assert_eq!(
-            CurrentFinal.uses_single_generation_probe(),
-            Nw.uses_single_generation_probe()
-        );
-        assert_eq!(CurrentFinal.uses_eval2(), Nw.uses_eval2());
-        assert_eq!(CurrentFinal.uses_forcing_search(), Nw.uses_forcing_search());
-        assert_eq!(
-            CurrentFinal.uses_threat_ordering(),
-            Nw.uses_threat_ordering()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_qsearch(),
-            Nw.uses_threat_aware_qsearch()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_eval(),
-            Nw.uses_threat_aware_eval()
-        );
-        // The qsearch-delta lane stays evidence-only.
-        assert!(!Nw.uses_qsearch_delta());
-
-        // Promotion: the S7.4A policy is now production CurrentFinal policy,
-        // and the alias remains exactly equal to it.
-        assert!(CurrentFinal.uses_lmr_null_window());
-        assert!(Nw.uses_lmr_null_window());
-        assert_eq!(
-            CurrentFinal.uses_lmr_null_window(),
-            Nw.uses_lmr_null_window()
-        );
-
-        // Explicit guards for the two arms forgotten in the original
-        // (misconfigured) S7.1B candidate.
-        assert!(Nw.uses_null_move(), "S7.4A must inherit verified null move");
-        assert!(
-            Nw.uses_single_buffer_legal(),
-            "S7.4A must inherit SingleBuffer materialization"
-        );
-
-        // The resolved hot-path policies must agree bit-for-bit, including
-        // the promoted LMR-null-window bit.
-        let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
-        let nw = SearchFeaturePolicy::for_profile(Nw, None);
-        assert_eq!(cf.lmr, nw.lmr);
-        assert_eq!(cf.futility, nw.futility);
-        assert_eq!(cf.null_move, nw.null_move);
-        assert_eq!(cf.qsearch_see, nw.qsearch_see);
-        assert_eq!(cf.qsearch_delta, nw.qsearch_delta);
-        assert!(cf.lmr_null_window);
-        assert!(nw.lmr_null_window);
-        assert_eq!(cf.lmr_null_window, nw.lmr_null_window);
-    }
-
-    #[test]
-    fn lmr_null_window_promotion_profile_family_is_exact() {
-        use SearchProfile::{
-            Current, CurrentAspirationLmr, CurrentAspirationLmrFutilitySee, CurrentFinal,
-            CurrentFinalLegalityFast, CurrentFinalLmrNullWindow, CurrentFinalQsearchDelta,
-            CurrentFinalQsearchLazy, CurrentFinalRootHistory, CurrentFinalRootPrevScore,
-            CurrentFinalSingleBuffer, CurrentFinalSingleEvasion, CurrentFinalSingleGeneration,
-            CurrentLmr, LmrCandidate,
-        };
-
-        // Every profile whose base semantics are CurrentFinal or
-        // CurrentFinal + X carries the promoted production policy.
-        let promoted = [
-            CurrentFinal,
-            CurrentFinalRootHistory,
-            CurrentFinalRootPrevScore,
-            CurrentFinalLegalityFast,
-            CurrentFinalSingleBuffer,
-            CurrentFinalSingleGeneration,
-            CurrentFinalQsearchLazy,
-            CurrentFinalQsearchDelta,
-            CurrentFinalLmrNullWindow,
-            CurrentFinalSingleEvasion,
-        ];
-        for profile in promoted {
-            assert!(
-                profile.uses_lmr_null_window(),
-                "{profile:?} must use promoted S7.4A LMR-on-null-window"
-            );
-            assert!(
-                SearchFeaturePolicy::for_profile(profile, None).lmr_null_window,
-                "{profile:?} resolved policy must enable lmr_null_window"
-            );
-        }
-
-        // Rollback and historical pre-S7.4A profiles remain unchanged.
-        let unchanged = [
-            Current,
-            CurrentLmr,
-            CurrentAspirationLmr,
-            CurrentAspirationLmrFutilitySee,
-            LmrCandidate,
-        ];
-        for profile in unchanged {
-            assert!(
-                !profile.uses_lmr_null_window(),
-                "{profile:?} must keep the pre-promotion behavior"
-            );
-            assert!(
-                !SearchFeaturePolicy::for_profile(profile, None).lmr_null_window,
-                "{profile:?} resolved policy must keep lmr_null_window off"
-            );
-        }
-        assert!(!Current.uses_lmr_null_window());
-        assert!(
-            !SearchFeaturePolicy::for_profile(Current, None).lmr_null_window,
-            "historical Current rollback profile must remain unchanged"
-        );
-    }
-
-    #[test]
-    fn lmr_null_window_promoted_profile_applies_reduces_and_verifies_correctly() {
-        fn run(profile: SearchProfile) -> (Option<i32>, SearchStats) {
-            // White is a knight down: eval (~-320) stays above the depth-4
-            // futility margin from alpha=0, so quiets are NOT shallow-pruned;
-            // but the true score stays <= 0, so every root move fails low at
-            // the null window and the loop inevitably reaches late quiet
-            // indices. The depth-4 root is then the LMR-eligible node.
-            let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1";
-            let mut pos = parse_fen(fen).unwrap();
-            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let limits = SearchLimits {
-                depth: Some(4),
-                ..Default::default()
-            };
-            let mut pv = PvTable::default();
-            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-            let mut tt = TranspositionTable::new_mb(16).unwrap();
-            let mut heur = Some(SearchHeuristics::new());
-            // Mirror the production entry point (`search_best_move_impl`):
-            // calling the negamax body directly bypasses flag setup, and the
-            // move loop reads `ctx.features()` (LMR eligibility) and the
-            // legality-probe flags from the context, not the profile.
-            ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
-            ctx.features_mask.store(
-                SearchFeaturePolicy::for_profile(profile, None).to_bits(),
-                Ordering::Relaxed,
-            );
-            ctx.legality_fast
-                .store(profile.uses_legality_fast(), Ordering::Relaxed);
-            ctx.single_buffer_legal
-                .store(profile.uses_single_buffer_legal(), Ordering::Relaxed);
-            ctx.single_generation_probe
-                .store(profile.uses_single_generation_probe(), Ordering::Relaxed);
-            // A null window AT THE ROOT makes the root move loop itself the
-            // S7.4A caller population (depth 4, late quiet moves), keeping
-            // the test tree tiny while exercising every counter path.
-            let score = negamax_entered_impl_with_null(
-                &mut pos, 4, 0, 0, 1, &ctx, &limits, profile, &mut pv, &mut path, &mut tt,
-                &mut heur, true, &mut None,
-            );
-            (score, ctx.stats())
-        }
-
-        // CurrentLmr is the historical LMR profile without the promoted
-        // policy: on caller-null-window nodes it still shows the S7.3
-        // suppression and never enters the S7.4A path.
-        let (_, legacy) = run(SearchProfile::CurrentLmr);
-        assert!(legacy.s74_lmr_proposed > 0);
-        assert!(legacy.s74_lmr_suppressed_by_null_window > 0);
-        assert_eq!(legacy.s74_lmr_applied_null_window, 0);
-
-        let (prod_score, prod) = run(SearchProfile::CurrentFinal);
-        let (alias_score, alias) = run(SearchProfile::CurrentFinalLmrNullWindow);
-
-        for (label, stats) in [("production CurrentFinal", prod), ("alias", alias)] {
-            // The previously suppressed population is now applied; every
-            // applied reduction terminates in exactly one of: fail-low
-            // accept, or exactly one full-depth re-search.
-            assert_eq!(stats.s74_lmr_suppressed_by_null_window, 0, "{label}");
-            assert!(stats.s74_lmr_applied_null_window > 0, "{label}");
-            assert_eq!(
-                stats.s74_lmr_applied_null_window,
-                stats.s74_lmr_nw_fail_low + stats.s74_lmr_nw_research,
-                "{label}"
-            );
-            // Contract A: this fixture is all fail-low, so no verification is
-            // requested and no verification node is acquired.
-            assert_eq!(stats.s74_lmr_nw_research, 0, "{label}");
-            assert_eq!(stats.s74_lmr_nw_research_entered, 0, "{label}");
-            // Verified cutoffs can only originate from re-searched moves.
-            assert!(
-                stats.s74_lmr_nw_verified_cutoff <= stats.s74_lmr_nw_research,
-                "{label}"
-            );
-            // S7.4A Repair 1: every re-search is a NEW real search entry
-            // acquired through the exact-once `try_enter_node` contract.
-            // Entries can never exceed requests, and in an unlimited
-            // fixed-depth run every requested verification enters.
-            assert!(
-                stats.s74_lmr_nw_research_entered <= stats.s74_lmr_nw_research,
-                "{label}"
-            );
-            assert_eq!(
-                stats.s74_lmr_nw_research_entered, stats.s74_lmr_nw_research,
-                "unlimited run: every requested verification must enter ({label})"
-            );
-            // The depth and index splits each account for every application.
-            assert_eq!(
-                stats.s74_lmr_nw_depth.iter().sum::<u64>(),
-                stats.s74_lmr_applied_null_window,
-                "{label}"
-            );
-            assert_eq!(
-                stats.s74_lmr_nw_idx.iter().sum::<u64>(),
-                stats.s74_lmr_applied_null_window,
-                "{label}"
-            );
-        }
-
-        // Production CurrentFinal and the retained S7.4A alias are
-        // search-semantically identical in this deterministic fixture.
-        assert_eq!(prod_score, alias_score);
-        assert_eq!(prod.nodes, alias.nodes);
-        assert_eq!(prod.qsearch_nodes, alias.qsearch_nodes);
-        assert_eq!(
-            prod.s74_lmr_applied_null_window,
-            alias.s74_lmr_applied_null_window
-        );
-        assert_eq!(prod.s74_lmr_nw_fail_low, alias.s74_lmr_nw_fail_low);
-
-        // Both promoted searches complete with a bounded, sane score.
-        let s = prod_score.expect("production CurrentFinal search must complete");
-        assert!(s > -(MATE - 1000) && s < MATE - 1000);
-        let s = alias_score.expect("S7.4A alias search must complete");
-        assert!(s > -(MATE - 1000) && s < MATE - 1000);
-    }
-
-    #[test]
-    fn lmr_null_window_verification_acquisition_respects_node_budget() {
-        // S7.4A Repair 1, contracts C/D. Contract C isolates the EXACT
-        // acquisition-failure event: we find the smallest budget at which a
-        // reduced null-window search improves alpha and requests a full-depth
-        // verification, then prove the `try_enter_node` failure at that
-        // budget:
-        //   * unwinds cleanly (None, board/FEN/path restored),
-        //   * consumes exactly the budget (nodes never exceed it),
-        //   * enters zero verifications, so no unverified beta cutoff can
-        //     exist (`verified_cutoff == 0`),
-        //   * records zero extra killer/history rewards and leaves the root
-        //     PV row unchanged relative to the immediately preceding budget.
-        // The remaining sweep covers aborts at other points (contract D).
-        //
-        // Root WIDE window, depth 6, Italian position: verified (release
-        // probe) to trigger interior null-window applications AND full-depth
-        // verification re-searches, which the earlier no-knight fixture never
-        // did (all its reductions fail low, so no verification acquisition is
-        // ever attempted there).
-        const FEN: &str = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
-
-        fn run(
-            profile: SearchProfile,
-            budget: Option<u64>,
-        ) -> (Option<i32>, SearchStats, Position, SearchPath, PvTable) {
-            let mut pos = parse_fen(FEN).unwrap();
-            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let limits = SearchLimits {
-                depth: Some(6),
-                nodes: budget,
-            };
-            let mut pv = PvTable::default();
-            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-            let mut tt = TranspositionTable::new_mb(16).unwrap();
-            let mut heur = Some(SearchHeuristics::new());
-            ctx.see_enabled.store(profile.uses_see(), Ordering::Relaxed);
-            ctx.features_mask.store(
-                SearchFeaturePolicy::for_profile(profile, None).to_bits(),
-                Ordering::Relaxed,
-            );
-            ctx.legality_fast
-                .store(profile.uses_legality_fast(), Ordering::Relaxed);
-            ctx.single_buffer_legal
-                .store(profile.uses_single_buffer_legal(), Ordering::Relaxed);
-            ctx.single_generation_probe
-                .store(profile.uses_single_generation_probe(), Ordering::Relaxed);
-            let score = negamax_entered_impl_with_null(
-                &mut pos,
-                6,
-                0,
-                i32::MIN + 1000,
-                i32::MAX - 1000,
-                &ctx,
-                &limits,
-                profile,
-                &mut pv,
-                &mut path,
-                &mut tt,
-                &mut heur,
-                true,
-                &mut None,
-            );
-            (score, ctx.stats(), pos, path, pv)
-        }
-
-        let profile = SearchProfile::CurrentFinalLmrNullWindow;
-        pvs_counters::reset();
-        let (full, full_stats, _, _, _) = run(profile, None);
-        assert!(full.is_some(), "unlimited run must complete");
-        let full_nodes = full_stats.nodes;
-        assert!(full_stats.s74_lmr_nw_research > 0);
-        assert_eq!(
-            full_stats.s74_lmr_nw_research_entered, full_stats.s74_lmr_nw_research,
-            "unlimited run: every requested verification must enter"
-        );
-        assert_eq!(
-            pvs_counters::S74_NW_RESEARCH_ATTEMPT.get(),
-            full_stats.s74_lmr_nw_research as usize,
-            "one verification attempt is emitted per request"
-        );
-        assert_eq!(
-            pvs_counters::S74_NW_RESEARCH_ENTERED.get(),
-            full_stats.s74_lmr_nw_research_entered as usize,
-            "one verification entry is emitted per successful acquisition"
-        );
-
-        // `s74_lmr_nw_research` is nondecreasing in the node budget, so the
-        // smallest budget with a requested verification is the first moment
-        // the reduced search completed with an improvement. At that exact
-        // budget the following `try_enter_node` fails by construction (the
-        // reduced search consumed the last available node).
-        let mut lo = 1u64;
-        let mut hi = full_nodes;
-        while lo < hi {
-            let mid = lo + (hi - lo) / 2;
-            let (_, stats, _, _, _) = run(profile, Some(mid));
-            if stats.s74_lmr_nw_research > 0 {
-                hi = mid;
-            } else {
-                lo = mid + 1;
-            }
-        }
-        let acquire_fail_budget = lo;
-        assert!(acquire_fail_budget > 1, "fixture must have a real prefix");
-
-        let before_fen = to_fen(&parse_fen(FEN).unwrap());
-        pvs_counters::reset();
-        let (prev_score, prev_stats, _, _, prev_pv) = run(profile, Some(acquire_fail_budget - 1));
-        assert!(prev_score.is_none(), "prefix budget must abort");
-        assert_eq!(
-            prev_stats.s74_lmr_nw_research, 0,
-            "prefix budget must not yet request verification"
-        );
-        let prev_killer_calls = pvs_counters::RECORD_KILLER_CALLS.get();
-        let prev_history_calls = pvs_counters::RECORD_HISTORY_CALLS.get();
-        let prev_quiet_rewards = pvs_counters::PARENT_QUIET_REWARD.get();
-        let prev_root_pv = prev_pv.lines[0].clone();
-
-        pvs_counters::reset();
-        let (score, stats, pos, path, pv) = run(profile, Some(acquire_fail_budget));
-        assert!(
-            score.is_none(),
-            "verification acquisition failure must abort"
-        );
-        assert_eq!(
-            stats.nodes, acquire_fail_budget,
-            "abort is exact budget exhaustion"
-        );
-        assert_eq!(stats.s74_lmr_nw_research, 1, "exactly one request");
-        assert_eq!(
-            stats.s74_lmr_nw_research_entered, 0,
-            "request did not enter"
-        );
-        assert_eq!(
-            stats.s74_lmr_nw_verified_cutoff, 0,
-            "no unverified beta cutoff"
-        );
-        assert_eq!(path.len(), 1, "path restored to root");
-        assert_eq!(to_fen(&pos), before_fen, "position restored to root");
-        assert_eq!(
-            pvs_counters::S74_NW_RESEARCH_ATTEMPT.get(),
-            1,
-            "test-only event: exactly one verification attempt"
-        );
-        assert_eq!(
-            pvs_counters::S74_NW_RESEARCH_ENTERED.get(),
-            0,
-            "test-only event: attempt never entered"
-        );
-        assert_eq!(
-            pvs_counters::S74_NW_ABORT_RESEARCH_ACQUIRE.get(),
-            1,
-            "test-only event: abort happened at verification acquisition"
-        );
-        assert_eq!(
-            pvs_counters::RECORD_KILLER_CALLS.get(),
-            prev_killer_calls,
-            "failed verification acquisition records no killer"
-        );
-        assert_eq!(
-            pvs_counters::RECORD_HISTORY_CALLS.get(),
-            prev_history_calls,
-            "failed verification acquisition records no history"
-        );
-        assert_eq!(
-            pvs_counters::PARENT_QUIET_REWARD.get(),
-            prev_quiet_rewards,
-            "failed verification acquisition takes no quiet cutoff reward"
-        );
-        assert_eq!(
-            pv.lines[0], prev_root_pv,
-            "failed verification acquisition commits no fake root PV"
-        );
-
-        // Contract D: sample budgets covering early, mid, and late aborts.
-        // Every aborted run must consume exactly its budget, never exceed it,
-        // restore path/position, and keep entered <= requested and verified
-        // cutoffs <= entered.
-        let mut budget = 5u64;
-        let mut saw_abort = false;
-        while budget < full_nodes {
-            let before_fen = to_fen(&parse_fen(FEN).unwrap());
-            let (score, stats, pos, path, _) = run(profile, Some(budget));
-            assert!(
-                stats.nodes <= budget,
-                "nodes {} must never exceed budget {budget}",
-                stats.nodes
-            );
-            if score.is_none() {
-                saw_abort = true;
-                assert_eq!(stats.nodes, budget, "abort must be budget exhaustion");
-                assert_eq!(path.len(), 1, "path restored to root");
-                assert_eq!(to_fen(&pos), before_fen, "position restored to root");
-            }
-            assert!(stats.s74_lmr_nw_research_entered <= stats.s74_lmr_nw_research);
-            assert!(stats.s74_lmr_nw_verified_cutoff <= stats.s74_lmr_nw_research_entered);
-            budget += (full_nodes / 12).max(3);
-        }
-        assert!(saw_abort, "budget sweep must observe at least one abort");
-    }
-
-    #[test]
-    fn qsearch_delta_profile_inherits_current_final_exactly_except_delta() {
-        use SearchProfile::{CurrentFinal, CurrentFinalQsearchDelta as Delta};
-
-        // S7.1B Repair 1: structural regression proof. Every production
-        // policy dimension must agree between CurrentFinal and the S7.1B
-        // candidate; the ONLY permitted difference is uses_qsearch_delta.
-        assert_eq!(CurrentFinal.uses_pvs(), Delta.uses_pvs());
-        assert_eq!(CurrentFinal.uses_see(), Delta.uses_see());
-        assert_eq!(CurrentFinal.uses_aspiration(), Delta.uses_aspiration());
-        assert_eq!(CurrentFinal.uses_lmr(), Delta.uses_lmr());
-        assert_eq!(CurrentFinal.uses_null_move(), Delta.uses_null_move());
-        assert_eq!(CurrentFinal.uses_futility(), Delta.uses_futility());
-        assert_eq!(
-            CurrentFinal.uses_qsearch_movegen(),
-            Delta.uses_qsearch_movegen()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_pruning(),
-            Delta.uses_qsearch_pruning()
-        );
-        assert_eq!(
-            CurrentFinal.uses_qsearch_fast_pruning(),
-            Delta.uses_qsearch_fast_pruning()
-        );
-        assert_eq!(CurrentFinal.uses_qsearch_lazy(), Delta.uses_qsearch_lazy());
-        assert_eq!(
-            CurrentFinal.uses_root_quiet_history(),
-            Delta.uses_root_quiet_history()
-        );
-        assert_eq!(
-            CurrentFinal.uses_root_prev_score(),
-            Delta.uses_root_prev_score()
-        );
-        assert_eq!(
-            CurrentFinal.uses_legality_fast(),
-            Delta.uses_legality_fast()
-        );
-        assert_eq!(
-            CurrentFinal.uses_single_buffer_legal(),
-            Delta.uses_single_buffer_legal()
-        );
-        assert_eq!(
-            CurrentFinal.uses_single_generation_probe(),
-            Delta.uses_single_generation_probe()
-        );
-        assert_eq!(CurrentFinal.uses_eval2(), Delta.uses_eval2());
-        assert_eq!(
-            CurrentFinal.uses_forcing_search(),
-            Delta.uses_forcing_search()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_ordering(),
-            Delta.uses_threat_ordering()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_qsearch(),
-            Delta.uses_threat_aware_qsearch()
-        );
-        assert_eq!(
-            CurrentFinal.uses_threat_aware_eval(),
-            Delta.uses_threat_aware_eval()
-        );
-
-        // The single intended difference.
-        assert!(!CurrentFinal.uses_qsearch_delta());
-        assert!(Delta.uses_qsearch_delta());
-
-        // Explicit guards for the two arms forgotten in the original
-        // (misconfigured) S7.1B candidate.
-        assert!(
-            Delta.uses_null_move(),
-            "S7.1B must inherit verified null move"
-        );
-        assert!(
-            Delta.uses_single_buffer_legal(),
-            "S7.1B must inherit SingleBuffer materialization"
-        );
-
-        // The resolved hot-path policy must agree on every shared feature
-        // bit and differ only on the delta bit.
-        let cf = SearchFeaturePolicy::for_profile(CurrentFinal, None);
-        let dl = SearchFeaturePolicy::for_profile(Delta, None);
-        assert_eq!(cf.lmr, dl.lmr);
-        assert_eq!(cf.futility, dl.futility);
-        assert_eq!(cf.null_move, dl.null_move);
-        assert_eq!(cf.qsearch_see, dl.qsearch_see);
-        assert!(!cf.qsearch_delta);
-        assert!(dl.qsearch_delta);
     }
 
     #[test]
@@ -11806,127 +8122,6 @@ mod tests {
     }
 
     #[test]
-    fn qsearch_see_pruning_reduces_real_qsearch_work_without_changing_mate_score() {
-        let fen = MVV_POS;
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let run = |profile| {
-            let mut pos = parse_fen(fen).unwrap();
-            let key = pos.zobrist_key();
-            let ctx = SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let mut tt = TranspositionTable::disabled();
-            let out = search_best_move_with_history_tt_and_profile(
-                &mut pos,
-                &[key],
-                &limits,
-                &ctx,
-                &mut tt,
-                profile,
-                None,
-            )
-            .expect("MVV fixture must be non-terminal");
-            (out, ctx.stats())
-        };
-
-        let (movegen, movegen_stats) = run(SearchProfile::CurrentQsearchMovegen);
-        let (pruning, pruning_stats) = run(SearchProfile::CurrentQsearchPruning);
-        assert_eq!(pruning.score, Some(990));
-        assert_eq!(pruning.best_move, movegen.best_move);
-        assert!(pruning_stats.qsearch_see_tests > 0);
-        assert!(pruning_stats.qsearch_see_pruned > 0);
-        assert!(pruning_stats.qsearch_nodes < movegen_stats.qsearch_nodes);
-        assert!(pruning_stats.nodes < movegen_stats.nodes);
-    }
-
-    #[test]
-    fn fast_qsearch_see_matches_d13_decisions() {
-        let positions = [
-            START_FEN,
-            MVV_POS,
-            "6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1",
-            "7k/r7/8/8/p7/8/8/R6K w - - 0 1",
-            "1r5k/P7/8/8/8/8/8/7K w - - 0 1",
-            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
-            "r3b3/3P4/1k6/8/8/8/4Q3/6K1 w - - 0 1",
-            "6K1/4q3/8/8/8/1k6/3p4/R3B3 b - - 0 1",
-        ];
-        for fen in positions {
-            let mut slow_pos = parse_fen(fen).unwrap();
-            let tactical = generate_legal_tactical_moves_with_stats(&mut slow_pos).0;
-            let slow_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let slow = prune_qsearch_captures_by_see(
-                &mut slow_pos,
-                tactical.clone(),
-                &slow_ctx,
-                -10_000,
-                10_000,
-            );
-
-            let mut fast_pos = parse_fen(fen).unwrap();
-            let fast_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let fast = prune_qsearch_captures_by_fast_see(
-                &mut fast_pos,
-                tactical,
-                &fast_ctx,
-                -10_000,
-                10_000,
-            );
-
-            assert_eq!(fast, slow, "fast SEE changed keep/prune set for {fen}");
-            assert_eq!(
-                fast_ctx.stats().qsearch_see_pruned,
-                slow_ctx.stats().qsearch_see_pruned,
-                "fast SEE changed prune count for {fen}"
-            );
-            assert_eq!(
-                fast_ctx.stats().qsearch_see_fail_open_promotions,
-                slow_ctx.stats().qsearch_see_fail_open_promotions,
-                "fast SEE changed fail-open count for {fen}"
-            );
-        }
-
-        let mut walk = parse_fen(START_FEN).unwrap();
-        let mut seed = 0xD140_5EED_u64;
-        for _ in 0..256 {
-            let mut slow_pos = walk;
-            let tactical = generate_legal_tactical_moves_with_stats(&mut slow_pos).0;
-            let slow_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let slow = prune_qsearch_captures_by_see(
-                &mut slow_pos,
-                tactical.clone(),
-                &slow_ctx,
-                -10_000,
-                10_000,
-            );
-            let mut fast_pos = walk;
-            let fast_ctx =
-                SearchContext::new_with_profiling(Arc::new(AtomicBool::new(false)), true);
-            let fast = prune_qsearch_captures_by_fast_see(
-                &mut fast_pos,
-                tactical,
-                &fast_ctx,
-                -10_000,
-                10_000,
-            );
-            assert_eq!(fast, slow, "fast SEE changed walk decision");
-
-            let mut legal = generate_legal_moves(&mut walk);
-            if legal.is_empty() {
-                break;
-            }
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let move_to_play = legal.swap_remove((seed as usize) % legal.len());
-            walk.make_move(move_to_play);
-        }
-    }
-
-    #[test]
     fn order_moves_preserves_set_and_partitions_captures() {
         let pos = parse_fen(MVV_POS).unwrap();
         let mut legal = generate_legal_moves(&mut pos.clone());
@@ -12047,7 +8242,7 @@ mod tests {
             &mut p,
             &limits,
             ctx,
-            SearchProfile::M4Reference,
+            SearchProfile::Current,
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut None,
@@ -12625,7 +8820,7 @@ mod tests {
                     i32::MAX - 1000,
                     &ctx,
                     &limits,
-                    SearchProfile::M4Reference,
+                    SearchProfile::Current,
                     &mut pv,
                     &mut path,
                     &mut TranspositionTable::disabled(),
@@ -13296,7 +9491,7 @@ mod tests {
             m,     // fallback (also g1f3 here)
             &ctx,
             &limits,
-            SearchProfile::M4Reference,
+            SearchProfile::Current,
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut None::<SearchHeuristics>,
@@ -13608,7 +9803,7 @@ mod tests {
             fallback,
             &ctx,
             &limits,
-            SearchProfile::M4Reference,
+            SearchProfile::Current,
             &mut path,
             &mut TranspositionTable::disabled(),
             &mut None::<SearchHeuristics>,
@@ -13950,7 +10145,15 @@ mod tests {
             depth: Some(depth),
             ..Default::default()
         };
-        let out = search_best_move_with_history_and_tt(&mut pos, &hist, &limits, &ctx, tt);
+        let out = search_best_move_with_history_tt_and_profile(
+            &mut pos,
+            &hist,
+            &limits,
+            &ctx,
+            tt,
+            ROLLBACK_PROFILE,
+            None,
+        );
         (out, ctx.nodes.load(Ordering::Relaxed))
     }
 
@@ -14198,180 +10401,6 @@ mod tests {
         assert_eq!(budget_zero_probe.hash_move, None);
     }
 
-    #[test]
-    fn threat_aware_persistent_tt_is_stable_across_cold_warm_and_backtracking() {
-        const FEN: &str = "r4rk1/ppp2ppp/8/8/8/6q1/PPPP1PPP/R3Q1K1 w - - 0 1";
-        const DEPTH: u32 = 3;
-        let limits = SearchLimits {
-            depth: Some(DEPTH),
-            ..Default::default()
-        };
-        let root = parse_fen(FEN).unwrap();
-        let root_key = root.zobrist_key();
-
-        let search = |pos: &mut Position,
-                      history: &[ZobristKey],
-                      tt: &mut TranspositionTable|
-         -> SearchOutcome {
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            search_best_move_with_history_tt_and_profile(
-                pos,
-                history,
-                &limits,
-                &ctx,
-                tt,
-                SearchProfile::CurrentThreatAware,
-                None,
-            )
-            .expect("threat-aware fixture must be non-terminal")
-        };
-
-        // Cold reference result.
-        let mut cold_pos = root;
-        let mut cold_tt = TranspositionTable::new_mb(2).unwrap();
-        let cold = search(&mut cold_pos, &[root_key], &mut cold_tt);
-
-        // First search populates the persistent candidate TT. The root entry
-        // must use the full four-unit root context, not the historical zero
-        // budget key.
-        let mut reused_pos = root;
-        let mut reused_tt = TranspositionTable::new_mb(2).unwrap();
-        let first_reused = search(&mut reused_pos, &[root_key], &mut reused_tt);
-        // The first reused search above is still cold. Repeat the same root
-        // immediately so this test also exercises a genuinely warm root TT
-        // lookup before changing the position.
-        let warm_repeat = search(&mut reused_pos, &[root_key], &mut reused_tt);
-        let root_path = SearchPath::new(vec![root_key]);
-        let candidate_root_key =
-            current_tt_key_with_forcing_budget(&reused_pos, &root_path, MAX_FORCING_EXTENSIONS);
-        assert!(
-            reused_tt.probe(candidate_root_key).is_some(),
-            "candidate root result must be stored under its forcing context"
-        );
-
-        // Move forward using the completed candidate PV, search the
-        // descendant in the same TT, then undo exactly that edge and search
-        // the original root again. The result must not depend on the warm TT
-        // or on the intervening descendant search.
-        let undo = reused_pos.make_move(first_reused.best_move);
-        let descendant_key = reused_pos.zobrist_key();
-        let _descendant = search(&mut reused_pos, &[root_key, descendant_key], &mut reused_tt);
-        reused_pos.unmake_move(undo);
-        let back = search(&mut reused_pos, &[root_key], &mut reused_tt);
-
-        // The first reused search is cold, so its full PV remains a direct
-        // baseline comparison. A true warm lookup may legitimately retain
-        // only a shorter legal PV (hash ordering is not a score semantic),
-        // so the warm and backtracking checks below compare score/depth and
-        // validate PV self-consistency instead of requiring byte-identical
-        // tails.
-        assert_eq!(
-            first_reused.completed_depth, cold.completed_depth,
-            "first-reused-cold completed depth must match cold search"
-        );
-        assert_eq!(
-            first_reused.score, cold.score,
-            "first-reused-cold score must match cold"
-        );
-        assert_eq!(
-            first_reused.best_move, cold.best_move,
-            "first-reused-cold bestmove must match cold"
-        );
-        assert_eq!(
-            first_reused.pv, cold.pv,
-            "first-reused-cold PV must match cold"
-        );
-        assert!(
-            !first_reused.stopped,
-            "first-reused-cold search must complete"
-        );
-
-        for (label, outcome) in [("warm-repeat", warm_repeat), ("back", back)] {
-            assert_eq!(
-                outcome.completed_depth, cold.completed_depth,
-                "{label} completed depth must match cold search"
-            );
-            assert_eq!(
-                outcome.score, cold.score,
-                "{label} score must match cold search"
-            );
-            assert!(
-                pv_is_legal(FEN, &outcome.pv),
-                "{label} PV must remain legal after TT reuse"
-            );
-            assert_eq!(
-                outcome.pv.first(),
-                Some(&outcome.best_move),
-                "{label} PV must start with its bestmove"
-            );
-            assert!(!outcome.stopped, "{label} search must complete");
-        }
-    }
-
-    // ---- §14: hash-move ordering ----------------------------------------------
-
-    #[test]
-    fn tt_order_moves_with_hash_lifts_legal_move() {
-        let pos = parse_fen(START_FEN).unwrap();
-        let mut legal = generate_legal_moves(&mut pos.clone());
-        let count = legal.len();
-        let before: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
-        let hm = find_move(&pos, "g1f3");
-        let idx_before = legal.iter().position(|m| *m == hm).unwrap();
-        order_moves_with_hash(&pos, &mut legal, Some(hm));
-        assert_eq!(legal[0], hm, "hash move lifted to front");
-        assert_eq!(legal.len(), count, "count unchanged");
-        let after: BTreeSet<String> = legal.iter().map(|m| move_to_uci(*m)).collect();
-        assert_eq!(after, before, "set unchanged");
-        let mut rotated = generate_legal_moves(&mut pos.clone());
-        order_moves(&pos, &mut rotated);
-        rotated[..=idx_before].rotate_right(1);
-        assert_eq!(legal, rotated, "remaining order is a single rotation");
-        let mut top = generate_legal_moves(&mut pos.clone());
-        order_moves(&pos, &mut top);
-        let first = top[0];
-        order_moves_with_hash(&pos, &mut top, Some(first));
-        assert_eq!(top[0], first, "move already at 0 stays at 0");
-    }
-
-    #[test]
-    fn tt_order_moves_with_hash_ignores_illegal_and_none() {
-        // A tactical fixture where the base MVV-LVA ordering (`order_moves`)
-        // visibly reorders the raw generation order, so the test is non-trivial.
-        // Black has a rook on d2 that White can capture, while there are also
-        // many quiet moves.
-        let fen = "4k3/8/8/8/8/8/3r4/R2QK3 w - - 0 1";
-        let pos = parse_fen(fen).unwrap();
-        let gen = generate_legal_moves(&mut pos.clone());
-        let gen_set: BTreeSet<String> = gen.iter().map(|m| move_to_uci(*m)).collect();
-
-        // Base MVV-LVA ordering that `order_moves_with_hash` must reproduce
-        // when the hash move is `None` or illegal (i.e. not in the legal set).
-        let mut expected = gen.clone();
-        order_moves(&pos, &mut expected);
-        assert_ne!(expected, gen, "fixture must show a visible reorder");
-
-        // `None` hash move => identical to the base ordering.
-        let mut a = gen.clone();
-        order_moves_with_hash(&pos, &mut a, None);
-        assert_eq!(a.len(), gen.len(), "move count unchanged");
-        assert_eq!(a, expected, "None hash move == base ordering");
-        let a_set: BTreeSet<String> = a.iter().map(|m| move_to_uci(*m)).collect();
-        assert_eq!(a_set, gen_set, "move set unchanged");
-
-        // Illegal hash move: legal on another position, but its source square
-        // (b1) is empty in `pos`, so it is NOT in `pos`'s legal set.
-        // => identical to the base ordering; never panics, never drops a move.
-        let other = parse_fen("4k3/8/8/8/8/8/8/1R2K3 w - - 0 1").unwrap();
-        let illegal = find_move(&other, "b1b4");
-        let mut b = gen.clone();
-        order_moves_with_hash(&pos, &mut b, Some(illegal));
-        assert_eq!(b.len(), gen.len(), "move count unchanged");
-        assert_eq!(b, expected, "illegal hash move == base ordering");
-        let b_set: BTreeSet<String> = b.iter().map(|m| move_to_uci(*m)).collect();
-        assert_eq!(b_set, gen_set, "move set unchanged");
-    }
-
     // ---- §14: claim-floor storage (root) -------------------------------------
 
     #[test]
@@ -14451,7 +10480,7 @@ mod tests {
             m,
             &ctx,
             &limits,
-            SearchProfile::M4Reference,
+            SearchProfile::Current,
             &mut path,
             &mut tt,
             &mut None::<SearchHeuristics>,
@@ -14558,12 +10587,14 @@ mod tests {
         };
         let pos = parse_fen(START_FEN).unwrap();
         let history = vec![pos.zobrist_key()];
-        let out = search_best_move_with_history_and_tt(
+        let out = search_best_move_with_history_tt_and_profile(
             &mut pos.clone(),
             &history,
             &limits,
             &ctx,
             &mut tt,
+            ROLLBACK_PROFILE,
+            None,
         );
         match &out {
             None => {}
@@ -14616,9 +10647,10 @@ mod tests {
 
     #[test]
     fn tt_disabled_exact_baseline_startpos() {
-        // Canonical disabled path: the public `search_best_move` wrapper, which
-        // is exactly the production entry UCI uses today. This must reproduce
-        // the M2.4 fixed baselines measured in tests/m2_4.rs.
+        // Canonical disabled path: the public `search_best_move` wrapper,
+        // which resolves to the rollback profile. The node count is re-locked
+        // for the collapsed profile set (the M4Reference-era 1149 lock lives
+        // in git history).
         let mut pos = parse_fen(START_FEN).unwrap();
         let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
         let limits = SearchLimits {
@@ -14628,8 +10660,8 @@ mod tests {
         let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
         assert_eq!(
             ctx.nodes.load(Ordering::Relaxed),
-            1149,
-            "disabled startpos d3 node count unchanged"
+            770,
+            "disabled startpos d3 node count (rollback profile)"
         );
         assert_eq!(move_to_uci(out.best_move), "b1c3");
         assert_eq!(out.score, Some(50));
@@ -14651,8 +10683,8 @@ mod tests {
         let out = search_best_move(&mut pos, &limits, &ctx).expect("outcome");
         assert_eq!(
             ctx.nodes.load(Ordering::Relaxed),
-            969,
-            "disabled queen-win d3 node count unchanged"
+            755,
+            "disabled queen-win d3 node count (rollback profile)"
         );
         assert_eq!(move_to_uci(out.best_move), "e4a4");
         assert_eq!(out.score, Some(990));
@@ -14669,221 +10701,6 @@ mod tests {
     }
 
     // ---- §8.1 / M4.1 (Commit 2): profile plumbing -----------------------
-    #[test]
-    fn m4_profile_reference_reproduces_baseline() {
-        // The new profile-aware entry, driven with `M4Reference`, must
-        // lock the current M4Reference smoke values. This is the contract
-        // that keeps the M4Reference search policy valid after the M4.1
-        // refactor (the old `search_best_move_with_history_and_tt` now
-        // delegates here with `M4Reference`); historical pre-EVAL values are
-        // recorded separately in the benchmark documents.
-        let mut pos = parse_fen(START_FEN).unwrap();
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        let mut tt = TranspositionTable::disabled();
-        let hist_key = pos.zobrist_key();
-        let out = search_best_move_with_history_tt_and_profile(
-            &mut pos,
-            &[hist_key],
-            &limits,
-            &ctx,
-            &mut tt,
-            SearchProfile::M4Reference,
-            None,
-        )
-        .expect("outcome");
-        assert_eq!(
-            ctx.nodes.load(Ordering::Relaxed),
-            1149,
-            "M4Reference startpos d3 node count unchanged"
-        );
-        assert_eq!(move_to_uci(out.best_move), "b1c3");
-        assert_eq!(out.score, Some(50));
-        assert_eq!(
-            out.pv.iter().map(|m| move_to_uci(*m)).collect::<Vec<_>>(),
-            vec!["b1c3", "b8c6", "g1f3"]
-        );
-    }
-
-    #[test]
-    fn m4_profile_current_matches_reference_smoke() {
-        // Commit 3 enables killer ordering on `Current`. Per spec §6 /
-        // §8.1 the fixed-depth parity contract between `Current` and
-        // `M4Reference` is: identical score, legal best move / PV, and
-        // full Position restoration. They are FREE to differ in node count
-        // / best move / PV ordering (ordering tuning may legitimately
-        // change those), so this test must NOT freeze them -- only the
-        // hard-correctness items above are asserted.
-        let fen = START_FEN;
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let mut pos_r = parse_fen(fen).unwrap();
-        let ctx_r = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_r = TranspositionTable::disabled();
-        let key_r = pos_r.zobrist_key();
-        let out_r = search_best_move_with_history_tt_and_profile(
-            &mut pos_r,
-            &[key_r],
-            &limits,
-            &ctx_r,
-            &mut tt_r,
-            SearchProfile::M4Reference,
-            None,
-        )
-        .expect("reference outcome");
-        let fen_r = to_fen(&pos_r);
-
-        let mut pos_c = parse_fen(fen).unwrap();
-        let ctx_c = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_c = TranspositionTable::disabled();
-        let key_c = pos_c.zobrist_key();
-        let out_c = search_best_move_with_history_tt_and_profile(
-            &mut pos_c,
-            &[key_c],
-            &limits,
-            &ctx_c,
-            &mut tt_c,
-            SearchProfile::Current,
-            None,
-        )
-        .expect("current outcome");
-        let fen_c = to_fen(&pos_c);
-
-        // Fixed-depth completeness + no spurious stop.
-        assert_eq!(out_r.completed_depth, 3);
-        assert!(!out_r.stopped);
-        assert_eq!(out_c.completed_depth, 3);
-        assert!(!out_c.stopped);
-
-        // Score parity (hard correctness).
-        assert_eq!(out_c.score, out_r.score, "fixed-depth score must match");
-        assert_eq!(out_c.score, Some(50), "startpos d3 score is 50 for both");
-
-        // Legal best move / PV for both profiles.
-        assert!(pv_is_legal(fen, &out_r.pv));
-        assert!(pv_is_legal(fen, &out_c.pv));
-        assert_eq!(out_r.pv.first().copied(), Some(out_r.best_move));
-        assert_eq!(out_c.pv.first().copied(), Some(out_c.best_move));
-
-        // Position fully restored by both searches.
-        assert_eq!(fen_r.as_str(), fen, "reference restored");
-        assert_eq!(fen_c.as_str(), fen, "current restored");
-    }
-
-    #[test]
-    fn m4_profile_current_parity_m41reference() {
-        // Post-PVS (Commit 3): `Current` now enables non-root PVS while
-        // `M41Reference` stays full-window. The hard correctness contract
-        // (spec §9.5) is: identical SCORE, legal best move / PV, and
-        // full Position restoration. They are FREE to differ in node count /
-        // best move / PV ordering (ordering + PVS legitimately change
-        // those), so this test must NOT freeze them — only the items
-        // above are asserted. This replaces the pre-PVS byte-parity lock,
-        // which Commit 3 intentionally breaks for `Current`.
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let mut pos_a = parse_fen(START_FEN).unwrap();
-        let ctx_a = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_a = TranspositionTable::disabled();
-        let key_a = pos_a.zobrist_key();
-        let out_a = search_best_move_with_history_tt_and_profile(
-            &mut pos_a,
-            &[key_a],
-            &limits,
-            &ctx_a,
-            &mut tt_a,
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("m41 outcome");
-        let fen_a = to_fen(&pos_a);
-
-        let mut pos_b = parse_fen(START_FEN).unwrap();
-        let ctx_b = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_b = TranspositionTable::disabled();
-        let key_b = pos_b.zobrist_key();
-        let out_b = search_best_move_with_history_tt_and_profile(
-            &mut pos_b,
-            &[key_b],
-            &limits,
-            &ctx_b,
-            &mut tt_b,
-            SearchProfile::Current,
-            None,
-        )
-        .expect("current outcome");
-        let fen_b = to_fen(&pos_b);
-
-        assert_eq!(out_a.score, out_b.score, "fixed-depth score must match");
-        assert!(pv_is_legal(START_FEN, &out_a.pv));
-        assert!(pv_is_legal(START_FEN, &out_b.pv));
-        assert_eq!(out_a.pv.first().copied(), Some(out_a.best_move));
-        assert_eq!(out_b.pv.first().copied(), Some(out_b.best_move));
-        assert_eq!(fen_a.as_str(), START_FEN, "m41 restores position");
-        assert_eq!(fen_b.as_str(), START_FEN, "current restores position");
-    }
-
-    #[test]
-    fn m4_profile_m41reference_uses_m4_1_ordering() {
-        // `M41Reference` must take the M4.1 path (killer/history seven-level
-        // ordering), NOT the M4.0 path. On startpos d3 the M4.1 ordering
-        // yields a different node count than the M4.0 `M4Reference` baseline
-        // (1149). We assert the two counts DIFFER, proving `M41Reference`
-        // genuinely runs the M4.1 path rather than silently falling back to
-        // M4.0. Exact per-fixture counts are not frozen here (they belong to
-        // the M4.1 benchmark report).
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let mut pos_r = parse_fen(START_FEN).unwrap();
-        let ctx_r = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_r = TranspositionTable::disabled();
-        let key_r = pos_r.zobrist_key();
-        let _out_r = search_best_move_with_history_tt_and_profile(
-            &mut pos_r,
-            &[key_r],
-            &limits,
-            &ctx_r,
-            &mut tt_r,
-            SearchProfile::M4Reference,
-            None,
-        )
-        .expect("reference outcome");
-
-        let mut pos_m = parse_fen(START_FEN).unwrap();
-        let ctx_m = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_m = TranspositionTable::disabled();
-        let key_m = pos_m.zobrist_key();
-        let _out_m = search_best_move_with_history_tt_and_profile(
-            &mut pos_m,
-            &[key_m],
-            &limits,
-            &ctx_m,
-            &mut tt_m,
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("m41 outcome");
-
-        let nodes_r = ctx_r.nodes.load(Ordering::Relaxed);
-        let nodes_m = ctx_m.nodes.load(Ordering::Relaxed);
-        assert_eq!(nodes_r, 1149, "M4Reference startpos d3 = 1149");
-        assert_ne!(
-            nodes_m, nodes_r,
-            "M41Reference must NOT equal the M4.0 node count"
-        );
-    }
 
     #[test]
     fn m4_killer_unit() {
@@ -15031,45 +10848,6 @@ mod tests {
     // ---- M4.2 Commit 3: non-root PVS ---
 
     #[test]
-    fn pvs_child_window_pure() {
-        // first move -> Full (never scouted)
-        assert!(matches!(
-            pvs_child_window(SearchProfile::Current, true, 3, 50, 1000),
-            ChildWindow::Full
-        ));
-        // M41Reference later move -> Full (PVS only on Current)
-        assert!(matches!(
-            pvs_child_window(SearchProfile::M41Reference, false, 3, 50, 1000),
-            ChildWindow::Full
-        ));
-        // M4Reference later move -> Full
-        assert!(matches!(
-            pvs_child_window(SearchProfile::M4Reference, false, 3, 50, 1000),
-            ChildWindow::Full
-        ));
-        // Current later move + wide window -> Scout
-        match pvs_child_window(SearchProfile::Current, false, 3, 50, 1000) {
-            ChildWindow::Scout { scout_beta } => assert_eq!(scout_beta, 51),
-            _ => panic!("expected Scout"),
-        }
-        // caller already a null-window node (scout_beta >= beta) -> Full
-        assert!(matches!(
-            pvs_child_window(SearchProfile::Current, false, 3, 999, 1000),
-            ChildWindow::Full
-        ));
-        // alpha near i32::MAX: checked_add overflows -> Full (no panic)
-        assert!(matches!(
-            pvs_child_window(SearchProfile::Current, false, 3, i32::MAX, i32::MAX),
-            ChildWindow::Full
-        ));
-        // depth == 0 -> Full even for Current later move
-        assert!(matches!(
-            pvs_child_window(SearchProfile::Current, false, 0, 50, 1000),
-            ChildWindow::Full
-        ));
-    }
-
-    #[test]
     fn pvs_needs_research_pure() {
         // score <= alpha -> no re-search (fail-low)
         assert!(!pvs_needs_research(40, 50, 100));
@@ -15108,131 +10886,6 @@ mod tests {
         let ep_pos = parse_fen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1").unwrap();
         let ep = find_move(&ep_pos, "e5d6");
         assert!(is_tactical(&ep_pos, ep), "en passant is tactical");
-    }
-
-    #[test]
-    fn pvs_scout_and_research_execute_in_real_search() {
-        // Reset the PVS counters, run `Current` on startpos d3, and prove
-        // BOTH the scout and the full re-search branches actually fire INSIDE
-        // a real search (not just that a node count changed). `M41Reference`
-        // is the same-depth full-window baseline used only to confirm the
-        // fixed-depth ROOT score is preserved. NOTE: PVS does NOT guarantee a
-        // per-fixture node reduction — the hard reduction gate is the
-        // 10-fixture *aggregate* benchmark (Commit 5), never this unit test.
-        pvs_counters::reset();
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-
-        let mut pos_c = parse_fen(START_FEN).unwrap();
-        let ctx_c = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_c = TranspositionTable::disabled();
-        let key_c = pos_c.zobrist_key();
-        let out_c = search_best_move_with_history_tt_and_profile(
-            &mut pos_c,
-            &[key_c],
-            &limits,
-            &ctx_c,
-            &mut tt_c,
-            SearchProfile::Current,
-            None,
-        )
-        .expect("current outcome");
-        let fen_c = to_fen(&pos_c);
-        let nodes_c = ctx_c.nodes.load(Ordering::Relaxed);
-
-        assert!(pvs_counters::SCOUT.get() > 0, "scout fired in real search");
-        assert!(
-            pvs_counters::RESEARCH_ENTERED.get() > 0,
-            "full re-search fired in real search"
-        );
-        // A re-search is attempted only after a scout, and it is entered only
-        // after the attempt (both counts bounded by the scout count).
-        assert_eq!(
-            pvs_counters::RESEARCH_ENTERED.get(),
-            pvs_counters::RESEARCH_ATTEMPT.get(),
-            "no budget abort here: every attempted re-search entered"
-        );
-        assert!(pvs_counters::RESEARCH_ATTEMPT.get() <= pvs_counters::SCOUT.get());
-
-        let mut pos_m = parse_fen(START_FEN).unwrap();
-        let ctx_m = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_m = TranspositionTable::disabled();
-        let key_m = pos_m.zobrist_key();
-        let out_m = search_best_move_with_history_tt_and_profile(
-            &mut pos_m,
-            &[key_m],
-            &limits,
-            &ctx_m,
-            &mut tt_m,
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("m41 outcome");
-        let nodes_m = ctx_m.nodes.load(Ordering::Relaxed);
-
-        assert_eq!(out_c.score, out_m.score, "PVS preserves fixed-depth score");
-        // NOTE: PVS does NOT guarantee per-position node reduction — a single
-        // fixture can show *more* nodes when re-searches (moves whose true
-        // value lands in the open `(alpha, beta)` band) outnumber the
-        // fail-low / fail-high prunes. The spec's hard reduction gate is the
-        // *aggregate* benchmark (Current disabled canonical <= 224,597 vs
-        // M41Reference 236,418, >= 5%), NOT this unit test. We only
-        // sanity-check that both searches did non-trivial work and that the
-        // fixed-depth score is preserved.
-        assert!(
-            nodes_c > 0 && nodes_m > 0,
-            "both searches did non-trivial work"
-        );
-        assert!(pv_is_legal(START_FEN, &out_c.pv));
-        assert_eq!(fen_c.as_str(), START_FEN, "current restores position");
-    }
-
-    #[test]
-    fn pvs_m41reference_never_scouts() {
-        // `M41Reference` stays full-window; it must NEVER take the PVS
-        // scout path even at a later move under a wide window.
-        pvs_counters::reset();
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        let mut pos = parse_fen(START_FEN).unwrap();
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt = TranspositionTable::disabled();
-        let key = pos.zobrist_key();
-        let _out = search_best_move_with_history_tt_and_profile(
-            &mut pos,
-            &[key],
-            &limits,
-            &ctx,
-            &mut tt,
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("m41 outcome");
-        assert_eq!(pvs_counters::SCOUT.get(), 0, "M41Reference never scouts");
-        assert_eq!(
-            pvs_counters::SCOUT_FAIL_LOW.get(),
-            0,
-            "M41Reference never fails a scout low"
-        );
-        assert_eq!(
-            pvs_counters::SCOUT_FAIL_HIGH.get(),
-            0,
-            "M41Reference never fails a scout high"
-        );
-        assert_eq!(
-            pvs_counters::RESEARCH_ATTEMPT.get(),
-            0,
-            "M41Reference never attempts a re-search"
-        );
-        assert_eq!(
-            pvs_counters::RESEARCH_ENTERED.get(),
-            0,
-            "M41Reference never re-searches"
-        );
     }
 
     #[test]
@@ -15488,171 +11141,6 @@ mod tests {
     }
 
     #[test]
-    fn pvs_abort_restores_state_and_no_partial_parent_tt_current() {
-        // P1.2: exercise the REAL `Current` PVS path (NOT `negamax_impl`,
-        // which hardcodes `M4Reference` and never scouts). Sweeping node
-        // budgets forces aborts at three distinct points, each proven by a
-        // dedicated event counter:
-        //   A) inside a null-window scout   -> ABORT_IN_SCOUT
-        //   B) acquiring the re-search node -> ABORT_RESEARCH_ACQUIRE
-        //   C) inside the full re-search    -> ABORT_IN_RESEARCH
-        // Every aborted run must: return None, fully restore board / FEN /
-        // Zobrist / SearchPath, stay within the node budget, and — verified
-        // with an ENABLED TT — leave NO transposition entry for the unfinished
-        // PARENT node (completed child entries may remain).
-        const DEPTH: u32 = 4;
-        let root = parse_fen(START_FEN).unwrap();
-        // Key the aborted parent would have stored under (root at ply 1).
-        let parent_key_probe = {
-            let path = SearchPath::new(vec![root.zobrist_key()]);
-            current_tt_key(&root, &path)
-        };
-
-        // Unlimited baseline: nodes the full node consumes (fresh enabled TT).
-        let full_nodes = {
-            let mut pos = root;
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let limits = SearchLimits::default();
-            let mut tt = TranspositionTable::new_mb(1).unwrap();
-            let mut heur = Some(SearchHeuristics::new());
-            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-            let mut pv = PvTable::default();
-            let r = negamax_entered_impl(
-                &mut pos,
-                DEPTH,
-                1,
-                i32::MIN + 1000,
-                i32::MAX - 1000,
-                &ctx,
-                &limits,
-                SearchProfile::Current,
-                &mut pv,
-                &mut path,
-                &mut tt,
-                &mut heur,
-                &mut None,
-            );
-            assert!(r.is_some(), "unbudgeted node completes");
-            ctx.nodes.load(Ordering::Relaxed)
-        };
-        assert!(full_nodes > 8, "node has a non-trivial subtree");
-
-        pvs_counters::reset();
-        // Bound the sweep for runtime; all three abort phases occur within the
-        // first scoutable moves' subtrees, well inside this range. The loop
-        // also breaks early once every phase has fired so debug-mode runtime
-        // stays small (total work is O(sum of visited budgets)).
-        let cap = full_nodes.saturating_sub(1).min(1200);
-        for budget in 1..=cap {
-            let mut pos = root;
-            let before_fen = to_fen(&pos);
-            let before_key = pos.zobrist_key();
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let limits = SearchLimits {
-                nodes: Some(budget),
-                ..Default::default()
-            };
-            let mut tt = TranspositionTable::new_mb(1).unwrap();
-            let mut heur = Some(SearchHeuristics::new());
-            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-            let root_len = path.len();
-            // P2: capture the full SearchPath fingerprint (not just len/keys)
-            // so an unbalanced push/pop that happened to restore the length
-            // but corrupted the repetition context or the immutable base
-            // prefix cannot pass silently.
-            let before_sig = path.repetition_signature();
-            let before_base_len = path.base_len();
-            let mut pv = PvTable::default();
-            let r = negamax_entered_impl(
-                &mut pos,
-                DEPTH,
-                1,
-                i32::MIN + 1000,
-                i32::MAX - 1000,
-                &ctx,
-                &limits,
-                SearchProfile::Current,
-                &mut pv,
-                &mut path,
-                &mut tt,
-                &mut heur,
-                &mut None,
-            );
-            assert!(r.is_none(), "budget {budget} < {full_nodes} must abort");
-            assert_eq!(
-                path.len(),
-                root_len,
-                "path length restored (budget={budget})"
-            );
-            assert_eq!(
-                path.keys(),
-                &[before_key],
-                "path restored to root key (budget={budget})"
-            );
-            assert_eq!(
-                to_fen(&pos),
-                before_fen,
-                "position restored (budget={budget})"
-            );
-            assert_eq!(
-                pos.zobrist_key(),
-                before_key,
-                "key restored (budget={budget})"
-            );
-            // P2: an abort here is ALWAYS budget exhaustion (no stop flag is
-            // set), so `try_enter_node` fails exactly when the counter has
-            // consumed the whole budget — the node count is EQUAL to the
-            // budget, never merely `<=` it. A weaker `<=` would hide an early
-            // return that left budget unused.
-            assert_eq!(
-                ctx.nodes.load(Ordering::Relaxed),
-                budget,
-                "an aborted node consumes exactly its budget (budget={budget})"
-            );
-            // P2: the repetition signature and the immutable base prefix are
-            // both restored — proves push/pop balance beyond the raw length.
-            assert_eq!(
-                path.repetition_signature(),
-                before_sig,
-                "repetition signature restored (budget={budget})"
-            );
-            assert_eq!(
-                path.base_len(),
-                before_base_len,
-                "base prefix length restored (budget={budget})"
-            );
-            assert!(
-                tt.probe(parent_key_probe).is_none(),
-                "aborted parent left no TT entry (budget={budget})"
-            );
-
-            // Stop as soon as all three abort phases have been provably hit;
-            // every budget below this point has already validated the
-            // abort/restore/no-partial-TT invariants.
-            if pvs_counters::ABORT_IN_SCOUT.get() > 0
-                && pvs_counters::ABORT_RESEARCH_ACQUIRE.get() > 0
-                && pvs_counters::ABORT_IN_RESEARCH.get() > 0
-            {
-                break;
-            }
-        }
-
-        // All three abort phases actually fired across the budget sweep.
-        assert!(
-            pvs_counters::ABORT_IN_SCOUT.get() > 0,
-            "phase A: scout-internal abort observed"
-        );
-        assert!(
-            pvs_counters::ABORT_RESEARCH_ACQUIRE.get() > 0,
-            "phase B: re-search node-acquisition abort observed"
-        );
-        assert!(
-            pvs_counters::ABORT_IN_RESEARCH.get() > 0,
-            "phase C: re-search-internal abort observed"
-        );
-    }
-
-    #[test]
     fn pvs_current_top_level_stopped_and_previous_iteration() {
         // P1.2 (top level): a `Current` search stopped BEFORE depth 1
         // completes reports no score / completed_depth 0 / empty PV (never a
@@ -15819,89 +11307,6 @@ mod tests {
             pvs_counters::RESEARCH_ATTEMPT.get(),
             pvs_counters::RESEARCH_ENTERED.get(),
             "no budget abort: attempts == entered"
-        );
-    }
-
-    #[test]
-    fn pvs_full_research_pv_comes_from_research_current() {
-        // P2.2: when a scout lands in-window and a full re-search runs, the
-        // committed child PV must be the RE-SEARCH line (the re-search clears
-        // and rewrites the child PV row), never the stale null-window scout
-        // line. We assert re-searches actually ran and the resulting root PV
-        // is legal and matches the same-depth `M41Reference` full-window PV
-        // (score parity is the invariant; the PV is a real, playable line).
-        pvs_counters::reset();
-        let limits = SearchLimits {
-            depth: Some(4),
-            ..Default::default()
-        };
-        let mut pos_c = parse_fen(START_FEN).unwrap();
-        let ctx_c = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_c = TranspositionTable::disabled();
-        let key_c = pos_c.zobrist_key();
-        let out_c = search_best_move_with_history_tt_and_profile(
-            &mut pos_c,
-            &[key_c],
-            &limits,
-            &ctx_c,
-            &mut tt_c,
-            SearchProfile::Current,
-            None,
-        )
-        .expect("current outcome");
-        assert!(
-            pvs_counters::RESEARCH_ENTERED.get() > 0,
-            "at least one full re-search ran"
-        );
-        assert!(!out_c.pv.is_empty(), "re-searched Current PV is non-empty");
-        assert!(
-            pv_is_legal(START_FEN, &out_c.pv),
-            "the committed (re-searched) PV is a legal line"
-        );
-
-        // P2: every completed full re-search recorded the child PV row as the
-        // SCOUT left it paired with the row the RE-SEARCH rewrote. First, the
-        // pairing is exhaustive — one pair per re-search that returned a
-        // score (aborted re-searches propagate `None` and record nothing).
-        let pairs = pvs_counters::RESEARCH_PV_PAIRS.with_borrow(|v| v.clone());
-        assert_eq!(
-            pairs.len(),
-            pvs_counters::RESEARCH_ENTERED.get(),
-            "one (scout,research) child-row pair captured per completed re-search"
-        );
-        // The re-search clears + rewrites the child PV row before returning,
-        // so when a re-searched move becomes a node's best move the parent
-        // copies exactly the RE-SEARCH row (never a stale scout row). This is
-        // proven STRUCTURALLY and inline at the commit site (an `assert_eq!`
-        // comparing the parent's committed child tail against the recorded
-        // re-search row), and `RESEARCH_ROW_COMMITTED` proves that guarded
-        // commit path was actually exercised. (We do NOT require the scout
-        // and re-search rows to differ: a null-window scout that improves
-        // alpha frequently finds the same best child line — the invariant
-        // under test is that the committed row is a genuine re-search
-        // product, not that it is textually distinct from the scout row.)
-        assert!(
-            pvs_counters::RESEARCH_ROW_COMMITTED.get() > 0,
-            "at least one re-searched move became a node best and committed its re-search child row"
-        );
-
-        let mut pos_m = parse_fen(START_FEN).unwrap();
-        let ctx_m = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let mut tt_m = TranspositionTable::disabled();
-        let key_m = pos_m.zobrist_key();
-        let out_m = search_best_move_with_history_tt_and_profile(
-            &mut pos_m,
-            &[key_m],
-            &limits,
-            &ctx_m,
-            &mut tt_m,
-            SearchProfile::M41Reference,
-            None,
-        )
-        .expect("m41 outcome");
-        assert_eq!(
-            out_c.score, out_m.score,
-            "PVS preserves the fixed-depth root score"
         );
     }
 
@@ -16396,7 +11801,7 @@ mod tests {
             &mut pos,
             &limits,
             &ctx,
-            SearchProfile::M4Reference,
+            SearchProfile::Current,
             &mut path,
             &mut tt,
             &mut None,
@@ -16452,109 +11857,6 @@ mod tests {
             .find(|m| **m != qxa4)
             .expect("a non-Qxa4 legal move exists");
         (weak, qxa4)
-    }
-
-    #[test]
-    fn root_pvs_profile_isolation() {
-        // The reference profiles keep a full-window root: at the ROOT they must
-        // NEVER scout, fail-low a scout, attempt or enter a re-search, and must
-        // never mark the `Current`-only "first root move full" event. `Current`
-        // runs root PVS and, on a multi-move position, scouts later root moves.
-        let depth = 3;
-
-        for profile in [SearchProfile::M4Reference, SearchProfile::M41Reference] {
-            pvs_counters::reset();
-            let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
-            let mut root_moves = generate_legal_moves(&mut pos.clone());
-            let fallback = root_moves[0];
-            let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-            let limits = SearchLimits {
-                depth: Some(depth),
-                ..Default::default()
-            };
-            let mut heur = if profile == SearchProfile::M4Reference {
-                None
-            } else {
-                Some(SearchHeuristics::new())
-            };
-            root_search(
-                &mut pos,
-                depth,
-                &mut root_moves,
-                false,
-                fallback,
-                &ctx,
-                &limits,
-                profile,
-                &mut path,
-                &mut TranspositionTable::disabled(),
-                &mut heur,
-                &mut None,
-            )
-            .expect("iteration completes");
-            assert_eq!(
-                pvs_counters::ROOT_SCOUT.get(),
-                0,
-                "{profile:?} never scouts at the root"
-            );
-            assert_eq!(
-                pvs_counters::ROOT_FAIL_LOW.get(),
-                0,
-                "{profile:?} never fails a root scout low"
-            );
-            assert_eq!(
-                pvs_counters::ROOT_RESEARCH_ATTEMPT.get(),
-                0,
-                "{profile:?} never attempts a root re-search"
-            );
-            assert_eq!(
-                pvs_counters::ROOT_RESEARCH_ENTERED.get(),
-                0,
-                "{profile:?} never re-searches at the root"
-            );
-            assert_eq!(
-                pvs_counters::ROOT_FIRST_FULL.get(),
-                0,
-                "{profile:?} never marks the Current-only first-full root event"
-            );
-        }
-
-        // Current: root PVS scouts later root moves and marks the first full.
-        pvs_counters::reset();
-        let mut pos = parse_fen(ROOT_QWIN_FEN).unwrap();
-        let mut root_moves = generate_legal_moves(&mut pos.clone());
-        let fallback = root_moves[0];
-        let mut path = SearchPath::new(vec![pos.zobrist_key()]);
-        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-        let limits = SearchLimits {
-            depth: Some(depth),
-            ..Default::default()
-        };
-        let mut heur = Some(SearchHeuristics::new());
-        root_search(
-            &mut pos,
-            depth,
-            &mut root_moves,
-            false,
-            fallback,
-            &ctx,
-            &limits,
-            SearchProfile::Current,
-            &mut path,
-            &mut TranspositionTable::disabled(),
-            &mut heur,
-            &mut None,
-        )
-        .expect("iteration completes");
-        assert!(
-            pvs_counters::ROOT_SCOUT.get() > 0,
-            "Current scouts later root moves"
-        );
-        assert!(
-            pvs_counters::ROOT_FIRST_FULL.get() > 0,
-            "Current searches the first root move full-window"
-        );
     }
 
     #[test]
@@ -16781,80 +12083,6 @@ mod tests {
             legal_count,
             "root visited every legal move (no beta cutoff)"
         );
-    }
-
-    #[test]
-    fn root_pvs_score_parity_m41_vs_current() {
-        // The hard correctness contract (spec §9.5): at a fixed depth,
-        // `Current` (root + non-root PVS) and `M41Reference` (full-window)
-        // return the IDENTICAL score (mate distance included, since it is
-        // encoded in the score), a legal best move / PV, and a fully restored
-        // root position. They are FREE to differ in node count / move / PV
-        // ordering. We check both a disabled and an enabled TT.
-        // Fixtures: startpos, queen-win, a mate-in-1, and insufficient material.
-        let cases: &[(&str, u32, bool)] = &[
-            (START_FEN, 3, false),
-            (ROOT_QWIN_FEN, 3, false),
-            // Ra8# mate-in-1: White Ra1, Kh1; Black Kg8 boxed by its own pawns.
-            ("6k1/5ppp/8/8/8/8/8/R6K w - - 0 1", 2, true),
-            // K vs K: automatic insufficient-material draw (root short-circuit).
-            ("8/8/8/8/8/8/8/K6k w - - 0 1", 2, false),
-        ];
-
-        for &(fen, depth, is_mate) in cases {
-            for enabled in [false, true] {
-                let run = |profile: SearchProfile| {
-                    let mut pos = parse_fen(fen).unwrap();
-                    let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
-                    let limits = SearchLimits {
-                        depth: Some(depth),
-                        ..Default::default()
-                    };
-                    let mut tt = if enabled {
-                        TranspositionTable::new_mb(1).unwrap()
-                    } else {
-                        TranspositionTable::disabled()
-                    };
-                    let key = pos.zobrist_key();
-                    let out = search_best_move_with_history_tt_and_profile(
-                        &mut pos,
-                        &[key],
-                        &limits,
-                        &ctx,
-                        &mut tt,
-                        profile,
-                        None,
-                    )
-                    .expect("outcome");
-                    (out, to_fen(&pos))
-                };
-
-                let (out_ref, fen_ref) = run(SearchProfile::M41Reference);
-                let (out_cur, fen_cur) = run(SearchProfile::Current);
-
-                assert_eq!(
-                    out_cur.score, out_ref.score,
-                    "score parity failed: fen={fen} depth={depth} enabled={enabled}"
-                );
-                if is_mate {
-                    let s = out_cur.score.expect("mate score present");
-                    assert!(
-                        s > MATE - 1000,
-                        "mate fixture must score a mate for both profiles (fen={fen}, s={s})"
-                    );
-                }
-                assert!(
-                    pv_is_legal(fen, &out_ref.pv),
-                    "m41 PV legal: fen={fen} enabled={enabled}"
-                );
-                assert!(
-                    pv_is_legal(fen, &out_cur.pv),
-                    "current PV legal: fen={fen} enabled={enabled}"
-                );
-                assert_eq!(fen_ref.as_str(), fen, "m41 restored: fen={fen}");
-                assert_eq!(fen_cur.as_str(), fen, "current restored: fen={fen}");
-            }
-        }
     }
 
     #[test]

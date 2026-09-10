@@ -499,8 +499,8 @@ fn behavior_zero_change_startpos_depth3() {
     assert_eq!(to_fen(&pos), before, "root position restored");
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
-        1149,
-        "startpos depth-3 node baseline (PST era)"
+        770,
+        "startpos depth-3 node baseline (post-convergence rollback lock)"
     );
     assert_eq!(move_to_uci(out.best_move), "b1c3");
     assert_eq!(out.score, Some(50));
@@ -526,8 +526,8 @@ fn behavior_zero_change_queenwin_depth3() {
     assert_eq!(to_fen(&pos), before, "root position restored");
     assert_eq!(
         ctx.nodes.load(Ordering::Relaxed),
-        969,
-        "queen-win depth-3 node baseline (EVAL 1A era)"
+        755,
+        "queen-win depth-3 node baseline (post-convergence rollback lock)"
     );
     assert_eq!(move_to_uci(out.best_move), "e4a4");
     assert_eq!(out.score, Some(990));

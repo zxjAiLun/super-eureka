@@ -111,25 +111,15 @@ fn assert_startup_rejected(args: &[&str]) {
 #[test]
 fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
     run_profile_process(&[], "current-final", false);
-    run_profile_process(&["--profile", "current"], "current", false);
-    run_profile_process(&["--profile", "current-lmr"], "current-lmr", true);
-    run_profile_process(
-        &["--profile", "current-threat-aware"],
-        "current-threat-aware",
-        true,
-    );
-    run_profile_process(
-        &["--profile", "current-aspiration"],
-        "current-aspiration",
-        true,
-    );
-    run_profile_process(
-        &["--profile", "current-qsearch-pruning"],
-        "current-qsearch-pruning",
-        false,
-    );
+    run_profile_process(&["--profile", "current"], "current", true);
+    run_profile_process(&["--profile", "current-final"], "current-final", true);
 
     assert_startup_rejected(&["--profile", "null"]);
-    assert_startup_rejected(&["--profile", "current", "--profile", "current-aspiration"]);
+    assert_startup_rejected(&["--profile", "current", "--profile", "current-final"]);
     assert_startup_rejected(&["--profile", "not-a-profile"]);
+    // Closed experiment names are no longer selectable.
+    assert_startup_rejected(&["--profile", "current-lmr"]);
+    assert_startup_rejected(&["--profile", "current-threat-aware"]);
+    assert_startup_rejected(&["--profile", "current-aspiration"]);
+    assert_startup_rejected(&["--profile", "current-qsearch-pruning"]);
 }

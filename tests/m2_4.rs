@@ -177,14 +177,14 @@ fn pst_fixed_depth_search_baselines() {
     let startpos = depth3_baseline(START_FEN);
     assert_eq!(
         startpos,
-        (1149, "b1c3".to_string(), 50),
-        "startpos depth-3 baseline (nodes, best move, score) — EVAL 1A era"
+        (770, "b1c3".to_string(), 50),
+        "startpos depth-3 baseline (nodes, best move, score) — post-convergence rollback lock"
     );
 
     let queenwin = depth3_baseline("7k/8/8/8/q3Q2p/8/8/4K3 w - - 0 1");
     assert_eq!(
         queenwin,
-        (969, "e4a4".to_string(), 990),
-        "queen-win depth-3 baseline (nodes, best move, score) — EVAL 1B era"
+        (755, "e4a4".to_string(), 990),
+        "queen-win depth-3 baseline (nodes, best move, score) — post-convergence rollback lock"
     );
 }

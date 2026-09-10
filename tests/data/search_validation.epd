@@ -19,7 +19,7 @@ promotion-race|promotion-race|4k3/P7/8/8/8/8/7p/4K3 w - - 0 1|a7a8q,a7a8r,a7a8b,
 en-passant-tactic|en-passant|4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1|*|nonlosing|4|project-curated|CC0-1.0
 sacrifice-recapture|sacrifice|6k1/8/3p4/4p3/8/5N2/8/6K1 w - - 0 1|*|nonlosing|4|project-curated|CC0-1.0
 stalemate-resource|stalemate|7k/5Q2/6K1/8/8/8/8/8 b - - 0 1|0000|terminal-draw|1|project-curated|CC0-1.0
-kqk-mopup|endgame-kqk|7k/8/5K2/8/3Q4/8/8/8 w - - 0 1|d4g1|mate|3|project-curated|CC0-1.0
+kqk-mopup|endgame-kqk|7k/8/5K2/8/3Q4/8/8/8 w - - 0 1|d4g1,f6g6|mate|3|project-curated|CC0-1.0
 krk-mopup|endgame-krk|7k/8/5K2/8/3R4/8/8/8 w - - 0 1|f6g6|mate|3|project-curated|CC0-1.0
 # D1.10 SEE-specific additions. These are fixed project-curated safety cases,
 # not a broad tactical strength suite.

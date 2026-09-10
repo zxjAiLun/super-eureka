@@ -141,26 +141,30 @@ fn resolve_nnue_model_path_against(exe_dir: Option<PathBuf>, path: &str) -> Path
     given.to_path_buf()
 }
 
+/// The resolved search-time NNUE backend: the Arc-shared startup/UCI model.
+/// The delivery mechanism is a property of the model's own metadata and is
+/// resolved by [`NnueSearchState::for_search`].
+#[derive(Debug)]
 struct SearchNnueBackend {
     model: Arc<NnueModel>,
-    mode: crate::engine::nnue_search::NnueSearchMode,
-    /// S11-B4-B: construct the state with the incremental R12 relation
-    /// frames (combined accumulator + [u8; 64] relation state).
-    r12_incremental: bool,
 }
 
 impl SearchNnueBackend {
-    /// S14: build the backend from the ARTIFACT. The delivery mechanism is a
-    /// property of the model (a V2R12 artifact gets the incremental R12
-    /// relation stack, everything else the plain V2 incremental stack), so the
-    /// same artifact is handled identically whichever entry point loaded it.
+    /// S14: build the backend from the ARTIFACT.
     fn from_model(model: Arc<NnueModel>) -> Self {
-        use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-        Self {
-            r12_incremental: model.feature_set() == NnueFeatureSetId::V2R12,
-            model,
-            mode: crate::engine::nnue_search::NnueSearchMode::Incremental,
-        }
+        Self { model }
+    }
+
+    /// Build the search-local state. `NnueSearchState::for_search` reads the
+    /// artifact's feature-set metadata and constructs the matching
+    /// incremental stack (plain V2 or R12 relation frames).
+    fn build_state(&self, pos: &Position) -> crate::engine::nnue_search::NnueSearchState {
+        crate::engine::nnue_search::NnueSearchState::for_search(
+            self.model.clone(),
+            pos,
+            false,
+            false,
+        )
     }
 }
 
@@ -235,20 +239,12 @@ fn spawn_search(
         let mut guard = lock_tt_recover(&tt);
         // Build a search-local state whenever an NNUE backend was selected.
         // Its presence controls evaluator dispatch; `profile` still controls
-        // every search-policy branch.
-        let nnue_state = nnue_backend.map(|backend| {
-            if backend.r12_incremental {
-                crate::engine::nnue_search::NnueSearchState::with_r12_incremental(
-                    backend.model,
-                    backend.mode,
-                    &pos,
-                    false,
-                    false,
-                )
-            } else {
-                crate::engine::nnue_search::NnueSearchState::new(backend.model, backend.mode, &pos)
-            }
-        });
+        // every search-policy branch. The state constructor is MODEL-driven
+        // (`for_search`): the artifact's feature-set metadata picks the
+        // delivery mechanism.
+        let nnue_state = nnue_backend
+            .as_ref()
+            .map(|backend| backend.build_state(&pos));
         match search::search_best_move_with_history_tt_and_profile(
             &mut pos,
             &game_history,
@@ -287,61 +283,6 @@ fn lock_tt_recover(tt: &Mutex<TranspositionTable>) -> MutexGuard<'_, Transpositi
     }
 }
 
-fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
-    match profile {
-        search::SearchProfile::Current => "current",
-        search::SearchProfile::CurrentLmr => "current-lmr",
-        search::SearchProfile::CurrentThreatAware => "current-threat-aware",
-        search::SearchProfile::CurrentThreatAwareNoQchecks => "current-threat-aware-no-qchecks",
-        search::SearchProfile::CurrentThreatAwareEvalOrder => "current-threat-aware-eval-order",
-        search::SearchProfile::CurrentThreatAwareEvalOnly => "current-threat-aware-eval-only",
-        search::SearchProfile::CurrentThreatAwareOrderOnly => "current-threat-aware-order-only",
-        search::SearchProfile::CurrentEval2 => "current-eval2",
-        search::SearchProfile::CurrentAspiration => "current-aspiration",
-        search::SearchProfile::CurrentAspirationLmr => "current-aspiration-lmr",
-        search::SearchProfile::CurrentAspirationLmrFutility => "current-aspiration-lmr-futility",
-        search::SearchProfile::CurrentAspirationLmrFutilitySee => {
-            "current-aspiration-lmr-futility-see"
-        }
-        search::SearchProfile::CurrentFinal => "current-final",
-        search::SearchProfile::CurrentFinalRootHistory => "current-final-root-history",
-        search::SearchProfile::CurrentFinalRootPrevScore => "current-final-root-prev-score",
-        search::SearchProfile::CurrentFinalLegalityFast => "current-final-legality-fast",
-        search::SearchProfile::CurrentFinalSingleBuffer => "current-final-single-buffer",
-        search::SearchProfile::CurrentFinalSingleGeneration => "current-final-single-generation",
-        search::SearchProfile::CurrentFinalQsearchLazy => "current-final-qsearch-lazy",
-        search::SearchProfile::CurrentFinalQsearchDelta => "current-final-qsearch-delta",
-        search::SearchProfile::CurrentFinalLmrNullWindow => "current-final-lmr-null-window",
-        search::SearchProfile::CurrentFinalSingleEvasion => "current-final-single-evasion",
-        search::SearchProfile::CurrentFinalBoundedCheck2 => "current-final-bounded-check2",
-        search::SearchProfile::CurrentFinalPhaseAffine => "current-final-phase-affine",
-        search::SearchProfile::CurrentFinalEval2 => "current-final-eval2",
-        search::SearchProfile::CurrentFinalNoPawnStructure => "current-final-no-pawn-structure",
-        search::SearchProfile::CurrentFinalNoMobility => "current-final-no-mobility",
-        search::SearchProfile::CurrentFinalNoPieceActivity => "current-final-no-piece-activity",
-        search::SearchProfile::CurrentFinalNoRookActivity => "current-final-no-rook-activity",
-        search::SearchProfile::CurrentFinalNoDevelopmentSpace => {
-            "current-final-no-development-space"
-        }
-        search::SearchProfile::CurrentFinalNoKingSafety => "current-final-no-king-safety",
-        search::SearchProfile::CurrentFinalNnueV2QFull => "current-final-nnue-v2q-full",
-        search::SearchProfile::CurrentFinalNnueV2QIncremental => "current-final-nnue-v2q",
-        search::SearchProfile::CurrentFinalNnueV2QMaterial => "current-final-nnue-v2q-material",
-        search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut => {
-            "current-final-nnue-v2q-material-cal-fut"
-        }
-        search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => {
-            "current-final-nnue-v2q-material-r12"
-        }
-        search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => {
-            "current-final-nnue-v2q-material-r12-inc"
-        }
-        search::SearchProfile::CurrentFinalS12 => "current-final-s12",
-        search::SearchProfile::CurrentQsearchPruning => "current-qsearch-pruning",
-        _ => "unsupported",
-    }
-}
-
 /// Write the `uci` handshake to `out` with a read-only search-profile
 /// identity. The `startup_tt_failed` flag appends a diagnostic (after the
 /// `Hash` option line, before `uciok`) telling the GUI that the default table
@@ -351,7 +292,7 @@ fn startup_profile_name(profile: search::SearchProfile) -> &'static str {
 fn write_uci_handshake_with_profile<W: Write>(
     out: &mut W,
     startup_tt_failed: bool,
-    profile: search::SearchProfile,
+    profile_name: &str,
     eval_backend: &EvalBackendConfig,
 ) -> io::Result<()> {
     writeln!(out, "id name Eureka v{}", crate::version::version_string())?;
@@ -393,32 +334,28 @@ fn write_uci_handshake_with_profile<W: Write>(
         "info string release_date {}",
         crate::version::release_date()
     )?;
-    writeln!(out, "info string profile {}", startup_profile_name(profile))?;
-    // Baseline and S6-C1 candidate ship in the SAME binary, so the eval line
-    // names the calibration when it is active. Every pre-existing profile keeps
-    // the exact original string. S11: NNUE profiles name the network family.
+    writeln!(out, "info string profile {profile_name}")?;
+    // Baseline and production ship in the SAME binary, so the eval line names
+    // the integrated-positional evaluator for CurrentFinal. When the unified
+    // evaluation backend selects NNUE (startup legacy profile or UCI
+    // `Evaluation=nnue`), the eval line names the network instead.
+    let nnue_active = eval_backend.evaluation == Evaluation::Nnue;
     writeln!(
         out,
         "info string eval {}",
-        if profile.uses_phase_affine_eval() {
-            "handcrafted-v1+phase-affine-c1"
-        } else if profile.uses_eval2() {
-            "handcrafted-v1+integrated-positional"
-        } else if profile.uses_nnue_eval() {
+        if nnue_active {
             "nnue-v2q"
+        } else if matches!(
+            eval_backend_profile_identity(profile_name),
+            search::SearchProfile::CurrentFinal
+        ) {
+            "handcrafted-v1+integrated-positional"
         } else {
             "handcrafted-v1"
         }
     )?;
-    if profile.uses_nnue_eval() {
-        // S11: name the R12 relation-sidecar variant (fresh oracle vs
-        // incremental stack) when an NNUE profile is active.
-        let network = match profile {
-            search::SearchProfile::CurrentFinalNnueV2QMaterialR12 => "nnue-v2r12-fresh-hybrid",
-            search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc => "nnue-v2r12-incremental",
-            _ => "nnue-v2q",
-        };
-        writeln!(out, "info string network {network}")?;
+    if nnue_active {
+        writeln!(out, "info string network nnue-v2q")?;
     } else {
         writeln!(out, "info string network none")?;
     }
@@ -435,13 +372,24 @@ fn write_uci_handshake_with_profile<W: Write>(
     Ok(())
 }
 
+/// Resolve the canonical `--profile` name back to its search identity. Used
+/// only for the handshake's eval line (the resolved name string is the single
+/// source of profile identity in the handshake).
+fn eval_backend_profile_identity(profile_name: &str) -> search::SearchProfile {
+    if profile_name == "current" {
+        search::ROLLBACK_PROFILE
+    } else {
+        search::PRODUCTION_PROFILE
+    }
+}
+
 /// Compatibility wrapper for tests and callers that use the default profile.
 #[cfg(test)]
 fn write_uci_handshake<W: Write>(out: &mut W, startup_tt_failed: bool) -> io::Result<()> {
     write_uci_handshake_with_profile(
         out,
         startup_tt_failed,
-        search::PRODUCTION_PROFILE,
+        "current-final",
         &EvalBackendConfig::default(),
     )
 }
@@ -463,11 +411,11 @@ fn write_pending_uci_handshake<W: Write>(
 fn write_pending_uci_handshake_with_profile<W: Write>(
     out: &mut W,
     startup_tt_notice_pending: &mut bool,
-    profile: search::SearchProfile,
+    profile_name: &str,
     eval_backend: &EvalBackendConfig,
 ) -> io::Result<()> {
     let report_failure = std::mem::take(startup_tt_notice_pending);
-    write_uci_handshake_with_profile(out, report_failure, profile, eval_backend)
+    write_uci_handshake_with_profile(out, report_failure, profile_name, eval_backend)
 }
 
 /// Write the `isready` reply. Deliberately takes **no** TT parameter: it
@@ -630,19 +578,11 @@ fn handle_uci_setoption(
     tokens: &[&str],
     active: &mut Option<ActiveSearch>,
     tt: &Arc<Mutex<TranspositionTable>>,
-    profile: search::SearchProfile,
     eval_backend: &mut EvalBackendConfig,
 ) -> SetoptionOutcome {
     match parse_eval_setoption(tokens) {
         EvalOptionCommand::Unknown => handle_setoption(tokens, active, tt),
         EvalOptionCommand::EvalFile(requested) => {
-            if profile.uses_nnue_eval() {
-                println!(
-                    "info string EvalFile is fixed by the startup NNUE profile; option ignored"
-                );
-                let _ = io::stdout().flush();
-                return SetoptionOutcome::Ignored;
-            }
             stop_and_join(active);
             match load_eval_file_transactionally(eval_backend, requested.as_deref()) {
                 Ok(name) => {
@@ -660,13 +600,6 @@ fn handle_uci_setoption(
             }
         }
         EvalOptionCommand::Evaluation(requested) => {
-            if profile.uses_nnue_eval() {
-                println!(
-                    "info string Evaluation is fixed by the startup NNUE profile; option ignored"
-                );
-                let _ = io::stdout().flush();
-                return SetoptionOutcome::Ignored;
-            }
             stop_and_join(active);
             match requested {
                 Some(evaluation) => {
@@ -751,14 +684,43 @@ fn handle_setoption(
     }
 }
 
+/// The resolved startup selection: which search profile runs (always
+/// [`search::PRODUCTION_PROFILE`] or [`search::ROLLBACK_PROFILE`]), the
+/// profile name to report in the handshake (a legacy NNUE name is preserved
+/// verbatim for the handshake), and the optional startup-owned NNUE model
+/// (Arc-shared model + the resolved path for the backend's `eval_file`).
+#[derive(Debug)]
+struct StartupSelection {
+    profile: search::SearchProfile,
+    profile_name: &'static str,
+    startup_model: Option<(Arc<NnueModel>, String)>,
+}
+
 /// Parse the optional command-line profile used when launching a tournament
-/// candidate. The default is [`search::PRODUCTION_PROFILE`] (`CurrentFinal`);
-/// explicitly selected `current` resolves to
-/// [`search::ROLLBACK_PROFILE`]. Dormant null/standalone search candidates
-/// and the closed D1.3 qsearch-pruning profile remain separate from both
-/// production identities.
+/// candidate. The default is [`search::PRODUCTION_PROFILE`] (`current-final`);
+/// explicitly selected `current` resolves to [`search::ROLLBACK_PROFILE`].
+///
+/// The seven historical NNUE profile names remain accepted as launch aliases
+/// (tournament/GUI handshakes depend on them): each maps to the production
+/// search profile with the unified evaluation backend initialized to
+/// `Evaluation::Nnue` from `--nnue-model`. Every other name is rejected.
 fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
+    const SUPPORTED_PROFILES: &str = "current|current-final|current-final-nnue-v2q-full|\
+current-final-nnue-v2q|current-final-nnue-v2q-material|\
+current-final-nnue-v2q-material-cal-fut|current-final-nnue-v2q-material-r12|\
+current-final-nnue-v2q-material-r12-inc|current-final-s12";
+    const NNUE_PROFILES: &[&str] = &[
+        "current-final-nnue-v2q-full",
+        "current-final-nnue-v2q",
+        "current-final-nnue-v2q-material",
+        "current-final-nnue-v2q-material-cal-fut",
+        "current-final-nnue-v2q-material-r12",
+        "current-final-nnue-v2q-material-r12-inc",
+        "current-final-s12",
+    ];
+
     let mut profile = search::PRODUCTION_PROFILE;
+    let mut profile_name = "current-final";
     let mut profile_seen = false;
     let mut nnue_model_path: Option<String> = None;
     let mut it = args.iter();
@@ -778,95 +740,33 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 let name = it
                     .next()
                     .ok_or_else(|| "--profile requires a value".to_string())?;
-                profile = match name.as_str() {
-                    "current" => search::ROLLBACK_PROFILE,
-                    "current-lmr" => search::SearchProfile::CurrentLmr,
-                    "current-threat-aware" => search::SearchProfile::CurrentThreatAware,
-                    "current-eval2" => search::SearchProfile::CurrentEval2,
-                    "current-aspiration" => search::SearchProfile::CurrentAspiration,
-                    "current-aspiration-lmr" => search::SearchProfile::CurrentAspirationLmr,
-                    "current-aspiration-lmr-futility" => {
-                        search::SearchProfile::CurrentAspirationLmrFutility
+                match name.as_str() {
+                    "current" => {
+                        profile = search::ROLLBACK_PROFILE;
+                        profile_name = "current";
                     }
-                    "current-aspiration-lmr-futility-see" => {
-                        search::SearchProfile::CurrentAspirationLmrFutilitySee
+                    "current-final" => {
+                        profile = search::SearchProfile::CurrentFinal;
+                        profile_name = "current-final";
                     }
-                    "current-final" => search::SearchProfile::CurrentFinal,
-                    "current-final-root-history" => search::SearchProfile::CurrentFinalRootHistory,
-                    "current-final-root-prev-score" => {
-                        search::SearchProfile::CurrentFinalRootPrevScore
+                    legacy if NNUE_PROFILES.contains(&legacy) => {
+                        // S14 convergence: a legacy NNUE profile name selects
+                        // the production search profile; the unified eval
+                        // backend carries the startup model (see the fail-
+                        // closed model requirement below).
+                        profile = search::SearchProfile::CurrentFinal;
+                        profile_name = NNUE_PROFILES
+                            .iter()
+                            .copied()
+                            .find(|n| *n == legacy)
+                            .expect("legacy name is in NNUE_PROFILES");
                     }
-                    "current-final-legality-fast" => {
-                        search::SearchProfile::CurrentFinalLegalityFast
-                    }
-                    "current-final-single-buffer" => {
-                        search::SearchProfile::CurrentFinalSingleBuffer
-                    }
-                    "current-final-single-generation" => {
-                        search::SearchProfile::CurrentFinalSingleGeneration
-                    }
-                    "current-final-qsearch-delta" => {
-                        search::SearchProfile::CurrentFinalQsearchDelta
-                    }
-                    "current-final-lmr-null-window" => {
-                        search::SearchProfile::CurrentFinalLmrNullWindow
-                    }
-                    "current-final-single-evasion" => {
-                        search::SearchProfile::CurrentFinalSingleEvasion
-                    }
-                    "current-final-bounded-check2" => {
-                        search::SearchProfile::CurrentFinalBoundedCheck2
-                    }
-                    "current-final-phase-affine" => search::SearchProfile::CurrentFinalPhaseAffine,
-                    "current-final-eval2" => search::SearchProfile::CurrentFinalEval2,
-                    "current-final-no-pawn-structure" => {
-                        search::SearchProfile::CurrentFinalNoPawnStructure
-                    }
-                    "current-final-no-mobility" => search::SearchProfile::CurrentFinalNoMobility,
-                    "current-final-no-piece-activity" => {
-                        search::SearchProfile::CurrentFinalNoPieceActivity
-                    }
-                    "current-final-no-rook-activity" => {
-                        search::SearchProfile::CurrentFinalNoRookActivity
-                    }
-                    "current-final-no-development-space" => {
-                        search::SearchProfile::CurrentFinalNoDevelopmentSpace
-                    }
-                    "current-final-no-king-safety" => {
-                        search::SearchProfile::CurrentFinalNoKingSafety
-                    }
-                    // S10-D preview: NNUE candidate profiles (require
-                    // --nnue-model; fail-closed otherwise).
-                    "current-final-nnue-v2q-full" => search::SearchProfile::CurrentFinalNnueV2QFull,
-                    "current-final-nnue-v2q" => {
-                        search::SearchProfile::CurrentFinalNnueV2QIncremental
-                    }
-                    // S10-F1: material-anchored residual NNUE candidate
-                    // (requires a v2 artifact with target_mode =
-                    // material_residual; fail-closed otherwise).
-                    "current-final-nnue-v2q-material" => {
-                        search::SearchProfile::CurrentFinalNnueV2QMaterial
-                    }
-                    "current-final-nnue-v2q-material-cal-fut" => {
-                        search::SearchProfile::CurrentFinalNnueV2QMaterialCalFut
-                    }
-                    // S11-B2: R12 relation-sidecar hybrid (requires a v4
-                    // feature_set=V2R12 artifact; fail-closed otherwise).
-                    "current-final-nnue-v2q-material-r12" => {
-                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12
-                    }
-                    "current-final-nnue-v2q-material-r12-inc" => {
-                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
-                    }
-                    "current-final-s12" => search::SearchProfile::CurrentFinalS12,
-                    "current-qsearch-pruning" => search::SearchProfile::CurrentQsearchPruning,
                     other => {
                         return Err(format!(
-                            "invalid --profile '{}' (expected current|current-lmr|current-threat-aware|current-eval2|current-qsearch-pruning|current-aspiration|current-aspiration-lmr|current-aspiration-lmr-futility|current-aspiration-lmr-futility-see|current-final|current-final-single-buffer|current-final-single-generation|current-final-single-evasion|current-final-bounded-check2|current-final-phase-affine|current-final-eval2|current-final-no-pawn-structure|current-final-no-mobility|current-final-no-piece-activity|current-final-no-rook-activity|current-final-no-development-space|current-final-no-king-safety)",
-                            other
+                            "invalid --profile '{other}' (expected {SUPPORTED_PROFILES})"
                         ));
                     }
-                };
+                }
                 profile_seen = true;
             }
             "--nnue-model" => {
@@ -887,132 +787,101 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
         }
     }
 
-    // S10-D preview: load the quantized model ONCE at startup (fail
-    // closed when an NNUE profile has no model, or the model fails to
-    // load/verify). S10-F1: the artifact's semantic target mode must match
-    // the profile — a material-residual artifact under a pure NNUE profile
-    // (or the reverse) is refused instead of silently mis-evaluating.
-    let nnue_model = if let Some(path) = nnue_model_path.as_deref() {
-        let resolved = resolve_nnue_model_path(path);
-        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(&resolved) {
-            Ok(model) => {
-                let mode = model.target_mode();
-                let required = if profile.uses_nnue_material_residual() {
-                    crate::engine::nnue_v2q_runtime::NnueV2TargetMode::MaterialResidual
-                } else {
-                    crate::engine::nnue_v2q_runtime::NnueV2TargetMode::Cp
-                };
-                if profile.uses_nnue_eval() && mode != required {
-                    return Err(format!(
-                        "--nnue-model: artifact target_mode '{}' does not \
-                         match profile (requires '{}') (fail closed)",
-                        mode.name(),
-                        required.name()
-                    ));
-                }
-                // S11-B2/B4-B: fail-closed feature-set match (the R12
-                // profiles — fresh and incremental — require a v4 V2R12
-                // artifact; other NNUE profiles require V2 artifacts).
-                if profile.uses_nnue_eval() {
-                    use crate::engine::nnue_v2q_runtime::NnueFeatureSetId;
-                    let required_fs = if matches!(
-                        profile,
-                        search::SearchProfile::CurrentFinalNnueV2QMaterialR12
-                            | search::SearchProfile::CurrentFinalNnueV2QMaterialR12Inc
-                            | search::SearchProfile::CurrentFinalS12
-                    ) {
-                        NnueFeatureSetId::V2R12
-                    } else {
-                        NnueFeatureSetId::V2
-                    };
-                    if model.feature_set() != required_fs {
-                        return Err(format!(
-                            "--nnue-model: artifact feature_set '{:?}' \
-                             does not match profile (requires '{:?}') \
-                             (fail closed)",
-                            model.feature_set(),
-                            required_fs
-                        ));
-                    }
-                }
-                Some(Arc::new(model))
+    // The resolved startup selection: which search profile runs (always
+    // [`search::PRODUCTION_PROFILE`] or [`search::ROLLBACK_PROFILE`]), the
+    // profile name to report in the handshake (a legacy NNUE name is preserved
+    // verbatim for the handshake), and the optional startup-owned NNUE model.
+    // The seven historical NNUE profile names remain accepted as launch
+    // aliases (tournament/GUI handshakes depend on them): each maps to the
+    // production search profile with the unified evaluation backend
+    // initialized to `Evaluation::Nnue` from `--nnue-model`, which is then
+    // REQUIRED (fail closed, exactly as before the entry convergence).
+    // `--nnue-model` under a classical profile name loads the model into the
+    // unified backend while keeping `Evaluation=classical` (a GUI can still
+    // activate it via `Evaluation=nnue`).
+    let legacy_nnue = profile_name != "current" && profile_name != "current-final";
+    let startup_model = match nnue_model_path.as_deref() {
+        Some(path) => {
+            let resolved = resolve_nnue_model_path(path);
+            let resolved_str = resolved.to_string_lossy().into_owned();
+            match NnueModel::load(&resolved) {
+                // The artifact itself decides material composition and
+                // delivery via its own metadata; the loader fail-closes on
+                // anything unsupported.
+                Ok(model) => Some((Arc::new(model), resolved_str)),
+                Err(e) => return Err(format!("--nnue-model: {e}")),
             }
-            Err(e) => return Err(format!("--nnue-model: {e}")),
         }
-    } else {
-        None
+        None => {
+            if legacy_nnue {
+                return Err(format!(
+                    "profile '{profile_name}' requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
+                ));
+            }
+            None
+        }
     };
-    if profile.uses_nnue_eval() && nnue_model.is_none() {
-        return Err(format!(
-            "profile '{:?}' requires --nnue-model <EUNN2Q01 artifact> (fail closed)",
-            profile
-        ));
-    }
 
-    Ok(StartupCommand::Run((profile, nnue_model)))
+    Ok(StartupCommand::Run(StartupSelection {
+        profile,
+        profile_name,
+        startup_model,
+    }))
 }
 
 #[derive(Debug)]
 enum StartupCommand {
-    Run(
-        (
-            search::SearchProfile,
-            Option<Arc<crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel>>,
-        ),
-    ),
+    Run(StartupSelection),
     Help,
 }
 
 fn print_startup_help() {
     println!("Eureka UCI engine (v{})", crate::version::version_string());
-    println!("Usage: eureka [--profile <cumulative-profile>]");
+    println!("Usage: eureka [--profile <profile>] [--nnue-model <EUNN2Q01 artifact>]");
     println!("Profiles:");
-    println!("  current");
-    println!("  current-lmr");
-    println!("  current-threat-aware");
-    println!("  current-eval2");
-    println!("  current-aspiration");
-    println!("  current-aspiration-lmr");
-    println!("  current-aspiration-lmr-futility");
-    println!("  current-aspiration-lmr-futility-see");
-    println!("Default: current-final");
+    println!("  current        (rollback search policy)");
+    println!("  current-final  (production search policy; default)");
+    println!("Legacy NNUE aliases (require --nnue-model, play Evaluation=nnue):");
+    println!("  current-final-nnue-v2q-full");
+    println!("  current-final-nnue-v2q");
+    println!("  current-final-nnue-v2q-material");
+    println!("  current-final-nnue-v2q-material-cal-fut");
+    println!("  current-final-nnue-v2q-material-r12");
+    println!("  current-final-nnue-v2q-material-r12-inc");
+    println!("  current-final-s12");
 }
 
 /// Run the UCI loop using the canonical production profile.
 pub fn run() {
-    run_with_profile(search::PRODUCTION_PROFILE, None);
+    run_with_profile(&StartupSelection {
+        profile: search::PRODUCTION_PROFILE,
+        profile_name: "current-final",
+        startup_model: None,
+    });
 }
 
 /// Parse startup arguments and run the UCI loop with the selected profile.
 ///
 /// The profile is fixed for the process lifetime, which makes the executable
 /// directly usable by fastchess/OpenBench as either the promoted default
-/// binary or an explicitly selected historical/candidate profile. The UCI
-/// evaluation backend is the sole orthogonal configurable dimension: it can
-/// replace static evaluation, but never profile identity or search policy.
+/// binary or an explicitly selected legacy alias. The UCI evaluation backend
+/// is the sole orthogonal configurable dimension: it can replace static
+/// evaluation, but never profile identity or search policy.
 pub fn run_with_args(args: &[String]) -> Result<(), String> {
     match parse_startup_profile(args)? {
-        StartupCommand::Run((profile, nnue_model)) => run_with_profile(profile, nnue_model),
+        StartupCommand::Run(selection) => run_with_profile(&selection),
         StartupCommand::Help => print_startup_help(),
     }
     Ok(())
 }
 
+/// Resolve the search-time NNUE backend from the SINGLE unified evaluation
+/// backend config. The delivery mechanism (plain V2 incremental vs the R12
+/// relation stack) and the score composition are properties of the model,
+/// never of a profile.
 fn select_search_nnue_backend(
-    profile: search::SearchProfile,
-    startup_nnue_model: &Option<Arc<NnueModel>>,
     eval_backend: &EvalBackendConfig,
 ) -> Result<Option<SearchNnueBackend>, &'static str> {
-    // S14: the evaluator is built from the ARTIFACT in every entry point. The
-    // delivery mechanism (plain V2 incremental vs the R12 relation stack) and
-    // the score composition are properties of the model, never of a profile.
-    if profile.uses_nnue_eval() {
-        let model = startup_nnue_model
-            .clone()
-            .ok_or("startup NNUE profile has no loaded model; refusing to search")?;
-        return Ok(Some(SearchNnueBackend::from_model(model)));
-    }
-
     if eval_backend.evaluation != Evaluation::Nnue {
         return Ok(None);
     }
@@ -1023,7 +892,13 @@ fn select_search_nnue_backend(
     Ok(Some(SearchNnueBackend::from_model(model)))
 }
 
-fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<Arc<NnueModel>>) {
+fn run_with_profile(selection: &StartupSelection) {
+    let StartupSelection {
+        profile,
+        profile_name,
+        startup_model,
+    } = selection;
+    let legacy_nnue = *profile_name != "current" && *profile_name != "current-final";
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -1033,11 +908,22 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
     let mut gs = GameState::startpos();
     // The active background search, if any. `None` while idle.
     let mut active: Option<ActiveSearch> = None;
-    // CLI NNUE profiles retain their startup-owned model and reject UCI eval
-    // options. Classical profiles auto-discover a verified neighbor model but
-    // remain bit-identical because the default mode is Off.
-    let mut eval_backend = if profile.uses_nnue_eval() {
-        EvalBackendConfig::default()
+    // S14 unified entry: every launcher initializes the SAME evaluation
+    // backend. A legacy NNUE profile name seeds it with the startup-owned
+    // model and `Evaluation=nnue`; `--nnue-model` under a classical profile
+    // retains the model with `Evaluation=classical`; otherwise a verified
+    // neighbor model is auto-discovered (still bit-identical play while the
+    // default mode is classical).
+    let mut eval_backend = if let Some((model, path)) = startup_model {
+        EvalBackendConfig {
+            evaluation: if legacy_nnue {
+                Evaluation::Nnue
+            } else {
+                Evaluation::Classical
+            },
+            eval_file: path.clone(),
+            model: Some(model.clone()),
+        }
     } else {
         EvalBackendConfig::auto_discover()
     };
@@ -1080,7 +966,7 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
                 let _ = write_pending_uci_handshake_with_profile(
                     &mut io::stdout(),
                     &mut startup_tt_notice_pending,
-                    profile,
+                    profile_name,
                     &eval_backend,
                 );
             }
@@ -1113,8 +999,7 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
                 // are ignored; Hash and evaluator mutations stop/join first.
                 // A successful (re)enable also clears any unsent startup
                 // notice: the table is now live, so "TT disabled" would lie.
-                let outcome =
-                    handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut eval_backend);
+                let outcome = handle_uci_setoption(&tokens, &mut active, &tt, &mut eval_backend);
                 if outcome == SetoptionOutcome::Resized {
                     startup_tt_notice_pending = false;
                 }
@@ -1136,16 +1021,15 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
                 let params = parse_go_params(&tokens);
                 let (limits, budget) =
                     build_limits_and_budget(&params, gs.position().side_to_move());
-                let nnue_backend =
-                    match select_search_nnue_backend(profile, &startup_nnue_model, &eval_backend) {
-                        Ok(backend) => backend,
-                        Err(message) => {
-                            println!("info string {message}");
-                            println!("bestmove 0000");
-                            let _ = io::stdout().flush();
-                            continue;
-                        }
-                    };
+                let nnue_backend = match select_search_nnue_backend(&eval_backend) {
+                    Ok(backend) => backend,
+                    Err(message) => {
+                        println!("info string {message}");
+                        println!("bestmove 0000");
+                        let _ = io::stdout().flush();
+                        continue;
+                    }
+                };
                 let stop = Arc::new(AtomicBool::new(false));
                 // Hand the thread a *clone* of the live game and the shared
                 // TT; the search splits `gs` via `into_search_parts` and
@@ -1157,7 +1041,7 @@ fn run_with_profile(profile: search::SearchProfile, startup_nnue_model: Option<A
                     stop.clone(),
                     budget,
                     tt.clone(),
-                    profile,
+                    *profile,
                     nnue_backend,
                 );
                 active = Some(ActiveSearch { stop, handle });
@@ -1426,12 +1310,16 @@ mod tests {
     // the entry/key types live in `tt` and were not imported by the parent.
     use crate::engine::tt::{Bound, TTEntry, TtKey};
 
-    fn startup_profile(args: &[&str]) -> search::SearchProfile {
+    fn startup_selection(args: &[&str]) -> StartupSelection {
         let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
         match parse_startup_profile(&owned).expect("startup arguments must parse") {
-            StartupCommand::Run((profile, _)) => profile,
+            StartupCommand::Run(selection) => selection,
             StartupCommand::Help => panic!("expected a profile command"),
         }
+    }
+
+    fn startup_profile(args: &[&str]) -> search::SearchProfile {
+        startup_selection(args).profile
     }
 
     #[test]
@@ -1466,103 +1354,6 @@ mod tests {
             search::ROLLBACK_PROFILE,
             "--profile current must be the explicit rollback identity"
         );
-        assert_eq!(
-            startup_profile(&["--profile", "current-lmr"]),
-            search::SearchProfile::CurrentLmr
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-threat-aware"]),
-            search::SearchProfile::CurrentThreatAware
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-eval2"]),
-            search::SearchProfile::CurrentEval2
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-aspiration"]),
-            search::SearchProfile::CurrentAspiration
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-aspiration-lmr"]),
-            search::SearchProfile::CurrentAspirationLmr
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-aspiration-lmr-futility"]),
-            search::SearchProfile::CurrentAspirationLmrFutility
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-aspiration-lmr-futility-see"]),
-            search::SearchProfile::CurrentAspirationLmrFutilitySee
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-final"]),
-            search::SearchProfile::CurrentFinal
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-final-single-buffer"]),
-            search::SearchProfile::CurrentFinalSingleBuffer
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-final-phase-affine"]),
-            search::SearchProfile::CurrentFinalPhaseAffine
-        );
-    }
-
-    /// S6-C1: the candidate must be selectable and round-trip by name, must
-    /// NOT be the default, and must not disturb the production identity.
-    #[test]
-    fn s6c1_phase_affine_profile_is_selectable_but_never_default() {
-        assert_eq!(
-            startup_profile(&["--profile", "current-final-phase-affine"]),
-            search::SearchProfile::CurrentFinalPhaseAffine
-        );
-        assert_eq!(
-            startup_profile_name(search::SearchProfile::CurrentFinalPhaseAffine),
-            "current-final-phase-affine"
-        );
-        assert_ne!(
-            startup_profile(&[]),
-            search::SearchProfile::CurrentFinalPhaseAffine,
-            "the candidate must never be the no-argument default"
-        );
-        assert_ne!(
-            search::PRODUCTION_PROFILE,
-            search::SearchProfile::CurrentFinalPhaseAffine,
-            "the candidate must never be PRODUCTION_PROFILE"
-        );
-        assert_eq!(
-            startup_profile(&["--profile", "current-final"]),
-            search::SearchProfile::CurrentFinal,
-            "baseline selection must be unaffected"
-        );
-    }
-
-    /// S8.0: `CurrentFinalEval2` is retained as a compatibility alias for the
-    /// promoted integrated positional evaluator and is selectable via `--profile`.
-    #[test]
-    fn s80_eval2_profile_is_selectable_as_compatibility_alias() {
-        assert_eq!(
-            startup_profile(&["--profile", "current-final-eval2"]),
-            search::SearchProfile::CurrentFinalEval2
-        );
-        assert_eq!(
-            startup_profile_name(search::SearchProfile::CurrentFinalEval2),
-            "current-final-eval2"
-        );
-        assert_eq!(startup_profile(&[]), search::PRODUCTION_PROFILE);
-        assert_eq!(
-            search::PRODUCTION_PROFILE,
-            search::SearchProfile::CurrentFinal
-        );
-        // The historical bare-search profile keeps its own distinct name.
-        assert_eq!(
-            startup_profile(&["--profile", "current-eval2"]),
-            search::SearchProfile::CurrentEval2
-        );
-        assert_ne!(
-            search::SearchProfile::CurrentEval2,
-            search::SearchProfile::CurrentFinalEval2
-        );
     }
 
     #[test]
@@ -1580,57 +1371,48 @@ mod tests {
         );
     }
 
+    /// The rejection message must advertise the full supported set.
     #[test]
-    fn s80_help_text_advertises_the_eval2_candidate() {
+    fn help_text_advertises_the_supported_profile_set() {
         let err =
             parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
-        assert!(err.contains("current-final-eval2"), "got: {}", err);
+        assert!(err.contains("current"), "got: {}", err);
+        assert!(err.contains("current-final"), "got: {}", err);
+        for alias in [
+            "current-final-nnue-v2q-full",
+            "current-final-nnue-v2q",
+            "current-final-nnue-v2q-material",
+            "current-final-nnue-v2q-material-cal-fut",
+            "current-final-nnue-v2q-material-r12",
+            "current-final-nnue-v2q-material-r12-inc",
+            "current-final-s12",
+        ] {
+            assert!(err.contains(alias), "must list {alias}: {err}");
+        }
     }
 
-    /// S9-A: The rejection message must advertise all LOO candidates.
+    /// A legacy NNUE alias maps to the production search profile, preserves
+    /// its historical name for the handshake, and REQUIRES --nnue-model.
     #[test]
-    fn s9a_help_text_advertises_loo_candidates() {
-        let err =
-            parse_startup_profile(&["--profile".to_string(), "nope".to_string()]).unwrap_err();
-        assert!(
-            err.contains("current-final-no-pawn-structure"),
-            "got: {}",
-            err
-        );
-        assert!(err.contains("current-final-no-mobility"), "got: {}", err);
-        assert!(
-            err.contains("current-final-no-piece-activity"),
-            "got: {}",
-            err
-        );
-        assert!(
-            err.contains("current-final-no-rook-activity"),
-            "got: {}",
-            err
-        );
-        assert!(
-            err.contains("current-final-no-development-space"),
-            "got: {}",
-            err
-        );
-        assert!(err.contains("current-final-no-king-safety"), "got: {}", err);
-    }
-
-    /// The rejection message must advertise the candidate, otherwise an Arena
-    /// operator has no way to discover the name.
-    #[test]
-    fn s6c1_help_text_advertises_the_phase_affine_profile() {
-        let err = parse_startup_profile(&[
-            "--profile".to_string(),
-            "definitely-not-a-profile".to_string(),
-        ])
-        .unwrap_err();
-        assert!(
-            err.contains("current-final-phase-affine"),
-            "help text must list the candidate, got: {}",
-            err
-        );
-        assert!(err.contains("current-final"), "and still list the baseline");
+    fn legacy_nnue_aliases_map_to_production_and_require_a_model() {
+        // Every alias fails closed without --nnue-model, naming the alias.
+        for alias in [
+            "current-final-nnue-v2q-full",
+            "current-final-nnue-v2q",
+            "current-final-nnue-v2q-material",
+            "current-final-nnue-v2q-material-cal-fut",
+            "current-final-nnue-v2q-material-r12",
+            "current-final-nnue-v2q-material-r12-inc",
+            "current-final-s12",
+        ] {
+            let err =
+                parse_startup_profile(&["--profile".to_string(), alias.to_string()]).unwrap_err();
+            assert!(
+                err.contains("requires --nnue-model") && err.contains("fail closed"),
+                "{alias}: got: {err}"
+            );
+            assert!(err.contains(alias), "error must name the alias: {err}");
+        }
     }
 
     #[test]
@@ -1931,8 +1713,7 @@ mod tests {
             model: Some(Arc::new(NnueModel::from_bytes(&bytes).unwrap())),
         };
         let mut buf = Vec::new();
-        write_uci_handshake_with_profile(&mut buf, false, search::PRODUCTION_PROFILE, &config)
-            .unwrap();
+        write_uci_handshake_with_profile(&mut buf, false, "current-final", &config).unwrap();
         let text = String::from_utf8(buf).unwrap();
         assert!(text
             .contains("option name EvalFile type string default C:\\engines\\nnue-v2-q01.bin\n"));
@@ -2133,32 +1914,47 @@ mod tests {
             evaluation: Evaluation::Nnue,
             ..EvalBackendConfig::default()
         };
-        let result = select_search_nnue_backend(search::PRODUCTION_PROFILE, &None, &config);
+        let result = select_search_nnue_backend(&config);
         assert_eq!(
             result.err(),
             Some("Evaluation=nnue requires a loadable EvalFile; refusing to search")
         );
     }
 
+    /// With the unified eval backend, UCI evaluator options are honored for
+    /// every launch identity; a legacy alias seed is just Evaluation=nnue in
+    /// the same config.
     #[test]
-    fn s10d_startup_nnue_profile_keeps_identity_and_rejects_uci_mode() {
-        let profile = search::SearchProfile::CurrentFinalNnueV2QIncremental;
-        assert_eq!(startup_profile_name(profile), "current-final-nnue-v2q");
-        assert_eq!(
-            startup_profile_name(search::SearchProfile::CurrentFinalNnueV2QFull),
-            "current-final-nnue-v2q-full"
-        );
-
-        let mut config = EvalBackendConfig::default();
+    fn unified_config_honors_uci_evaluation_options() {
+        let mut config = EvalBackendConfig {
+            evaluation: Evaluation::Nnue,
+            eval_file: "seeded.bin".to_string(),
+            model: None,
+        };
         let tt = Arc::new(Mutex::new(TranspositionTable::disabled()));
         let mut active = None;
         let tokens: Vec<&str> = "setoption name Evaluation value classical"
             .split_whitespace()
             .collect();
-        let outcome = handle_uci_setoption(&tokens, &mut active, &tt, profile, &mut config);
-        assert_eq!(outcome, SetoptionOutcome::Ignored);
+        let outcome = handle_uci_setoption(&tokens, &mut active, &tt, &mut config);
+        assert_eq!(outcome, SetoptionOutcome::EvalUpdated);
         assert_eq!(config.evaluation, Evaluation::Classical);
-        assert!(config.model.is_none());
+        assert_eq!(config.eval_file, "seeded.bin");
+
+        // NNUE selection without a model refuses to search (fail closed).
+        let result = select_search_nnue_backend(&config);
+        assert!(result.is_ok());
+        assert!(
+            result.unwrap().is_none(),
+            "classical must not build a backend"
+        );
+
+        config.evaluation = Evaluation::Nnue;
+        let err = select_search_nnue_backend(&config).unwrap_err();
+        assert_eq!(
+            err,
+            "Evaluation=nnue requires a loadable EvalFile; refusing to search"
+        );
     }
 
     #[test]
