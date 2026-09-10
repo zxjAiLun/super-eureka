@@ -111,6 +111,37 @@ fn resolve_default_eval_file() -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+/// Resolve a `--nnue-model` path for startup. Absolute paths are used as
+/// given. A relative path is first resolved against the executable's
+/// directory — so a co-located model can be addressed by its bare file name
+/// and a GUI config no longer depends on the GUI's working directory — and
+/// only falls back to the path as given (legacy CWD-relative behavior) when
+/// nothing exists next to the executable. A missing model still fails closed
+/// in the loader; this never falls back to the auto-discovered
+/// `nnue-v2-q01.bin`.
+fn resolve_nnue_model_path(path: &str) -> PathBuf {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()));
+    resolve_nnue_model_path_against(exe_dir, path)
+}
+
+/// Testable core of [`resolve_nnue_model_path`] with the executable directory
+/// injected.
+fn resolve_nnue_model_path_against(exe_dir: Option<PathBuf>, path: &str) -> PathBuf {
+    let given = Path::new(path);
+    if given.is_absolute() {
+        return given.to_path_buf();
+    }
+    if let Some(dir) = exe_dir {
+        let candidate = dir.join(given);
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    given.to_path_buf()
+}
+
 struct SearchNnueBackend {
     model: Arc<NnueModel>,
     mode: crate::engine::nnue_search::NnueSearchMode,
@@ -827,9 +858,8 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     // the profile — a material-residual artifact under a pure NNUE profile
     // (or the reverse) is refused instead of silently mis-evaluating.
     let nnue_model = if let Some(path) = nnue_model_path.as_deref() {
-        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(std::path::Path::new(
-            path,
-        )) {
+        let resolved = resolve_nnue_model_path(path);
+        match crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(&resolved) {
             Ok(model) => {
                 let mode = model.target_mode();
                 let required = if profile.uses_nnue_material_residual() {
@@ -1602,6 +1632,49 @@ mod tests {
 
         let unknown = parse_startup_profile(&["--nodes".to_string()]).unwrap_err();
         assert!(unknown.contains("unknown startup argument"));
+    }
+
+    /// S14 GUI UX: absolute `--nnue-model` paths are used exactly as given.
+    #[test]
+    fn s14_nnue_model_absolute_path_is_used_unchanged() {
+        let abs =
+            std::env::temp_dir().join(format!("eureka-nnue-absolute-{}.bin", std::process::id()));
+        let resolved = resolve_nnue_model_path_against(
+            Some(PathBuf::from("definitely-not-the-exe-dir")),
+            abs.to_str().unwrap(),
+        );
+        assert_eq!(resolved, abs);
+    }
+
+    /// S14 GUI UX: a relative `--nnue-model` resolves next to the executable
+    /// when the file is there; otherwise it stays as given (CWD-relative).
+    #[test]
+    fn s14_nnue_model_relative_prefers_the_executable_directory() {
+        let dir = std::env::temp_dir().join(format!("eureka-nnue-rel-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("model-next-to-exe.bin"), b"stub").unwrap();
+
+        let resolved = resolve_nnue_model_path_against(Some(dir.clone()), "model-next-to-exe.bin");
+        assert_eq!(resolved, dir.join("model-next-to-exe.bin"));
+
+        let fallback = resolve_nnue_model_path_against(Some(dir.clone()), "not-there.bin");
+        assert_eq!(fallback, PathBuf::from("not-there.bin"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S14 GUI UX: a missing relative model still fails closed on startup —
+    /// it must not silently fall back to the legacy `nnue-v2-q01.bin`.
+    #[test]
+    fn s14_nnue_model_missing_relative_fails_closed() {
+        let err = parse_startup_profile(&[
+            "--profile".to_string(),
+            "current-final-s12".to_string(),
+            "--nnue-model".to_string(),
+            format!("eureka-definitely-missing-{}.bin", std::process::id()),
+        ])
+        .unwrap_err();
+        assert!(err.starts_with("--nnue-model"), "got: {err}");
     }
 
     #[test]

@@ -32,11 +32,14 @@ Settings → Engines → Add Engine：
 - Arguments（粘贴 `EN-CROISSANT-S14.txt` 里的那一行）：
 
   ```text
-  --profile current-final-s12 --nnue-model "<repo>\target\release\nnue-s14-datasupply-v5.bin"
+  --profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin
   ```
 
 **不需要**配置 `EvalFile` / `NnueMode`：`current-final-s12` 启动 profile 会把评估器固定；
 这两个选项在该模式下被引擎忽略（会打印 `fixed by the startup NNUE profile; option ignored`）。
+
+- 相对路径的 `--nnue-model` **先按 `eureka.exe` 所在目录解析**（模型已 stage 在同目录），
+  因此不依赖 En Croissant 的工作目录；绝对路径照常可用；找不到模型仍是 fail-closed 启动报错。
 
 > 注意：`target\release\` 里若残留旧的 `nnue-v2-q01.bin`（S10 模型），它只在"无参数"
 > 模式下被自动发现；使用上面的 S14 配置不受影响。
@@ -44,10 +47,11 @@ Settings → Engines → Add Engine：
 ## 验证
 
 ```powershell
-echo uci | & .\target\release\eureka.exe --profile current-final-s12 --nnue-model "$PWD\target\release\nnue-s14-datasupply-v5.bin"
+echo uci | & .\target\release\eureka.exe --profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin
 ```
 
 应看到 `info string profile current-final-s12` 与 `uciok`；对局时正常输出 `bestmove ...`。
+（从任意工作目录运行均可——相对名按 exe 目录解析。）
 
 ## 为什么以前"要手动配置"（背景）
 

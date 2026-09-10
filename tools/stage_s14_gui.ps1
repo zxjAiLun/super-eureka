@@ -66,9 +66,12 @@ Engine:
   $enginePath
 
 Arguments (paste into En Croissant > Settings > Engines > Add Engine):
-  --profile current-final-s12 --nnue-model "$stagedPath"
+  --profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin
 
-Why no EvalFile / NnueMode configuration is needed:
+Why this works without an absolute path (and no EvalFile / NnueMode config):
+  A relative --nnue-model path resolves against the executable's directory
+  first (the model is staged next to eureka.exe), so the config does not
+  depend on the GUI's working directory. Absolute paths still work.
   With --profile current-final-s12 the evaluator is fixed at startup; the
   UCI options EvalFile and NnueMode are ignored by the engine in this mode
   ("fixed by the startup NNUE profile; option ignored").
@@ -89,4 +92,4 @@ Set-Content -LiteralPath $notePath -Value $note -Encoding ASCII
 
 Write-Host "[stage] model staged -> $stagedPath"
 Write-Host "[stage] note written -> $notePath"
-Write-Host "[stage] engine args  : --profile current-final-s12 --nnue-model `"$stagedPath`""
+Write-Host "[stage] engine args  : --profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin"
