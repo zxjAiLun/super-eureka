@@ -21,7 +21,7 @@ Status table (frozen):
 S14 NNUE development reference      YES
 S14 promotion SPRT                  PASS / ACCEPT_H1
 S14 promotion-qualified             YES
-production default                  HCE current-final
+production default                  HCE-20260825
 production switch                   HOLD — operational safety
 additional chess validation         NONE REQUIRED
 ```

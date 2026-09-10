@@ -35,9 +35,40 @@ batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变�
 **S14 更新（2026-09-10）**：S14（数据供给 4.22M Fishtest 位置 + 真实结果双信号）训练
 完成、屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判 **ACCEPT_H1**
 （LLR 2.9696 ≥ 2.9444，177/500 pairs，354 局）。用户裁定：**S14 = PROMOTION-QUALIFIED
-（棋力审批已获，不因 HOLD 作废）；生产默认保持 HCE `current-final`，切换 HOLD**——
+（棋力审批已获，不因 HOLD 作废）；生产默认保持 HCE-20260825，切换 HOLD**——
 阻断项为受控 rollback 控制面缺位（生产级运维安全，非棋力）；无需任何补充比赛。
 详见更新日志与 2026-09-10 closeout。**
+
+## 术语与版本命名（2026-09-10 起）
+
+四个规范名（禁止再用模糊叫法）：
+
+| 名称 | 含义 |
+|---|---|
+| **HCE-20260825** | 旧生产引擎 = CurrentFinal search + HCE Eval2 = Arena EngineVersion `ce-currentfinal-20260825` |
+| **S11-R12** | 旧 NNUE（FT128）+ R12；历史候选 |
+| **S12-R0** | FT256 + SCReLU + 8 桶、780k 数据；NNUE 架构基线 |
+| **S14** | S12 架构 + R12 + 5M 级数据供给训练 + CurrentFinal search = **当前最强 Eureka**；promotion SPRT `ACCEPT_H1`（binary `dceacfb7…`、model `329b7170…`、源码 `b3145e1`） |
+
+- `current-final` **只允许作为 Arena production channel 名**（指针，当前 → HCE-20260825）；
+  不得用作引擎/版本名（禁用 "current-final 很强"、"current-final-s12 版本"、"S12 production" 一类说法）。
+- 两层歧义备忘：引擎内部 profile `--profile current-final`（=旧 HCE）≠ channel 名；
+  `--profile current-final-s12 --nnue-model nnue-s14-datasupply-v5.bin` 实际加载的是 **S14** 权重
+  （alias 名不跟踪模型身份）。
+- 对齐事实（2026-09-10 实测）：本地 / GitHub / 服务器引擎代码 = `b3145e1`（当前 HEAD `ca6ad3c`
+  仅文档）。最强组合已部署服务器并过 SPRT；生产 channel 仍指向 HCE-20260825——"已部署最强"
+  ≠ "线上默认在用"。
+
+**构建身份备忘（2026-09-10 实测）**：
+
+- promotion binary `dceacfb7…` = 本地 WSL 构建（git-archive `b3145e1` + rustc 1.94.1 +
+  `cargo build --release --locked` + `EUREKA_GIT_SHA/_SHORT/_DIRTY` env、`DATE` 留空）；
+  **未走 GitHub 云端 workflow**（该 workflow 历史仅 2 次运行：8/5 失败、8/29 成功 @ `9ef078f`）。
+- 复现实测：同环境重建 → 与 `dceacfb7` **仅差 6 字节**（RUNPATH 内嵌的 rustc 随机临时目录名），
+  其余 1,201,706 字节逐字节一致。该 RUNPATH 仅在"登录 shell（`cc`=zig cc，clang 18.1.6）"
+  构建时注入；非登录/云端环境（gcc + rust-lld 21）产物无 RUNPATH、字节不同但引擎等价。
+- 结论：**"默认构建"= 同源同引擎；跨环境（本地 vs 云端）不要指望二进制哈希一致，
+  逐字节复现只差构建路径元数据。**
 
 ## 当前生产行为
 
@@ -179,7 +210,15 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
 - **B5（`22c94e9`，详见 docs/dev-log/2026-09-08-s11-b5-search-validation.md）**：
   256 roots × 100k 双臂同 binary 重跑。结果双框架:历史门(mean≤64.6/acc20≥66.2/
   p90≤100)= 41.4/66.8/97 **全 PASS**;但同 harness 配对 = R12 mean **+2.0cp 差于**
-  同跑 E3(39.4),仅 acc20/acc50/top1 小幅占优。anti-drift FLA�）
+  同跑 E3(39.4),仅 acc20/acc50/top1 小幅占优。anti-drift FLAGGED:本轮 E3 mean
+  39.4 vs 历史 69.6 是纯尾部质量(bulk:median 0=0、p90 93=93、acc20 -1.2pp 完全
+  吻合;H0-E 原搜索脚本未入库不可审计)。zero-phase 弱尾(58.2→65.2)与 S11-A
+  static 一致。**绑定框架待审批方裁定;未做任何 Arena 准备(协议 STOP)。**
+- **SF2400 live match(进行中)**：tournament `6a07cc07-82a4-416d-842b-eaca40a4a9a6`,
+  bullet 1+0 计入 Elo,Eureka R12-inc vs SF18 Elo-2400 锚点,500 pairs(1000 局)。
+  部署记录 results/s11/r12-vs-sf2400/README.md。
+
+### S11 已知陷阱（本轮实测）
 
 - `types::MoveFlag` 没有 `is_capture()`；手写判定。
 - 不要用脚本整段替换重写 `src\engine\nnue.rs`（B1 中曾损毁 815 行，已从 HEAD
@@ -278,6 +317,21 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 命名规范对齐 + 构建身份复核 · `ca6ad3c` + 本提交**
+  新增"术语与版本命名"一节（HCE-20260825 / S11-R12 / S12-R0 / S14 四名制；`current-final`
+  仅作 Arena channel 名），closeout 状态表旧写法同步修正。构建复核：本地 WSL 重建 promotion
+  二进制与 `dceacfb7` 仅差 6 字节（RUNPATH 随机段），其余逐字节一致；云端 workflow 从未构建
+  `b3145e1`。
+- **2026-09-10 · S14 promotion SPRT closeout — ACCEPT_H1 / PROMOTION-QUALIFIED，production HOLD · `b3145e1` + closeout 提交**
+  S14（数据供给 + 双信号）屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判
+  **ACCEPT_H1**（LLR 2.9696 ≥ 2.9444，177/500 pairs，354 局，W/D/L 198/62/94，
+  ptnml [15,15,54,37,56]，同 binary `dceacfb7…`，非计分）。用户裁定：
+  **S14 = PROMOTION-QUALIFIED；生产切换 HOLD**——部署 V2.1 控制面无可验证的受控
+  rollback（旧 HCE 变 historical 后受控面拒回；duplicate-fingerprint 阻止重建），
+  属生产级阻断，**非棋力问题、无需补充验证**；本轮无任何生产变更 / 新 artifact /
+  规则修改 / 新比赛。checkpoint §10.2a recipe 与 rollback 措辞勘误见 closeout。
+  后续：独立运维任务（建受控 rollback）→ 复核清单通过后即可直接 promote。
+  开发文档：docs/dev-log/2026-09-10-s14-promotion-closeout.md（+ checkpoint）
 - **2026-09-08 · S13-A real-result blend FAIL · `a0b2f4b`/`28ecf77`**
   Preflight：1M corpus 每 position 自带真实 game result（游戏-不相交）；
   [%eval] 仅 13.6% → 走 S13-A（0.75 result / 0.25 sigmoid(cp/400) blend，
@@ -296,25 +350,6 @@ python -m unittest discover -s tools -p "test_*.py"
   （PyInt↔Rust bit-exact、FP32↔quant 0.43cp、full↔inc 0 mismatch、树一致
   24/24、NPS 178.8k≈E3）。训练 204s（best epoch 2，val MAE 132.8）。筛选赛
   vs 生产 current-final：**64-64（49.6%）完全平手**——"值得续测"，不升 SPRT。
-  决策点：追加训练预算 / 接受平手 / 256 局缩 CI。途中修复 B2 时代非法 castle
-  fixture（34 子）。开发文档：docs/dev-log/2026-09-08-s12-bullet-recipe.md
-- **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
-  R12-inc 部署至 Arena 服务器(build `20260908-562e77c-s11b4b-r12inc-8eacd0c1`,
-  manifest 补 model_artifacts 后重注册);计入 Elo 的 1+0 match
-  `6a07cc07…` 启动(500 pairs vs SF2400 锚点)。B5:256×100k 双臂重跑,
-  历史门全 PASS 但同 harness 配对 parity-ish(mean +2.0cp vs 同跑 E3),
-  anti-drift FLAGGED(纯尾部质量,H0-E 原 harness 未入库),绑定框架待裁定。
-  途中修复:UCI 启动 feature-set 门拒绝 -inc profile 的 V2R12 artifact(562e77c)。
-  开发文档:docs/dev-log/2026-09-08-s11-b5-search-validation.md
-- **2026-09-07 · S11-B4-B incremental R12 search stack · `38aaeee`**
-  按冻结细节集成（frames 原样 + Option relation 栈；child state 单次
-  recompute API；fresh oracle 保留 + `-inc` 新 profile）。Parity 全 PASS
-  （含 24-FEN × 50k 树一致性 17 字段 0 mismatch、inc-stack 200 转移 +
-  29 null push）。配对 NPS **median 0.9488 ≥ 0.90** → 门 PASS，**B5 解锁**。
-  分类：opening/mid 0.94-1.05、tactical ~0.90、endgame 0.80-0.91。
-  开发文档：docs/dev-log/2026-09-07-s11-b4b-incremental-stack.md
-- **2026-09-07 · S11-B4-A relation delta · `ebd95ca`**
-  审批 GO 后实现 attack-map + [u8;64] relation state +49.6%）完全平手**——"值得续测"，不升 SPRT。
   决策点：追加训练预算 / 接受平手 / 256 局缩 CI。途中修复 B2 时代非法 castle
   fixture（34 子）。开发文档：docs/dev-log/2026-09-08-s12-bullet-recipe.md
 - **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
