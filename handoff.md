@@ -336,13 +336,23 @@ python -m unittest discover -s tools -p "test_*.py"
 
 ## 更新日志（append-only）
 
+- **2026-09-10 · 定位：选项路线（EvalFile+NnueMode）加载 S14 评估错误（GUI 送后复现 + 根因）· 本提交**
+  复现局面 `startpos moves e2e3 e7e6 d1g4 d8e7 g4e6`（黑方应吃后；depth 1→10）：
+  HCE → cp +843 / `e7e6` ✅；`--profile current-final-s12 --nnue-model S14` → cp +684 / `f7e6` ✅；
+  选项路线（`EvalFile`=S14 + `NnueMode=nnue-v2q` 或 `-full`）→ **cp −20 / `d7d5`（送后）** ❌
+  （与 En Croissant 截图一致）。根因：material 组合与 R12 关系特征按**启动 profile**启用
+  （`search.rs:2754`、`uci.rs:983`），选项路线（classical profile）都不启用 → 残差被当绝对分；
+  且选项路线加载 `EvalFile` 无 target_mode/feature_set 校验（profile 路线有，`uci.rs:829+`）。
+  S14 `.bin` 未入库（仅 `layout.json` 入库）→ fixture 需本地 gating 或合成 artifact。
+  测试坑（记录）：一次灌入 `go`+`quit` 会在搜索完成前中止并返回 fallback 着法（此前 CLI 见到的
+  `a7a6` 即此，不是引擎 bug）。文档更正：S14 GUI 指南与 staging 脚本说明改为"暂勿用选项路线
+  加载 S14"；修复方案待定。
 - **2026-09-10 · 文档 repair #2：En Croissant 配置改为选项式（UCI 选项）· 本提交**
   En Croissant 的引擎配置为 `path` + `settings`（UCI 选项），**没有启动参数字段**——修订指南与
-  staging 脚本说明：S14 配置 = `EvalFile` = `target\release\nnue-s14-datasupply-v5.bin` +
-  `NnueMode` = `nnue-v2q`；`--profile current-final-s12 --nnue-model …` 保留为 CLI/支持参数的
-  GUI 形式。实测（当前 exe）：选项式可加载 S14 并正常出着；缺失 EvalFile 时 fail-closed
-  （"refusing to search"，bestmove 0000）。选项路线对 V2R12 模型走 fresh 关系行（评估一致、
-  速度略低），正式测量仍用 Arena preset / profile。
+  staging 脚本说明（后经更正，见上方 2026-09-10 定位条目）：选项路线 `EvalFile` + `NnueMode`
+  对 S14 **评估错误**、暂不可用；`--profile current-final-s12 --nnue-model …` 为当前唯一正确入口。
+  实测（当前 exe）：选项式可加载 S14（加载成功）但着法/评估错误；缺失 EvalFile 时 fail-closed
+  （"refusing to search"，bestmove 0000）。
 - **2026-09-10 · `--nnue-model` 相对路径按 exe 目录解析（GUI UX 小修复）· 本提交**
   绝对路径不变；相对路径先按 `eureka.exe` 所在目录解析，不存在再按原样，缺失仍 fail-closed
   （不回退旧模型）；无参数默认启动不变。新增 3 个单元测试（release lib 444 tests PASS）；
