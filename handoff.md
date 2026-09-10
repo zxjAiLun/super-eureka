@@ -1,8 +1,8 @@
 # ChessEngineDemo Handoff
 
-> 状态快照：2026-09-08
+> 状态快照：2026-09-10
 > 仓库：`E:\AUbuntuProject\project\chessenginedemo`
-> 工作分支：`s10/nnue-production-foundation`（已推送至 `7025c56`）
+> 工作分支：`s10/nnue-production-foundation`（已推送至 `b3145e1`；本次 S14 closeout 文档提交随后）
 > `main` HEAD：`3dae2fa`（S9-B2 closeout，2026-08-26）
 > crate / 二进制名：`eureka`（旧名 `chess-engine-demo` 已废弃）
 
@@ -31,6 +31,13 @@ batch-cadence 单变量修复 FAIL（val 0.009657 > 门 0.00910，形态不变�
 已单变量否决；剩余杠杆 = 数据供给（5M+ fresh + 双信号，需新标注算力，未授权）。
 工程资产保留：v5 runtime + current-final-s12 profile 生产可用；current-final
 仍是生产引擎。R12-inc vs SF2400 的 1+0 计 Elo live match 仍在跑（`6a07cc07…`）。**
+
+**S14 更新（2026-09-10）**：S14（数据供给 4.22M Fishtest 位置 + 真实结果双信号）训练
+完成、屏幕 58.01%；唯一正式 promotion SPRT `6cd87ee8…` 终判 **ACCEPT_H1**
+（LLR 2.9696 ≥ 2.9444，177/500 pairs，354 局）。用户裁定：**S14 = PROMOTION-QUALIFIED
+（棋力审批已获，不因 HOLD 作废）；生产默认保持 HCE `current-final`，切换 HOLD**——
+阻断项为受控 rollback 控制面缺位（生产级运维安全，非棋力）；无需任何补充比赛。
+详见更新日志与 2026-09-10 closeout。**
 
 ## 当前生产行为
 
@@ -172,15 +179,7 @@ low 4 / zero 0。诊断 feature `diagnostic_relation_churn`（production 零代�
 - **B5（`22c94e9`，详见 docs/dev-log/2026-09-08-s11-b5-search-validation.md）**：
   256 roots × 100k 双臂同 binary 重跑。结果双框架:历史门(mean≤64.6/acc20≥66.2/
   p90≤100)= 41.4/66.8/97 **全 PASS**;但同 harness 配对 = R12 mean **+2.0cp 差于**
-  同跑 E3(39.4),仅 acc20/acc50/top1 小幅占优。anti-drift FLAGGED:本轮 E3 mean
-  39.4 vs 历史 69.6 是纯尾部质量(bulk:median 0=0、p90 93=93、acc20 -1.2pp 完全
-  吻合;H0-E 原搜索脚本未入库不可审计)。zero-phase 弱尾(58.2→65.2)与 S11-A
-  static 一致。**绑定框架待审批方裁定;未做任何 Arena 准备(协议 STOP)。**
-- **SF2400 live match(进行中)**：tournament `6a07cc07-82a4-416d-842b-eaca40a4a9a6`,
-  bullet 1+0 计入 Elo,Eureka R12-inc vs SF18 Elo-2400 锚点,500 pairs(1000 局)。
-  部署记录 results/s11/r12-vs-sf2400/README.md。
-
-### S11 已知陷阱（本轮实测）
+  同跑 E3(39.4),仅 acc20/acc50/top1 小幅占优。anti-drift FLA�）
 
 - `types::MoveFlag` 没有 `is_capture()`；手写判定。
 - 不要用脚本整段替换重写 `src\engine\nnue.rs`（B1 中曾损毁 815 行，已从 HEAD
@@ -297,6 +296,25 @@ python -m unittest discover -s tools -p "test_*.py"
   （PyInt↔Rust bit-exact、FP32↔quant 0.43cp、full↔inc 0 mismatch、树一致
   24/24、NPS 178.8k≈E3）。训练 204s（best epoch 2，val MAE 132.8）。筛选赛
   vs 生产 current-final：**64-64（49.6%）完全平手**——"值得续测"，不升 SPRT。
+  决策点：追加训练预算 / 接受平手 / 256 局缩 CI。途中修复 B2 时代非法 castle
+  fixture（34 子）。开发文档：docs/dev-log/2026-09-08-s12-bullet-recipe.md
+- **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
+  R12-inc 部署至 Arena 服务器(build `20260908-562e77c-s11b4b-r12inc-8eacd0c1`,
+  manifest 补 model_artifacts 后重注册);计入 Elo 的 1+0 match
+  `6a07cc07…` 启动(500 pairs vs SF2400 锚点)。B5:256×100k 双臂重跑,
+  历史门全 PASS 但同 harness 配对 parity-ish(mean +2.0cp vs 同跑 E3),
+  anti-drift FLAGGED(纯尾部质量,H0-E 原 harness 未入库),绑定框架待裁定。
+  途中修复:UCI 启动 feature-set 门拒绝 -inc profile 的 V2R12 artifact(562e77c)。
+  开发文档:docs/dev-log/2026-09-08-s11-b5-search-validation.md
+- **2026-09-07 · S11-B4-B incremental R12 search stack · `38aaeee`**
+  按冻结细节集成（frames 原样 + Option relation 栈；child state 单次
+  recompute API；fresh oracle 保留 + `-inc` 新 profile）。Parity 全 PASS
+  （含 24-FEN × 50k 树一致性 17 字段 0 mismatch、inc-stack 200 转移 +
+  29 null push）。配对 NPS **median 0.9488 ≥ 0.90** → 门 PASS，**B5 解锁**。
+  分类：opening/mid 0.94-1.05、tactical ~0.90、endgame 0.80-0.91。
+  开发文档：docs/dev-log/2026-09-07-s11-b4b-incremental-stack.md
+- **2026-09-07 · S11-B4-A relation delta · `ebd95ca`**
+  审批 GO 后实现 attack-map + [u8;64] relation state +49.6%）完全平手**——"值得续测"，不升 SPRT。
   决策点：追加训练预算 / 接受平手 / 256 局缩 CI。途中修复 B2 时代非法 castle
   fixture（34 子）。开发文档：docs/dev-log/2026-09-08-s12-bullet-recipe.md
 - **2026-09-08 · S11-B5 search validation + SF2400 部署 · `475b0c9`/`22c94e9`**
