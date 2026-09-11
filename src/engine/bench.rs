@@ -130,6 +130,9 @@ struct BenchArgs {
     /// The exact `--profile` name as resolved (preserves the S14
     /// compatibility alias identity in bench output).
     profile_name: &'static str,
+    /// The resolved, explicit evaluator. Locked regression expectations are
+    /// HCE-only, so this gates them (see `validate`).
+    evaluation_kind: Evaluation,
     /// True when the resolved, explicit evaluation mode is NNUE. The name is
     /// retained for compact fixture construction; it never derives from a
     /// search profile.
@@ -652,6 +655,7 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
         nodes,
         profile,
         profile_name,
+        evaluation_kind: evaluation,
         nnue_profile,
         fixture,
         custom_fen,
@@ -1513,6 +1517,7 @@ fn validate(
     fx: &Fixture,
     mode: BenchMode,
     profile: SearchProfile,
+    evaluation: Evaluation,
     snap: &Snapshot,
     pos: &Position,
     hist: &[ZobristKey],
@@ -1599,13 +1604,22 @@ fn validate(
             ));
         }
     }
-    // Locked exact assertions (disabled mode, canonical production name
-    // only). The locked numbers belong to the exact `current-final`
-    // policy; under `current` (and the legacy aliases, reported under
-    // their own names) a fixed-depth run may legitimately produce
-    // different node counts, bestmoves, and PVs, so the lock must not be
-    // applied there.
-    if mode == BenchMode::Disabled && profile == SearchProfile::CurrentFinal {
+    // Locked exact assertions (disabled mode, canonical production name,
+    // classical evaluator only).
+    //
+    // Two independent reasons to skip the lock:
+    //   1. Search policy: the locked numbers belong to the exact
+    //      `current-final` policy. Under `current` (and the legacy
+    //      aliases, reported under their own names) a fixed-depth run may
+    //      legitimately produce different node counts, bestmoves and PVs.
+    //   2. Evaluator: the locked scores/PVs/nodes were frozen under the
+    //      handcrafted evaluator (classical). An NNUE run uses a different
+    //      evaluator, so those numbers simply do not apply. NNUE is still
+    //      measured end-to-end; it is just not compared against HCE locks.
+    if mode == BenchMode::Disabled
+        && profile == SearchProfile::CurrentFinal
+        && evaluation == Evaluation::Classical
+    {
         if let Some(locked) = &fx.locked {
             if outcome.score != Some(locked.score) {
                 return Err(format!(
@@ -1965,6 +1979,7 @@ fn run_one(
         fx,
         mode,
         cfg.profile,
+        cfg.evaluation_kind,
         &snap,
         &pos,
         &hist,
@@ -6491,6 +6506,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::CurrentFinal,
             profile_name: "current-final",
+            evaluation_kind: Evaluation::Classical,
             nnue_profile: false,
             fixture: None,
             custom_fen: None,
@@ -6531,6 +6547,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::CurrentFinal,
             profile_name: "current-final",
+            evaluation_kind: Evaluation::Classical,
             nnue_profile: false,
             fixture: None,
             custom_fen: None,
@@ -6618,6 +6635,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::CurrentFinal,
             profile_name: "current-final",
+            evaluation_kind: Evaluation::Classical,
             nnue_profile: false,
             fixture: None,
             custom_fen: None,
@@ -6683,6 +6701,7 @@ mod tests {
             nodes: 100_000,
             profile: SearchProfile::CurrentFinal,
             profile_name: "current-final",
+            evaluation_kind: Evaluation::Classical,
             nnue_profile: false,
             fixture: None,
             custom_fen: None,
@@ -6747,6 +6766,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::CurrentFinal,
                 profile_name: "current-final",
+                evaluation_kind: Evaluation::Classical,
                 nnue_profile: false,
                 fixture: None,
                 custom_fen: None,
@@ -6791,6 +6811,7 @@ mod tests {
                 nodes: 100_000,
                 profile: SearchProfile::Current,
                 profile_name: "current",
+                evaluation_kind: Evaluation::Classical,
                 nnue_profile: false,
                 fixture: None,
                 custom_fen: None,
@@ -6866,6 +6887,7 @@ mod tests {
             &fx,
             BenchMode::Disabled,
             SearchProfile::Current,
+            Evaluation::Classical,
             &snap,
             &pos,
             &hist,
@@ -6903,6 +6925,7 @@ mod tests {
             &fx,
             BenchMode::Disabled,
             SearchProfile::CurrentFinal,
+            Evaluation::Classical,
             &snap2,
             &pos2,
             &hist2,
@@ -6914,6 +6937,153 @@ mod tests {
             refr.is_err(),
             "production profile must enforce the exact lock"
         );
+    }
+
+    #[test]
+    fn locked_expectations_apply_only_to_the_classical_evaluator() {
+        // Positive control: classical + CurrentFinal still enforces the HCE
+        // lock, so gating it on the evaluator did not silently disable it.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(3),
+            history: None,
+            locked: Some(Locked {
+                nodes: 1, // wrong on purpose
+                score: 999,
+                best_move: "e2e4",
+                pv: &["e2e4"],
+            }),
+        };
+        let mut pos = parse_fen(fx.fen).unwrap();
+        let hist = effective_history(&fx, &pos);
+        let snap = Snapshot {
+            fen: to_fen(&pos),
+            zobrist: pos.zobrist_key(),
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = limits_for(fx.limit);
+        let mut tt = TranspositionTable::disabled();
+        let out = search_one(
+            &mut pos,
+            &hist,
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::CurrentFinal,
+            None,
+        )
+        .unwrap();
+        let nodes = ctx.nodes.load(Ordering::Relaxed);
+        let res = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::CurrentFinal,
+            Evaluation::Classical,
+            &snap,
+            &pos,
+            &hist,
+            &out,
+            nodes,
+            fx.limit,
+        );
+        assert!(
+            res.is_err(),
+            "classical + CurrentFinal must still enforce the locked expectations"
+        );
+    }
+
+    #[test]
+    fn nnue_evaluation_skips_the_hce_locked_expectations() {
+        // The locked score/PV/node expectations are frozen HCE numbers.
+        // Running the same fixture under `--evaluation nnue` must NOT be
+        // held to them, otherwise `bench --evaluation nnue` can never
+        // complete. NNUE still runs the fixture; only the HCE locks are
+        // skipped.
+        let fx = Fixture {
+            id: "t",
+            fen: START_FEN,
+            limit: LimitKind::Depth(3),
+            history: None,
+            locked: Some(Locked {
+                nodes: 1, // wrong on purpose
+                score: 999,
+                best_move: "e2e4",
+                pv: &["e2e4"],
+            }),
+        };
+        let mut pos = parse_fen(fx.fen).unwrap();
+        let hist = effective_history(&fx, &pos);
+        let snap = Snapshot {
+            fen: to_fen(&pos),
+            zobrist: pos.zobrist_key(),
+        };
+        let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let limits = limits_for(fx.limit);
+        let mut tt = TranspositionTable::disabled();
+        let out = search_one(
+            &mut pos,
+            &hist,
+            &limits,
+            &ctx,
+            &mut tt,
+            SearchProfile::CurrentFinal,
+            None,
+        )
+        .unwrap();
+        let nodes = ctx.nodes.load(Ordering::Relaxed);
+        let res = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::CurrentFinal,
+            Evaluation::Nnue,
+            &snap,
+            &pos,
+            &hist,
+            &out,
+            nodes,
+            fx.limit,
+        );
+        assert!(
+            res.is_ok(),
+            "NNUE must skip HCE-only locked expectations: {:?}",
+            res.err()
+        );
+
+        // Negative control: the very same fixture under classical still
+        // enforces the lock.
+        let mut pos2 = parse_fen(fx.fen).unwrap();
+        let hist2 = effective_history(&fx, &pos2);
+        let snap2 = Snapshot {
+            fen: to_fen(&pos2),
+            zobrist: pos2.zobrist_key(),
+        };
+        let ctx2 = SearchContext::new(Arc::new(AtomicBool::new(false)));
+        let mut tt2 = TranspositionTable::disabled();
+        let out2 = search_one(
+            &mut pos2,
+            &hist2,
+            &limits,
+            &ctx2,
+            &mut tt2,
+            SearchProfile::CurrentFinal,
+            None,
+        )
+        .unwrap();
+        let nodes2 = ctx2.nodes.load(Ordering::Relaxed);
+        let refr = validate(
+            &fx,
+            BenchMode::Disabled,
+            SearchProfile::CurrentFinal,
+            Evaluation::Classical,
+            &snap2,
+            &pos2,
+            &hist2,
+            &out2,
+            nodes2,
+            fx.limit,
+        );
+        assert!(refr.is_err(), "classical must still enforce the exact lock");
     }
 
     #[test]
@@ -6935,6 +7105,7 @@ mod tests {
             nodes: n,
             profile: SearchProfile::CurrentFinal,
             profile_name: "current-final",
+            evaluation_kind: Evaluation::Classical,
             nnue_profile: false,
             fixture: None,
             custom_fen: None,
@@ -7000,6 +7171,7 @@ mod tests {
             &fx,
             BenchMode::Disabled,
             SearchProfile::CurrentFinal,
+            Evaluation::Classical,
             &snap,
             &pos,
             &hist,
@@ -7025,6 +7197,7 @@ mod tests {
             &fx,
             BenchMode::Disabled,
             SearchProfile::CurrentFinal,
+            Evaluation::Classical,
             &snap,
             &pos,
             &hist,

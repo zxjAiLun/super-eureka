@@ -1,9 +1,13 @@
 """Local GUI acceptance for the S14 engine.
 
-Drives the ACTUAL config En Croissant saved in engines.json against the
-built eureka.exe, covering the four interactions a GUI performs:
+Replays the option values recorded in En Croissant's engines.json.
+NOTE: the values are transcribed below as constants - this script does
+NOT read/parse engines.json at runtime.
+
+Drives the locally built eureka.exe, covering the four interactions a
+GUI performs:
   1. LOAD    - apply saved options (Hash / EvalFile / NnueMode / Evaluation)
-  2. MOVE    - analyze the blunder position (expect f7e6, ~+695cp)
+  2. MOVE    - queen-capture position (expect f7e6, ~+695cp)
   3. STOP    - interrupt a long search, require a legal bestmove
   4. NEWGAME - ucinewgame + isready, config retained, search still works
 """
@@ -17,7 +21,13 @@ import time
 EXE = r"E:\AUbuntuProject\project\chessenginedemo\target\release\eureka.exe"
 MODEL = r"E:\AUbuntuProject\project\chessenginedemo\target\release\nnue-s14-datasupply-v5.bin"
 # Documented S14 reference: startpos moves e2e3 e7e6 d1g4 d8e7 g4e6
-BLUNDER_MOVES = "e2e3 e7e6 d1g4 d8e7 g4e6"
+# Position: startpos moves e2e3 e7e6 d1g4 d8e7 g4e6 -> white Q on e6,
+# black Q on e7, black pawn on f7. BOTH e7e6 (Qxe6) and f7e6 (fxe6)
+# capture the queen; the two evaluators simply PREFER different
+# captures. This check therefore discriminates the evaluator; it is
+# NOT a "HCE blunders / S14 finds it" test. (The original bug was a
+# different move, d7d5, which hangs the queen entirely.)
+QUEEN_CAPTURE_MOVES = "e2e3 e7e6 d1g4 d8e7 g4e6"
 EXPECT_MOVE = "f7e6"
 FAILURES = []
 
@@ -106,9 +116,9 @@ wait_for("readyok", timeout=30)
 drain()
 check("Evaluation=nnue accepted", True)
 
-# --- STEP 2: MOVE (analyze the blunder position) ------------------------
+# --- STEP 2: MOVE (analyze the queen-capture position) ------------------------
 print("\n===== STEP 2: MOVE (black should take the queen) =====")
-send("position startpos moves " + BLUNDER_MOVES)
+send("position startpos moves " + QUEEN_CAPTURE_MOVES)
 send("go depth 8")
 out = wait_for("bestmove", timeout=180)
 bm = [l for l in out if l.startswith("bestmove")][-1].split()
@@ -118,7 +128,7 @@ print("  bestmove      : {}".format(" ".join(bm)))
 print("  last cp       : {}".format(last_cp[:100]))
 
 move = bm[1] if len(bm) > 1 else ""
-check("bestmove is {} (takes the queen)".format(EXPECT_MOVE), move == EXPECT_MOVE,
+check("bestmove is {} (captures the queen)".format(EXPECT_MOVE), move == EXPECT_MOVE,
       "got {}".format(move))
 cp_val = None
 if " score cp " in last_cp:
@@ -145,18 +155,18 @@ send("isready")
 wait_for("readyok", timeout=60)
 drain()
 
-# 4a. Controls: a DIFFERENT position must not return the blunder answer.
+# 4a. Controls: a DIFFERENT position must not return the same answer.
 #     This proves 4b is a fresh search, not a stale un-reset board.
 send("position startpos")
 send("go depth 6")
 out = wait_for("bestmove", timeout=180)
 ctrl = [l for l in out if l.startswith("bestmove")][-1].split()[1]
 print("  control(startpos): {}".format(ctrl))
-check("board reset works (startpos != blunder move)", ctrl != EXPECT_MOVE,
+check("board reset works (startpos != queen-capture move)", ctrl != EXPECT_MOVE,
       "got {}".format(ctrl))
 
-# 4b. Retention: S14 config still in force, same blunder answer.
-send("position startpos moves " + BLUNDER_MOVES)
+# 4b. Retention: S14 config still in force, same answer.
+send("position startpos moves " + QUEEN_CAPTURE_MOVES)
 send("go depth 6")
 out = wait_for("bestmove", timeout=180)
 bm = [l for l in out if l.startswith("bestmove")][-1].split()

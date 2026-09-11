@@ -17,8 +17,11 @@ info string source 106219a0cbfb667a9f68817a67bbe9ff715aa13a
 
 ### 1.2 按 GUI 实际保存的配置做完整交互验收
 
-验收脚本 `tools/gui_acceptance_local.py` 直接采用 En Croissant
-`engines.json` 中保存的**真实配置**（`Hash=64`、
+> **Errata（更正，见 §1.4）**：脚本并非“直接读取” `engines.json`，
+> 而是把其中保存的值**抄录为常量后回放**。
+
+验收脚本 `tools/gui_acceptance_local.py` 按 En Croissant
+`engines.json` 中保存的**实际值回放**（`Hash=64`、
 `EvalFile=…\nnue-s14-datasupply-v5.bin`、`Evaluation=nnue`；
 `NnueMode=nnue-v2q` 为被忽略的历史残留），走完四步：
 
@@ -41,14 +44,22 @@ info string source 106219a0cbfb667a9f68817a67bbe9ff715aa13a
 
 | 配置 | bestmove | 分数 | 判定 |
 |---|---|---|---|
-| 无任何选项（默认 HCE） | `e7e6` | cp 757 | 送后（原 bug） |
-| 完整 GUI 配置（NNUE） | `f7e6` | cp 696 | 吃后（正确） |
+| 无任何选项（默认 HCE） | `e7e6` | cp 757 | Qxe6（同样吃后） |
+| 完整 GUI 配置（NNUE） | `f7e6` | cp 696 | fxe6（同样吃后） |
+
+> **Errata（更正，见 §1.4）**：`e7e6` **不是送后**——该局面下黑后在
+e7、白后在 e6，`e7e6` 就是 Qxe6，与 `f7e6`（fxe6）**都是吃后**。
+> 因此上表只能证明“两个 evaluator 产生了不同的选择/分数”，
+> **不能**表述为“HCE 送后、S14 吃后”。
 
 两条路径结果不同，说明该验收确实能区分评估器，不是恒过测试。
 
 回归：`cargo test --release --lib` **398/398 PASS**。
 
-## 2. 发现：bench 的 NNUE 路径被 HCE 锁定值挡住（既有问题，非本轮引入）
+### 1.4 Errata：两处表述更正（用户核出）
+
+1. **脚本并非“直接读取” `engines.json`。** `tools/gui_acceptance_local.py`
+   把 `EXE` / `MODEL` 写死，再手动发送 `Hash=6 ... [truncated 911 chars]
 
 ```text
 $ eureka bench smoke --evaluation nnue --nnue-model nnue-s14-datasupply-v5.bin
@@ -67,8 +78,43 @@ bench_error fixture startpos: locked score 23 != 98
 影响范围：仅 bench 的 `smoke`/`standard` 套件在 NNUE 下直接报错；
 不影响 CLI / GUI / UCI / Play 任何实际使用路径（已由上面的本机验收覆盖）。
 
-建议（未执行，等 GO）：让 locked 校验按 `evaluation` 分流——
-NNUE 下跳过锁定值，或在锁定结构里区分 `classical` / `nnue` 两套期望值。
+### 2.1 已修复（用户授权，按“harness repair”处理，不重开引擎修复线）
+
+采用最小改法：**不为 NNUE 冻结新的 score/node lock**，而是让锁定校验
+仅在 `evaluation == classical` 时生效。
+
+- `BenchArgs` 新增 `evaluation_kind: Evaluation`；
+- `validate()` 的 locked 分支增加 ` && evaluation == Evaluation::Classical `；
+  注释同步说明锁定值属于 HCE `current-final` 策略。
+
+NNUE 路径仍跑完整 bench，只是不再被 HCE 的
+`score` / `bestmove` / `nodes` / `pv` 锁定值卡住。
+
+新增两个回归（`src/engine/bench.rs`）：
+
+```text
+locked_expectations_apply_only_to_the_classical_evaluator
+  → classical + CurrentFinal：错误锁定值仍被拦截（必须 Err）
+
+nnue_evaluation_skips_the_hce_locked_expectations
+  → nnue + CurrentFinal：同样错误锁定值被跳过（必须 Ok）
+```
+
+实测：
+
+```text
+bench smoke
+  → evaluation=classical，锁定值照常生效，PASS
+
+bench smoke --evaluation nnue --nnue-model …
+  → evaluation=nnue
+eval_model=nnue-s14-datasupply-v5.bin
+eval_sha=329b7170…
+  → 正常完成（此前报 locked score 23 != 98 中断）
+```
+
+不涉及 UCI / search / 棋力，因此**不跑 Arena、不跑 48/48、不重跑 SPRT**。
+`cargo test --release --lib` **400/400 PASS**（+2 新增）。
 
 ## 3. 云端发布链路诊断（未做任何部署或切换）
 
@@ -109,3 +155,5 @@ manifest 记录 binary+model SHA），但早于入口修复，且未接入 Play�
 - 未重训、未跑新的 SPRT 或棋力赛。
 - 未修改服务端规则。
 - 引擎修复线不再追加 Repair（`106219a` 已 CLOSED）。
+- bench lock 修复按用户授权作为 **harness repair** 处理，不重开引擎修复线；
+  不改 UCI/search/棋力，因此未跑 Arena / 48/48 / SPRT。
