@@ -210,6 +210,9 @@ struct BenchResult {
     fixture: &'static str,
     mode: &'static str,
     profile: &'static str,
+    evaluation: &'static str,
+    eval_model: Option<String>,
+    eval_sha: Option<String>,
     repeat: u32,
     limit: String,
     score: Option<i32>,
@@ -907,14 +910,98 @@ fn median_u64(v: &[u64]) -> u64 {
     }
 }
 
+/// Compute standard SHA-256 digest of a byte slice without external crates.
+fn compute_sha256(bytes: &[u8]) -> String {
+    let mut h: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
+    ];
+    let k: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
+    ];
+
+    let bit_len = (bytes.len() as u64).wrapping_mul(8);
+    let mut data = Vec::with_capacity(bytes.len() + 72);
+    data.extend_from_slice(bytes);
+    data.push(0x80);
+    while (data.len() % 64) != 56 {
+        data.push(0);
+    }
+    data.extend_from_slice(&bit_len.to_be_bytes());
+
+    for chunk in data.chunks_exact(64) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes(chunk[i * 4..i * 4 + 4].try_into().unwrap());
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
+        }
+        let (mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h_val) =
+            (h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]);
+        for i in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let ch = (e & f) ^ ((!e) & g);
+            let temp1 = h_val
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(k[i])
+                .wrapping_add(w[i]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = s0.wrapping_add(maj);
+            h_val = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(temp1);
+            d = c;
+            c = b;
+            b = a;
+            a = temp1.wrapping_add(temp2);
+        }
+        h[0] = h[0].wrapping_add(a);
+        h[1] = h[1].wrapping_add(b);
+        h[2] = h[2].wrapping_add(c);
+        h[3] = h[3].wrapping_add(d);
+        h[4] = h[4].wrapping_add(e);
+        h[5] = h[5].wrapping_add(f);
+        h[6] = h[6].wrapping_add(g);
+        h[7] = h[7].wrapping_add(h_val);
+    }
+    format!(
+        "{:08x}{:08x}{:08x}{:08x}{:08x}{:08x}{:08x}{:08x}",
+        h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]
+    )
+}
+
 /// Format one result line. Stable key order, integers, quoted PV.
 fn format_result_line(r: &BenchResult) -> String {
-    let line = format!(
-        "bench_result suite={} fixture={} mode={} profile={} repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\" target_root_rank={}",
-        r.suite,
-        r.fixture,
-        r.mode,
-        r.profile,
+    let mut line = format!(
+        "bench_result suite={} fixture={} mode={} profile={} evaluation={}",
+        r.suite, r.fixture, r.mode, r.profile, r.evaluation,
+    );
+    if let Some(model) = &r.eval_model {
+        line.push_str(&format!(" eval_model={}", model));
+    }
+    if let Some(sha) = &r.eval_sha {
+        line.push_str(&format!(" eval_sha={}", sha));
+    }
+    line.push_str(&format!(
+        " repeat={} limit={} score={} bestmove={} completed_depth={} stopped={} nodes={} elapsed_us={} nps={} pv=\"{}\" target_root_rank={}",
         r.repeat,
         r.limit,
         fmt_score(r.score),
@@ -926,7 +1013,7 @@ fn format_result_line(r: &BenchResult) -> String {
         r.nps,
         r.pv,
         r.target_root_rank
-    );
+    ));
     let line = if r.suite == "profile" || r.suite == "ablation" {
         format!("{} elapsed_ms={}", line, r.elapsed_us / 1_000)
     } else {
@@ -1716,14 +1803,17 @@ fn run_one(
     let want_diagnostics = cfg.nnue_audit || cfg.nnue_stack_telemetry;
     // The evaluator selection is orthogonal to the search profile. Relative
     // paths use the exact same resolver as startup CLI and GUI EvalFile.
-    let (nnue_state, nnue_state_handle) = if cfg.nnue_profile {
+    let (nnue_state, nnue_state_handle, eval_model, eval_sha) = if cfg.nnue_profile {
         let path = cfg
             .nnue_model
             .as_deref()
             .expect("parser requires NNUE model");
         let resolved = uci::resolve_nnue_model_path(path);
-        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(&resolved)
-            .map_err(|error| format!("bench: --nnue-model: {error}"))?;
+        let model_bytes = std::fs::read(&resolved)
+            .map_err(|error| format!("bench: --nnue-model read {}: {error}", resolved.display()))?;
+        let sha = compute_sha256(&model_bytes);
+        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::from_bytes(&model_bytes)
+            .map_err(|error| format!("bench: --nnue-model load {}: {error}", resolved.display()))?;
         let state = crate::engine::nnue_search::NnueSearchState::for_search(
             std::sync::Arc::new(model),
             &pos,
@@ -1734,14 +1824,18 @@ fn run_one(
         // read via the state BEFORE it moves into the search - so instead
         // we retain an Arc<NnueDiagnostics> clone when enabled.
         let handle = state.diagnostics.clone();
-        (Some(state), handle)
+        let file_name = resolved
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string());
+        (Some(state), handle, Some(file_name), Some(sha))
     } else {
         if cfg.nnue_audit || cfg.nnue_stack_telemetry {
             return Err(
                 "bench: --nnue-audit/--nnue-stack-telemetry require an NNUE profile".to_string(),
             );
         }
-        (None, None)
+        (None, None, None, None)
     };
 
     let start = Instant::now();
@@ -1897,6 +1991,13 @@ fn run_one(
         fixture: fx.id,
         mode: mode.as_str(),
         profile: cfg.profile_name,
+        evaluation: if cfg.nnue_profile {
+            "nnue"
+        } else {
+            "classical"
+        },
+        eval_model,
+        eval_sha,
         repeat,
         limit: limit_str,
         score: outcome.score,
@@ -6220,12 +6321,27 @@ mod tests {
     }
 
     #[test]
+    fn sha256_vector_matches() {
+        assert_eq!(
+            compute_sha256(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            compute_sha256(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
     fn result_line_format_stable() {
         let r = BenchResult {
             suite: "standard",
             fixture: "startpos",
             mode: "disabled",
             profile: "reference",
+            evaluation: "classical",
+            eval_model: None,
+            eval_sha: None,
             repeat: 1,
             limit: "depth:4".to_string(),
             score: Some(0),
@@ -6246,7 +6362,8 @@ mod tests {
         assert!(i("suite=") < i("fixture="));
         assert!(i("fixture=") < i("mode="));
         assert!(i("mode=") < i("profile="));
-        assert!(i("profile=") < i("repeat="));
+        assert!(i("profile=") < i("evaluation="));
+        assert!(i("evaluation=") < i("repeat="));
         assert!(i("repeat=") < i("limit="));
         assert!(i("limit=") < i("score="));
         assert!(i("score=") < i("bestmove="));
@@ -6256,8 +6373,38 @@ mod tests {
         assert!(i("nodes=") < i("elapsed_us="));
         assert!(i("elapsed_us=") < i("nps="));
         assert!(i("nps=") < i("pv="));
+        assert!(line.contains("evaluation=classical"));
         assert!(line.contains("score=cp:0"));
         assert!(line.ends_with("target_root_rank=0"));
+
+        let r_nnue = BenchResult {
+            suite: "profile",
+            fixture: "startpos",
+            mode: "disabled",
+            profile: "current-final",
+            evaluation: "nnue",
+            eval_model: Some("nnue-s14-datasupply-v5.bin".to_string()),
+            eval_sha: Some(
+                "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0".to_string(),
+            ),
+            repeat: 1,
+            limit: "nodes:50000".to_string(),
+            score: Some(29),
+            best_move: "e2e4".to_string(),
+            completed_depth: 8,
+            stopped: false,
+            nodes: 50000,
+            elapsed_us: 100_000,
+            nps: 500_000,
+            pv: "e2e4".to_string(),
+            target_root_rank: 1,
+            stats: SearchStats::default(),
+        };
+        let line_nnue = format_result_line(&r_nnue);
+        assert!(line_nnue.contains("evaluation=nnue"));
+        assert!(line_nnue.contains("eval_model=nnue-s14-datasupply-v5.bin"));
+        assert!(line_nnue
+            .contains("eval_sha=329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0"));
     }
 
     #[test]
@@ -6267,6 +6414,9 @@ mod tests {
             fixture: "startpos",
             mode: "disabled",
             profile: "current-aspiration-lmr-futility-see",
+            evaluation: "classical",
+            eval_model: None,
+            eval_sha: None,
             repeat: 1,
             limit: "nodes:1000".to_string(),
             score: Some(0),
