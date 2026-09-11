@@ -537,6 +537,9 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .next()
                     .ok_or_else(|| "bench: --forced-root requires a value".to_string())?
                     .clone();
+                if forced_root.is_some() {
+                    return Err("bench: --forced-root may be specified only once".to_string());
+                }
                 forced_root = Some(v);
             }
             "--evaluation" => {
@@ -6120,6 +6123,22 @@ mod tests {
                 "{historical}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn parse_forced_root_duplicate_rejected() {
+        let err = parse_args(&[
+            "profile".to_string(),
+            "--forced-root".to_string(),
+            "e2e4".to_string(),
+            "--forced-root".to_string(),
+            "d2d4".to_string(),
+        ])
+        .unwrap_err();
+        assert!(
+            err.contains("may be specified only once"),
+            "expected duplicate error, got: {err}"
+        );
     }
 
     #[test]
