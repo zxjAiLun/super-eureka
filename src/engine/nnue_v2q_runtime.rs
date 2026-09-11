@@ -1989,6 +1989,14 @@ fn max_abs_i32(v: &[i32]) -> i64 {
 /// Test-only synthetic EUNN2Q01 artifact builder (shared with the
 /// nnue_search stack tests).
 #[cfg(test)]
+pub(crate) fn synthetic_zero_output_artifact_bytes_for_tests(
+    fen: &str,
+    mode: NnueV2TargetMode,
+) -> Vec<u8> {
+    tests::synthetic_zero_output_artifact_bytes(fen, mode)
+}
+
+#[cfg(test)]
 pub(crate) fn synthetic_artifact_bytes_for_tests(fen: &str) -> Vec<u8> {
     tests::synthetic_artifact_bytes(fen)
 }
@@ -2165,7 +2173,10 @@ mod tests {
     /// (final layer weights + bias zeroed) — lets tests assert the evaluator's
     /// composition semantics in isolation (e.g. full score == material for a
     /// material-residual model, from both perspectives).
-    fn synthetic_zero_output_artifact_bytes(fen: &str, mode: NnueV2TargetMode) -> Vec<u8> {
+    pub(super) fn synthetic_zero_output_artifact_bytes(
+        fen: &str,
+        mode: NnueV2TargetMode,
+    ) -> Vec<u8> {
         let mut out = synthetic_artifact_bytes_with_mode(fen, mode);
         let layout = layout128();
         let tail = layout.out_w_count * 2 + 4;
@@ -2205,6 +2216,54 @@ mod tests {
                 material_cp_stm(&pos),
                 "full score must equal the canonical material ({fen})"
             );
+        }
+    }
+
+    /// S14: zero-output models must preserve material semantics on an
+    /// unbalanced board in both STM directions, and the full-refresh and
+    /// incremental delivery paths must agree exactly.
+    #[test]
+    fn s14_zero_output_target_modes_preserve_material_and_stack_parity() {
+        use crate::engine::nnue_search::{NnueSearchMode, NnueSearchState};
+        let fens = [
+            ("4k3/8/8/8/8/8/4Q3/4K3 w - - 0 1", 900),
+            ("4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1", -900),
+        ];
+        for mode in [NnueV2TargetMode::Cp, NnueV2TargetMode::MaterialResidual] {
+            for (fen, expected_material) in fens {
+                let bytes = synthetic_zero_output_artifact_bytes(fen, mode);
+                let model = std::sync::Arc::new(NnueV2QuantizedModel::from_bytes(&bytes).unwrap());
+                let pos = parse_fen(fen).unwrap();
+                let full = NnueSearchState::with_options(
+                    std::sync::Arc::clone(&model),
+                    NnueSearchMode::FullRefresh,
+                    &pos,
+                    false,
+                    false,
+                );
+                let incremental = NnueSearchState::for_search(model, &pos, false, false);
+                assert_eq!(full.evaluate_raw_cp_i32(&pos), 0, "full raw {mode:?} {fen}");
+                assert_eq!(
+                    incremental.evaluate_raw_cp_i32(&pos),
+                    0,
+                    "incremental raw {mode:?} {fen}"
+                );
+                let expected = match mode {
+                    NnueV2TargetMode::Cp => 0,
+                    NnueV2TargetMode::MaterialResidual => expected_material,
+                };
+                assert_eq!(material_cp_stm(&pos), expected_material, "material {fen}");
+                assert_eq!(
+                    full.evaluate_full_cp_i32(&pos),
+                    expected,
+                    "full {mode:?} {fen}"
+                );
+                assert_eq!(
+                    incremental.evaluate_full_cp_i32(&pos),
+                    expected,
+                    "incremental {mode:?} {fen}"
+                );
+            }
         }
     }
 
@@ -2287,7 +2346,6 @@ mod tests {
         assert!(NnueV2QuantizedModel::from_bytes(b"XX").is_err());
     }
 
-    #[test]
     #[test]
     fn tampered_source_fp32_sha_still_loads_under_format_contract() {
         // S10-E0: a different source FP32 SHA is no longer a load error

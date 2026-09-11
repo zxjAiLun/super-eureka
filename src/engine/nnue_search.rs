@@ -764,6 +764,58 @@ mod tests {
     }
 
     #[test]
+    fn search_state_unbalanced_material_and_stack_composition() {
+        use crate::chess::movegen::generate_legal_moves;
+        use crate::engine::nnue_v2q_runtime::{
+            material_cp_stm, synthetic_zero_output_artifact_bytes_for_tests, NnueV2TargetMode,
+        };
+
+        let fens = [
+            // White up a Queen (+900)
+            ("4k3/8/8/8/8/8/4Q3/4K3 w - - 0 1", 900),
+            // Black down a Queen (-900)
+            ("4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1", -900),
+        ];
+
+        for mode in [NnueV2TargetMode::Cp, NnueV2TargetMode::MaterialResidual] {
+            for (fen, expected_stm_mat) in fens {
+                let bytes = synthetic_zero_output_artifact_bytes_for_tests(fen, mode);
+                let model = Arc::new(NnueV2QuantizedModel::from_bytes(&bytes).unwrap());
+                let mut pos = parse_fen(fen).unwrap();
+                let mut state = NnueSearchState::for_search(Arc::clone(&model), &pos, true, false);
+
+                let expected_full = match mode {
+                    NnueV2TargetMode::Cp => 0,
+                    NnueV2TargetMode::MaterialResidual => expected_stm_mat,
+                };
+                assert_eq!(state.evaluate_raw_cp_i32(&pos), 0);
+                assert_eq!(material_cp_stm(&pos), expected_stm_mat);
+                assert_eq!(state.evaluate_full_cp_i32(&pos), expected_full);
+
+                // Make a legal move and verify stack top retains correct composition
+                let moves = generate_legal_moves(&mut pos.clone());
+                for m in moves {
+                    let delta = state.prepare_delta(&pos, &m);
+                    let undo = pos.make_move(m);
+                    state.push_child(&delta, &pos);
+
+                    let child_mat = material_cp_stm(&pos);
+                    let expected_child = match mode {
+                        NnueV2TargetMode::Cp => 0,
+                        NnueV2TargetMode::MaterialResidual => child_mat,
+                    };
+                    assert_eq!(state.evaluate_raw_cp_i32(&pos), 0);
+                    assert_eq!(state.evaluate_full_cp_i32(&pos), expected_child);
+
+                    state.pop();
+                    pos.unmake_move(undo);
+                    assert_eq!(state.evaluate_full_cp_i32(&pos), expected_full);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn audit_counters_detect_tampered_stack() {
         let model = synthetic_model();
         let pos = parse_fen("r3k2r/pppq1ppp/2npbn2/2b1p3/2B1P3/2NPBN2/PPPQ1PPP/R3K2R w KQkq - 0 1")

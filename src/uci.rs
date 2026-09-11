@@ -47,14 +47,14 @@ type NnueModel = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel;
 /// decides how it is computed (material-residual composition, relation-feature
 /// handling, incremental delivery), so no model-format knob is exposed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Evaluation {
+pub(crate) enum Evaluation {
     #[default]
     Classical,
     Nnue,
 }
 
 impl Evaluation {
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         if value.eq_ignore_ascii_case("classical") {
             Some(Self::Classical)
         } else if value.eq_ignore_ascii_case("nnue") {
@@ -64,7 +64,7 @@ impl Evaluation {
         }
     }
 
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Classical => "classical",
             Self::Nnue => "nnue",
@@ -110,15 +110,12 @@ fn resolve_default_eval_file() -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-/// Resolve a `--nnue-model` path for startup. Absolute paths are used as
-/// given. A relative path is first resolved against the executable's
-/// directory — so a co-located model can be addressed by its bare file name
-/// and a GUI config no longer depends on the GUI's working directory — and
-/// only falls back to the path as given (legacy CWD-relative behavior) when
-/// nothing exists next to the executable. A missing model still fails closed
-/// in the loader; this never falls back to the auto-discovered
-/// `nnue-v2-q01.bin`.
-fn resolve_nnue_model_path(path: &str) -> PathBuf {
+/// Resolve an NNUE model path for every public entry point (startup CLI,
+/// UCI `EvalFile`, and bench). Absolute paths are used as given. A relative
+/// path first resolves next to the executable, then falls back to its legacy
+/// CWD-relative spelling if no co-located file exists. A missing model still
+/// fails closed in the loader; this never falls back to auto-discovery.
+pub(crate) fn resolve_nnue_model_path(path: &str) -> PathBuf {
     let exe_dir = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|p| p.to_path_buf()));
@@ -559,7 +556,7 @@ fn load_eval_file_transactionally(
     requested: Option<&str>,
 ) -> Result<String, String> {
     let path = match requested {
-        Some(value) if !value.is_empty() && value != "<empty>" => PathBuf::from(value),
+        Some(value) if !value.is_empty() && value != "<empty>" => resolve_nnue_model_path(value),
         _ => resolve_default_eval_file().ok_or_else(|| {
             format!("no {DEFAULT_EVAL_FILE_NAME} found next to the engine executable")
         })?,
@@ -684,15 +681,15 @@ fn handle_setoption(
     }
 }
 
-/// The resolved startup selection: which search profile runs (always
-/// [`search::PRODUCTION_PROFILE`] or [`search::ROLLBACK_PROFILE`]), the
-/// profile name to report in the handshake (`current-final-s12` is preserved
-/// verbatim for the S14 compatibility launch), and the optional startup-owned NNUE model
-/// (Arc-shared model + the resolved path for the backend's `eval_file`).
+/// The resolved startup selection: search policy, explicit evaluator mode,
+/// and an optional preloaded NNUE artifact. `current-final-s12` preserves its
+/// reported alias identity but is converted into this ordinary configuration;
+/// it has no independent evaluator path.
 #[derive(Debug)]
 struct StartupSelection {
     profile: search::SearchProfile,
     profile_name: &'static str,
+    evaluation: Evaluation,
     startup_model: Option<(Arc<NnueModel>, String)>,
 }
 
@@ -721,6 +718,8 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
     let mut profile = search::PRODUCTION_PROFILE;
     let mut profile_name = "current-final";
     let mut profile_seen = false;
+    let mut compat_alias = false;
+    let mut requested_evaluation: Option<Evaluation> = None;
     let mut nnue_model_path: Option<String> = None;
     let mut it = args.iter();
 
@@ -750,7 +749,10 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                     }
                     S14_COMPAT_PROFILE => {
                         profile = search::PRODUCTION_PROFILE;
+                        // Preserve the public alias identity, but convert it to
+                        // the ordinary CurrentFinal + NNUE configuration below.
                         profile_name = S14_COMPAT_PROFILE;
+                        compat_alias = true;
                     }
                     historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
                         return Err(format!(
@@ -765,6 +767,17 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 }
                 profile_seen = true;
             }
+            "--evaluation" => {
+                if requested_evaluation.is_some() {
+                    return Err("--evaluation may be specified only once".into());
+                }
+                let value = it
+                    .next()
+                    .ok_or_else(|| "--evaluation requires classical|nnue".to_string())?;
+                requested_evaluation = Some(Evaluation::parse(value).ok_or_else(|| {
+                    format!("invalid --evaluation '{value}' (expected classical|nnue)")
+                })?);
+            }
             "--nnue-model" => {
                 if nnue_model_path.is_some() {
                     return Err("--nnue-model may be specified only once".into());
@@ -776,18 +789,21 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
             }
             other => {
                 return Err(format!(
-                    "unknown startup argument '{}' (expected --profile <cumulative-profile> | --nnue-model <EUNN2Q01 artifact>)",
+                    "unknown startup argument '{}' (expected --profile <cumulative-profile> | --evaluation <classical|nnue> | --nnue-model <EUNN2Q01 artifact>)",
                     other
                 ));
             }
         }
     }
 
-    // `current-final-s12` is the one retained NNUE compatibility launch:
-    // it selects CurrentFinal search and starts the unified backend in NNUE
-    // mode with the supplied artifact. Canonical names merely preload a model
-    // while keeping `Evaluation=classical`; a GUI can activate it later.
-    let s14_compat = profile_name == S14_COMPAT_PROFILE;
+    let evaluation = match (compat_alias, requested_evaluation) {
+        (true, Some(Evaluation::Classical)) => {
+            return Err("--profile current-final-s12 conflicts with --evaluation classical; use --evaluation nnue or the canonical --profile current-final".into());
+        }
+        (true, Some(Evaluation::Nnue)) | (true, None) => Evaluation::Nnue,
+        (false, Some(evaluation)) => evaluation,
+        (false, None) => Evaluation::Classical,
+    };
     let startup_model = match nnue_model_path.as_deref() {
         Some(path) => {
             let resolved = resolve_nnue_model_path(path);
@@ -800,19 +816,23 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
                 Err(e) => return Err(format!("--nnue-model: {e}")),
             }
         }
-        None => {
-            if s14_compat {
-                return Err(format!(
-                    "profile '{profile_name}' requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
-                ));
-            }
-            None
-        }
+        None => None,
     };
+    if evaluation == Evaluation::Nnue && startup_model.is_none() {
+        let source = if compat_alias {
+            "--profile current-final-s12"
+        } else {
+            "--evaluation nnue"
+        };
+        return Err(format!(
+            "{source} requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
+        ));
+    }
 
     Ok(StartupCommand::Run(StartupSelection {
         profile,
         profile_name,
+        evaluation,
         startup_model,
     }))
 }
@@ -825,12 +845,13 @@ enum StartupCommand {
 
 fn print_startup_help() {
     println!("Eureka UCI engine (v{})", crate::version::version_string());
-    println!("Usage: eureka [--profile <profile>] [--nnue-model <EUNN2Q01 artifact>]");
+    println!("Usage: eureka [--profile <profile>] [--evaluation <classical|nnue>] [--nnue-model <EUNN2Q01 artifact>]");
     println!("Profiles:");
     println!("  current        (rollback search policy)");
     println!("  current-final  (production search policy; default)");
-    println!("S14 compatibility alias (requires --nnue-model, plays Evaluation=nnue):");
-    println!("  current-final-s12");
+    println!("Evaluation: classical is the default; nnue requires --nnue-model.");
+    println!("Legacy compatibility alias (converts to current-final + --evaluation nnue):");
+    println!("  current-final-s12  (requires --nnue-model)");
     println!("Other historical NNUE profiles were removed; checkout their historical commits to reproduce them.");
 }
 
@@ -839,6 +860,7 @@ pub fn run() {
     run_with_profile(&StartupSelection {
         profile: search::PRODUCTION_PROFILE,
         profile_name: "current-final",
+        evaluation: Evaluation::Classical,
         startup_model: None,
     });
 }
@@ -879,9 +901,9 @@ fn run_with_profile(selection: &StartupSelection) {
     let StartupSelection {
         profile,
         profile_name,
+        evaluation,
         startup_model,
     } = selection;
-    let s14_compat = *profile_name == "current-final-s12";
     let stdin = io::stdin();
     let stdout = io::stdout();
     // The live game state: current `Position` plus the real, chronological
@@ -891,24 +913,18 @@ fn run_with_profile(selection: &StartupSelection) {
     let mut gs = GameState::startpos();
     // The active background search, if any. `None` while idle.
     let mut active: Option<ActiveSearch> = None;
-    // S14 unified entry: every launcher initializes the SAME evaluation
-    // backend. The retained S14 compatibility alias seeds it with the
-    // startup-owned model and `Evaluation=nnue`; `--nnue-model` under a
-    // retains the model with `Evaluation=classical`; otherwise a verified
-    // neighbor model is auto-discovered (still bit-identical play while the
-    // default mode is classical).
+    // Every launcher initializes the same ordinary evaluator config. The
+    // legacy alias was already normalized by parsing; it has no runtime branch.
     let mut eval_backend = if let Some((model, path)) = startup_model {
         EvalBackendConfig {
-            evaluation: if s14_compat {
-                Evaluation::Nnue
-            } else {
-                Evaluation::Classical
-            },
+            evaluation: *evaluation,
             eval_file: path.clone(),
             model: Some(model.clone()),
         }
     } else {
-        EvalBackendConfig::auto_discover()
+        let mut config = EvalBackendConfig::auto_discover();
+        config.evaluation = *evaluation;
+        config
     };
 
     // Persistent transposition table, shared across every `go` and owned
@@ -1365,15 +1381,32 @@ mod tests {
         );
     }
 
-    /// The retained S14 alias maps to production search and still requires a
-    /// model so the startup backend cannot silently fall back to classical.
+    /// The retained S14 alias converts to the same ordinary production-search
+    /// + NNUE configuration and still requires a model. An explicit
+    /// contradictory evaluator must fail instead of silently winning.
     #[test]
-    fn current_final_s12_maps_to_production_and_requires_a_model() {
+    fn current_final_s12_converts_to_nnue_and_rejects_conflicts() {
         let err =
             parse_startup_profile(&["--profile".to_string(), "current-final-s12".to_string()])
                 .unwrap_err();
         assert!(err.contains("requires --nnue-model"), "got: {err}");
         assert!(err.contains("fail closed"), "got: {err}");
+
+        let conflict = parse_startup_profile(&[
+            "--profile".to_string(),
+            "current-final-s12".to_string(),
+            "--evaluation".to_string(),
+            "classical".to_string(),
+        ])
+        .unwrap_err();
+        assert!(conflict.contains("conflicts with --evaluation classical"));
+
+        let explicit =
+            parse_startup_profile(&["--evaluation".to_string(), "nnue".to_string()]).unwrap_err();
+        assert!(
+            explicit.contains("requires --nnue-model"),
+            "got: {explicit}"
+        );
     }
 
     /// The six experiment-specific NNUE aliases must be rejected even when a
@@ -1435,6 +1468,19 @@ mod tests {
         ])
         .unwrap_err();
         assert!(duplicate.contains("only once"));
+
+        let duplicate_evaluation = parse_startup_profile(&[
+            "--evaluation".to_string(),
+            "classical".to_string(),
+            "--evaluation".to_string(),
+            "nnue".to_string(),
+        ])
+        .unwrap_err();
+        assert!(duplicate_evaluation.contains("only once"));
+
+        let invalid_evaluation =
+            parse_startup_profile(&["--evaluation".to_string(), "other".to_string()]).unwrap_err();
+        assert!(invalid_evaluation.contains("expected classical|nnue"));
 
         let unknown = parse_startup_profile(&["--nodes".to_string()]).unwrap_err();
         assert!(unknown.contains("unknown startup argument"));

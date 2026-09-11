@@ -39,6 +39,7 @@ use crate::engine::search::{
 };
 use crate::engine::time::{compute_budget, TimeInput};
 use crate::engine::tt::{TranspositionTable, MATE_THRESHOLD};
+use crate::uci::{self, Evaluation};
 
 /// A benchmark mode. Selecting `All` expands to the three concrete modes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -117,7 +118,7 @@ struct Locked {
 }
 
 /// Parsed CLI configuration.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct BenchArgs {
     suite: Suite,
     mode: BenchMode,
@@ -129,8 +130,9 @@ struct BenchArgs {
     /// The exact `--profile` name as resolved (preserves the S14
     /// compatibility alias identity in bench output).
     profile_name: &'static str,
-    /// True when `current-final-s12` selected the NNUE compatibility launch
-    /// (an NNUE model is required and loaded for the search).
+    /// True when the resolved, explicit evaluation mode is NNUE. The name is
+    /// retained for compact fixture construction; it never derives from a
+    /// search profile.
     nnue_profile: bool,
     /// Optional throughput/profile fixture filter.
     fixture: Option<&'static str>,
@@ -266,7 +268,8 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
     let mut nodes = 100_000u64;
     let mut profile = SearchProfile::CurrentFinal;
     let mut profile_name: &'static str = "current-final";
-    let mut nnue_profile = false;
+    let mut compat_alias = false;
+    let mut requested_evaluation: Option<Evaluation> = None;
     let mut fixture: Option<&'static str> = None;
     let mut custom_fen: Option<&'static str> = None;
     let mut profile_limit: Option<LimitKind> = None;
@@ -430,8 +433,10 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     }
                     S14_COMPAT_PROFILE => {
                         profile = SearchProfile::CurrentFinal;
+                        // Preserve the public alias in bench output, but convert
+                        // it to the ordinary explicit NNUE mode below.
                         profile_name = S14_COMPAT_PROFILE;
-                        nnue_profile = true;
+                        compat_alias = true;
                     }
                     historical if HISTORICAL_NNUE_PROFILES.contains(&historical) => {
                         return Err(format!(
@@ -532,10 +537,18 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
                     .next()
                     .ok_or_else(|| "bench: --forced-root requires a value".to_string())?
                     .clone();
-                if forced_root.is_some() {
-                    return Err("bench: --forced-root may be specified only once".to_string());
-                }
                 forced_root = Some(v);
+            }
+            "--evaluation" => {
+                if requested_evaluation.is_some() {
+                    return Err("bench: --evaluation may be specified only once".to_string());
+                }
+                let value = it
+                    .next()
+                    .ok_or_else(|| "bench: --evaluation requires classical|nnue".to_string())?;
+                requested_evaluation = Some(Evaluation::parse(value).ok_or_else(|| {
+                    format!("bench: invalid --evaluation '{value}' (expected classical|nnue)")
+                })?);
             }
             "--nnue-model" => {
                 let v = it
@@ -604,6 +617,26 @@ fn parse_args(args: &[String]) -> Result<BenchArgs, String> {
 
     if suite == Suite::Ablation && mode != BenchMode::Disabled {
         return Err("bench: ablation uses fixed disabled TT mode".to_string());
+    }
+
+    let evaluation = match (compat_alias, requested_evaluation) {
+        (true, Some(Evaluation::Classical)) => {
+            return Err("bench: --profile current-final-s12 conflicts with --evaluation classical; use --evaluation nnue or --profile current-final".to_string());
+        }
+        (true, Some(Evaluation::Nnue)) | (true, None) => Evaluation::Nnue,
+        (false, Some(evaluation)) => evaluation,
+        (false, None) => Evaluation::Classical,
+    };
+    let nnue_profile = evaluation == Evaluation::Nnue;
+    if nnue_profile && nnue_model.is_none() {
+        let source = if compat_alias {
+            "--profile current-final-s12"
+        } else {
+            "--evaluation nnue"
+        };
+        return Err(format!(
+            "bench: {source} requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
+        ));
     }
 
     Ok(BenchArgs {
@@ -1678,14 +1711,16 @@ fn run_one(
     // S10-C3-0: diagnostics are OPT-IN. Normal performance runs build the
     // state with telemetry/audit OFF (zero atomic RMW on hot paths).
     let want_diagnostics = cfg.nnue_audit || cfg.nnue_stack_telemetry;
+    // The evaluator selection is orthogonal to the search profile. Relative
+    // paths use the exact same resolver as startup CLI and GUI EvalFile.
     let (nnue_state, nnue_state_handle) = if cfg.nnue_profile {
-        let path = cfg.nnue_model.as_deref().ok_or_else(|| {
-            "bench: NNUE profile requires --nnue-model <EUNN2Q01 artifact> (fail closed)"
-                .to_string()
-        })?;
-        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(
-            std::path::Path::new(path),
-        )?;
+        let path = cfg
+            .nnue_model
+            .as_deref()
+            .expect("parser requires NNUE model");
+        let resolved = uci::resolve_nnue_model_path(path);
+        let model = crate::engine::nnue_v2q_runtime::NnueV2QuantizedModel::load(&resolved)
+            .map_err(|error| format!("bench: --nnue-model: {error}"))?;
         let state = crate::engine::nnue_search::NnueSearchState::for_search(
             std::sync::Arc::new(model),
             &pos,
@@ -2589,8 +2624,10 @@ fn print_help() {
     println!("  --fixture <fixture-id>             throughput/profile/ablation filter");
     println!("  --fen <FEN>                        profile one-off FEN (mutually exclusive with --fixture)");
     println!(
-        "  --profile <current|current-final|current-final-s12>  search profile (default current-final; current-final-s12 requires --nnue-model)"
+        "  --profile <current|current-final|current-final-s12>  search policy (default current-final; s12 converts to NNUE evaluation)"
     );
+    println!("  --evaluation <classical|nnue>      evaluator (default classical; nnue requires --nnue-model)");
+    println!("  --nnue-model <artifact>             model path for --evaluation nnue");
     println!();
     println!("OUTPUT PREFIXES: bench_result / bench_summary / bench_error");
     println!();
@@ -6039,15 +6076,31 @@ mod tests {
         assert_eq!(f.profile_name, "current-final");
         assert!(!f.nnue_profile);
 
-        let s14 = parse_args(&[
+        let s14_missing = parse_args(&[
             "profile".to_string(),
             "--profile".to_string(),
             S14_COMPAT_PROFILE.to_string(),
         ])
-        .unwrap();
-        assert_eq!(s14.profile, SearchProfile::CurrentFinal);
-        assert_eq!(s14.profile_name, S14_COMPAT_PROFILE);
-        assert!(s14.nnue_profile);
+        .unwrap_err();
+        assert!(s14_missing.contains("requires --nnue-model"));
+
+        let explicit_missing = parse_args(&[
+            "profile".to_string(),
+            "--evaluation".to_string(),
+            "nnue".to_string(),
+        ])
+        .unwrap_err();
+        assert!(explicit_missing.contains("requires --nnue-model"));
+
+        let conflict = parse_args(&[
+            "profile".to_string(),
+            "--profile".to_string(),
+            S14_COMPAT_PROFILE.to_string(),
+            "--evaluation".to_string(),
+            "classical".to_string(),
+        ])
+        .unwrap_err();
+        assert!(conflict.contains("conflicts with --evaluation classical"));
 
         for historical in HISTORICAL_NNUE_PROFILES {
             let err = parse_args(&[

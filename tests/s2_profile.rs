@@ -185,6 +185,17 @@ fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
     write_synthetic_model(&model);
     run_profile_process(
         &[
+            "--evaluation",
+            "nnue",
+            "--nnue-model",
+            model.to_str().unwrap(),
+        ],
+        "current-final",
+        Some("nnue-v2q"),
+        false,
+    );
+    run_profile_process(
+        &[
             "--profile",
             "current-final-s12",
             "--nnue-model",
@@ -193,6 +204,17 @@ fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
         "current-final-s12",
         Some("nnue-v2q"),
         false,
+    );
+    assert_startup_rejected_with_message(
+        &[
+            "--profile",
+            "current-final-s12",
+            "--evaluation",
+            "classical",
+            "--nnue-model",
+            model.to_str().unwrap(),
+        ],
+        "conflicts with --evaluation classical",
     );
     let _ = std::fs::remove_file(&model);
 
