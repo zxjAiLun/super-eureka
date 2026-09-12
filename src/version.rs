@@ -1,12 +1,12 @@
-//! Release identity (R0 - Eureka v0.1.0).
+//! Release identity (R0 - Eureka v0.2.0).
 //!
 //! Every binary reports, through the UCI handshake, its exact version and
 //! provenance so it can never again be an anonymous "target/release exe".
 //!
 //! Version rules (frozen):
-//!   tagged release        -> `0.1.0`          (id: Eureka v0.1.0)
-//!   ordinary dev HEAD     -> `0.1.0-dev+<sha>`
-//!   dirty worktree        -> `0.1.0-dev+<sha>.dirty`
+//!   tagged release        -> `0.2.0`          (id: Eureka v0.2.0)
+//!   ordinary dev HEAD     -> `0.2.0-dev+<sha>`
+//!   dirty worktree        -> `0.2.0-dev+<sha>.dirty`
 //!
 //! `CurrentFinal` is a search-policy name, NEVER a product version name.
 
@@ -34,7 +34,7 @@ pub fn is_dirty() -> bool {
     option_env!("GIT_DIRTY").unwrap_or("false") == "true"
 }
 
-/// `0.1.0` for a CLEAN tagged release, `0.1.0-dev+<sha>[.dirty]`
+/// `0.2.0` for a CLEAN tagged release, `0.2.0-dev+<sha>[.dirty]`
 /// otherwise. A tagged checkout with a dirty worktree is NOT a release.
 pub fn version_string() -> String {
     derive_version(exact_tag(), is_dirty(), git_short(), PKG_VERSION)
@@ -52,7 +52,7 @@ fn derive_version(tag: &str, dirty: bool, short_sha: &str, pkg: &str) -> String 
     v
 }
 
-/// `eureka-0.1.0-2026-08-13-<sha>-<platform>`.
+/// `eureka-0.2.0-2026-08-13-<sha>-<platform>`.
 pub fn build_string() -> String {
     format!(
         "eureka-{}-{}-{}-{}",
@@ -102,23 +102,23 @@ mod tests {
     fn version_rule_all_cases() {
         // clean tagged release -> bare semver
         assert_eq!(
-            derive_version("eureka-v0.1.0", false, "10a3ad8e", "0.1.0"),
-            "0.1.0"
+            derive_version("eureka-v0.2.0", false, "10a3ad8e", "0.2.0"),
+            "0.2.0"
         );
         // tagged but DIRTY -> dev (must not masquerade as a release)
         assert_eq!(
-            derive_version("eureka-v0.1.0", true, "10a3ad8e", "0.1.0"),
-            "0.1.0-dev+10a3ad8e.dirty"
+            derive_version("eureka-v0.2.0", true, "10a3ad8e", "0.2.0"),
+            "0.2.0-dev+10a3ad8e.dirty"
         );
         // untagged clean -> dev
         assert_eq!(
-            derive_version("", false, "10a3ad8e", "0.1.0"),
-            "0.1.0-dev+10a3ad8e"
+            derive_version("", false, "10a3ad8e", "0.2.0"),
+            "0.2.0-dev+10a3ad8e"
         );
         // untagged dirty -> dev.dirty
         assert_eq!(
-            derive_version("", true, "10a3ad8e", "0.1.0"),
-            "0.1.0-dev+10a3ad8e.dirty"
+            derive_version("", true, "10a3ad8e", "0.2.0"),
+            "0.2.0-dev+10a3ad8e.dirty"
         );
     }
 }
