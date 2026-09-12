@@ -179,3 +179,34 @@ health 由 `degraded / gap=1` 回到 `ok / gap=0`。
   用安装后绝对路径的既定裁定不变）。
 - 未动 `bench` harness debt；未打 git tag；未改 `current-final` 的
   搜索 profile 语义（其退回内部 profile 名的方向不变，本厂未迁移）。
+
+## 9. Errata：本机 GUI 新条目缺 `EvalFile`，自动加载了旧 q01（用户核出）
+
+**产品名不等于模型身份**——只有 `EvalFile` / `--nnue-model` 把模型钉死。
+本机 En Croissant 为新 exe 新建的 `Eureka v0.2.0` 条目只保存了
+`Hash=64` + `Evaluation=nnue`，没有 `EvalFile`（旧条目连同其正确的
+EvalFile 一并被替换）；引擎按 exe 同目录优先解析，静默自动加载了
+旁边的旧 `nnue-v2-q01.bin`。原送后局面 50k 节点：q01 → cp 16，
+显式 S14 → cp 696。因此 §1.2 的本机验收当时成立，但**不能覆盖
+之后 GUI 配置的变化**——验收回放的是抄录值，不监听 En Croissant 的
+实时配置。
+
+已修复：条目补上
+`EvalFile = E:\AUbuntuProject\project\chessenginedemo\target\release\nnue-s14-datasupply-v5.bin`
+（SHA `329b7170…`，与参赛/生产模型一致），并按 GUI 实际发送的
+setoption 组合回放验证：
+
+```text
+修复后：EvalFile loaded: nnue-s14-datasupply-v5.bin；cp 696 / bestmove f7e6
+阴性对照（无 EvalFile，静默加载 q01）：cp 16 / bestmove f7e6
+```
+
+注：`info string evalfile nnue-v2-q01.bin` 是启动时打印的选项默认值，
+不随 setoption 刷新；判断实际加载以 `EvalFile loaded: …` 消息为准。
+
+云端不受影响：`ce-v020` 的 launch identity 显式携带
+`--nnue-model <build 内 S14 绝对路径>`，实际模型文件 SHA 与参赛模型
+一致（`329b7170…`）；云端 binary 是本轮重构后的 release（非参赛
+二进制的逐字节复用），确认的是模型身份一致，不是二进制复用。
++105 Elo 对应关系（正式赛，双臂同 binary `dceacfb7…`，bullet_1_0）：
+S14 vs HCE 198 胜 / 62 和 / 94 负，得分率 64.69% ≈ +105。
