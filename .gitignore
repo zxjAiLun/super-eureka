@@ -33,6 +33,17 @@
 !/results/s14/
 !/results/s14/**
 /results/s14/screen-cutechess.log
+# S15/S16: model binaries/checkpoints local-only; screen reports tracked
+!/results/s15/
+!/results/s15/**
+/results/s15/screen-cutechess.log
+!/results/s15-long/
+!/results/s15-long/**
+/results/s15-long/screen-cutechess.log
+!/results/s16/
+!/results/s16/**
+/results/s16/screen-cutechess.log
+/results/s16/screen-match.pgn
 # S12: model binaries/checkpoints local-only; summaries + layouts tracked
 data/s12/**
 !data/s12/r1/
