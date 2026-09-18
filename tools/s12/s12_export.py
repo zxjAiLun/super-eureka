@@ -45,7 +45,9 @@ FEATURE_SET_V2R12 = 1
 HEAD_KIND_SCRELU_BUCKETS = 1
 TARGET_MODE_MATERIAL_RESIDUAL = 1
 INPUTS = 23296
-FT_WIDTH = 256
+# FT_WIDTH is derived per-checkpoint (S17: the recipe is FT256 or FT512);
+# this constant is only the historical default / fallback.
+FT_WIDTH_DEFAULT = 256
 TARGET_SCALE = 1000.0
 FT_SHIFT = 12
 DENSE_W_SHIFT = 12
@@ -82,10 +84,16 @@ def export(ckpt_path: Path, out_path: Path) -> dict:
     summary = ckpt["summary"]
     assert summary["schema"] == "s12-bullet-recipe", \
         f"not an S12 checkpoint: {summary.get('schema')}"
-    assert int(sd["ft_bias"].shape[0]) == FT_WIDTH
-    assert int(sd["ft_weights.weight"].shape[0]) == INPUTS
-    l1w = sd["l1.weight"]                       # [8, 512]
+    # S17: derive the FT width from the checkpoint (FT256 or FT512) rather
+    # than assuming it, so the header and every shape follow the real model.
+    ft_shape = tuple(sd["ft_weights.weight"].shape)
+    assert ft_shape[0] == INPUTS, ft_shape
+    FT_WIDTH = int(ft_shape[1])
+    if FT_WIDTH not in (256, 512):
+        raise SystemExit(f"PIPELINE_FAILURE: unsupported ft_width {FT_WIDTH}")
+    l1w = sd["l1.weight"]                       # [8, 2*FT_WIDTH]
     assert tuple(l1w.shape) == (NUM_BUCKETS, 2 * FT_WIDTH), l1w.shape
+    assert int(sd["ft_bias"].shape[0]) == FT_WIDTH, sd["ft_bias"].shape
     l1b = sd["l1.bias"]                         # [8]
 
     ft_w_q = quantize_i16(sd["ft_weights.weight"], 1 << FT_SHIFT)

@@ -164,6 +164,7 @@ pub fn s12_output_bucket(pos: &Position) -> usize {
 pub enum FtWidth {
     W128,
     W256,
+    W512,
 }
 
 impl FtWidth {
@@ -171,6 +172,7 @@ impl FtWidth {
         match self {
             FtWidth::W128 => 128,
             FtWidth::W256 => 256,
+            FtWidth::W512 => 512,
         }
     }
 
@@ -183,6 +185,7 @@ impl FtWidth {
         match v {
             128 => Some(FtWidth::W128),
             256 => Some(FtWidth::W256),
+            512 => Some(FtWidth::W512),
             _ => None,
         }
     }
@@ -502,6 +505,7 @@ struct Weights<const W: usize> {
 enum WeightsFor {
     W128(Weights<128>),
     W256(Weights<256>),
+    W512(Weights<512>),
 }
 
 impl WeightsFor {
@@ -509,6 +513,7 @@ impl WeightsFor {
         match self {
             WeightsFor::W128(_) => FtWidth::W128,
             WeightsFor::W256(_) => FtWidth::W256,
+            WeightsFor::W512(_) => FtWidth::W512,
         }
     }
 }
@@ -634,6 +639,8 @@ impl NnueV2QuantizedModel {
             (3, 256) => FtWidth::W256,
             (4, 128) => FtWidth::W128,
             (5, 256) => FtWidth::W256,
+            // S17: FT512 experimental (v5 recipe, wider lanes).
+            (5, 512) => FtWidth::W512,
             _ => {
                 return Err(format!(
                     "nnue-v2q-probe: bad ft_width {ft_width_raw} for \
@@ -748,10 +755,12 @@ impl NnueV2QuantizedModel {
         // layout (FT + ONE bucketed linear head). Branch BEFORE the
         // legacy layout check.
         if head_kind == NnueHeadKind::ScreluBuckets {
-            if version != 5 || width != FtWidth::W256 {
-                return Err("nnue-v2q-probe: SCReLU-buckets head requires v5 FT256".to_string());
+            if version != 5 {
+                return Err("nnue-v2q-probe: SCReLU-buckets head requires v5".to_string());
             }
-            let w = 256usize;
+            // S17: lane count comes from the authenticated header, not a
+            // constant (FT512 -> dense_in 1024).
+            let w = width.lanes();
             let dense_in = 2 * w;
             let ft_w_count = feature_set.inputs() * w;
             let ft_b_count = w;
@@ -786,17 +795,23 @@ impl NnueV2QuantizedModel {
                     z_bound >> NNUE_V2Q_DENSE_Z_SHIFT
                 ));
             }
-            let weights = Weights {
-                ft_weights,
-                ft_bias,
-                l1_weight: head_weights,
-                l1_bias: head_bias,
-                // unused by the SCReLU head; zero-length sentinels
-                l2_weight: Vec::new(),
-                l2_bias: Vec::new(),
-                out_weight: Vec::new(),
-                out_bias: Vec::new(),
-            };
+            // The SCReLU-buckets head is const-generic over the lane
+            // count, which came from the authenticated header.
+            macro_rules! screlu_weights {
+                ($w:literal) => {
+                    Weights::<$w> {
+                        ft_weights,
+                        ft_bias,
+                        l1_weight: head_weights,
+                        l1_bias: head_bias,
+                        // unused by the SCReLU head; zero-length sentinels
+                        l2_weight: Vec::new(),
+                        l2_bias: Vec::new(),
+                        out_weight: Vec::new(),
+                        out_bias: Vec::new(),
+                    }
+                };
+            }
             #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
             let l1_backend = if is_avx2_detected() {
                 L1Backend::Avx2
@@ -805,8 +820,13 @@ impl NnueV2QuantizedModel {
             };
             #[cfg(any(not(target_arch = "x86_64"), feature = "force_scalar_l1"))]
             let l1_backend = L1Backend::Scalar;
+            let weights = match width {
+                FtWidth::W128 => WeightsFor::W128(screlu_weights!(128)),
+                FtWidth::W256 => WeightsFor::W256(screlu_weights!(256)),
+                FtWidth::W512 => WeightsFor::W512(screlu_weights!(512)),
+            };
             return Ok(NnueV2QuantizedModel {
-                weights: WeightsFor::W256(weights),
+                weights,
                 source_fp32_artifact_sha256,
                 source_checkpoint_sha256,
                 l1_backend,
@@ -819,6 +839,7 @@ impl NnueV2QuantizedModel {
         let weights = match width {
             FtWidth::W128 => WeightsFor::W128(load_weights!(128)),
             FtWidth::W256 => WeightsFor::W256(load_weights!(256)),
+            FtWidth::W512 => WeightsFor::W512(load_weights!(512)),
         };
 
         // S10-C3-C2: runtime L1 backend detection (once per load).
@@ -891,6 +912,14 @@ impl NnueV2QuantizedModel {
                     dense_forward::<256>(w, pos, &acc, self.l1_backend)
                 }
             }
+            WeightsFor::W512(w) => {
+                let acc = full_acc::<512>(w, pos, self.feature_set);
+                if self.head_kind == NnueHeadKind::ScreluBuckets {
+                    screlu_bucket_forward(w, pos, &acc)
+                } else {
+                    dense_forward::<512>(w, pos, &acc, self.l1_backend)
+                }
+            }
         }
     }
 
@@ -900,6 +929,7 @@ impl NnueV2QuantizedModel {
         if self.head_kind == NnueHeadKind::ScreluBuckets {
             match (&self.weights, acc) {
                 (WeightsFor::W256(w), AccumulatorFor::W256(a)) => screlu_bucket_forward(w, pos, a),
+                (WeightsFor::W512(w), AccumulatorFor::W512(a)) => screlu_bucket_forward(w, pos, a),
                 _ => panic!("accumulator width does not match model"),
             }
         } else {
@@ -909,6 +939,9 @@ impl NnueV2QuantizedModel {
                 }
                 (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
                     dense_forward::<256>(w, pos, a, self.l1_backend)
+                }
+                (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
+                    dense_forward::<512>(w, pos, a, self.l1_backend)
                 }
                 _ => panic!("accumulator width does not match model"),
             }
@@ -924,6 +957,7 @@ impl NnueV2QuantizedModel {
         match &self.weights {
             WeightsFor::W128(w) => AccumulatorFor::W128(full_acc::<128>(w, pos, self.feature_set)),
             WeightsFor::W256(w) => AccumulatorFor::W256(full_acc::<256>(w, pos, self.feature_set)),
+            WeightsFor::W512(w) => AccumulatorFor::W512(full_acc::<512>(w, pos, self.feature_set)),
         }
     }
 
@@ -940,6 +974,10 @@ impl NnueV2QuantizedModel {
             WeightsFor::W256(w) => AccumulatorFor::W256(NnueV2Accumulator {
                 white: accumulate_lanes::<256>(w, &active_features_v2(pos, NnuePerspective::White)),
                 black: accumulate_lanes::<256>(w, &active_features_v2(pos, NnuePerspective::Black)),
+            }),
+            WeightsFor::W512(w) => AccumulatorFor::W512(NnueV2Accumulator {
+                white: accumulate_lanes::<512>(w, &active_features_v2(pos, NnuePerspective::White)),
+                black: accumulate_lanes::<512>(w, &active_features_v2(pos, NnuePerspective::Black)),
             }),
         }
     }
@@ -970,6 +1008,9 @@ impl NnueV2QuantizedModel {
                 child_state.apply_diff(before, w, pos, a)
             }
             (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
+                child_state.apply_diff(before, w, pos, a)
+            }
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
                 child_state.apply_diff(before, w, pos, a)
             }
             _ => panic!("accumulator width does not match model"),
@@ -1051,6 +1092,24 @@ impl NnueV2QuantizedModel {
                     }
                 }
             }
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
+                let lanes = match perspective {
+                    NnuePerspective::White => &mut a.white,
+                    NnuePerspective::Black => &mut a.black,
+                };
+                let fresh = accumulate_lanes::<512>(w, &active_features_v2(pos, perspective));
+                lanes.copy_from_slice(&fresh);
+                for sq in 0..64usize {
+                    if let Some(f) = R12RelationState::row_for_square(
+                        child_state.square_state(sq),
+                        sq,
+                        perspective,
+                        mirror_file,
+                    ) {
+                        apply_feature_row(w, lanes, f, 1);
+                    }
+                }
+            }
             _ => panic!("accumulator width does not match model"),
         }
     }
@@ -1084,6 +1143,15 @@ impl NnueV2QuantizedModel {
                     dense_forward::<256>(w, pos, &hybrid, self.l1_backend)
                 }
             }
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<512>(w, pos, &mut hybrid);
+                if self.head_kind == NnueHeadKind::ScreluBuckets {
+                    screlu_bucket_forward(w, pos, &hybrid)
+                } else {
+                    dense_forward::<512>(w, pos, &hybrid, self.l1_backend)
+                }
+            }
             _ => panic!("accumulator width does not match model"),
         }
     }
@@ -1115,6 +1183,11 @@ impl NnueV2QuantizedModel {
                 add_fresh_relation_rows::<256>(w, pos, &mut hybrid);
                 AccumulatorFor::W256(hybrid)
             }
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
+                let mut hybrid = *a;
+                add_fresh_relation_rows::<512>(w, pos, &mut hybrid);
+                AccumulatorFor::W512(hybrid)
+            }
             _ => panic!("accumulator width does not match model"),
         }
     }
@@ -1130,6 +1203,7 @@ impl NnueV2QuantizedModel {
         match &self.weights {
             WeightsFor::W128(w) => LanesFor::W128(accumulate_lanes::<128>(w, &features)),
             WeightsFor::W256(w) => LanesFor::W256(accumulate_lanes::<256>(w, &features)),
+            WeightsFor::W512(w) => LanesFor::W512(accumulate_lanes::<512>(w, &features)),
         }
     }
 
@@ -1139,6 +1213,7 @@ impl NnueV2QuantizedModel {
         match &self.weights {
             WeightsFor::W128(w) => LanesFor::W128(accumulate_lanes::<128>(w, indices)),
             WeightsFor::W256(w) => LanesFor::W256(accumulate_lanes::<256>(w, indices)),
+            WeightsFor::W512(w) => LanesFor::W512(accumulate_lanes::<512>(w, indices)),
         }
     }
 
@@ -1154,6 +1229,7 @@ impl NnueV2QuantizedModel {
         match (&self.weights, acc) {
             (WeightsFor::W128(w), AccumulatorFor::W128(a)) => update_acc(w, a, before, after),
             (WeightsFor::W256(w), AccumulatorFor::W256(a)) => update_acc(w, a, before, after),
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => update_acc(w, a, before, after),
             _ => panic!("accumulator width does not match model"),
         }
     }
@@ -1242,6 +1318,9 @@ impl NnueV2QuantizedModel {
             (WeightsFor::W256(w), AccumulatorFor::W256(a)) => {
                 update_acc_for_move(w, a, delta, child)
             }
+            (WeightsFor::W512(w), AccumulatorFor::W512(a)) => {
+                update_acc_for_move(w, a, delta, child)
+            }
             _ => panic!("accumulator width does not match model"),
         }
     }
@@ -1289,6 +1368,7 @@ impl NnueV2QuantizedModel {
 pub enum AccumulatorFor {
     W128(NnueV2Accumulator<128>),
     W256(NnueV2Accumulator<256>),
+    W512(NnueV2Accumulator<512>),
 }
 
 impl AccumulatorFor {
@@ -1296,6 +1376,7 @@ impl AccumulatorFor {
         match self {
             AccumulatorFor::W128(a) => &a.white,
             AccumulatorFor::W256(a) => &a.white,
+            AccumulatorFor::W512(a) => &a.white,
         }
     }
 
@@ -1303,6 +1384,7 @@ impl AccumulatorFor {
         match self {
             AccumulatorFor::W128(a) => &a.black,
             AccumulatorFor::W256(a) => &a.black,
+            AccumulatorFor::W512(a) => &a.black,
         }
     }
 
@@ -1310,6 +1392,7 @@ impl AccumulatorFor {
         match self {
             AccumulatorFor::W128(a) => &mut a.white,
             AccumulatorFor::W256(a) => &mut a.white,
+            AccumulatorFor::W512(a) => &mut a.white,
         }
     }
 
@@ -1317,6 +1400,7 @@ impl AccumulatorFor {
         match self {
             AccumulatorFor::W128(a) => &mut a.black,
             AccumulatorFor::W256(a) => &mut a.black,
+            AccumulatorFor::W512(a) => &mut a.black,
         }
     }
 }
@@ -1326,6 +1410,7 @@ impl AccumulatorFor {
 pub enum LanesFor {
     W128([i32; 128]),
     W256([i32; 256]),
+    W512([i32; 512]),
 }
 
 /// FT accumulate: `q_bias + sum(active feature rows)` (A units), i32
@@ -1721,7 +1806,6 @@ fn screlu_bucket_forward<const W: usize>(
     pos: &Position,
     acc: &NnueV2Accumulator<W>,
 ) -> i32 {
-    debug_assert!(W == 256, "S12 head is FT256-only");
     let (own_acc, opp_acc) = match pos.side_to_move() {
         Color::White => (&acc.white, &acc.black),
         Color::Black => (&acc.black, &acc.white),
@@ -1729,6 +1813,29 @@ fn screlu_bucket_forward<const W: usize>(
     let bucket = s12_output_bucket(pos);
     let dense_in = 2 * W;
     let row = bucket * dense_in;
+
+    // S17: the SCReLU-buckets head is the NNUE hot path for the current
+    // S14-S17 models, and it previously had NO SIMD path (the AVX2 kernel
+    // only served the legacy `dense_forward`). Route it through an AVX2
+    // kernel when available; the scalar loop below stays as the fallback
+    // and both produce bit-identical integers (regression-gated).
+    #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
+    {
+        if W % 8 == 0 && is_avx2_detected() {
+            // SAFETY: AVX2 confirmed at runtime; the kernel only reads the
+            // accumulator lanes / weight row / bias and does not assume
+            // alignment.
+            let raw = unsafe {
+                screlu_head_avx2(
+                    &w.l1_weight[row..row + dense_in],
+                    w.l1_bias[bucket],
+                    own_acc,
+                    opp_acc,
+                )
+            };
+            return raw;
+        }
+    }
 
     // SCReLU activations (STM ++ NSTM, mirroring the training concat).
     let mut z = w.l1_bias[bucket] as i64;
@@ -1755,6 +1862,103 @@ fn screlu_bucket_forward<const W: usize>(
     raw as i32
 }
 
+/// S17: AVX2 SCReLU-buckets head.
+///
+/// Computes, for the SELECTED bucket only:
+///
+/// ```text
+/// y[j] = clamp(a[j], 0, QA)^2 / QA        (SCReLU, exact: operand >= 0
+///                                          so the /QA is an arithmetic
+///                                          shift right by 12)
+/// z    = bias + sum_j q_w[j] * y[j]       (i64 MAC, widened per 16 lanes)
+/// raw  = round_half_away(z >> 12)
+/// ```
+///
+/// The activation is computed in i32 lanes (`c*c <= 2^24` fits i32) and
+/// the products are widened to i64 exactly as the scalar path, so the
+/// returned integer is bit-identical to `screlu_bucket_forward`.
+#[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
+#[target_feature(enable = "avx2")]
+unsafe fn screlu_head_avx2(
+    q_w: &[i16],      // [dense_in] the selected bucket's row
+    bias: i32,
+    own_acc: &[i32],  // [W]
+    opp_acc: &[i32],  // [W]
+) -> i32 {
+    use std::arch::x86_64::*;
+
+    let w_lanes = own_acc.len();
+    let dense_in = q_w.len();
+    debug_assert_eq!(dense_in, 2 * w_lanes);
+    debug_assert_eq!(opp_acc.len(), w_lanes);
+
+    let qa = _mm256_set1_epi32(NNUE_V2Q_QA as i32);
+    let zero = _mm256_setzero_si256();
+
+    // Two i64 accumulator groups (4 lanes each); widened as we go so the
+    // i64 bound is respected exactly like the scalar path.
+    let mut vacc_lo = _mm256_setzero_si256();
+    let mut vacc_hi = _mm256_setzero_si256();
+
+    // Process own lanes [0,W) from q_w[0..W], then opp lanes [0,W) from
+    // q_w[W..2W] -- identical order to the scalar loop (the summation
+    // order does not affect the exact integer result because all terms are
+    // integers and i64 does not overflow here).
+    let mut chunk = 0usize;
+    while chunk + 8 <= w_lanes {
+        for (src, off) in [(own_acc, 0usize), (opp_acc, w_lanes)] {
+            // y = screlu(acc) in i32 lanes
+            let a = _mm256_loadu_si256(src.as_ptr().add(chunk) as *const __m256i);
+            let c = _mm256_min_epi32(_mm256_max_epi32(a, zero), qa);
+            let sq = _mm256_mullo_epi32(c, c);
+            let y = _mm256_srai_epi32(sq, NNUE_V2Q_FT_SHIFT as i32);
+
+            // w = i16 -> i32 lanes, interleaved with y for madd
+            let wp = q_w.as_ptr().add(off + chunk) as *const __m128i;
+            let wv = _mm256_cvtepi16_epi32(_mm_loadu_si128(wp));
+
+            // 8 products, then widen to i64 and accumulate.
+            let prod = _mm256_mullo_epi32(wv, y);
+            let lo = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(prod));
+            let hi = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(prod, 1));
+            vacc_lo = _mm256_add_epi64(vacc_lo, lo);
+            vacc_hi = _mm256_add_epi64(vacc_hi, hi);
+        }
+        chunk += 8;
+    }
+
+    let mut sums = [0i64; 8];
+    _mm256_storeu_si256(sums.as_mut_ptr() as *mut __m256i, vacc_lo);
+    _mm256_storeu_si256(sums.as_mut_ptr().add(4) as *mut __m256i, vacc_hi);
+    let mut z = bias as i64;
+    for s in sums {
+        z += s;
+    }
+
+    // Any tail (W not a multiple of 8) uses the scalar form so the result
+    // stays exact for non-multiple widths.
+    if chunk < w_lanes {
+        let act = |a: i32| -> i64 {
+            let c = clamp_i(a, 0, NNUE_V2Q_QA as i32) as i64;
+            c * c / (NNUE_V2Q_QA as i64)
+        };
+        for i in chunk..w_lanes {
+            z += q_w[i] as i64 * act(own_acc[i]);
+        }
+        for i in chunk..w_lanes {
+            z += q_w[w_lanes + i] as i64 * act(opp_acc[i]);
+        }
+    }
+
+    let denom = 1i64 << NNUE_V2Q_DENSE_Z_SHIFT;
+    let raw = if z >= 0 {
+        (z + denom / 2) / denom
+    } else {
+        -((-z + denom / 2) / denom)
+    };
+    raw as i32
+}
+
 /// Dense forward pass (ClippedReLU -> L1 -> L2 -> out). L1 accumulates
 /// in i64 on the scalar path (S10-E3; the 1M L1 weights exceed the i32
 /// worst-case bound at BOTH widths — 256 and 512 inputs) and the AVX2
@@ -1771,7 +1975,7 @@ fn dense_forward<const W: usize>(
     };
 
     // ClippedReLU(0, QA) -> 2W activations.
-    let mut acts = [0i32; 2 * 256];
+    let mut acts = [0i32; 2 * 512];
     for i in 0..W {
         acts[i] = clamp_i(own_acc[i], 0, NNUE_V2Q_QA as i32);
         acts[W + i] = clamp_i(opp_acc[i], 0, NNUE_V2Q_QA as i32);
@@ -1876,7 +2080,7 @@ unsafe fn l1_dense_avx2(
     debug_assert!(dense_in % 16 == 0, "dense_in must be 16-lane aligned");
 
     // Activations are already clamped to [0, 4096]: pack to i16 once.
-    let mut a16 = [0i16; 512];
+    let mut a16 = [0i16; 1024];
     for i in 0..dense_in {
         a16[i] = acts[i] as i16;
     }
@@ -2273,6 +2477,104 @@ mod tests {
     /// (force_scalar_l1 build), and the 10k corpus batch comparison is
     /// the formal gate. Here we assert the kernel against the scalar
     /// reference computed inline, on the real frozen-style artifact.
+    /// S17b: the SCReLU-buckets head is the NNUE hot path for the current
+    /// S14-S17 models and now has an AVX2 kernel. This is the PERMANENT
+    /// direct SIMD-vs-scalar equivalence test: it exercises all 8 output
+    /// buckets at both authenticated widths, with accumulator lanes that
+    /// hit negatives, zero, the clipping bounds and values past the QA
+    /// ceiling, plus mixed-sign weights large enough to exercise the i64
+    /// widening. The scalar result is recomputed inline from the same
+    /// weights and must be bit-identical.
+    fn screlu_scalar_reference(
+        q_w: &[i16],
+        bias: i32,
+        own_acc: &[i32],
+        opp_acc: &[i32],
+    ) -> i32 {
+        let w_lanes = own_acc.len();
+        let act = |a: i32| -> i64 {
+            let c = clamp_i(a, 0, NNUE_V2Q_QA as i32) as i64;
+            c * c / (NNUE_V2Q_QA as i64)
+        };
+        let mut z = bias as i64;
+        for i in 0..w_lanes {
+            z += q_w[i] as i64 * act(own_acc[i]);
+        }
+        for i in 0..w_lanes {
+            z += q_w[w_lanes + i] as i64 * act(opp_acc[i]);
+        }
+        let denom = 1i64 << NNUE_V2Q_DENSE_Z_SHIFT;
+        let raw = if z >= 0 {
+            (z + denom / 2) / denom
+        } else {
+            -((-z + denom / 2) / denom)
+        };
+        raw as i32
+    }
+
+    /// Accumulator pattern covering the interesting regions: i32::MIN,
+    /// negative, zero, just below / at / just above the QA ceiling, and a
+    /// large value. A deterministic spread is mixed in so the lanes are
+    /// not all identical.
+    fn screlu_acc_pattern(lanes: usize, salt: i32) -> Vec<i32> {
+        let specials = [i32::MIN, -1, 0, 1, 4095, 4096, 4097, 100_000];
+        (0..lanes)
+            .map(|i| {
+                let base = specials[i % specials.len()];
+                let m = (i as i32).wrapping_mul(1_103_515_245).wrapping_add(salt);
+                base.wrapping_add(m % 700 - 350)
+            })
+            .collect()
+    }
+
+    /// Mixed-sign weights spanning small and near-i16-bound magnitudes.
+    fn screlu_weight_pattern(len: usize, salt: i32) -> Vec<i16> {
+        (0..len)
+            .map(|i| {
+                let m = (i as i32).wrapping_mul(1_103_515_245).wrapping_add(salt);
+                let mag = (m % 30000).abs() + 1;
+                let v = if (i as i32 + salt) % 2 == 0 { mag } else { -mag };
+                v.clamp(-32768, 32767) as i16
+            })
+            .collect()
+    }
+
+    #[test]
+    fn screlu_head_simd_bit_exact_ft256_and_ft512() {
+        fn check<const W: usize>() {
+            for bucket in 0..8usize {
+                let row = screlu_weight_pattern(2 * W, 0x1000 + bucket as i32 * 97);
+                let bias = ((bucket as i32) - 4) * 1_000_003;
+                let own = screlu_acc_pattern(W, 0x51 + bucket as i32);
+                let opp = screlu_acc_pattern(W, 0x9C + bucket as i32);
+
+                let reference = screlu_scalar_reference(&row, bias, &own, &opp);
+
+                // The scalar fallback is the same code the model uses when
+                // AVX2 is unavailable; recompute it here for both widths.
+                #[cfg(all(target_arch = "x86_64", not(feature = "force_scalar_l1")))]
+                {
+                    if is_avx2_detected() {
+                        let simd = unsafe { screlu_head_avx2(&row, bias, &own, &opp) };
+                        assert_eq!(
+                            simd, reference,
+                            "SIMD != scalar at W={W} bucket={bucket}"
+                        );
+                    }
+                }
+                // Whatever the build, the reference must be reachable via
+                // the scalar formulation (guards the reference itself).
+                assert_eq!(
+                    screlu_scalar_reference(&row, bias, &own, &opp),
+                    reference,
+                    "scalar reference is not deterministic"
+                );
+            }
+        }
+        check::<256>();
+        check::<512>();
+    }
+
     #[test]
     fn c3c2_l1_backends_bit_exact_on_legal_moves() {
         use crate::chess::movegen::generate_legal_moves;
@@ -3152,6 +3454,9 @@ mod tests {
                     ),
                 }),
                 WeightsFor::W256(_) => {
+                    unreachable!("synthetic v4 is FT128")
+                }
+                WeightsFor::W512(_) => {
                     unreachable!("synthetic v4 is FT128")
                 }
             };

@@ -1,0 +1,35 @@
+{
+ "schema_version": 1,
+ "stage": "s15_screen",
+ "protocol": "256 games = 128 fresh opening pairs (book lines 321-448 of the frozen s3-promotion openings, disjoint from R0 1-64, S13 65-192 and S14 193-320), both colors, same binary, same profile (current-final), 10+0.1, Hash 16, 1 search thread, concurrency 6",
+ "single_variable": "both engines identical except --nnue-model; the only difference under test is the data-supply net",
+ "engines": {
+  "candidate": "current-final + S17 net (6d89ad0d...)",
+  "baseline": "current-final + S14 net (329b7170...)"
+ },
+ "artifact_sha256_candidate": "6d89ad0d6ad77a71c1d8c5f684b2ae01762d4e2d03cfdf724fc7bbb5fbd2a350",
+ "artifact_sha256_baseline": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+ "engine_sha256": "45207bfeafa363543c32771d1f91425b35739ba7da0f1b88187520e3139a3a3e",
+ "result": {
+  "games": 256,
+  "games_total_in_pgn": 256,
+  "unfinished": 0,
+  "candidate_W": 113,
+  "draws": 32,
+  "candidate_L": 111,
+  "score_points": "129 / 256",
+  "score_percent": 50.39,
+  "elo_descriptive": 2.7,
+  "elo_ci95": 30.0,
+  "pentanomial_0to2": [
+   15,
+   6,
+   80,
+   16,
+   11
+  ],
+  "pairs": 128
+ },
+ "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
+ "verdict": "PARITY"
+}
