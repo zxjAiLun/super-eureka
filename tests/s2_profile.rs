@@ -216,6 +216,33 @@ fn startup_profile_processes_report_identity_search_and_reject_bad_args() {
         ],
         "conflicts with --evaluation classical",
     );
+
+    // A named artifact without NNUE selection must fail in the real binary.
+    // This is the shape the screening harness used: the model file existed
+    // and its hash was recorded, but the handcrafted evaluator ran, so the
+    // games never compared the nets they claimed to compare.
+    assert_startup_rejected_with_message(
+        &[
+            "--profile",
+            "current-final",
+            "--nnue-model",
+            model.to_str().unwrap(),
+        ],
+        "requires --evaluation nnue",
+    );
+    assert_startup_rejected_with_message(
+        &["--nnue-model", model.to_str().unwrap()],
+        "requires --evaluation nnue",
+    );
+    assert_startup_rejected_with_message(
+        &[
+            "--evaluation",
+            "classical",
+            "--nnue-model",
+            model.to_str().unwrap(),
+        ],
+        "conflicts with --nnue-model",
+    );
     let _ = std::fs::remove_file(&model);
 
     for historical in [

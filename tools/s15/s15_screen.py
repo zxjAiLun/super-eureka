@@ -78,9 +78,13 @@ def build_command(openings: Path, pgnout: Path, concurrency: int,
         str(CUTECHESS.resolve()),
         "-engine", f"name={label_cand}", f"cmd={eng}", "proto=uci",
         "arg=--profile", f"arg={PROFILE}",
+        # Explicit: --profile alone selects the handcrafted evaluator, so a
+        # supplied --nnue-model would be loaded and never used.
+        "arg=--evaluation", "arg=nnue",
         "arg=--nnue-model", f"arg={art_cand.resolve()}",
         "-engine", f"name={label_base}", f"cmd={eng}", "proto=uci",
         "arg=--profile", f"arg={PROFILE}",
+        "arg=--evaluation", "arg=nnue",
         "arg=--nnue-model", f"arg={ART_BASE.resolve()}",
         "-variant", "standard",
         "-openings", f"file={openings.resolve()}", "format=epd",

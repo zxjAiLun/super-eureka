@@ -804,6 +804,25 @@ fn parse_startup_profile(args: &[String]) -> Result<StartupCommand, String> {
         (false, Some(evaluation)) => evaluation,
         (false, None) => Evaluation::Classical,
     };
+    // A supplied model must never be loaded and then left unused. Before
+    // this check `--profile current-final --nnue-model X` selected the
+    // handcrafted evaluator while still advertising the artifact, so a
+    // match could appear to compare two nets while both sides ran HCE.
+    // Whether the model is used is a property of the evaluator selection,
+    // not of the file having been named, so refuse the combination.
+    if nnue_model_path.is_some() && evaluation != Evaluation::Nnue {
+        return Err(if matches!(requested_evaluation, Some(Evaluation::Classical)) {
+            "--evaluation classical conflicts with --nnue-model; a supplied NNUE artifact \
+             would be loaded but never used, so the two flags cannot be combined \
+             (drop --nnue-model or select --evaluation nnue)"
+                .to_string()
+        } else {
+            "--nnue-model requires --evaluation nnue; without it the handcrafted evaluator runs \
+             and the supplied artifact would be ignored (add --evaluation nnue, \
+             or drop --nnue-model)"
+                .to_string()
+        });
+    }
     let startup_model = match nnue_model_path.as_deref() {
         Some(path) => {
             let resolved = resolve_nnue_model_path(path);
@@ -1406,6 +1425,80 @@ mod tests {
         assert!(
             explicit.contains("requires --nnue-model"),
             "got: {explicit}"
+        );
+    }
+
+    /// A supplied artifact must never be loaded and then left unused. The
+    /// regression that motivated this: `--profile current-final
+    /// --nnue-model X` selected the handcrafted evaluator while still
+    /// reporting the artifact name, so a match looked like a net comparison
+    /// while both sides ran HCE. Naming a file is not the same as selecting
+    /// the evaluator that consumes it.
+    #[test]
+    fn nnue_model_without_nnue_evaluation_is_rejected() {
+        // Bare --nnue-model: the handcrafted evaluator would run.
+        let err = parse_startup_profile(&[
+            "--nnue-model".to_string(),
+            "model.bin".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("requires --evaluation nnue"), "got: {err}");
+        assert!(
+            err.contains("would be ignored"),
+            "the error must say the artifact is unused: {err}"
+        );
+
+        // The exact shape the screen harness used.
+        let err = parse_startup_profile(&[
+            "--profile".to_string(),
+            "current-final".to_string(),
+            "--nnue-model".to_string(),
+            "model.bin".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("requires --evaluation nnue"), "got: {err}");
+
+        // Explicit contradictory evaluator.
+        let err = parse_startup_profile(&[
+            "--evaluation".to_string(),
+            "classical".to_string(),
+            "--nnue-model".to_string(),
+            "model.bin".to_string(),
+        ])
+        .unwrap_err();
+        assert!(
+            err.contains("conflicts with --nnue-model"),
+            "got: {err}"
+        );
+
+        // The rejecting error must come before any attempt to read the
+        // file, so a nonexistent path still reports the selection problem.
+        let err = parse_startup_profile(&[
+            "--nnue-model".to_string(),
+            "definitely-not-present.bin".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("requires --evaluation nnue"), "got: {err}");
+        assert!(!err.contains("No such file"), "got: {err}");
+    }
+
+    /// A missing artifact is reported as a load failure, not as a
+    /// selection failure, once the caller has correctly paired the flags.
+    /// The distinction matters: the selection error must be raised before
+    /// any file access, while a genuinely absent file is a separate fault.
+    #[test]
+    fn nnue_model_with_nnue_evaluation_reaches_the_loader() {
+        let err = parse_startup_profile(&[
+            "--evaluation".to_string(),
+            "nnue".to_string(),
+            "--nnue-model".to_string(),
+            "definitely-not-present.bin".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--nnue-model:"), "got: {err}");
+        assert!(
+            !err.contains("requires --evaluation nnue"),
+            "a correctly paired selection must not be rejected: {err}"
         );
     }
 
