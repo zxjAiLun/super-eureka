@@ -5473,6 +5473,28 @@ fn quiescence_impl(
 /// to `search_final_evasion_ply` (one ply, no recursion); fail-hard
 /// alpha-beta matching `negamax_impl`, returning `None` (board intact) on
 /// abort.
+/// S18-QC1: spend at most the first two qsearch plies on quiet checks.
+/// In-check evasions and existing tactical moves are not restricted by this
+/// budget. The feature is experimental and cannot affect HCE or rollback.
+#[inline]
+fn nnue_quiet_checks_enabled(profile: SearchProfile, has_nnue: bool, qply: u32) -> bool {
+    cfg!(feature = "experimental_nnue_qchecks")
+        && profile == SearchProfile::CurrentFinal
+        && has_nnue
+        && qply < 2
+}
+
+/// Only called after stand-pat did not cut off. Use the existing legal-move
+/// generator and a pure make/unmake check probe; that overhead is included in
+/// the experiment's wall-time gate. Quiet promotions already belong to the
+/// tactical list and must not be duplicated here.
+fn nnue_quiet_checks(pos: &mut Position, ctx: &SearchContext) -> Vec<Move> {
+    generate_legal_moves_profiled(pos, ctx)
+        .into_iter()
+        .filter(|m| !is_tactical(pos, *m) && move_gives_check(pos, *m))
+        .collect()
+}
+
 fn quiescence_entered_impl_with_profile(
     pos: &mut Position,
     ply: u32,
@@ -5647,6 +5669,9 @@ fn quiescence_entered_impl_with_profile(
             } else {
                 prune_qsearch_captures_by_see(pos, tactical, ctx, alpha, beta)
             };
+        }
+        if nnue_quiet_checks_enabled(profile, nnue.is_some(), qply) {
+            tactical.extend(nnue_quiet_checks(pos, ctx));
         }
         if ctx.see_enabled.load(Ordering::Relaxed) {
             // SEE is ordering-only. Even a losing exchange remains in the
@@ -7611,6 +7636,93 @@ mod tests {
             generate_legal_moves(&mut pos.clone()).contains(&out.best_move),
             "futility candidate returned an illegal root move"
         );
+    }
+
+    #[test]
+    fn s18_quiet_check_budget_is_nnue_current_final_only() {
+        for profile in [SearchProfile::Current, SearchProfile::CurrentFinal] {
+            for has_nnue in [false, true] {
+                for qply in [0, 1, 2, MAX_QPLY] {
+                    assert_eq!(
+                        nnue_quiet_checks_enabled(profile, has_nnue, qply),
+                        cfg!(feature = "experimental_nnue_qchecks")
+                            && profile == SearchProfile::CurrentFinal && has_nnue && qply < 2
+                    );
+                }
+            }
+        }
+    }
+
+    /// Game127, after Nxe5 Bxe5 Qxe5 Qf3+. Both legal king evasions
+    /// permit the quiet mate Qg2#. A zero-residual synthetic NNUE makes the
+    /// test independent of a local model file: this is a search obligation,
+    /// not an instruction for a trained network to memorize the position.
+    #[test]
+    fn s18_game127_quiet_mate_boundary_and_unwind() {
+        use crate::engine::nnue_search::{NnueSearchMode, NnueSearchState};
+        use crate::engine::nnue_v2q_runtime::{
+            synthetic_zero_output_artifact_bytes_for_tests, NnueV2QuantizedModel,
+            NnueV2TargetMode,
+        };
+        let fen = "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27";
+        // Fullmove/halfmove counters do not create a claim in this fixture.
+        let mut root = parse_fen(fen).unwrap();
+        let evasions = generate_legal_moves(&mut root);
+        assert_eq!(evasions.len(), 2);
+        for evasion in evasions {
+            let mut child = root.clone();
+            child.make_move(evasion);
+            let before = to_fen(&child);
+            let key = child.zobrist_key();
+            let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+            let checks = nnue_quiet_checks(&mut child, &ctx);
+            let mate = find_move(&child, "f3g2");
+            assert!(checks.contains(&mate));
+            assert_eq!(checks.iter().filter(|m| **m == mate).count(), 1);
+            assert!(checks.iter().all(|m| !is_tactical(&child, *m)));
+            assert_eq!(to_fen(&child), before);
+            assert_eq!(child.zobrist_key(), key);
+            child.make_move(mate);
+            assert!(child.is_in_check(child.side));
+            assert!(generate_legal_moves(&mut child).is_empty());
+        }
+        for mode in [NnueSearchMode::FullRefresh, NnueSearchMode::Incremental] {
+            for node_cap in [None, Some(1), Some(2)] {
+                let mut pos = root.clone();
+                let key = pos.zobrist_key();
+                let bytes = synthetic_zero_output_artifact_bytes_for_tests(
+                    fen, NnueV2TargetMode::MaterialResidual,
+                );
+                let model = Arc::new(NnueV2QuantizedModel::from_bytes(&bytes).unwrap());
+                let mut nnue = Some(NnueSearchState::new(model, mode, &pos));
+                let before_eval = nnue.as_ref().unwrap().evaluate_full_cp_i32(&pos);
+                let ctx = SearchContext::new(Arc::new(AtomicBool::new(false)));
+                let limits = SearchLimits { nodes: node_cap, ..Default::default() };
+                let mut pv = PvTable::default();
+                let mut path = SearchPath::new(vec![key]);
+                assert!(try_enter_node(&ctx, &limits));
+                let score = quiescence_entered_impl_with_profile(
+                    &mut pos, 0, 0, -MATE, MATE, &ctx, &limits, &mut pv,
+                    &mut path, SearchProfile::CurrentFinal, true, true, &mut nnue,
+                );
+                assert_eq!(to_fen(&pos), fen);
+                assert_eq!(pos.zobrist_key(), key);
+                assert_eq!(path.len(), 1);
+                assert_eq!(nnue.as_ref().unwrap().evaluate_full_cp_i32(&pos), before_eval);
+                if node_cap.is_none() {
+                    let score = score.expect("unlimited search completes");
+                    if cfg!(feature = "experimental_nnue_qchecks") {
+                        assert_eq!(score, -(MATE - 2));
+                    } else {
+                        // Baseline limitation is explicit, not a false claim
+                        // that the default search now fixes this quiet mate.
+                        assert!(score > -MATE + 100, "baseline unexpectedly resolves mate");
+                    }
+                } else if node_cap == Some(1) {
+                    assert!(score.is_none(), "one-node budget must abort before child");
+                }
+            }
+        }
     }
 
     #[test]

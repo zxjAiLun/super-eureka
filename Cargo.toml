@@ -12,6 +12,9 @@ lto = true
 codegen-units = 1
 
 [features]
+# S18-QC1 experiment only: CurrentFinal + NNUE gets quiet checks at qply 0/1.
+# OFF by default; not a production promotion or a new UCI profile.
+experimental_nnue_qchecks = []
 # S10-C3-C2 test hook: force the scalar L1 backend even on AVX2-capable
 # machines (used by the backend-parity tests to compare both paths).
 force_scalar_l1 = []
