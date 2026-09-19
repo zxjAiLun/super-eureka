@@ -1,0 +1,3086 @@
+{
+ "schema_version": 2,
+ "identity": {
+  "source_commit": "315534991628ce084c34392d6abb98d71f3f591a",
+  "binary_sha256": "c2428a8453d871c9a6f2ff14780f077b2c2503bdb321419d4334361c54733986",
+  "model_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+  "plan_sha256": "48a3f78b15c684908cc30800fa0b4181d2c9807c0df9e855957f7d82907853be",
+  "runner_sha256": "2daac6f871a332702c850a4430071176b1b98b0d1e42e2fc2f99060925cf38bb",
+  "host": {
+   "system": "Linux",
+   "node": "fattiger",
+   "release": "6.18.33.2-microsoft-standard-WSL2",
+   "version": "#1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026",
+   "machine": "x86_64",
+   "processor": "x86_64"
+  },
+  "niceness": 10,
+  "engine": "/home/sparkle/eureka-diagnostics/20260919/engine",
+  "model": "/home/sparkle/eureka-diagnostics/20260919/nnue-s14-datasupply-v5.bin",
+  "tt_policy": "fresh process per search; full position history; NOT original warm TT",
+  "started_at": 1789789918.905758
+ },
+ "followup_identity": {
+  "plan_sha256": "48a3f78b15c684908cc30800fa0b4181d2c9807c0df9e855957f7d82907853be",
+  "driver_sha256": "fba1d4664212cec25f33e6f3f8a713e3075bd6867b476f052b4d52b43ede7841",
+  "runner_sha256": "d9b400895d30c29886846227fc0a4aadbfb4209dc9a6e4b3910dfbb854b341da",
+  "binary_sha256": "c2428a8453d871c9a6f2ff14780f077b2c2503bdb321419d4334361c54733986",
+  "model_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+  "niceness": 10,
+  "jobs": [
+   [
+    127,
+    "after_Qf3_check",
+    "go depth 1 movetime 5000",
+    "boundary-d1-repeat"
+   ],
+   [
+    127,
+    "after_Qf3_check",
+    "go depth 2 movetime 5000",
+    "boundary-d2-repeat"
+   ],
+   [
+    187,
+    "root",
+    "go depth 8 movetime 30000",
+    "root-d8-30s-cap"
+   ],
+   [
+    187,
+    "after_Nd5",
+    "go depth 7 movetime 15000",
+    "after-Nd5-d7"
+   ],
+   [
+    187,
+    "after_Nd5",
+    "go depth 8 movetime 15000",
+    "after-Nd5-d8"
+   ],
+   [
+    187,
+    "after_exd5_black",
+    "go depth 7 movetime 15000",
+    "after-exd5-d7"
+   ]
+  ]
+ },
+ "evidence_sha256": {
+  "results.jsonl@ladder": "d71b8bcf760c674085100ad43966f3738baa37d54166aada66ab09c1a2283420",
+  "static.jsonl@ladder": "a9366ba07f84abf9e88b2de25cd1885da102b6f9b965befae64f50c64cf89e50",
+  "results.jsonl@followup": "c44cd56f1dd6bc7a3697559f2bc89dc7063a2d72a4b3e24dcf5500e7363d4531"
+ },
+ "checks": {
+  "histories_and_branch_positions": 19,
+  "searches": 97,
+  "legal_PVs": 411,
+  "mate_one_proved": 26
+ },
+ "results": [
+  {
+   "name": "g127-pv_endpoint_Kg1-d1",
+   "game": 127,
+   "point": "pv_endpoint_Kg1",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R2K1 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 1.252,
+   "last": {
+    "depth": 1,
+    "seldepth": 11,
+    "nodes": 153,
+    "time": 0,
+    "nps": 0,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-pv_endpoint_Kg1-d2",
+   "game": 127,
+   "point": "pv_endpoint_Kg1",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R2K1 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 3.598,
+   "last": {
+    "depth": 2,
+    "seldepth": 11,
+    "nodes": 669,
+    "time": 3,
+    "nps": 223000,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-pv_endpoint_Kg1-d4",
+   "game": 127,
+   "point": "pv_endpoint_Kg1",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R2K1 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 63.477,
+   "last": {
+    "depth": 4,
+    "seldepth": 11,
+    "nodes": 13512,
+    "time": 62,
+    "nps": 217935,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-pv_endpoint_Kg1-d6",
+   "game": 127,
+   "point": "pv_endpoint_Kg1",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R2K1 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 562.076,
+   "last": {
+    "depth": 6,
+    "seldepth": 13,
+    "nodes": 118168,
+    "time": 561,
+    "nps": 210638,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Nxe5-d1",
+   "game": 127,
+   "point": "after_Nxe5",
+   "fen": "rr6/2pR1pbk/8/2Q1N2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 25",
+   "history_length": 49,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g7e5",
+   "elapsed_ms": 2.185,
+   "last": {
+    "depth": 1,
+    "seldepth": 15,
+    "nodes": 313,
+    "time": 1,
+    "nps": 313000,
+    "cp": -182,
+    "bound": null,
+    "pv": [
+     "g7e5",
+     "c5e5"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Nxe5-d2",
+   "game": 127,
+   "point": "after_Nxe5",
+   "fen": "rr6/2pR1pbk/8/2Q1N2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 25",
+   "history_length": 49,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g7e5",
+   "elapsed_ms": 4.298,
+   "last": {
+    "depth": 2,
+    "seldepth": 15,
+    "nodes": 546,
+    "time": 3,
+    "nps": 182000,
+    "cp": -182,
+    "bound": null,
+    "pv": [
+     "g7e5",
+     "c5e5"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Nxe5-d4",
+   "game": 127,
+   "point": "after_Nxe5",
+   "fen": "rr6/2pR1pbk/8/2Q1N2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 25",
+   "history_length": 49,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g7e5",
+   "elapsed_ms": 27.611,
+   "last": {
+    "depth": 4,
+    "seldepth": 15,
+    "nodes": 4798,
+    "time": 27,
+    "nps": 177703,
+    "cp": -200,
+    "bound": null,
+    "pv": [
+     "g7e5",
+     "c5e5",
+     "g4f3",
+     "h1g1"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Nxe5-d6",
+   "game": 127,
+   "point": "after_Nxe5",
+   "fen": "rr6/2pR1pbk/8/2Q1N2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 25",
+   "history_length": 49,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g7e5",
+   "elapsed_ms": 333.642,
+   "last": {
+    "depth": 6,
+    "seldepth": 17,
+    "nodes": 58675,
+    "time": 333,
+    "nps": 176201,
+    "cp": 27,
+    "bound": null,
+    "pv": [
+     "g7e5",
+     "h1h2",
+     "f4g6",
+     "c5c4",
+     "h7h6",
+     "c4f7"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Bxe5-d1",
+   "game": 127,
+   "point": "after_Bxe5",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P2/3R3K w - - 0 26",
+   "history_length": 50,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c5e5",
+   "elapsed_ms": 1.698,
+   "last": {
+    "depth": 1,
+    "seldepth": 10,
+    "nodes": 205,
+    "time": 1,
+    "nps": 205000,
+    "cp": 182,
+    "bound": null,
+    "pv": [
+     "c5e5"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Bxe5-d2",
+   "game": 127,
+   "point": "after_Bxe5",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P2/3R3K w - - 0 26",
+   "history_length": 50,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c5e5",
+   "elapsed_ms": 6.879,
+   "last": {
+    "depth": 2,
+    "seldepth": 10,
+    "nodes": 1181,
+    "time": 6,
+    "nps": 196833,
+    "cp": 166,
+    "bound": null,
+    "pv": [
+     "c5e5",
+     "b8b4",
+     "c3b4"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Bxe5-d4",
+   "game": 127,
+   "point": "after_Bxe5",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P2/3R3K w - - 0 26",
+   "history_length": 50,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1h2",
+   "elapsed_ms": 248.18,
+   "last": {
+    "depth": 4,
+    "seldepth": 17,
+    "nodes": 45958,
+    "time": 247,
+    "nps": 186064,
+    "cp": -60,
+    "bound": null,
+    "pv": [
+     "h1h2",
+     "b8e8",
+     "c5c4",
+     "e8e6"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Bxe5-d6",
+   "game": 127,
+   "point": "after_Bxe5",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P2/3R3K w - - 0 26",
+   "history_length": 50,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1h2",
+   "elapsed_ms": 1721.261,
+   "last": {
+    "depth": 6,
+    "seldepth": 21,
+    "nodes": 305349,
+    "time": 1720,
+    "nps": 177528,
+    "cp": -161,
+    "bound": null,
+    "pv": [
+     "h1h2",
+     "g4f3",
+     "d1g1",
+     "f4e2",
+     "a4a5",
+     "e2g1"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qxe5-d1",
+   "game": 127,
+   "point": "after_Qxe5",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 26",
+   "history_length": 51,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "b8b4",
+   "elapsed_ms": 2.942,
+   "last": {
+    "depth": 1,
+    "seldepth": 12,
+    "nodes": 412,
+    "time": 2,
+    "nps": 206000,
+    "cp": -166,
+    "bound": null,
+    "pv": [
+     "b8b4",
+     "c3b4"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qxe5-d2",
+   "game": 127,
+   "point": "after_Qxe5",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 26",
+   "history_length": 51,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g4f3",
+   "elapsed_ms": 4.701,
+   "last": {
+    "depth": 2,
+    "seldepth": 12,
+    "nodes": 831,
+    "time": 4,
+    "nps": 207750,
+    "cp": -200,
+    "bound": null,
+    "pv": [
+     "g4f3",
+     "h1g1"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qxe5-d4",
+   "game": 127,
+   "point": "after_Qxe5",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 26",
+   "history_length": 51,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g4f3",
+   "elapsed_ms": 51.614,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 11033,
+    "time": 51,
+    "nps": 216333,
+    "mate": 2,
+    "bound": null,
+    "pv": [
+     "g4f3",
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qxe5-d6",
+   "game": 127,
+   "point": "after_Qxe5",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 26",
+   "history_length": 51,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g4f3",
+   "elapsed_ms": 401.947,
+   "last": {
+    "depth": 6,
+    "seldepth": 13,
+    "nodes": 84325,
+    "time": 401,
+    "nps": 210286,
+    "mate": 2,
+    "bound": null,
+    "pv": [
+     "g4f3",
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qf3_check-d1",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 1.186,
+   "last": {
+    "depth": 1,
+    "seldepth": 9,
+    "nodes": 103,
+    "time": 0,
+    "nps": 0,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "h1g1"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qf3_check-d2",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 3.142,
+   "last": {
+    "depth": 2,
+    "seldepth": 9,
+    "nodes": 365,
+    "time": 2,
+    "nps": 182500,
+    "mate": -1,
+    "bound": null,
+    "pv": [
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qf3_check-d4",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 18.37,
+   "last": {
+    "depth": 4,
+    "seldepth": 10,
+    "nodes": 3415,
+    "time": 17,
+    "nps": 200882,
+    "mate": -1,
+    "bound": null,
+    "pv": [
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-after_Qf3_check-d6",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 116.938,
+   "last": {
+    "depth": 6,
+    "seldepth": 12,
+    "nodes": 24703,
+    "time": 116,
+    "nps": 212956,
+    "mate": -1,
+    "bound": null,
+    "pv": [
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-alternative_evasion_Kh2-d1",
+   "game": 127,
+   "point": "alternative_evasion_Kh2",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P1K/3R4 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 1.3,
+   "last": {
+    "depth": 1,
+    "seldepth": 12,
+    "nodes": 124,
+    "time": 0,
+    "nps": 0,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-alternative_evasion_Kh2-d2",
+   "game": 127,
+   "point": "alternative_evasion_Kh2",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P1K/3R4 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 3.338,
+   "last": {
+    "depth": 2,
+    "seldepth": 12,
+    "nodes": 611,
+    "time": 2,
+    "nps": 305500,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-alternative_evasion_Kh2-d4",
+   "game": 127,
+   "point": "alternative_evasion_Kh2",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P1K/3R4 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 63.876,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 12907,
+    "time": 63,
+    "nps": 204873,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-alternative_evasion_Kh2-d6",
+   "game": 127,
+   "point": "alternative_evasion_Kh2",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P1K/3R4 b - - 2 27",
+   "history_length": 53,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f3g2",
+   "elapsed_ms": 483.549,
+   "last": {
+    "depth": 6,
+    "seldepth": 15,
+    "nodes": 104069,
+    "time": 483,
+    "nps": 215463,
+    "mate": 1,
+    "bound": null,
+    "pv": [
+     "f3g2"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-terminal_Qg2_mate-d1",
+   "game": 127,
+   "point": "terminal_Qg2_mate",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP3Pp/5Pq1/3R2K1 w - - 3 28",
+   "history_length": 54,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "0000",
+   "elapsed_ms": 0.47,
+   "last": null,
+   "requested_depth": 1,
+   "depth_reached": false
+  },
+  {
+   "name": "g127-actual_Kh2-d1",
+   "game": 127,
+   "point": "actual_Kh2",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P1K/3R4 b - - 1 26",
+   "history_length": 51,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4g6",
+   "elapsed_ms": 1.123,
+   "last": {
+    "depth": 1,
+    "seldepth": 14,
+    "nodes": 131,
+    "time": 0,
+    "nps": 0,
+    "cp": 103,
+    "bound": null,
+    "pv": [
+     "f4g6"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-actual_Kh2-d2",
+   "game": 127,
+   "point": "actual_Kh2",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P1K/3R4 b - - 1 26",
+   "history_length": 51,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4g6",
+   "elapsed_ms": 4.506,
+   "last": {
+    "depth": 2,
+    "seldepth": 14,
+    "nodes": 712,
+    "time": 4,
+    "nps": 178000,
+    "cp": 56,
+    "bound": null,
+    "pv": [
+     "f4g6",
+     "c5c6"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-actual_Kh2-d4",
+   "game": 127,
+   "point": "actual_Kh2",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P1K/3R4 b - - 1 26",
+   "history_length": 51,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4g6",
+   "elapsed_ms": 98.186,
+   "last": {
+    "depth": 4,
+    "seldepth": 15,
+    "nodes": 16499,
+    "time": 97,
+    "nps": 170092,
+    "cp": 27,
+    "bound": null,
+    "pv": [
+     "f4g6",
+     "c5c4",
+     "h7h6",
+     "c4f7"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-actual_Kh2-d6",
+   "game": 127,
+   "point": "actual_Kh2",
+   "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P1K/3R4 b - - 1 26",
+   "history_length": 51,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g4f3",
+   "elapsed_ms": 812.804,
+   "last": {
+    "depth": 6,
+    "seldepth": 19,
+    "nodes": 131268,
+    "time": 812,
+    "nps": 161660,
+    "cp": 93,
+    "bound": null,
+    "pv": [
+     "g4f3",
+     "d7f7",
+     "h7g8",
+     "d1g1",
+     "g8f7",
+     "c5e7",
+     "f7g6",
+     "g3f4",
+     "g6h6",
+     "e7e5",
+     "f3f2",
+     "h2h1"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-diagnostic_choice_Qe3-d1",
+   "game": 127,
+   "point": "diagnostic_choice_Qe3",
+   "fen": "rr6/2pR1pbk/8/4p2p/PBN1Pnq1/1PP1Q1Pp/5P2/3R3K b - - 2 25",
+   "history_length": 49,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4e2",
+   "elapsed_ms": 1.239,
+   "last": {
+    "depth": 1,
+    "seldepth": 6,
+    "nodes": 148,
+    "time": 0,
+    "nps": 0,
+    "cp": -92,
+    "bound": null,
+    "pv": [
+     "f4e2"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-diagnostic_choice_Qe3-d2",
+   "game": 127,
+   "point": "diagnostic_choice_Qe3",
+   "fen": "rr6/2pR1pbk/8/4p2p/PBN1Pnq1/1PP1Q1Pp/5P2/3R3K b - - 2 25",
+   "history_length": 49,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4g6",
+   "elapsed_ms": 5.195,
+   "last": {
+    "depth": 2,
+    "seldepth": 7,
+    "nodes": 784,
+    "time": 4,
+    "nps": 196000,
+    "cp": -116,
+    "bound": null,
+    "pv": [
+     "f4g6",
+     "a4a5"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-diagnostic_choice_Qe3-d4",
+   "game": 127,
+   "point": "diagnostic_choice_Qe3",
+   "fen": "rr6/2pR1pbk/8/4p2p/PBN1Pnq1/1PP1Q1Pp/5P2/3R3K b - - 2 25",
+   "history_length": 49,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "h7g8",
+   "elapsed_ms": 109.808,
+   "last": {
+    "depth": 4,
+    "seldepth": 19,
+    "nodes": 19312,
+    "time": 109,
+    "nps": 177174,
+    "cp": -46,
+    "bound": null,
+    "pv": [
+     "h7g8",
+     "h1h2",
+     "f4g2",
+     "e3c1"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-diagnostic_choice_Qe3-d6",
+   "game": 127,
+   "point": "diagnostic_choice_Qe3",
+   "fen": "rr6/2pR1pbk/8/4p2p/PBN1Pnq1/1PP1Q1Pp/5P2/3R3K b - - 2 25",
+   "history_length": 49,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "f4e6",
+   "elapsed_ms": 889.836,
+   "last": {
+    "depth": 6,
+    "seldepth": 19,
+    "nodes": 161094,
+    "time": 889,
+    "nps": 181208,
+    "cp": -69,
+    "bound": null,
+    "pv": [
+     "f4e6",
+     "d1g1",
+     "h7g8",
+     "f2f3",
+     "g4g5",
+     "e3g5",
+     "e6g5",
+     "d7c7",
+     "g5f3"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-root-historical-clock-cold",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go wtime 27072 btime 12587",
+   "white_to_move": true,
+   "bestmove": "c4e5",
+   "elapsed_ms": 884.83,
+   "last": {
+    "depth": 5,
+    "seldepth": 16,
+    "nodes": 23236,
+    "time": 138,
+    "nps": 168376,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "c4e5",
+     "g7e5",
+     "c5e5",
+     "g4f3",
+     "h1g1"
+    ]
+   }
+  },
+  {
+   "name": "g127-root-t300",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go movetime 300",
+   "white_to_move": true,
+   "bestmove": "c4e5",
+   "elapsed_ms": 294.395,
+   "last": {
+    "depth": 5,
+    "seldepth": 16,
+    "nodes": 23236,
+    "time": 128,
+    "nps": 181531,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "c4e5",
+     "g7e5",
+     "c5e5",
+     "g4f3",
+     "h1g1"
+    ]
+   }
+  },
+  {
+   "name": "g127-root-t1000",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go movetime 1000",
+   "white_to_move": true,
+   "bestmove": "c4e5",
+   "elapsed_ms": 980.366,
+   "last": {
+    "depth": 5,
+    "seldepth": 16,
+    "nodes": 23236,
+    "time": 135,
+    "nps": 172118,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "c4e5",
+     "g7e5",
+     "c5e5",
+     "g4f3",
+     "h1g1"
+    ]
+   }
+  },
+  {
+   "name": "g127-root-t3000",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go movetime 3000",
+   "white_to_move": true,
+   "bestmove": "h1h2",
+   "elapsed_ms": 2940.377,
+   "last": {
+    "depth": 6,
+    "seldepth": 22,
+    "nodes": 197497,
+    "time": 1102,
+    "nps": 179216,
+    "cp": 50,
+    "bound": null,
+    "pv": [
+     "h1h2",
+     "g4f3",
+     "d1g1",
+     "f4d3",
+     "c4d2",
+     "f3f2",
+     "c5f2",
+     "d3f2",
+     "d7c7"
+    ]
+   }
+  },
+  {
+   "name": "g127-root-t10000",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go movetime 10000",
+   "white_to_move": true,
+   "bestmove": "c5e3",
+   "elapsed_ms": 9482.537,
+   "last": {
+    "depth": 9,
+    "seldepth": 27,
+    "nodes": 1899165,
+    "time": 9481,
+    "nps": 200312,
+    "cp": 74,
+    "bound": null,
+    "pv": [
+     "c5e3",
+     "f4e6",
+     "d1g1",
+     "h7g8",
+     "f2f3",
+     "g4g5",
+     "a4a5",
+     "c7c6",
+     "e3g5",
+     "e6g5"
+    ]
+   }
+  },
+  {
+   "name": "g127-root-d4",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go depth 4 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c4e5",
+   "elapsed_ms": 51.54,
+   "last": {
+    "depth": 4,
+    "seldepth": 16,
+    "nodes": 10195,
+    "time": 51,
+    "nps": 199901,
+    "cp": 166,
+    "bound": null,
+    "pv": [
+     "c4e5",
+     "g7e5",
+     "c5e5",
+     "b8b4",
+     "c3b4"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-root-d5",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go depth 5 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c4e5",
+   "elapsed_ms": 114.849,
+   "last": {
+    "depth": 5,
+    "seldepth": 16,
+    "nodes": 23236,
+    "time": 114,
+    "nps": 203824,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "c4e5",
+     "g7e5",
+     "c5e5",
+     "g4f3",
+     "h1g1"
+    ]
+   },
+   "requested_depth": 5,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-root-d6",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go depth 6 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "h1h2",
+   "elapsed_ms": 971.098,
+   "last": {
+    "depth": 6,
+    "seldepth": 22,
+    "nodes": 197497,
+    "time": 970,
+    "nps": 203605,
+    "cp": 50,
+    "bound": null,
+    "pv": [
+     "h1h2",
+     "g4f3",
+     "d1g1",
+     "f4d3",
+     "c4d2",
+     "f3f2",
+     "c5f2",
+     "d3f2",
+     "d7c7"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-root-d7",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go depth 7 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c5e3",
+   "elapsed_ms": 3056.853,
+   "last": {
+    "depth": 7,
+    "seldepth": 23,
+    "nodes": 596924,
+    "time": 3056,
+    "nps": 195328,
+    "cp": 69,
+    "bound": null,
+    "pv": [
+     "c5e3",
+     "f4e6",
+     "d1g1",
+     "h7g8",
+     "f2f3",
+     "g4g5",
+     "e3g5",
+     "e6g5",
+     "d7c7",
+     "g5f3"
+    ]
+   },
+   "requested_depth": 7,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-root-d8",
+   "game": 127,
+   "point": "root",
+   "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+   "history_length": 48,
+   "go": "go depth 8 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c5e3",
+   "elapsed_ms": 5031.89,
+   "last": {
+    "depth": 8,
+    "seldepth": 23,
+    "nodes": 1023330,
+    "time": 5031,
+    "nps": 203404,
+    "cp": 69,
+    "bound": null,
+    "pv": [
+     "c5e3",
+     "f4e6",
+     "d1g1",
+     "h7g8",
+     "f2f3",
+     "g4g5",
+     "e3g5",
+     "e6g5",
+     "d7c7",
+     "g5f3"
+    ]
+   },
+   "requested_depth": 8,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qc1-d1",
+   "game": 175,
+   "point": "after_Qc1",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B1q1N2/P4PP1/2Q3K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "e7d6",
+   "elapsed_ms": 1.655,
+   "last": {
+    "depth": 1,
+    "seldepth": 9,
+    "nodes": 239,
+    "time": 1,
+    "nps": 239000,
+    "cp": -40,
+    "bound": null,
+    "pv": [
+     "e7d6",
+     "b3f7"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qc1-d2",
+   "game": 175,
+   "point": "after_Qc1",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B1q1N2/P4PP1/2Q3K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3d6",
+   "elapsed_ms": 4.44,
+   "last": {
+    "depth": 2,
+    "seldepth": 9,
+    "nodes": 889,
+    "time": 3,
+    "nps": 296333,
+    "cp": -62,
+    "bound": null,
+    "pv": [
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "e3a7",
+     "d6b4",
+     "a7c7"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qc1-d4",
+   "game": 175,
+   "point": "after_Qc1",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B1q1N2/P4PP1/2Q3K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3d6",
+   "elapsed_ms": 81.481,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 16431,
+    "time": 80,
+    "nps": 205387,
+    "cp": -74,
+    "bound": null,
+    "pv": [
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qc1-d6",
+   "game": 175,
+   "point": "after_Qc1",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B1q1N2/P4PP1/2Q3K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3f3",
+   "elapsed_ms": 361.934,
+   "last": {
+    "depth": 6,
+    "seldepth": 16,
+    "nodes": 76111,
+    "time": 361,
+    "nps": 210833,
+    "cp": 144,
+    "bound": null,
+    "pv": [
+     "d3f3",
+     "c1c5",
+     "e7d8",
+     "c5d4",
+     "f6d7",
+     "d4h4",
+     "f3f6",
+     "h4f6",
+     "d7f6",
+     "b3f7"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qxf3-d1",
+   "game": 175,
+   "point": "after_Qxf3",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B3q2/P4PP1/2Q3K1 w - - 0 29",
+   "history_length": 56,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c1c7",
+   "elapsed_ms": 1.149,
+   "last": {
+    "depth": 1,
+    "seldepth": 9,
+    "nodes": 147,
+    "time": 0,
+    "nps": 0,
+    "cp": 268,
+    "bound": null,
+    "pv": [
+     "c1c7",
+     "f6d7"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qxf3-d2",
+   "game": 175,
+   "point": "after_Qxf3",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B3q2/P4PP1/2Q3K1 w - - 0 29",
+   "history_length": 56,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c1c7",
+   "elapsed_ms": 2.359,
+   "last": {
+    "depth": 2,
+    "seldepth": 9,
+    "nodes": 401,
+    "time": 1,
+    "nps": 401000,
+    "cp": 268,
+    "bound": null,
+    "pv": [
+     "c1c7",
+     "f6d7"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qxf3-d4",
+   "game": 175,
+   "point": "after_Qxf3",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B3q2/P4PP1/2Q3K1 w - - 0 29",
+   "history_length": 56,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c1c5",
+   "elapsed_ms": 18.225,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 3523,
+    "time": 17,
+    "nps": 207235,
+    "cp": 143,
+    "bound": null,
+    "pv": [
+     "c1c5",
+     "e7d8",
+     "c5d4",
+     "f6d7"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-after_Qxf3-d6",
+   "game": 175,
+   "point": "after_Qxf3",
+   "fen": "6r1/p1p1kp2/5n2/8/1P6/1B3q2/P4PP1/2Q3K1 w - - 0 29",
+   "history_length": 56,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "c1c5",
+   "elapsed_ms": 136.259,
+   "last": {
+    "depth": 6,
+    "seldepth": 15,
+    "nodes": 27731,
+    "time": 135,
+    "nps": 205414,
+    "cp": -144,
+    "bound": null,
+    "pv": [
+     "c1c5",
+     "e7d8",
+     "c5d4",
+     "f6d7",
+     "d4h4",
+     "f3f6",
+     "h4f6",
+     "d7f6",
+     "b3f7"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-diagnostic_choice_Ne1-d1",
+   "game": 175,
+   "point": "diagnostic_choice_Ne1",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q4/P4PP1/4N1K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3e2",
+   "elapsed_ms": 0.782,
+   "last": {
+    "depth": 1,
+    "seldepth": 4,
+    "nodes": 63,
+    "time": 0,
+    "nps": 0,
+    "cp": 57,
+    "bound": null,
+    "pv": [
+     "d3e2"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-diagnostic_choice_Ne1-d2",
+   "game": 175,
+   "point": "diagnostic_choice_Ne1",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q4/P4PP1/4N1K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3e2",
+   "elapsed_ms": 2.863,
+   "last": {
+    "depth": 2,
+    "seldepth": 6,
+    "nodes": 462,
+    "time": 2,
+    "nps": 231000,
+    "cp": 96,
+    "bound": null,
+    "pv": [
+     "d3e2",
+     "h6c1"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-diagnostic_choice_Ne1-d4",
+   "game": 175,
+   "point": "diagnostic_choice_Ne1",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q4/P4PP1/4N1K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3c3",
+   "elapsed_ms": 57.658,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 10705,
+    "time": 57,
+    "nps": 187807,
+    "cp": 48,
+    "bound": null,
+    "pv": [
+     "d3c3",
+     "g1f1",
+     "c7c6",
+     "h6h4"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-diagnostic_choice_Ne1-d6",
+   "game": 175,
+   "point": "diagnostic_choice_Ne1",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q4/P4PP1/4N1K1 b - - 9 28",
+   "history_length": 55,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "d3c3",
+   "elapsed_ms": 256.395,
+   "last": {
+    "depth": 6,
+    "seldepth": 14,
+    "nodes": 54062,
+    "time": 255,
+    "nps": 212007,
+    "cp": 61,
+    "bound": null,
+    "pv": [
+     "d3c3",
+     "g1f1",
+     "g8g4",
+     "f2f3",
+     "g4g2",
+     "f1g2",
+     "c3e1"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-root-historical-clock-cold",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go wtime 24587 btime 7118",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 803.556,
+   "last": {
+    "depth": 6,
+    "seldepth": 14,
+    "nodes": 40803,
+    "time": 202,
+    "nps": 201995,
+    "cp": 73,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5",
+     "f6g4"
+    ]
+   }
+  },
+  {
+   "name": "g175-root-t300",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go movetime 300",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 294.342,
+   "last": {
+    "depth": 6,
+    "seldepth": 14,
+    "nodes": 40803,
+    "time": 195,
+    "nps": 209246,
+    "cp": 73,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5",
+     "f6g4"
+    ]
+   }
+  },
+  {
+   "name": "g175-root-t1000",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go movetime 1000",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 980.345,
+   "last": {
+    "depth": 6,
+    "seldepth": 14,
+    "nodes": 40803,
+    "time": 206,
+    "nps": 198072,
+    "cp": 73,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5",
+     "f6g4"
+    ]
+   }
+  },
+  {
+   "name": "g175-root-t3000",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go movetime 3000",
+   "white_to_move": true,
+   "bestmove": "f3h2",
+   "elapsed_ms": 2940.354,
+   "last": {
+    "depth": 7,
+    "seldepth": 16,
+    "nodes": 382990,
+    "time": 1960,
+    "nps": 195403,
+    "cp": -46,
+    "bound": null,
+    "pv": [
+     "f3h2",
+     "d3b1",
+     "h2f1",
+     "b1e4",
+     "h6h3",
+     "a7a6",
+     "a2a4"
+    ]
+   }
+  },
+  {
+   "name": "g175-root-t10000",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go movetime 10000",
+   "white_to_move": true,
+   "bestmove": "f3h2",
+   "elapsed_ms": 9800.473,
+   "last": {
+    "depth": 9,
+    "seldepth": 19,
+    "nodes": 1228800,
+    "time": 5893,
+    "nps": 208518,
+    "cp": -53,
+    "bound": null,
+    "pv": [
+     "f3h2",
+     "d3e4",
+     "h6h3",
+     "g8g5",
+     "h2f1",
+     "c7c6",
+     "f1e3",
+     "f6g4",
+     "e3c4"
+    ]
+   }
+  },
+  {
+   "name": "g175-root-d4",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go depth 4 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 31.363,
+   "last": {
+    "depth": 4,
+    "seldepth": 10,
+    "nodes": 6249,
+    "time": 30,
+    "nps": 208300,
+    "cp": 84,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "e7d8",
+     "b4b5",
+     "g8g4"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-root-d5",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go depth 5 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 93.159,
+   "last": {
+    "depth": 5,
+    "seldepth": 14,
+    "nodes": 18131,
+    "time": 92,
+    "nps": 197076,
+    "cp": 74,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5"
+    ]
+   },
+   "requested_depth": 5,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-root-d6",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go depth 6 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "h6c1",
+   "elapsed_ms": 200.707,
+   "last": {
+    "depth": 6,
+    "seldepth": 14,
+    "nodes": 40803,
+    "time": 200,
+    "nps": 204015,
+    "cp": 73,
+    "bound": null,
+    "pv": [
+     "h6c1",
+     "d3d6",
+     "c1e3",
+     "e7f8",
+     "f3e5",
+     "f6g4"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-root-d7",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go depth 7 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "f3h2",
+   "elapsed_ms": 1838.018,
+   "last": {
+    "depth": 7,
+    "seldepth": 16,
+    "nodes": 382990,
+    "time": 1837,
+    "nps": 208486,
+    "cp": -46,
+    "bound": null,
+    "pv": [
+     "f3h2",
+     "d3b1",
+     "h2f1",
+     "b1e4",
+     "h6h3",
+     "a7a6",
+     "a2a4"
+    ]
+   },
+   "requested_depth": 7,
+   "depth_reached": true
+  },
+  {
+   "name": "g175-root-d8",
+   "game": 175,
+   "point": "root",
+   "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+   "history_length": 54,
+   "go": "go depth 8 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "f3h2",
+   "elapsed_ms": 3397.924,
+   "last": {
+    "depth": 8,
+    "seldepth": 16,
+    "nodes": 705635,
+    "time": 3397,
+    "nps": 207722,
+    "cp": -51,
+    "bound": null,
+    "pv": [
+     "f3h2",
+     "d3e4",
+     "h6h3",
+     "c7c6",
+     "h2f1",
+     "f6d5",
+     "b4b5",
+     "d5f4"
+    ]
+   },
+   "requested_depth": 8,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_Nd5-d1",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "e6d5",
+   "elapsed_ms": 0.911,
+   "last": {
+    "depth": 1,
+    "seldepth": 9,
+    "nodes": 87,
+    "time": 0,
+    "nps": 0,
+    "cp": -77,
+    "bound": null,
+    "pv": [
+     "e6d5",
+     "d4g7"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_Nd5-d2",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "e6d5",
+   "elapsed_ms": 2.628,
+   "last": {
+    "depth": 2,
+    "seldepth": 9,
+    "nodes": 495,
+    "time": 2,
+    "nps": 247500,
+    "cp": -77,
+    "bound": null,
+    "pv": [
+     "e6d5",
+     "d4g7"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_Nd5-d4",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 37.521,
+   "last": {
+    "depth": 4,
+    "seldepth": 12,
+    "nodes": 8212,
+    "time": 37,
+    "nps": 221945,
+    "cp": -96,
+    "bound": null,
+    "pv": [
+     "g8f6",
+     "d5f6",
+     "e7f6",
+     "d4d6",
+     "d8d6",
+     "d2d6"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_Nd5-d6",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 223.679,
+   "last": {
+    "depth": 6,
+    "seldepth": 16,
+    "nodes": 44669,
+    "time": 223,
+    "nps": 200309,
+    "cp": -105,
+    "bound": null,
+    "pv": [
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_black-d1",
+   "game": 187,
+   "point": "after_exd5_black",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+   "history_length": 8,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "d4g7",
+   "elapsed_ms": 0.793,
+   "last": {
+    "depth": 1,
+    "seldepth": 5,
+    "nodes": 63,
+    "time": 0,
+    "nps": 0,
+    "cp": 77,
+    "bound": null,
+    "pv": [
+     "d4g7"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_black-d2",
+   "game": 187,
+   "point": "after_exd5_black",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+   "history_length": 8,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "d4g7",
+   "elapsed_ms": 2.302,
+   "last": {
+    "depth": 2,
+    "seldepth": 6,
+    "nodes": 459,
+    "time": 1,
+    "nps": 459000,
+    "cp": 178,
+    "bound": null,
+    "pv": [
+     "d4g7",
+     "e7f6"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_black-d4",
+   "game": 187,
+   "point": "after_exd5_black",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+   "history_length": 8,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "e4d5",
+   "elapsed_ms": 47.016,
+   "last": {
+    "depth": 4,
+    "seldepth": 14,
+    "nodes": 9567,
+    "time": 46,
+    "nps": 207978,
+    "cp": 118,
+    "bound": null,
+    "pv": [
+     "e4d5",
+     "e7f6",
+     "d4e4",
+     "g8e7",
+     "d5c6",
+     "b7c6"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_black-d6",
+   "game": 187,
+   "point": "after_exd5_black",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+   "history_length": 8,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "e4d5",
+   "elapsed_ms": 608.608,
+   "last": {
+    "depth": 6,
+    "seldepth": 17,
+    "nodes": 130401,
+    "time": 608,
+    "nps": 214475,
+    "cp": -37,
+    "bound": null,
+    "pv": [
+     "e4d5",
+     "c6d7",
+     "h1d1",
+     "g8f6",
+     "g3g4",
+     "h5g4"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_white-d1",
+   "game": 187,
+   "point": "after_exd5_white",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3P3p/3Q4/4B1P1/PPPR1PBP/2K4R b kq - 0 5",
+   "history_length": 9,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "e7f6",
+   "elapsed_ms": 0.847,
+   "last": {
+    "depth": 1,
+    "seldepth": 5,
+    "nodes": 75,
+    "time": 0,
+    "nps": 0,
+    "cp": 8,
+    "bound": null,
+    "pv": [
+     "e7f6"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_white-d2",
+   "game": 187,
+   "point": "after_exd5_white",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3P3p/3Q4/4B1P1/PPPR1PBP/2K4R b kq - 0 5",
+   "history_length": 9,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "e7f6",
+   "elapsed_ms": 4.137,
+   "last": {
+    "depth": 2,
+    "seldepth": 13,
+    "nodes": 835,
+    "time": 3,
+    "nps": 278333,
+    "cp": -118,
+    "bound": null,
+    "pv": [
+     "e7f6",
+     "d4e4",
+     "g8e7",
+     "d5c6",
+     "b7c6"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_white-d4",
+   "game": 187,
+   "point": "after_exd5_white",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3P3p/3Q4/4B1P1/PPPR1PBP/2K4R b kq - 0 5",
+   "history_length": 9,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "c6d7",
+   "elapsed_ms": 50.182,
+   "last": {
+    "depth": 4,
+    "seldepth": 16,
+    "nodes": 11101,
+    "time": 49,
+    "nps": 226551,
+    "cp": 5,
+    "bound": null,
+    "pv": [
+     "c6d7",
+     "e3f4",
+     "e8f8",
+     "h1d1"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after_exd5_white-d6",
+   "game": 187,
+   "point": "after_exd5_white",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3P3p/3Q4/4B1P1/PPPR1PBP/2K4R b kq - 0 5",
+   "history_length": 9,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "c6d7",
+   "elapsed_ms": 209.154,
+   "last": {
+    "depth": 6,
+    "seldepth": 16,
+    "nodes": 43205,
+    "time": 208,
+    "nps": 207716,
+    "cp": 43,
+    "bound": null,
+    "pv": [
+     "c6d7",
+     "h1d1",
+     "g8f6",
+     "d4f4",
+     "e8g8",
+     "e3d4"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-diagnostic_choice_Rhd1-d1",
+   "game": 187,
+   "point": "diagnostic_choice_Rhd1",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2KR4 b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 1.023,
+   "last": {
+    "depth": 1,
+    "seldepth": 4,
+    "nodes": 78,
+    "time": 0,
+    "nps": 0,
+    "cp": -112,
+    "bound": null,
+    "pv": [
+     "g8f6"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-diagnostic_choice_Rhd1-d2",
+   "game": 187,
+   "point": "diagnostic_choice_Rhd1",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2KR4 b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 1.969,
+   "last": {
+    "depth": 2,
+    "seldepth": 5,
+    "nodes": 310,
+    "time": 1,
+    "nps": 310000,
+    "cp": -111,
+    "bound": null,
+    "pv": [
+     "g8f6",
+     "g2f3"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-diagnostic_choice_Rhd1-d4",
+   "game": 187,
+   "point": "diagnostic_choice_Rhd1",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2KR4 b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 4 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 57.047,
+   "last": {
+    "depth": 4,
+    "seldepth": 16,
+    "nodes": 10949,
+    "time": 56,
+    "nps": 195517,
+    "cp": -86,
+    "bound": null,
+    "pv": [
+     "g8f6",
+     "g2f3",
+     "e8g8",
+     "e3f4"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-diagnostic_choice_Rhd1-d6",
+   "game": 187,
+   "point": "diagnostic_choice_Rhd1",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2KR4 b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 6 movetime 5000",
+   "white_to_move": false,
+   "bestmove": "g8f6",
+   "elapsed_ms": 353.77,
+   "last": {
+    "depth": 6,
+    "seldepth": 17,
+    "nodes": 65135,
+    "time": 353,
+    "nps": 184518,
+    "cp": -73,
+    "bound": null,
+    "pv": [
+     "g8f6",
+     "g2f3",
+     "e8g8",
+     "d4d3",
+     "d8a5",
+     "e3d4"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-historical-clock-cold",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go wtime 54310 btime 53745",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 1774.344,
+   "last": {
+    "depth": 6,
+    "seldepth": 18,
+    "nodes": 93552,
+    "time": 445,
+    "nps": 210229,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   }
+  },
+  {
+   "name": "g187-root-t300",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go movetime 300",
+   "white_to_move": true,
+   "bestmove": "h1d1",
+   "elapsed_ms": 294.308,
+   "last": {
+    "depth": 4,
+    "seldepth": 13,
+    "nodes": 19290,
+    "time": 106,
+    "nps": 181981,
+    "cp": 104,
+    "bound": null,
+    "pv": [
+     "h1d1",
+     "g8f6",
+     "e3f4",
+     "d8b6"
+    ]
+   }
+  },
+  {
+   "name": "g187-root-t1000",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go movetime 1000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 980.316,
+   "last": {
+    "depth": 6,
+    "seldepth": 18,
+    "nodes": 93552,
+    "time": 446,
+    "nps": 209757,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   }
+  },
+  {
+   "name": "g187-root-t3000",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go movetime 3000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 2940.282,
+   "last": {
+    "depth": 7,
+    "seldepth": 19,
+    "nodes": 454715,
+    "time": 2616,
+    "nps": 173820,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   }
+  },
+  {
+   "name": "g187-root-t10000",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go movetime 10000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 9800.232,
+   "last": {
+    "depth": 7,
+    "seldepth": 19,
+    "nodes": 454715,
+    "time": 2769,
+    "nps": 164216,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   }
+  },
+  {
+   "name": "g187-root-d4",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 4 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "h1d1",
+   "elapsed_ms": 104.461,
+   "last": {
+    "depth": 4,
+    "seldepth": 13,
+    "nodes": 19290,
+    "time": 104,
+    "nps": 185480,
+    "cp": 104,
+    "bound": null,
+    "pv": [
+     "h1d1",
+     "g8f6",
+     "e3f4",
+     "d8b6"
+    ]
+   },
+   "requested_depth": 4,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-d5",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 5 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 354.457,
+   "last": {
+    "depth": 5,
+    "seldepth": 18,
+    "nodes": 73501,
+    "time": 354,
+    "nps": 207629,
+    "cp": 96,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5f6",
+     "e7f6",
+     "d4d6",
+     "d8d6",
+     "d2d6"
+    ]
+   },
+   "requested_depth": 5,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-d6",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 6 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 475.513,
+   "last": {
+    "depth": 6,
+    "seldepth": 18,
+    "nodes": 93552,
+    "time": 475,
+    "nps": 196951,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   },
+   "requested_depth": 6,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-d7",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 7 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 2668.097,
+   "last": {
+    "depth": 7,
+    "seldepth": 19,
+    "nodes": 454715,
+    "time": 2667,
+    "nps": 170496,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   },
+   "requested_depth": 7,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-d8",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 8 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "c3d5",
+   "elapsed_ms": 14700.44,
+   "last": {
+    "depth": 7,
+    "seldepth": 19,
+    "nodes": 454715,
+    "time": 2636,
+    "nps": 172501,
+    "cp": 105,
+    "bound": null,
+    "pv": [
+     "c3d5",
+     "g8f6",
+     "d5e7",
+     "d8e7",
+     "c1b1",
+     "e8g8",
+     "d4d6"
+    ]
+   },
+   "requested_depth": 8,
+   "depth_reached": false
+  },
+  {
+   "name": "g127-boundary-d1-repeat",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 1 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 1.358,
+   "last": {
+    "depth": 1,
+    "seldepth": 9,
+    "nodes": 103,
+    "time": 0,
+    "nps": 0,
+    "cp": 200,
+    "bound": null,
+    "pv": [
+     "h1g1"
+    ]
+   },
+   "requested_depth": 1,
+   "depth_reached": true
+  },
+  {
+   "name": "g127-boundary-d2-repeat",
+   "game": 127,
+   "point": "after_Qf3_check",
+   "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+   "history_length": 52,
+   "go": "go depth 2 movetime 5000",
+   "white_to_move": true,
+   "bestmove": "h1g1",
+   "elapsed_ms": 2.285,
+   "last": {
+    "depth": 2,
+    "seldepth": 9,
+    "nodes": 365,
+    "time": 1,
+    "nps": 365000,
+    "mate": -1,
+    "bound": null,
+    "pv": [
+     "h1g1",
+     "f3g2"
+    ]
+   },
+   "requested_depth": 2,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-root-d8-30s-cap",
+   "game": 187,
+   "point": "root",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+   "history_length": 6,
+   "go": "go depth 8 movetime 30000",
+   "white_to_move": true,
+   "bestmove": "d4d3",
+   "elapsed_ms": 17348.843,
+   "last": {
+    "depth": 8,
+    "seldepth": 25,
+    "nodes": 3177916,
+    "time": 17348,
+    "nps": 183186,
+    "cp": 84,
+    "bound": null,
+    "pv": [
+     "d4d3",
+     "g8f6",
+     "e3f4",
+     "d8a5",
+     "h1d1",
+     "a8d8",
+     "g2f3",
+     "e8g8"
+    ]
+   },
+   "requested_depth": 8,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after-Nd5-d7",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 7 movetime 15000",
+   "white_to_move": false,
+   "bestmove": "e6d5",
+   "elapsed_ms": 1334.713,
+   "last": {
+    "depth": 7,
+    "seldepth": 17,
+    "nodes": 262593,
+    "time": 1334,
+    "nps": 196846,
+    "cp": 37,
+    "bound": null,
+    "pv": [
+     "e6d5",
+     "e4d5",
+     "c6d7",
+     "h1d1",
+     "g8f6",
+     "g3g4",
+     "h5g4"
+    ]
+   },
+   "requested_depth": 7,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after-Nd5-d8",
+   "game": 187,
+   "point": "after_Nd5",
+   "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+   "history_length": 7,
+   "go": "go depth 8 movetime 15000",
+   "white_to_move": false,
+   "bestmove": "e6d5",
+   "elapsed_ms": 2025.193,
+   "last": {
+    "depth": 8,
+    "seldepth": 19,
+    "nodes": 392824,
+    "time": 2024,
+    "nps": 194083,
+    "cp": 43,
+    "bound": null,
+    "pv": [
+     "e6d5",
+     "e4d5",
+     "c6d7",
+     "h1d1",
+     "g8f6",
+     "d4f4",
+     "e8g8",
+     "e3d4"
+    ]
+   },
+   "requested_depth": 8,
+   "depth_reached": true
+  },
+  {
+   "name": "g187-after-exd5-d7",
+   "game": 187,
+   "point": "after_exd5_black",
+   "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+   "history_length": 8,
+   "go": "go depth 7 movetime 15000",
+   "white_to_move": true,
+   "bestmove": "e4d5",
+   "elapsed_ms": 1518.327,
+   "last": {
+    "depth": 7,
+    "seldepth": 19,
+    "nodes": 302921,
+    "time": 1517,
+    "nps": 199684,
+    "cp": -43,
+    "bound": null,
+    "pv": [
+     "e4d5",
+     "c6d7",
+     "h1d1",
+     "g8f6",
+     "d4f4",
+     "e8g8",
+     "e3d4"
+    ]
+   },
+   "requested_depth": 7,
+   "depth_reached": true
+  }
+ ],
+ "composed_static": [
+  {
+   "game": 127,
+   "point": "root",
+   "white_to_move": true,
+   "probe": {
+    "fen": "rr6/2pR1pbk/8/2Q1p2p/PBN1Pnq1/1PP3Pp/5P2/3R3K w - - 1 25",
+    "raw_output": -151,
+    "prediction_cp": -36.865234
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": -37,
+   "material_cp_white": 100,
+   "composed_static_cp_white": 63,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "after_Nxe5",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1pbk/8/2Q1N2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 25",
+    "raw_output": 850,
+    "prediction_cp": 207.51953
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": -208,
+   "material_cp_white": 200,
+   "composed_static_cp_white": -8,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "after_Bxe5",
+   "white_to_move": true,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P2/3R3K w - - 0 26",
+    "raw_output": 200,
+    "prediction_cp": 48.828125
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 49,
+   "material_cp_white": -120,
+   "composed_static_cp_white": -71,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "after_Qxe5",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pnq1/1PP3Pp/5P2/3R3K b - - 0 26",
+    "raw_output": 113,
+    "prediction_cp": 27.58789
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": -28,
+   "material_cp_white": 210,
+   "composed_static_cp_white": 182,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "after_Qf3_check",
+   "white_to_move": true,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R3K w - - 1 27",
+    "raw_output": 26,
+    "prediction_cp": 6.3476563
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 6,
+   "material_cp_white": 210,
+   "composed_static_cp_white": 216,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "pv_endpoint_Kg1",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P2/3R2K1 b - - 2 27",
+    "raw_output": 42,
+    "prediction_cp": 10.253906
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": -10,
+   "material_cp_white": 210,
+   "composed_static_cp_white": 200,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "alternative_evasion_Kh2",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/4Q2p/PB2Pn2/1PP2qPp/5P1K/3R4 b - - 2 27",
+    "raw_output": -355,
+    "prediction_cp": -86.66992
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 87,
+   "material_cp_white": 210,
+   "composed_static_cp_white": 297,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "actual_Kh2",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1p1k/8/2Q1b2p/PB2Pnq1/1PP3Pp/5P1K/3R4 b - - 1 26",
+    "raw_output": -254,
+    "prediction_cp": -62.01172
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 62,
+   "material_cp_white": -120,
+   "composed_static_cp_white": -58,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 127,
+   "point": "diagnostic_choice_Qe3",
+   "white_to_move": false,
+   "probe": {
+    "fen": "rr6/2pR1pbk/8/4p2p/PBN1Pnq1/1PP1Q1Pp/5P2/3R3K b - - 2 25",
+    "raw_output": 235,
+    "prediction_cp": 57.373047
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": -57,
+   "material_cp_white": 100,
+   "composed_static_cp_white": 43,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 175,
+   "point": "root",
+   "white_to_move": true,
+   "probe": {
+    "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q1N2/P4PP1/6K1 w - - 8 28",
+    "raw_output": 862,
+    "prediction_cp": 210.44922
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 210,
+   "material_cp_white": -70,
+   "composed_static_cp_white": 140,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 175,
+   "point": "after_Qc1",
+   "white_to_move": false,
+   "probe": {
+    "fen": "6r1/p1p1kp2/5n2/8/1P6/1B1q1N2/P4PP1/2Q3K1 b - - 9 28",
+    "raw_output": -431,
+    "prediction_cp": -105.22461
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 105,
+   "material_cp_white": -70,
+   "composed_static_cp_white": 35,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 175,
+   "point": "after_Qxf3",
+   "white_to_move": true,
+   "probe": {
+    "fen": "6r1/p1p1kp2/5n2/8/1P6/1B3q2/P4PP1/2Q3K1 w - - 0 29",
+    "raw_output": 2150,
+    "prediction_cp": 524.90234
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 525,
+   "material_cp_white": -390,
+   "composed_static_cp_white": 135,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 175,
+   "point": "diagnostic_choice_Ne1",
+   "white_to_move": false,
+   "probe": {
+    "fen": "6r1/p1p1kp2/5n1Q/8/1P6/1B1q4/P4PP1/4N1K1 b - - 9 28",
+    "raw_output": -327,
+    "prediction_cp": -79.833984
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 80,
+   "material_cp_white": -70,
+   "composed_static_cp_white": 10,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 187,
+   "point": "root",
+   "white_to_move": true,
+   "probe": {
+    "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2K4R w kq - 2 4",
+    "raw_output": 484,
+    "prediction_cp": 118.16406
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 118,
+   "material_cp_white": 0,
+   "composed_static_cp_white": 118,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 187,
+   "point": "after_Nd5",
+   "white_to_move": false,
+   "probe": {
+    "fen": "r2qk1nr/pp2bpp1/2bpp3/3N3p/3QP3/4B1P1/PPPR1PBP/2K4R b kq - 3 4",
+    "raw_output": -302,
+    "prediction_cp": -73.73047
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 74,
+   "material_cp_white": 0,
+   "composed_static_cp_white": 74,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 187,
+   "point": "after_exd5_black",
+   "white_to_move": true,
+   "probe": {
+    "fen": "r2qk1nr/pp2bpp1/2bp4/3p3p/3QP3/4B1P1/PPPR1PBP/2K4R w kq - 0 5",
+    "raw_output": 1241,
+    "prediction_cp": 302.97852
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 303,
+   "material_cp_white": -320,
+   "composed_static_cp_white": -17,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 187,
+   "point": "after_exd5_white",
+   "white_to_move": false,
+   "probe": {
+    "fen": "r2qk1nr/pp2bpp1/2bp4/3P3p/3Q4/4B1P1/PPPR1PBP/2K4R b kq - 0 5",
+    "raw_output": -778,
+    "prediction_cp": -189.9414
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 190,
+   "material_cp_white": -220,
+   "composed_static_cp_white": -30,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  },
+  {
+   "game": 187,
+   "point": "diagnostic_choice_Rhd1",
+   "white_to_move": false,
+   "probe": {
+    "fen": "r2qk1nr/pp2bpp1/2bpp3/7p/3QP3/2N1B1P1/PPPR1PBP/2KR4 b kq - 3 4",
+    "raw_output": -507,
+    "prediction_cp": -123.7793
+   },
+   "probe_semantics": "material residual ONLY",
+   "residual_cp_white_i32": 124,
+   "material_cp_white": 0,
+   "composed_static_cp_white": 124,
+   "composition": "signed round-half-away(raw*1000/4096) + P100/N320/B330/R500/Q900/K0 material"
+  }
+ ],
+ "limitations": [
+  "fresh TT, not historical warm TT",
+  "local timing not comparable to cloud timings",
+  "child-root forced continuation is not searchmoves at the parent root",
+  "quiet-check coverage was not patched/ablated",
+  "no full-match strength claim"
+ ],
+ "source_full_result_sha256": "eb74c7e01f8a36b7dd2e0bc215cb14667f6767ce12a54837539bae4dbc268806",
+ "projection_note": "Conclusion evidence: final completed iteration per search; earlier iterations/raw info omitted. checks contains historical full-run validation counts."
+}

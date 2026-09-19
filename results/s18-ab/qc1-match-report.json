@@ -1,0 +1,81 @@
+{
+ "schema_version": 2,
+ "stage": "s18_qc1_screen",
+ "note": "S18-QC1 256-game paired screen under 10+0.1. Same commit (9db0e85), same S14 model. Arm A: experimental_nnue_qchecks ON vs Arm B: baseline OFF.",
+ "commit": "9db0e85",
+ "protocol": "256 games over 128 openings (book 321-448), both colours, 10+0.1, Hash 16, concurrency 8",
+ "arm_a_qc1_sha256": "f2b7a651c87d5e748ca4f0a5fde9f32ef8c18fc195ddd7a3824c52a9f6d8b3f7",
+ "arm_b_base_sha256": "19f37de72f22bbe6659d12dd6100883cc0d0733a174bfbb53a8f6503d3883028",
+ "model_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+ "handshake_arm_a": {
+  "profile": "current-final",
+  "eval": "nnue-v2q",
+  "network": "nnue-v2q",
+  "evalfile": "nnue-s14-datasupply-v5.bin"
+ },
+ "handshake_arm_b": {
+  "profile": "current-final",
+  "eval": "nnue-v2q",
+  "network": "nnue-v2q",
+  "evalfile": "nnue-s14-datasupply-v5.bin"
+ },
+ "returncode": 0,
+ "elapsed_seconds": 863.7,
+ "cutechess_elo_summary": "Elo difference: -21.7 +/- 39.1, LOS: 13.7 %, DrawRatio: 16.4 %",
+ "result": {
+  "games": 256,
+  "candidate_W": 99,
+  "draws": 42,
+  "candidate_L": 115,
+  "score_points": "120 / 256",
+  "score_percent": 46.88,
+  "pentanomial": {
+   "counts": [
+    20,
+    23,
+    53,
+    17,
+    15
+   ],
+   "labels": [
+    "LL",
+    "LD",
+    "DD/WL",
+    "WD",
+    "WW"
+   ],
+   "pairs": 128
+  },
+  "move_time": {
+   "A-qc1": {
+    "moves": 15615,
+    "timed_moves": 15495,
+    "total_seconds": 3342.79,
+    "avg_move_seconds": 0.215733
+   },
+   "B-base": {
+    "moves": 15623,
+    "timed_moves": 15487,
+    "total_seconds": 3342.34,
+    "avg_move_seconds": 0.215816
+   }
+  }
+ },
+ "verdict_bands": "<48% FAIL (kill) / 48-52% PARITY (mechanism fixed but unproven) / >52% PROMISING",
+ "verdict": "FAIL",
+ "elo_statistics": {
+  "source": "cutechess-cli summary (not a paired-CI recomputation)",
+  "elo": -21.7,
+  "reported_ci95_half_width": 39.1,
+  "los_percent": 13.7
+ },
+ "pgn_sha256": "0df2622ae5e36a43159f52c2d2f41042d2f20d150063c78c1b0f3aecbec1a707",
+ "log_sha256": "1ae9ca7202883e16d92856da132fa899e7c8e7d5d8497357aaf2dd205dd81e26",
+ "openings_sha256": "89ea61d7608c4d750523c18ec6d3ee30a47cf5926c61743e5fb8f42fc21b45c6",
+ "corrections": [
+  "Removed ad-hoc CI; cutechess CI is not relabeled as paired CI.",
+  "Move times recomputed by actual FEN side-to-move; rounded PGN times, not CPU time.",
+  "No per-match total search nodes or mean effective search depth were recorded."
+ ],
+ "decision": "KILLED under frozen <48% screen; CI overlaps zero; not production approved."
+}

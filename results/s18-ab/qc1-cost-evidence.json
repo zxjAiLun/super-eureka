@@ -1,0 +1,1114 @@
+{
+ "schema_version": 1,
+ "raw_measurement_sha256": "20fd32bee7b03a16111a5f60819e64d47ca1d265737b91477558ddf18a27d635",
+ "base_sha256": "d846def99fa3a182b6d359276eae89cc43259ef85d97539dc144dd6bde6e4537",
+ "qc1_sha256": "8014d269ad00786c3e8ace2f30cf02d3ee137e5d9ff9ef75de2f37187b8bff14",
+ "model_sha256": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+ "protocol": "32 positions, depth4, three AB/BA rounds; search wall only",
+ "quantile_method": "Historical driver sorted[n//2] and sorted[int(n*0.9)]; denominators max(base_nodes,1) / max(base_wall_ms,0.1)",
+ "zero_base_wall_rows": 12,
+ "nodes_ratio_median": 1.263974246414984,
+ "nodes_ratio_p90": 2.0921702327768634,
+ "wall_ratio_median": 1.3191489361702127,
+ "wall_ratio_p90": 2.9375,
+ "rows": [
+  {
+   "id": "d11-closedpos-0001",
+   "round": 0,
+   "base_nodes": 8634,
+   "qc1_nodes": 11381,
+   "base_wall_ms": 62.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-closedpos-0002",
+   "round": 0,
+   "base_nodes": 7964,
+   "qc1_nodes": 8451,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-closedpos-0003",
+   "round": 0,
+   "base_nodes": 5977,
+   "qc1_nodes": 6505,
+   "base_wall_ms": 32.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0004",
+   "round": 0,
+   "base_nodes": 6834,
+   "qc1_nodes": 8638,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0005",
+   "round": 0,
+   "base_nodes": 6206,
+   "qc1_nodes": 6337,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0006",
+   "round": 0,
+   "base_nodes": 7283,
+   "qc1_nodes": 7429,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0007",
+   "round": 0,
+   "base_nodes": 9569,
+   "qc1_nodes": 14757,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 79.0
+  },
+  {
+   "id": "d11-closedpos-0008",
+   "round": 0,
+   "base_nodes": 8758,
+   "qc1_nodes": 8817,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 46.0
+  },
+  {
+   "id": "d11-stalemate-stress-0001",
+   "round": 0,
+   "base_nodes": 902,
+   "qc1_nodes": 1449,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-stalemate-stress-0002",
+   "round": 0,
+   "base_nodes": 9610,
+   "qc1_nodes": 14011,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-stalemate-stress-0003",
+   "round": 0,
+   "base_nodes": 5712,
+   "qc1_nodes": 14630,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-stalemate-stress-0004",
+   "round": 0,
+   "base_nodes": 2761,
+   "qc1_nodes": 2905,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-stalemate-stress-0005",
+   "round": 0,
+   "base_nodes": 1032,
+   "qc1_nodes": 2394,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-stalemate-stress-0006",
+   "round": 0,
+   "base_nodes": 4253,
+   "qc1_nodes": 8898,
+   "base_wall_ms": 32.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-stalemate-stress-0007",
+   "round": 0,
+   "base_nodes": 8836,
+   "qc1_nodes": 13732,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 62.0
+  },
+  {
+   "id": "d11-stalemate-stress-0008",
+   "round": 0,
+   "base_nodes": 5422,
+   "qc1_nodes": 8370,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-endgames-a-0001",
+   "round": 0,
+   "base_nodes": 861,
+   "qc1_nodes": 1037,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-endgames-a-0002",
+   "round": 0,
+   "base_nodes": 4324,
+   "qc1_nodes": 4145,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0003",
+   "round": 0,
+   "base_nodes": 2307,
+   "qc1_nodes": 2891,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0004",
+   "round": 0,
+   "base_nodes": 4081,
+   "qc1_nodes": 4454,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0005",
+   "round": 0,
+   "base_nodes": 3007,
+   "qc1_nodes": 5493,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-a-0006",
+   "round": 0,
+   "base_nodes": 2246,
+   "qc1_nodes": 3314,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0007",
+   "round": 0,
+   "base_nodes": 2351,
+   "qc1_nodes": 2682,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0008",
+   "round": 0,
+   "base_nodes": 5275,
+   "qc1_nodes": 5998,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 32.0
+  },
+  {
+   "id": "d11-endgames-cdb-0001",
+   "round": 0,
+   "base_nodes": 5939,
+   "qc1_nodes": 6007,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0002",
+   "round": 0,
+   "base_nodes": 7545,
+   "qc1_nodes": 9727,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 62.0
+  },
+  {
+   "id": "d11-endgames-cdb-0003",
+   "round": 0,
+   "base_nodes": 2041,
+   "qc1_nodes": 5421,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0004",
+   "round": 0,
+   "base_nodes": 2624,
+   "qc1_nodes": 2738,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-cdb-0005",
+   "round": 0,
+   "base_nodes": 9804,
+   "qc1_nodes": 17287,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 93.0
+  },
+  {
+   "id": "d11-endgames-cdb-0006",
+   "round": 0,
+   "base_nodes": 2166,
+   "qc1_nodes": 1887,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-endgames-cdb-0007",
+   "round": 0,
+   "base_nodes": 6375,
+   "qc1_nodes": 7017,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 32.0
+  },
+  {
+   "id": "d11-endgames-cdb-0008",
+   "round": 0,
+   "base_nodes": 4572,
+   "qc1_nodes": 6938,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-closedpos-0001",
+   "round": 1,
+   "base_nodes": 8634,
+   "qc1_nodes": 11381,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 79.0
+  },
+  {
+   "id": "d11-closedpos-0002",
+   "round": 1,
+   "base_nodes": 7964,
+   "qc1_nodes": 8451,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0003",
+   "round": 1,
+   "base_nodes": 5977,
+   "qc1_nodes": 6505,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 46.0
+  },
+  {
+   "id": "d11-closedpos-0004",
+   "round": 1,
+   "base_nodes": 6834,
+   "qc1_nodes": 8638,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-closedpos-0005",
+   "round": 1,
+   "base_nodes": 6206,
+   "qc1_nodes": 6337,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0006",
+   "round": 1,
+   "base_nodes": 7283,
+   "qc1_nodes": 7429,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0007",
+   "round": 1,
+   "base_nodes": 9569,
+   "qc1_nodes": 14757,
+   "base_wall_ms": 78.0,
+   "qc1_wall_ms": 93.0
+  },
+  {
+   "id": "d11-closedpos-0008",
+   "round": 1,
+   "base_nodes": 8758,
+   "qc1_nodes": 8817,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 79.0
+  },
+  {
+   "id": "d11-stalemate-stress-0001",
+   "round": 1,
+   "base_nodes": 902,
+   "qc1_nodes": 1449,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-stalemate-stress-0002",
+   "round": 1,
+   "base_nodes": 9610,
+   "qc1_nodes": 14011,
+   "base_wall_ms": 63.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-stalemate-stress-0003",
+   "round": 1,
+   "base_nodes": 5712,
+   "qc1_nodes": 14630,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 94.0
+  },
+  {
+   "id": "d11-stalemate-stress-0004",
+   "round": 1,
+   "base_nodes": 2761,
+   "qc1_nodes": 2905,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-stalemate-stress-0005",
+   "round": 1,
+   "base_nodes": 1032,
+   "qc1_nodes": 2394,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-stalemate-stress-0006",
+   "round": 1,
+   "base_nodes": 4253,
+   "qc1_nodes": 8898,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-stalemate-stress-0007",
+   "round": 1,
+   "base_nodes": 8836,
+   "qc1_nodes": 13732,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-stalemate-stress-0008",
+   "round": 1,
+   "base_nodes": 5422,
+   "qc1_nodes": 8370,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-endgames-a-0001",
+   "round": 1,
+   "base_nodes": 861,
+   "qc1_nodes": 1037,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-endgames-a-0002",
+   "round": 1,
+   "base_nodes": 4324,
+   "qc1_nodes": 4145,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-a-0003",
+   "round": 1,
+   "base_nodes": 2307,
+   "qc1_nodes": 2891,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-endgames-a-0004",
+   "round": 1,
+   "base_nodes": 4081,
+   "qc1_nodes": 4454,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-a-0005",
+   "round": 1,
+   "base_nodes": 3007,
+   "qc1_nodes": 5493,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0006",
+   "round": 1,
+   "base_nodes": 2246,
+   "qc1_nodes": 3314,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0007",
+   "round": 1,
+   "base_nodes": 2351,
+   "qc1_nodes": 2682,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0008",
+   "round": 1,
+   "base_nodes": 5275,
+   "qc1_nodes": 5998,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 32.0
+  },
+  {
+   "id": "d11-endgames-cdb-0001",
+   "round": 1,
+   "base_nodes": 5939,
+   "qc1_nodes": 6007,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0002",
+   "round": 1,
+   "base_nodes": 7545,
+   "qc1_nodes": 9727,
+   "base_wall_ms": 32.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-endgames-cdb-0003",
+   "round": 1,
+   "base_nodes": 2041,
+   "qc1_nodes": 5421,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0004",
+   "round": 1,
+   "base_nodes": 2624,
+   "qc1_nodes": 2738,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-endgames-cdb-0005",
+   "round": 1,
+   "base_nodes": 9804,
+   "qc1_nodes": 17287,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-endgames-cdb-0006",
+   "round": 1,
+   "base_nodes": 2166,
+   "qc1_nodes": 1887,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-cdb-0007",
+   "round": 1,
+   "base_nodes": 6375,
+   "qc1_nodes": 7017,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0008",
+   "round": 1,
+   "base_nodes": 4572,
+   "qc1_nodes": 6938,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0001",
+   "round": 2,
+   "base_nodes": 8634,
+   "qc1_nodes": 11381,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-closedpos-0002",
+   "round": 2,
+   "base_nodes": 7964,
+   "qc1_nodes": 8451,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 62.0
+  },
+  {
+   "id": "d11-closedpos-0003",
+   "round": 2,
+   "base_nodes": 5977,
+   "qc1_nodes": 6505,
+   "base_wall_ms": 46.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0004",
+   "round": 2,
+   "base_nodes": 6834,
+   "qc1_nodes": 8638,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-closedpos-0005",
+   "round": 2,
+   "base_nodes": 6206,
+   "qc1_nodes": 6337,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-closedpos-0006",
+   "round": 2,
+   "base_nodes": 7283,
+   "qc1_nodes": 7429,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-closedpos-0007",
+   "round": 2,
+   "base_nodes": 9569,
+   "qc1_nodes": 14757,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 94.0
+  },
+  {
+   "id": "d11-closedpos-0008",
+   "round": 2,
+   "base_nodes": 8758,
+   "qc1_nodes": 8817,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-stalemate-stress-0001",
+   "round": 2,
+   "base_nodes": 902,
+   "qc1_nodes": 1449,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-stalemate-stress-0002",
+   "round": 2,
+   "base_nodes": 9610,
+   "qc1_nodes": 14011,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-stalemate-stress-0003",
+   "round": 2,
+   "base_nodes": 5712,
+   "qc1_nodes": 14630,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 94.0
+  },
+  {
+   "id": "d11-stalemate-stress-0004",
+   "round": 2,
+   "base_nodes": 2761,
+   "qc1_nodes": 2905,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-stalemate-stress-0005",
+   "round": 2,
+   "base_nodes": 1032,
+   "qc1_nodes": 2394,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-stalemate-stress-0006",
+   "round": 2,
+   "base_nodes": 4253,
+   "qc1_nodes": 8898,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-stalemate-stress-0007",
+   "round": 2,
+   "base_nodes": 8836,
+   "qc1_nodes": 13732,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 63.0
+  },
+  {
+   "id": "d11-stalemate-stress-0008",
+   "round": 2,
+   "base_nodes": 5422,
+   "qc1_nodes": 8370,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-endgames-a-0001",
+   "round": 2,
+   "base_nodes": 861,
+   "qc1_nodes": 1037,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-endgames-a-0002",
+   "round": 2,
+   "base_nodes": 4324,
+   "qc1_nodes": 4145,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0003",
+   "round": 2,
+   "base_nodes": 2307,
+   "qc1_nodes": 2891,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0004",
+   "round": 2,
+   "base_nodes": 4081,
+   "qc1_nodes": 4454,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0005",
+   "round": 2,
+   "base_nodes": 3007,
+   "qc1_nodes": 5493,
+   "base_wall_ms": 15.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-a-0006",
+   "round": 2,
+   "base_nodes": 2246,
+   "qc1_nodes": 3314,
+   "base_wall_ms": 0.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-endgames-a-0007",
+   "round": 2,
+   "base_nodes": 2351,
+   "qc1_nodes": 2682,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 15.0
+  },
+  {
+   "id": "d11-endgames-a-0008",
+   "round": 2,
+   "base_nodes": 5275,
+   "qc1_nodes": 5998,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0001",
+   "round": 2,
+   "base_nodes": 5939,
+   "qc1_nodes": 6007,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0002",
+   "round": 2,
+   "base_nodes": 7545,
+   "qc1_nodes": 9727,
+   "base_wall_ms": 31.0,
+   "qc1_wall_ms": 47.0
+  },
+  {
+   "id": "d11-endgames-cdb-0003",
+   "round": 2,
+   "base_nodes": 2041,
+   "qc1_nodes": 5421,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0004",
+   "round": 2,
+   "base_nodes": 2624,
+   "qc1_nodes": 2738,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 16.0
+  },
+  {
+   "id": "d11-endgames-cdb-0005",
+   "round": 2,
+   "base_nodes": 9804,
+   "qc1_nodes": 17287,
+   "base_wall_ms": 47.0,
+   "qc1_wall_ms": 78.0
+  },
+  {
+   "id": "d11-endgames-cdb-0006",
+   "round": 2,
+   "base_nodes": 2166,
+   "qc1_nodes": 1887,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 0.0
+  },
+  {
+   "id": "d11-endgames-cdb-0007",
+   "round": 2,
+   "base_nodes": 6375,
+   "qc1_nodes": 7017,
+   "base_wall_ms": 32.0,
+   "qc1_wall_ms": 31.0
+  },
+  {
+   "id": "d11-endgames-cdb-0008",
+   "round": 2,
+   "base_nodes": 4572,
+   "qc1_nodes": 6938,
+   "base_wall_ms": 16.0,
+   "qc1_wall_ms": 32.0
+  }
+ ],
+ "boundary": {
+  "after_Qf3_check": {
+   "base": {
+    "best": "h1g1",
+    "wall_ms": 0.0,
+    "last": {
+     "raw": "info depth 1 seldepth 9 score cp 200 nodes 103 time 0 nps 0 pv h1g1",
+     "depth": 1,
+     "seldepth": 9,
+     "nodes": 103,
+     "time": 0,
+     "nps": 0,
+     "cp": 200,
+     "bound": null,
+     "pv": [
+      "h1g1"
+     ]
+    }
+   },
+   "qc1": {
+    "best": "h1h2",
+    "wall_ms": 0.0,
+    "last": {
+     "raw": "info depth 1 seldepth 9 score mate -1 nodes 112 time 0 nps 0 pv h1h2 f3g2",
+     "depth": 1,
+     "seldepth": 9,
+     "nodes": 112,
+     "time": 0,
+     "nps": 0,
+     "mate": -1,
+     "bound": null,
+     "pv": [
+      "h1h2",
+      "f3g2"
+     ]
+    }
+   }
+  },
+  "pv_endpoint_Kg1": {
+   "base": {
+    "best": "f3g2",
+    "wall_ms": 0.0,
+    "last": {
+     "raw": "info depth 1 seldepth 11 score mate 1 nodes 153 time 0 nps 0 pv f3g2",
+     "depth": 1,
+     "seldepth": 11,
+     "nodes": 153,
+     "time": 0,
+     "nps": 0,
+     "mate": 1,
+     "bound": null,
+     "pv": [
+      "f3g2"
+     ]
+    }
+   },
+   "qc1": {
+    "best": "f3g2",
+    "wall_ms": 0.0,
+    "last": {
+     "raw": "info depth 1 seldepth 11 score mate 1 nodes 222 time 1 nps 222000 pv f3g2",
+     "depth": 1,
+     "seldepth": 11,
+     "nodes": 222,
+     "time": 1,
+     "nps": 222000,
+     "mate": 1,
+     "bound": null,
+     "pv": [
+      "f3g2"
+     ]
+    }
+   }
+  }
+ },
+ "tactical": {
+  "tactical-queen-win": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e4a4",
+    "qc1": "e4a4"
+   }
+  },
+  "checking-capture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e4e5",
+    "qc1": "e4e5"
+   }
+  },
+  "mate-in-one-rook": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "mate",
+   "best": {
+    "base": "a1a8",
+    "qc1": "a1a8"
+   }
+  },
+  "already-checkmated": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "terminal-mate",
+   "best": {
+    "base": "0000",
+    "qc1": "0000"
+   }
+  },
+  "quiet-promotion": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e7e8q",
+    "qc1": "e7e8q"
+   }
+  },
+  "underpromotion-options": {
+   "fails": {
+    "base": true,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "h1g2",
+    "qc1": "a7a8q"
+   }
+  },
+  "promotion-race": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "a7a8q",
+    "qc1": "a7a8q"
+   }
+  },
+  "en-passant-tactic": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "nonlosing",
+   "best": {
+    "base": "e1e2",
+    "qc1": "e1e2"
+   }
+  },
+  "sacrifice-recapture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "nonlosing",
+   "best": {
+    "base": "f3d2",
+    "qc1": "f3d2"
+   }
+  },
+  "stalemate-resource": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "terminal-draw",
+   "best": {
+    "base": "0000",
+    "qc1": "0000"
+   }
+  },
+  "kqk-mopup": {
+   "fails": {
+    "base": true,
+    "qc1": false
+   },
+   "score_class": "mate",
+   "best": {
+    "base": "d4h4",
+    "qc1": "f6g6"
+   }
+  },
+  "krk-mopup": {
+   "fails": {
+    "base": false,
+    "qc1": true
+   },
+   "score_class": "mate",
+   "best": {
+    "base": "f6g6",
+    "qc1": "d4h4"
+   }
+  },
+  "d10-promotion-chain-white": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "d7e8q",
+    "qc1": "d7e8q"
+   }
+  },
+  "d10-promotion-chain-black": {
+   "fails": {
+    "base": true,
+    "qc1": true
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "d2e1r",
+    "qc1": "d2e1r"
+   }
+  },
+  "d10-unique-underpromotion": {
+   "fails": {
+    "base": true,
+    "qc1": true
+   },
+   "score_class": "nonlosing",
+   "best": {
+    "base": "f6g7",
+    "qc1": "f6e6"
+   }
+  },
+  "d10-promotion-capture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e7d8q",
+    "qc1": "e7d8q"
+   }
+  },
+  "d10-xray-recapture": {
+   "fails": {
+    "base": true,
+    "qc1": true
+   },
+   "score_class": "nonlosing",
+   "best": {
+    "base": "a1a3",
+    "qc1": "a1a3"
+   }
+  },
+  "d10-pinned-recapture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "nonlosing",
+   "best": {
+    "base": "e2e8",
+    "qc1": "e2e8"
+   }
+  },
+  "d10-king-recapture": {
+   "fails": {
+    "base": true,
+    "qc1": true
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e5d5",
+    "qc1": "e5d5"
+   }
+  },
+  "d10-checking-capture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e4e6",
+    "qc1": "e4e6"
+   }
+  },
+  "d10-en-passant-discovered-check": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e5d6",
+    "qc1": "e5d6"
+   }
+  },
+  "d10-defensive-capture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "winning",
+   "best": {
+    "base": "e1d2",
+    "qc1": "e1d2"
+   }
+  },
+  "d10-checking-losing-capture": {
+   "fails": {
+    "base": false,
+    "qc1": false
+   },
+   "score_class": "losing",
+   "best": {
+    "base": "d4d7",
+    "qc1": "d4d7"
+   }
+  }
+ }
+}

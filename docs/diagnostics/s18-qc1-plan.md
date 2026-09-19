@@ -1,5 +1,11 @@
 # S18-QC1: NNUE search-boundary experiment (pre-run plan)
 
+> Historical pre-run plan retained unchanged below. Final outcome: mechanism
+> diagnosis PASS, cost PASS but expensive, timed screen FAIL (99/42/115),
+> candidate KILLED; feature remains OFF. The pinned-d3 `krk-mopup` difference
+> was explicitly retained, not converted to a 23/23 pass. See
+> [final closeout](../dev-log/2026-09-19-s18-qc1-quiet-checks.md).
+
 ## Decision to make
 
 Not another fixture-only closeout: decide whether bounded quiet checks should

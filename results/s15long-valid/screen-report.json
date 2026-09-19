@@ -1,0 +1,41 @@
+{
+ "schema_version": 1,
+ "stage": "s15_screen",
+ "protocol": "256 games = 128 fresh opening pairs (book lines 321-448 of the frozen s3-promotion openings, disjoint from R0 1-64, S13 65-192 and S14 193-320), both colors, same binary, same profile (current-final), 10+0.1, Hash 16, 1 search thread, concurrency 4",
+ "single_variable": "both engines identical except --nnue-model; the only difference under test is the data-supply net",
+ "engines": {
+  "candidate": "current-final + S15L net (e6d8b2b7...)",
+  "baseline": "current-final + S14 net (329b7170...)"
+ },
+ "artifact_sha256_candidate": "e6d8b2b7a4e00b46887470d522788c4cb79e9fb7fde3262f9997978a698d2319",
+ "artifact_sha256_baseline": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
+ "engine_sha256": "49fe54010a39fb19fe02af3429f388cd1ba9a69ca60647ce24fef73ec4494b64",
+ "result": {
+  "games": 256,
+  "games_total_in_pgn": 256,
+  "unfinished": 0,
+  "candidate_W": 92,
+  "draws": 31,
+  "candidate_L": 133,
+  "score_points": "107.5 / 256",
+  "score_percent": 41.99,
+  "elo_descriptive": -56.1,
+  "elo_ci95": 35.9,
+  "pentanomial_0to2": [
+   27,
+   20,
+   60,
+   9,
+   12
+  ],
+  "pairs": 128
+ },
+ "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
+ "verdict": "FAIL",
+ "offline_pgn_audit": {
+  "pgn_sha256": "be115cc60cc2e47be2f60f2a8e5be599fd3b3349ce35768e7cc6f25ee443b175",
+  "log_sha256": "893e44499cad99e1d13eed99e842ad315cb620665a84f8aea57f2f4fc0d57ac1",
+  "validated_games": 256,
+  "color_swapped_fen_pairs": 128
+ }
+}
