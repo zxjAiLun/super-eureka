@@ -31,5 +31,31 @@
   "pairs": 128
  },
  "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
- "verdict": "PARITY"
+ "verdict": "INVALID_EVALUATOR_SELECTION",
+ "INVALID_EVALUATOR_SELECTION": {
+  "invalidated_on": "2026-09-19",
+  "reason": "The screen command passed --profile current-final with --nnue-model but no --evaluation nnue. That combination selects the handcrafted evaluator and loads the artifact without using it (handshake reported eval=handcrafted-v1+integrated-positional, network=none), so both sides ran HCE and the games do not measure either model.",
+  "consequence": "The strength labels below are void. Training artifacts, exported binaries, and the integer/incremental consistency checks are unaffected.",
+  "original_verdict": "PARITY",
+  "original_result": {
+   "games": 256,
+   "games_total_in_pgn": 256,
+   "unfinished": 0,
+   "candidate_W": 113,
+   "draws": 32,
+   "candidate_L": 111,
+   "score_points": "129 / 256",
+   "score_percent": 50.39,
+   "elo_descriptive": 2.7,
+   "elo_ci95": 30.0,
+   "pentanomial_0to2": [
+    15,
+    6,
+    80,
+    16,
+    11
+   ],
+   "pairs": 128
+  }
+ }
 }

@@ -34,8 +34,12 @@ from pathlib import Path
 PROFILE = "current-final"
 TIME_CONTROL = "10+0.1"
 HASH_MB = 16
-ROUNDS = 128          # 128 opening pairs -> 256 games (repeat 2)
-BOOK_START, BOOK_END = 321, 448
+ROUNDS = 256         # cutechess counts games per opening, so -rounds 256
+                     # with -repeat 2 plays each of the 128 openings twice
+                     # (one game per colour) for 256 games total.
+                     # Previously this was 128, which stopped the run after
+                     # 128 games and left one opening unpaired.
+BOOK_START, BOOK_END = 321, 448  # 128 openings
 CUTECHESS = Path("tools/.cache/cutechess-1.5.1-win64/cutechess-cli.exe")
 BOOK = Path("results/s3-promotion/run-001/openings.epd")
 
@@ -48,8 +52,9 @@ def read_openings() -> list[str]:
     lines = [l.strip() for l in BOOK.read_text(encoding="utf-8").splitlines()
              if l.strip() and not l.startswith("#")]
     block = lines[BOOK_START - 1:BOOK_END]
-    if len(block) != ROUNDS:
-        raise SystemExit(f"expected {ROUNDS} openings, got {len(block)}")
+    expected = BOOK_END - BOOK_START + 1
+    if len(block) != expected:
+        raise SystemExit(f"expected {expected} openings, got {len(block)}")
     return block
 
 
@@ -123,7 +128,8 @@ def main() -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     openings = args.out / "ab-openings.epd"
-    openings.write_text("\n".join(read_openings()) + "\n", encoding="utf-8")
+    opening_lines = read_openings()
+    openings.write_text("\n".join(opening_lines) + "\n", encoding="utf-8")
     pgnout = args.out / "ab-match.pgn"
     if pgnout.exists() and pgnout.stat().st_size > 0:
         raise SystemExit(f"FAIL CLOSED: {pgnout} exists (non-empty)")
@@ -162,10 +168,10 @@ def main() -> int:
         "-pgnout", str(pgnout.resolve()),
         "-resultformat", "short",
     ]
-    print(f"[ab] openings={ROUNDS} (book {BOOK_START}-{BOOK_END})", flush=True)
+    print(f"[ab] openings={len(opening_lines)}", flush=True)
     hs_a = verify_arm(args.arm_a, args.model, "A-avx2")
     hs_b = verify_arm(args.arm_b, args.model, "B-scalar")
-    print(f"[ab] launching cutechess ({ROUNDS * 2} games)...", flush=True)
+    print(f"[ab] launching cutechess ({ROUNDS} games)...", flush=True)
     t0 = time.time()
     log = args.out / "ab-cutechess.log"
     with log.open("w", encoding="utf-8") as fh:
@@ -187,7 +193,9 @@ def main() -> int:
     score = W + 0.5 * D
     pct = score / n * 100 if n else float("nan")
     elo = -400 * math.log10(n / score - 1) if score else float("nan")
-    ci = 1.96 * 800 / math.sqrt(n) if n else float("nan")
+    elo_lines = [line for line in log.read_text(encoding="utf-8", errors="replace").splitlines()
+                 if line.startswith("Elo difference:")]
+    elo_summary = elo_lines[-1] if elo_lines else None
     verdict = ("FAIL" if pct < 48 else "PARITY" if pct <= 52
                else "PROMISING")
 
@@ -201,8 +209,9 @@ def main() -> int:
                                  capture_output=True, text=True,
                                  cwd=Path(__file__).resolve().parents[2]
                                  ).stdout.strip(),
-        "protocol": (f"{ROUNDS} opening pairs (book {BOOK_START}-{BOOK_END}), "
-                     f"both colours, {TIME_CONTROL}, Hash {HASH_MB}, "
+        "protocol": (f"{ROUNDS} games over {len(opening_lines)} openings "
+                     f"(book {BOOK_START}-{BOOK_END}), both colours, "
+                     f"{TIME_CONTROL}, Hash {HASH_MB}, "
                      f"concurrency {args.concurrency}"),
         "arm_a_avx2_sha256": sha_a,
         "arm_b_scalar_sha256": sha_b,
@@ -219,7 +228,7 @@ def main() -> int:
             "score_points": f"{score:g} / {n}",
             "score_percent": round(pct, 2),
             "elo_descriptive": round(elo, 1),
-            "elo_ci95": round(ci, 1),
+            "cutechess_elo_summary": elo_summary,
         },
         "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
         "verdict": verdict,
@@ -227,6 +236,10 @@ def main() -> int:
     (args.out / "ab-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8")
+    expected_games = len(opening_lines) * 2
+    if n != expected_games:
+        print(f"[ab] WARNING: {n} games recorded, expected {expected_games}",
+              flush=True)
     print(json.dumps(report["result"], indent=1), flush=True)
     print(f"[ab] VERDICT: {verdict} ({pct:.2f}%)  "
           f"elapsed {elapsed/60:.1f} min", flush=True)

@@ -4,33 +4,31 @@
  "protocol": "256 games = 128 fresh opening pairs (book lines 321-448 of the frozen s3-promotion openings, disjoint from R0 1-64, S13 65-192 and S14 193-320), both colors, same binary, same profile (current-final), 10+0.1, Hash 16, 1 search thread, concurrency 6",
  "single_variable": "both engines identical except --nnue-model; the only difference under test is the data-supply net",
  "engines": {
-  "candidate": "current-final + S16 net (7d442e9c...)",
+  "candidate": "current-final + S15 net (a2c0073d...)",
   "baseline": "current-final + S14 net (329b7170...)"
  },
- "artifact_sha256_candidate": "7d442e9cc31ab6c8cee3cd625f0ab0cdf54be58844a8e37e10ac789c4a53c35a",
+ "artifact_sha256_candidate": "a2c0073de13b5669903d710a20d5df19ba7c69818ebf41b0922ce4aa8f8816cc",
  "artifact_sha256_baseline": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
  "engine_sha256": "a541e09f2cf42f0ed0be60b9cc4102de8eb2c7c0ffbccf805b5d073c64450a96",
  "result": {
   "games": 256,
   "games_total_in_pgn": 256,
   "unfinished": 0,
-  "candidate_W": 102,
-  "draws": 46,
-  "candidate_L": 108,
-  "score_points": "125 / 256",
-  "score_percent": 48.83,
-  "elo_descriptive": -8.1,
-  "elo_ci95": 30.9,
+  "S15_W": 96,
+  "draws": 49,
+  "S15_L": 111,
+  "score_points": "120.5 / 256",
+  "score_percent": 47.07,
+  "elo_descriptive": -20.4,
+  "elo_ci95": 32.5,
   "pentanomial_0to2": [
-   16,
+   15,
+   23,
+   66,
    10,
-   78,
-   12,
-   12
+   14
   ],
-  "pairs": 128,
-  "candidate_label": "S16",
-  "baseline_label": "S14"
+  "pairs": 128
  },
  "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
  "verdict": "INVALID_EVALUATOR_SELECTION",
@@ -38,28 +36,26 @@
   "invalidated_on": "2026-09-19",
   "reason": "The screen command passed --profile current-final with --nnue-model but no --evaluation nnue. That combination selects the handcrafted evaluator and loads the artifact without using it (handshake reported eval=handcrafted-v1+integrated-positional, network=none), so both sides ran HCE and the games do not measure either model.",
   "consequence": "The strength labels below are void. Training artifacts, exported binaries, and the integer/incremental consistency checks are unaffected.",
-  "original_verdict": "PARITY",
+  "original_verdict": "FAIL",
   "original_result": {
    "games": 256,
    "games_total_in_pgn": 256,
    "unfinished": 0,
-   "candidate_W": 102,
-   "draws": 46,
-   "candidate_L": 108,
-   "score_points": "125 / 256",
-   "score_percent": 48.83,
-   "elo_descriptive": -8.1,
-   "elo_ci95": 30.9,
+   "S15_W": 96,
+   "draws": 49,
+   "S15_L": 111,
+   "score_points": "120.5 / 256",
+   "score_percent": 47.07,
+   "elo_descriptive": -20.4,
+   "elo_ci95": 32.5,
    "pentanomial_0to2": [
-    16,
+    15,
+    23,
+    66,
     10,
-    78,
-    12,
-    12
+    14
    ],
-   "pairs": 128,
-   "candidate_label": "S16",
-   "baseline_label": "S14"
+   "pairs": 128
   }
  }
 }

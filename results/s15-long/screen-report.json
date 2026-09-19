@@ -4,33 +4,31 @@
  "protocol": "256 games = 128 fresh opening pairs (book lines 321-448 of the frozen s3-promotion openings, disjoint from R0 1-64, S13 65-192 and S14 193-320), both colors, same binary, same profile (current-final), 10+0.1, Hash 16, 1 search thread, concurrency 6",
  "single_variable": "both engines identical except --nnue-model; the only difference under test is the data-supply net",
  "engines": {
-  "candidate": "current-final + S16 net (7d442e9c...)",
+  "candidate": "current-final + S15L net (e6d8b2b7...)",
   "baseline": "current-final + S14 net (329b7170...)"
  },
- "artifact_sha256_candidate": "7d442e9cc31ab6c8cee3cd625f0ab0cdf54be58844a8e37e10ac789c4a53c35a",
+ "artifact_sha256_candidate": "e6d8b2b7a4e00b46887470d522788c4cb79e9fb7fde3262f9997978a698d2319",
  "artifact_sha256_baseline": "329b717066082798d2f42d9e4f137385a1482a8cda03ae7849ddc654e097e4b0",
  "engine_sha256": "a541e09f2cf42f0ed0be60b9cc4102de8eb2c7c0ffbccf805b5d073c64450a96",
  "result": {
   "games": 256,
   "games_total_in_pgn": 256,
   "unfinished": 0,
-  "candidate_W": 102,
-  "draws": 46,
-  "candidate_L": 108,
-  "score_points": "125 / 256",
-  "score_percent": 48.83,
-  "elo_descriptive": -8.1,
-  "elo_ci95": 30.9,
+  "S15_W": 116,
+  "draws": 33,
+  "S15_L": 107,
+  "score_points": "132.5 / 256",
+  "score_percent": 51.76,
+  "elo_descriptive": 12.2,
+  "elo_ci95": 36.5,
   "pentanomial_0to2": [
+   17,
    16,
-   10,
-   78,
-   12,
-   12
+   58,
+   15,
+   22
   ],
-  "pairs": 128,
-  "candidate_label": "S16",
-  "baseline_label": "S14"
+  "pairs": 128
  },
  "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
  "verdict": "INVALID_EVALUATOR_SELECTION",
@@ -43,23 +41,21 @@
    "games": 256,
    "games_total_in_pgn": 256,
    "unfinished": 0,
-   "candidate_W": 102,
-   "draws": 46,
-   "candidate_L": 108,
-   "score_points": "125 / 256",
-   "score_percent": 48.83,
-   "elo_descriptive": -8.1,
-   "elo_ci95": 30.9,
+   "S15_W": 116,
+   "draws": 33,
+   "S15_L": 107,
+   "score_points": "132.5 / 256",
+   "score_percent": 51.76,
+   "elo_descriptive": 12.2,
+   "elo_ci95": 36.5,
    "pentanomial_0to2": [
+    17,
     16,
-    10,
-    78,
-    12,
-    12
+    58,
+    15,
+    22
    ],
-   "pairs": 128,
-   "candidate_label": "S16",
-   "baseline_label": "S14"
+   "pairs": 128
   }
  }
 }

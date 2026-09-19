@@ -54,6 +54,40 @@ def sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def verify_evaluator(engine: Path, model: Path, tag: str) -> dict:
+    """Read the evaluator selection back from a real startup handshake.
+
+    The regression this guards against: `--profile current-final` with
+    `--nnue-model X` reports eval=handcrafted.../network=none, so a match
+    could run HCE on both sides while the report named two different nets.
+    Naming a model is not the same as selecting the evaluator that consumes
+    it, so the selection is verified per engine before any game starts.
+    """
+    cmd = [str(engine.resolve()), "--profile", PROFILE,
+           "--evaluation", "nnue", "--nnue-model", str(model.resolve())]
+    p = subprocess.run(cmd, input="uci\nisready\nquit\n",
+                       capture_output=True, text=True, timeout=180)
+    fields = {}
+    for line in (p.stdout + p.stderr).splitlines():
+        if line.startswith("info string "):
+            key, _, val = line[len("info string "):].partition(" ")
+            if key in ("eval", "network", "evalfile", "profile"):
+                fields[key] = val
+    if p.returncode != 0:
+        raise SystemExit(f"FAIL CLOSED: handshake {tag} exited {p.returncode}")
+    if not fields.get("eval", "").startswith("nnue"):
+        raise SystemExit(
+            f"FAIL CLOSED: {tag} reports eval={fields.get('eval')!r}; "
+            "the supplied artifact would not be used")
+    if not fields.get("network", "").startswith("nnue"):
+        raise SystemExit(f"FAIL CLOSED: {tag} reports network={fields.get('network')!r}")
+    if Path(fields.get("evalfile", "")).name != model.name:
+        raise SystemExit(
+            f"FAIL CLOSED: {tag} loaded evalfile={fields.get('evalfile')!r}, "
+            f"expected {model.name!r}")
+    return fields
+
+
 def build_openings(out: Path) -> list[str]:
     lines = BOOK.read_text(encoding="utf-8").splitlines()
     if len(lines) < BOOK_END:
@@ -71,9 +105,11 @@ def build_openings(out: Path) -> list[str]:
 
 def build_command(openings: Path, pgnout: Path, concurrency: int,
                   art_cand: Path = ART_CAND,
+                  art_base: Path = ART_BASE,
                   label_cand: str = LABEL_CAND,
-                  label_base: str = LABEL_BASE) -> list[str]:
-    eng = str(ENGINE.resolve())
+                  label_base: str = LABEL_BASE,
+                  engine: Path = ENGINE) -> list[str]:
+    eng = str(engine.resolve())
     return [
         str(CUTECHESS.resolve()),
         "-engine", f"name={label_cand}", f"cmd={eng}", "proto=uci",
@@ -85,7 +121,7 @@ def build_command(openings: Path, pgnout: Path, concurrency: int,
         "-engine", f"name={label_base}", f"cmd={eng}", "proto=uci",
         "arg=--profile", f"arg={PROFILE}",
         "arg=--evaluation", "arg=nnue",
-        "arg=--nnue-model", f"arg={ART_BASE.resolve()}",
+        "arg=--nnue-model", f"arg={art_base.resolve()}",
         "-variant", "standard",
         "-openings", f"file={openings.resolve()}", "format=epd",
         "order=sequential", "policy=default",
@@ -132,12 +168,18 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=OUTDIR)
     ap.add_argument("--candidate-art", type=Path, default=ART_CAND,
                     help="candidate net (default: S15 60M-run net)")
+    ap.add_argument("--baseline-art", type=Path, default=ART_BASE,
+                    help="baseline net (default: S14 production net)")
+    ap.add_argument("--engine", type=Path, default=ENGINE,
+                    help="engine binary used for BOTH sides")
     ap.add_argument("--label-cand", default=LABEL_CAND,
                     help="candidate engine label in the PGN")
     ap.add_argument("--label-base", default=LABEL_BASE,
                     help="baseline engine label in the PGN")
     args = ap.parse_args()
     art_cand = args.candidate_art
+    art_base = args.baseline_art
+    engine = args.engine
     label_cand = args.label_cand
     label_base = args.label_base
     outdir = args.out
@@ -151,14 +193,21 @@ def main() -> int:
     print(f"[screen] openings={len(sl)} (book {BOOK_START}-{BOOK_END}) -> "
           f"{openings}", flush=True)
     sha_c = sha256_file(art_cand)
-    sha_b = sha256_file(ART_BASE)
-    eng_sha = sha256_file(ENGINE)
+    sha_b = sha256_file(art_base)
+    eng_sha = sha256_file(engine)
     print(f"[screen] candidate {label_cand} net sha256={sha_c}", flush=True)
     print(f"[screen] baseline  {label_base} net sha256={sha_b}", flush=True)
     print(f"[screen] engine sha256={eng_sha}", flush=True)
 
-    cmd = build_command(openings, pgnout, args.concurrency, art_cand,
-                        label_cand, label_base)
+    hs_c = verify_evaluator(engine, art_cand, f"candidate {label_cand}")
+    hs_b = verify_evaluator(engine, art_base, f"baseline {label_base}")
+    print(f"[screen] handshake {label_cand}: " +
+          "  ".join(f"{k}={v}" for k, v in hs_c.items()), flush=True)
+    print(f"[screen] handshake {label_base}: " +
+          "  ".join(f"{k}={v}" for k, v in hs_b.items()), flush=True)
+
+    cmd = build_command(openings, pgnout, args.concurrency, art_cand, art_base,
+                        label_cand, label_base, engine)
     print("[screen] launching cutechess (256 games)...", flush=True)
     log = outdir / "screen-cutechess.log"
     with open(log, "w", encoding="utf-8") as lf:
