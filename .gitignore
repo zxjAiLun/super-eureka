@@ -172,3 +172,44 @@ data/s10/s11/r2/seed-20260819/*
 
 # S10-B3 python environment (torch cu130 from uv cache)
 .venv-s10/
+
+# Heavy training data and source corpora (local-only; do not delete to clean Git)
+/data/s15/
+/data/s16/
+/data/s17/
+/data/s6/sources/
+
+# Current conclusion artifacts: do not let /results/* hide final small reports.
+# Keep each new run directory opt-in; no blanket allowlist for arbitrary JSON.
+!/results/README.md
+!/results/s15short-valid/
+/results/s15short-valid/*
+!/results/s15short-valid/screen-report.json
+!/results/s15long-valid/
+/results/s15long-valid/*
+!/results/s15long-valid/screen-report.json
+!/results/s16-valid/
+/results/s16-valid/*
+!/results/s16-valid/screen-report.json
+!/results/s17-valid/
+/results/s17-valid/*
+!/results/s17-valid/screen-report.json
+!/results/s18-ab/
+/results/s18-ab/*
+!/results/s18-ab/qc1-match-report.json
+!/results/s18-ab/qc1-pairs.json
+!/results/s18-ab/qc1-cost-evidence.json
+
+# Results policy: final reports + compact evidence only (see results/README.md).
+# Never whitelist heavy/process outputs when adding a new round above.
+/results/**/models/
+/results/**/*.bin
+/results/**/*.exe
+/results/**/*.pt
+/results/**/*.pth
+/results/**/*.tar.gz
+/results/**/*.log
+/results/**/*.err
+/results/**/*.pid
+/results/**/*.pgn
+/results/**/promotion-package/
