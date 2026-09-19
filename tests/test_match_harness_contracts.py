@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -48,6 +49,111 @@ class EvaluatorContract(unittest.TestCase):
                         command = run.call_args.args[0]
                         self.assertEqual(command[command.index("--evaluation") + 1], "nnue")
                         self.assertIn("--nnue-model", command)
+
+
+class RunnerCorrectnessRegressions(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tmp_path = Path(self.tmp.name)
+
+    def test_s15_pairing_by_fen_survives_shuffle(self):
+        """P1-1: cutechess concurrency can write games out of launch order.
+        FEN-based pair grouping must compute the exact pentanomial regardless of PGN ordering,
+        whereas naive consecutive pair grouping produces an incorrect pentanomial."""
+        fen1 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+        fen2 = "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
+
+        def make_game(round_id, white, black, result, fen):
+            return (f'[Event "test"]\n[Round "{round_id}"]\n[White "{white}"]\n'
+                    f'[Black "{black}"]\n[Result "{result}"]\n[SetUp "1"]\n[FEN "{fen}"]\n\n'
+                    f'1... e5 2. Nf3 {result}\n\n')
+
+        # Opening 1: Cand wins both (WW, pair score 2.0 -> penta index 4)
+        g1a = make_game(1, "Cand", "Base", "1-0", fen1)
+        g1b = make_game(2, "Base", "Cand", "0-1", fen1)
+        # Opening 2: Cand loses both (LL, pair score 0.0 -> penta index 0)
+        g2a = make_game(3, "Cand", "Base", "0-1", fen2)
+        g2b = make_game(4, "Base", "Cand", "1-0", fen2)
+
+        # Interleave games in PGN: [g1a (1.0), g2a (0.0), g1b (1.0), g2b (0.0)]
+        # Naive consecutive pairing would see (g1a, g2a) -> 1.0 (idx 2) and (g1b, g2b) -> 1.0 (idx 2) => [0, 0, 2, 0, 0]
+        # True FEN-grouped pairing sees fen1 -> 2.0 (idx 4) and fen2 -> 0.0 (idx 0) => [1, 0, 0, 0, 1]
+        shuffled_pgn = self.tmp_path / "shuffled.pgn"
+        shuffled_pgn.write_text(g1a + g2a + g1b + g2b, encoding="utf-8")
+
+        stats = S15.parse_pgn_and_stats(shuffled_pgn, "Cand", "Base", expected_fens=[fen1, fen2])
+        self.assertEqual(stats["pentanomial"]["counts"], [1, 0, 0, 0, 1])
+
+        # Paired Elo CI also reflects the true pair scores [1.0, 0.0] (non-zero variance)
+        elo, ci = S15.paired_elo_ci(stats["pair_evidence"], 2.0, 4)
+        self.assertEqual(elo, 0.0)
+        self.assertIsNotNone(ci)
+        self.assertGreater(ci, 0.0)
+
+    def test_incomplete_match_fails_closed(self):
+        """P1-2: Incomplete matches (e.g. 137/256 games) or cutechess failures must
+        fail closed and NEVER generate a report or exit 0."""
+        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+        def make_game(round_id, white, black, result):
+            return (f'[Event "test"]\n[Round "{round_id}"]\n[White "{white}"]\n'
+                    f'[Black "{black}"]\n[Result "{result}"]\n[SetUp "1"]\n[FEN "{fen}"]\n\n'
+                    f'1. e4 e5 {result}\n\n')
+
+        # 137 games when 128 openings (256 games) are expected
+        pgn = self.tmp_path / "incomplete_137.pgn"
+        pgn.write_text("".join(make_game(i, "Cand" if i % 2 == 1 else "Base",
+                                         "Base" if i % 2 == 1 else "Cand",
+                                         "1/2-1/2") for i in range(1, 138)),
+                       encoding="utf-8")
+
+        fake_128_openings = [f"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - {i} 1" for i in range(128)]
+        with self.assertRaises(ValueError):
+            S15.parse_pgn_and_stats(pgn, "Cand", "Base", expected_fens=fake_128_openings)
+
+        with self.assertRaises(ValueError):
+            S17.parse_pgn_and_stats(pgn, "A-avx2", "B-scalar", expected_fens=fake_128_openings)
+
+    def test_s17_binary_source_not_bound_to_repo_head(self):
+        """P2: S17 report commit must come from binary UCI handshake provenance,
+        NOT from git rev-parse HEAD at script runtime. Mismatched arms must fail closed."""
+        # Case A: Binary handshake captures source SHA
+        handshake_output = (
+            "info string build eureka-v0.2.0-custom\n"
+            "info string source 315534991628ce084c34392d6abb98d71f3f591a\n"
+            "info string profile current-final\n"
+            "info string eval nnue-v2q\n"
+            "info string network nnue-v2q\n"
+            "info string evalfile model.bin\n"
+            "uciok\nreadyok\n"
+        )
+        with patch.object(S17.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0, stdout=handshake_output, stderr="")):
+            hs = S17.handshake(Path("engine.exe"), Path("model.bin"))
+            self.assertEqual(hs.get("source"), "315534991628ce084c34392d6abb98d71f3f591a")
+
+        # Case B: Matching binary sources resolve without calling git rev-parse
+        hs_a = {"source": "315534991628ce084c34392d6abb98d71f3f591a"}
+        hs_b = {"source": "315534991628ce084c34392d6abb98d71f3f591a"}
+        commit, prov = S17.resolve_source_commit(hs_a, hs_b)
+        self.assertEqual(commit, "315534991628ce084c34392d6abb98d71f3f591a")
+        self.assertEqual(prov, "binary_uci_handshake")
+
+        # Case C: Mismatched binary sources fail closed
+        hs_bad = {"source": "mismatched_commit"}
+        with self.assertRaises(SystemExit) as ctx:
+            S17.resolve_source_commit(hs_a, hs_bad)
+        self.assertIn("mismatch", str(ctx.exception))
+
+        # Case D: Missing binary source requires --source-commit
+        with self.assertRaises(SystemExit) as ctx:
+            S17.resolve_source_commit({}, {})
+        self.assertIn("--source-commit is required", str(ctx.exception))
+
+        commit, prov = S17.resolve_source_commit({}, {}, expected_commit="manual_sha")
+        self.assertEqual(commit, "manual_sha")
+        self.assertEqual(prov, "caller_supplied")
 
 
 if __name__ == "__main__":

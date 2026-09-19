@@ -30,7 +30,14 @@ import hashlib
 import json
 import math
 import subprocess
+import sys
 from pathlib import Path
+
+_TOOLS = str(Path(__file__).resolve().parents[1])
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+
+from paired_pgn import parse_pgn_and_stats, paired_elo_ci
 
 BOOK = Path(r"results\s3-promotion\run-001\openings.epd")
 BOOK_START = 321   # 1-indexed, inclusive
@@ -133,35 +140,6 @@ def build_command(openings: Path, pgnout: Path, concurrency: int,
     ]
 
 
-def parse_pgn(pgn: Path) -> list[tuple[str, str, str]]:
-    """Return per-game (white, black, result) in file order."""
-    games = []
-    white = black = result = None
-    for line in pgn.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("[White "):
-            white = line.split('"')[1]
-        elif line.startswith("[Black "):
-            black = line.split('"')[1]
-        elif line.startswith("[Result "):
-            result = line.split('"')[1]
-            if white is not None and black is not None:
-                games.append((white, black, result))
-                white = black = result = None
-    return games
-
-
-def score_for(cand: str, white: str, black: str, result: str):
-    """Candidate points for one game (1 win / 0.5 draw / 0 loss), or None
-    for an unfinished/unknown result."""
-    if result == "1/2-1/2":
-        return 0.5
-    if result == "1-0":
-        return 1.0 if white == cand else 0.0
-    if result == "0-1":
-        return 1.0 if black == cand else 0.0
-    return None
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--concurrency", type=int, default=6)
@@ -212,59 +190,21 @@ def main() -> int:
     log = outdir / "screen-cutechess.log"
     with open(log, "w", encoding="utf-8") as lf:
         proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT,
-                              text=True, timeout=14400)
+                              text=True, timeout=14400, check=True)
     print(f"[screen] cutechess exit={proc.returncode}", flush=True)
 
-    games = parse_pgn(pgnout)
-    n_total = len(games)
-    if n_total != 256:
-        print(f"[screen] WARNING: parsed {n_total} games (expected 256)",
-              flush=True)
-    W = D = L = 0
-    unfinished = 0
-    pts_per_game = []
-    for (white, black, result) in games:
-        s = score_for(label_cand, white, black, result)
-        pts_per_game.append(s)
-        if s is None:
-            unfinished += 1
-        elif s == 1.0:
-            W += 1
-        elif s == 0.5:
-            D += 1
-        else:
-            L += 1
-    n = W + D + L                       # finished games (score denominator)
+    stats = parse_pgn_and_stats(pgnout, label_cand, label_base, expected_fens=sl)
+    pairs = stats.pop("pair_evidence")
+    n = stats["games"]
+    W = stats["candidate_W"]
+    D = stats["draws"]
+    L = stats["candidate_L"]
     score_points = W + 0.5 * D
-    score_pct = 100.0 * score_points / n if n else 0.0
+    score_pct = stats["score_percent"]
+    penta = stats["pentanomial"]["counts"]
+    npairs = stats["pentanomial"]["pairs"]
 
-    # pentanomial over consecutive pairs (repeat 2); only complete pairs
-    penta = [0, 0, 0, 0, 0]   # [0, 0.5, 1, 1.5, 2]
-    pair_norm = []
-    for i in range(0, len(pts_per_game) - 1, 2):
-        a, b = pts_per_game[i], pts_per_game[i + 1]
-        if a is None or b is None:
-            continue
-        pair = a + b
-        idx = int(round(pair * 2))    # 0,1,2,3,4
-        penta[idx] += 1
-        pair_norm.append(pair / 2.0)  # normalized [0,1]
-    npairs = len(pair_norm)
-
-    # Elo + 95% CI from the pentanomial (paired) variance.
-    p = score_points / n if n else 0.0
-    if 0.0 < p < 1.0:
-        elo = -400.0 * math.log10(1.0 / p - 1.0)
-    else:
-        elo = float("inf") if p >= 1.0 else float("-inf")
-    if npairs > 1 and 0.0 < p < 1.0:
-        mean = sum(pair_norm) / npairs
-        var = sum((x - mean) ** 2 for x in pair_norm) / (npairs - 1)
-        se_p = math.sqrt(var / npairs)
-        d_elo_dp = 400.0 / (math.log(10) * p * (1.0 - p))
-        elo_ci95 = 1.96 * se_p * d_elo_dp
-    else:
-        elo_ci95 = float("nan")
+    elo, elo_ci95 = paired_elo_ci(pairs, score_points, n)
 
     if score_pct < 48.0:
         verdict = "FAIL"
@@ -294,16 +234,15 @@ def main() -> int:
         "engine_sha256": eng_sha,
         "result": {
             "games": n,
-            "games_total_in_pgn": n_total,
-            "unfinished": unfinished,
+            "games_total_in_pgn": n,
+            "unfinished": 0,
             "candidate_W": W,
             "draws": D,
             "candidate_L": L,
             "score_points": f"{score_points:g} / {n}",
             "score_percent": round(score_pct, 2),
-            "elo_descriptive": round(elo, 1),
-            "elo_ci95": round(elo_ci95, 1) if not math.isnan(elo_ci95)
-            else None,
+            "elo_descriptive": elo,
+            "elo_ci95": elo_ci95,
             "pentanomial_0to2": penta,
             "pairs": npairs,
         },

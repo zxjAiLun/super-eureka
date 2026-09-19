@@ -11,16 +11,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import subprocess
+import sys
 import time
-from collections import defaultdict
 from pathlib import Path
 
 import chess
 import chess.pgn
 
 ROOT = Path(__file__).resolve().parents[2]
+_TOOLS = str(Path(__file__).resolve().parents[1])
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+
+from paired_pgn import parse_pgn_and_stats, read_cutechess_elo
+
 PROFILE, TIME_CONTROL, HASH_MB, ROUNDS = "current-final", "10+0.1", 16, 256
 BOOK_START, BOOK_END = 321, 448
 CUTECHESS = ROOT / "tools/.cache/cutechess-1.5.1-win64/cutechess-cli.exe"
@@ -58,82 +63,6 @@ def verify_arm(exe: Path, model: Path, tag: str) -> dict:
             or Path(fields.get("evalfile", "")).name != model.name):
         raise ValueError(f"FAIL CLOSED: {tag} handshake {fields}")
     return fields
-
-
-def read_cutechess_elo(log: Path) -> dict:
-    matches = re.findall(r"^Elo difference: ([-+\d.]+) \+/- ([\d.]+), LOS: ([\d.]+) %.*$",
-                         log.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
-    if not matches:
-        raise ValueError("missing cutechess Elo summary; do not invent a CI")
-    elo, margin, los = map(float, matches[-1])
-    return {"source": "cutechess-cli summary (not a paired-CI recomputation)",
-            "elo": elo, "reported_ci95_half_width": margin, "los_percent": los}
-
-
-def parse_pgn_and_stats(pgn_path: Path, arm_a: str, arm_b: str,
-                        expected_fens: list[str] | None = None) -> dict:
-    """Validate complete color-swapped pairs; attribute times using actual turn.
-
-    No adjacency assumption: cutechess can finish games out of launch order.
-    Timings are rounded PGN move times, not CPU time or total search-node work.
-    """
-    groups = defaultdict(list)
-    times = {arm_a: [], arm_b: []}
-    moves = {arm_a: 0, arm_b: 0}
-    scores = []
-    rounds = set()
-    with pgn_path.open(encoding="utf-8") as fh:
-        while (game := chess.pgn.read_game(fh)) is not None:
-            h = game.headers
-            if game.errors or set((h.get("White"), h.get("Black"))) != {arm_a, arm_b}:
-                raise ValueError("illegal game or unexpected player")
-            if h.get("Result") not in ("1-0", "0-1", "1/2-1/2") or "FEN" not in h:
-                raise ValueError("unfinished game or missing opening FEN")
-            if h.get("Round") in rounds:
-                raise ValueError("duplicate game round")
-            rounds.add(h.get("Round"))
-            score = (0.5 if h["Result"] == "1/2-1/2" else
-                     float((h["Result"] == "1-0") == (h["White"] == arm_a)))
-            scores.append(score)
-            groups[h["FEN"]].append({"round": h["Round"],
-                                      "candidate_color": "white" if h["White"] == arm_a else "black",
-                                      "result": h["Result"], "candidate_points": score})
-            board = game.board()
-            for node in game.mainline():
-                engine = h["White"] if board.turn == chess.WHITE else h["Black"]
-                moves[engine] += 1
-                match = re.search(r"(?:^|\s)(\d+(?:\.\d+)?)s(?:\s|$)", node.comment)
-                if match:
-                    times[engine].append(float(match[1]))
-                board.push(node.move)
-    if not scores:
-        raise ValueError("empty PGN")
-    # cutechess format=epd consumes the first four fields and resets counters.
-    expected = ({" ".join(f.split()[:4]) + " 0 1" for f in expected_fens}
-                if expected_fens is not None else None)
-    if expected is not None and (set(groups) != expected
-                                or len(scores) != 2 * len(expected_fens)
-                                or len(expected) != len(expected_fens)):
-        raise ValueError("opening set or game count does not match protocol")
-    penta = [0] * 5
-    pairs = []
-    for fen, pair in sorted(groups.items()):
-        if len(pair) != 2 or {g["candidate_color"] for g in pair} != {"white", "black"}:
-            raise ValueError("opening is not a complete color-swapped pair")
-        penta[round(sum(g["candidate_points"] for g in pair) * 2)] += 1
-        pairs.append({"fen": fen, "games": sorted(pair, key=lambda g: g["candidate_color"])})
-    points = sum(scores)
-    return {"games": len(scores), "candidate_W": scores.count(1.0),
-            "draws": scores.count(0.5), "candidate_L": scores.count(0.0),
-            "score_points": f"{points:g} / {len(scores)}",
-            "score_percent": round(points / len(scores) * 100, 2),
-            "pentanomial": {"counts": penta, "labels": ["LL", "LD", "DD/WL", "WD", "WW"],
-                            "pairs": len(pairs)},
-            "move_time": {name: {"moves": moves[name], "timed_moves": len(ts),
-                                 "total_seconds": round(sum(ts), 2),
-                                 "avg_move_seconds": round(sum(ts) / len(ts), 6) if ts else None}
-                          for name, ts in times.items()},
-            "pair_evidence": pairs}
 
 
 def main() -> int:

@@ -28,8 +28,15 @@ import hashlib
 import json
 import math
 import subprocess
+import sys
 import time
 from pathlib import Path
+
+_TOOLS = str(Path(__file__).resolve().parents[1])
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+
+from paired_pgn import parse_pgn_and_stats, read_cutechess_elo
 
 PROFILE = "current-final"
 TIME_CONTROL = "10+0.1"
@@ -58,22 +65,6 @@ def read_openings() -> list[str]:
     return block
 
 
-def parse_pgn(pgn: Path) -> list[tuple[str, str, str]]:
-    games = []
-    white = black = result = None
-    for line in pgn.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("[White "):
-            white = line.split('"')[1]
-        elif line.startswith("[Black "):
-            black = line.split('"')[1]
-        elif line.startswith("[Result "):
-            result = line.split('"')[1]
-            if white is not None and black is not None:
-                games.append((white, black, result))
-                white = black = result = None
-    return games
-
-
 def handshake(exe: Path, model: Path) -> dict[str, str]:
     """Run the real startup handshake and return the reported eval fields.
 
@@ -91,7 +82,7 @@ def handshake(exe: Path, model: Path) -> dict[str, str]:
         if line.startswith("info string "):
             body = line[len("info string "):]
             key, _, val = body.partition(" ")
-            if key in ("eval", "network", "evalfile", "profile"):
+            if key in ("eval", "network", "evalfile", "profile", "source"):
                 fields[key] = val
     if p.returncode != 0:
         raise SystemExit(f"FAIL CLOSED: handshake for {exe.name} exited {p.returncode}")
@@ -115,6 +106,31 @@ def verify_arm(exe: Path, model: Path, tag: str) -> dict[str, str]:
     return f
 
 
+def resolve_source_commit(
+    hs_a: dict[str, str],
+    hs_b: dict[str, str],
+    expected_commit: str | None = None,
+) -> tuple[str, str]:
+    """Resolve binary source provenance without querying the git repo HEAD."""
+    src_a = hs_a.get("source")
+    src_b = hs_b.get("source")
+    if src_a and src_b:
+        if src_a != src_b:
+            raise SystemExit(
+                f"FAIL CLOSED: source commit mismatch between arms: "
+                f"arm A source {src_a!r} != arm B source {src_b!r}")
+        if expected_commit and expected_commit != src_a:
+            raise SystemExit(
+                f"FAIL CLOSED: binary source {src_a!r} does not match "
+                f"--source-commit {expected_commit!r}")
+        return src_a, "binary_uci_handshake"
+    if expected_commit:
+        return expected_commit, "caller_supplied"
+    raise SystemExit(
+        "FAIL CLOSED: binaries do not report source SHA; "
+        "--source-commit is required")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm-a", type=Path, required=True,
@@ -124,6 +140,8 @@ def main() -> int:
     ap.add_argument("--model", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--concurrency", type=int, default=4)
+    ap.add_argument("--source-commit", type=str, default=None,
+                    help="expected source commit SHA of the binary builds")
     args = ap.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -171,31 +189,31 @@ def main() -> int:
     print(f"[ab] openings={len(opening_lines)}", flush=True)
     hs_a = verify_arm(args.arm_a, args.model, "A-avx2")
     hs_b = verify_arm(args.arm_b, args.model, "B-scalar")
+
+    source_commit, source_provenance = resolve_source_commit(
+        hs_a, hs_b, args.source_commit)
+
     print(f"[ab] launching cutechess ({ROUNDS} games)...", flush=True)
     t0 = time.time()
     log = args.out / "ab-cutechess.log"
     with log.open("w", encoding="utf-8") as fh:
-        proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT)
+        subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, check=True, timeout=14400)
     elapsed = time.time() - t0
 
-    games = parse_pgn(pgnout)
-    W = D = L = 0
-    for white, black, res in games:
-        if res == "1/2-1/2":
-            D += 1
-        elif res == "1-0":
-            W += 1 if white == "A-avx2" else 0
-            L += 1 if white != "A-avx2" else 0
-        elif res == "0-1":
-            W += 1 if black == "A-avx2" else 0
-            L += 1 if black != "A-avx2" else 0
-    n = W + D + L
+    stats = parse_pgn_and_stats(pgnout, "A-avx2", "B-scalar", expected_fens=opening_lines)
+    stats.pop("pair_evidence", None)
+    n = stats["games"]
+    W = stats["candidate_W"]
+    D = stats["draws"]
+    L = stats["candidate_L"]
     score = W + 0.5 * D
-    pct = score / n * 100 if n else float("nan")
-    elo = -400 * math.log10(n / score - 1) if score else float("nan")
-    elo_lines = [line for line in log.read_text(encoding="utf-8", errors="replace").splitlines()
-                 if line.startswith("Elo difference:")]
-    elo_summary = elo_lines[-1] if elo_lines else None
+    pct = stats["score_percent"]
+    elo = -400 * math.log10(n / score - 1) if (score and score < n) else float("nan")
+
+    cute_elo = read_cutechess_elo(log)
+    elo_summary = (f"Elo difference: {cute_elo['elo']:+.1f} +/- "
+                   f"{cute_elo['reported_ci95_half_width']:.1f}, "
+                   f"LOS: {cute_elo['los_percent']:.1f} %")
     verdict = ("FAIL" if pct < 48 else "PARITY" if pct <= 52
                else "PROMISING")
 
@@ -205,10 +223,8 @@ def main() -> int:
         "note": ("same commit, same S14 artifact both sides; the only "
                  "difference is the SCReLU head implementation (AVX2 vs "
                  "scalar). Fixed time control so saved time becomes search."),
-        "commit": subprocess.run(["git", "rev-parse", "HEAD"],
-                                 capture_output=True, text=True,
-                                 cwd=Path(__file__).resolve().parents[2]
-                                 ).stdout.strip(),
+        "source_commit": source_commit,
+        "source_provenance": source_provenance,
         "protocol": (f"{ROUNDS} games over {len(opening_lines)} openings "
                      f"(book {BOOK_START}-{BOOK_END}), both colours, "
                      f"{TIME_CONTROL}, Hash {HASH_MB}, "
@@ -218,17 +234,20 @@ def main() -> int:
         "model_sha256": sha_m,
         "handshake_arm_a": hs_a,
         "handshake_arm_b": hs_b,
-        "returncode": proc.returncode,
+        "returncode": 0,
         "elapsed_seconds": round(elapsed, 1),
         "result": {
             "games": n,
             "candidate_W": W,
             "draws": D,
             "candidate_L": L,
-            "score_points": f"{score:g} / {n}",
-            "score_percent": round(pct, 2),
-            "elo_descriptive": round(elo, 1),
+            "score_points": stats["score_points"],
+            "score_percent": pct,
+            "elo_descriptive": round(elo, 1) if not math.isnan(elo) else None,
+            "cutechess_elo": cute_elo,
             "cutechess_elo_summary": elo_summary,
+            "pentanomial": stats["pentanomial"],
+            "move_time": stats["move_time"],
         },
         "verdict_bands": "<48% FAIL / 48-52% PARITY / >52% PROMISING",
         "verdict": verdict,
@@ -236,10 +255,6 @@ def main() -> int:
     (args.out / "ab-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8")
-    expected_games = len(opening_lines) * 2
-    if n != expected_games:
-        print(f"[ab] WARNING: {n} games recorded, expected {expected_games}",
-              flush=True)
     print(json.dumps(report["result"], indent=1), flush=True)
     print(f"[ab] VERDICT: {verdict} ({pct:.2f}%)  "
           f"elapsed {elapsed/60:.1f} min", flush=True)
