@@ -124,11 +124,23 @@ def resolve_source_commit(
                 f"FAIL CLOSED: binary source {src_a!r} does not match "
                 f"--source-commit {expected_commit!r}")
         return src_a, "binary_uci_handshake"
-    if expected_commit:
+    elif src_a or src_b:
+        known = src_a or src_b
+        if not expected_commit:
+            raise SystemExit(
+                f"FAIL CLOSED: only one binary reported source ({known!r}); "
+                f"--source-commit is required to verify provenance")
+        if known != expected_commit:
+            raise SystemExit(
+                f"FAIL CLOSED: known binary source {known!r} does not match "
+                f"--source-commit {expected_commit!r}")
+        return expected_commit, "caller_supplied_verified_by_one_binary"
+    else:
+        if not expected_commit:
+            raise SystemExit(
+                "FAIL CLOSED: binaries do not report source SHA; "
+                "--source-commit is required")
         return expected_commit, "caller_supplied"
-    raise SystemExit(
-        "FAIL CLOSED: binaries do not report source SHA; "
-        "--source-commit is required")
 
 
 def main() -> int:

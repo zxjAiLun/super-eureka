@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import chess
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -92,32 +94,52 @@ class RunnerCorrectnessRegressions(unittest.TestCase):
         self.assertGreater(ci, 0.0)
 
     def test_incomplete_match_fails_closed(self):
-        """P1-2: Incomplete matches (e.g. 137/256 games) or cutechess failures must
-        fail closed and NEVER generate a report or exit 0."""
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        """P1-2: Incomplete matches (e.g. 137/256 games across 128 distinct openings)
+        must fail closed due to game count / opening set mismatch, never generating a report."""
+        openings = S17.read_openings()
+        self.assertEqual(len(openings), 128)
+        normalized = [" ".join(f.split()[:4]) + " 0 1" for f in openings]
+        self.assertEqual(len(set(normalized)), 128)
 
-        def make_game(round_id, white, black, result):
-            return (f'[Event "test"]\n[Round "{round_id}"]\n[White "{white}"]\n'
-                    f'[Black "{black}"]\n[Result "{result}"]\n[SetUp "1"]\n[FEN "{fen}"]\n\n'
-                    f'1. e4 e5 {result}\n\n')
+        # Helper to generate 137 games for specified arm names across 128 openings
+        def make_137_pgn(arm_a, arm_b, target_path):
+            pgn_games = []
+            for i in range(137):
+                op_idx = i // 2
+                fen = normalized[op_idx]
+                is_white = (i % 2 == 0)
+                white = arm_a if is_white else arm_b
+                black = arm_b if is_white else arm_a
+                b = chess.Board(fen)
+                m = list(b.legal_moves)[0].uci()
+                pgn_games.append(f'[Event "test"]\n[Round "{i+1}"]\n[White "{white}"]\n'
+                                 f'[Black "{black}"]\n[Result "1/2-1/2"]\n[SetUp "1"]\n'
+                                 f'[FEN "{fen}"]\n\n1. {m} 1/2-1/2\n\n')
+            target_path.write_text("".join(pgn_games), encoding="utf-8")
 
-        # 137 games when 128 openings (256 games) are expected
-        pgn = self.tmp_path / "incomplete_137.pgn"
-        pgn.write_text("".join(make_game(i, "Cand" if i % 2 == 1 else "Base",
-                                         "Base" if i % 2 == 1 else "Cand",
-                                         "1/2-1/2") for i in range(1, 138)),
-                       encoding="utf-8")
+        # Test S15 runner
+        pgn_s15 = self.tmp_path / "incomplete_137_s15.pgn"
+        make_137_pgn("Cand", "Base", pgn_s15)
+        with self.assertRaises(ValueError) as ctx:
+            S15.parse_pgn_and_stats(pgn_s15, "Cand", "Base", expected_fens=openings)
+        self.assertIn("opening set or game count does not match protocol", str(ctx.exception))
 
-        fake_128_openings = [f"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - {i} 1" for i in range(128)]
-        with self.assertRaises(ValueError):
-            S15.parse_pgn_and_stats(pgn, "Cand", "Base", expected_fens=fake_128_openings)
+        # Test S17 runner
+        pgn_s17 = self.tmp_path / "incomplete_137_s17.pgn"
+        make_137_pgn("A-avx2", "B-scalar", pgn_s17)
+        with self.assertRaises(ValueError) as ctx:
+            S17.parse_pgn_and_stats(pgn_s17, "A-avx2", "B-scalar", expected_fens=openings)
+        self.assertIn("opening set or game count does not match protocol", str(ctx.exception))
 
-        with self.assertRaises(ValueError):
-            S17.parse_pgn_and_stats(pgn, "A-avx2", "B-scalar", expected_fens=fake_128_openings)
+        # Even without expected_fens, opening 68 has only 1 game -> pair incomplete
+        with self.assertRaises(ValueError) as ctx:
+            S15.parse_pgn_and_stats(pgn_s15, "Cand", "Base", expected_fens=None)
+        self.assertIn("opening is not a complete color-swapped pair", str(ctx.exception))
 
     def test_s17_binary_source_not_bound_to_repo_head(self):
-        """P2: S17 report commit must come from binary UCI handshake provenance,
-        NOT from git rev-parse HEAD at script runtime. Mismatched arms must fail closed."""
+        """P2 & P1: S17 report commit must come from binary UCI handshake provenance,
+        NOT from git rev-parse HEAD at script runtime. Mismatched arms and partial
+        provenance conflicts must fail closed."""
         # Case A: Binary handshake captures source SHA
         handshake_output = (
             "info string build eureka-v0.2.0-custom\n"
@@ -146,7 +168,24 @@ class RunnerCorrectnessRegressions(unittest.TestCase):
             S17.resolve_source_commit(hs_a, hs_bad)
         self.assertIn("mismatch", str(ctx.exception))
 
-        # Case D: Missing binary source requires --source-commit
+        # Case D (P1 fix): Partial provenance - one binary reports source, other does not
+        hs_one = {"source": "known_commit_x"}
+        # Subcase D1: Caller supplies conflicting commit Y -> MUST FAIL CLOSED
+        with self.assertRaises(SystemExit) as ctx:
+            S17.resolve_source_commit(hs_one, {}, expected_commit="conflicting_commit_y")
+        self.assertIn("does not match", str(ctx.exception))
+
+        # Subcase D2: Caller supplies no commit -> MUST FAIL CLOSED
+        with self.assertRaises(SystemExit) as ctx:
+            S17.resolve_source_commit(hs_one, {})
+        self.assertIn("only one binary reported source", str(ctx.exception))
+
+        # Subcase D3: Caller supplies matching commit X -> verified
+        commit, prov = S17.resolve_source_commit(hs_one, {}, expected_commit="known_commit_x")
+        self.assertEqual(commit, "known_commit_x")
+        self.assertEqual(prov, "caller_supplied_verified_by_one_binary")
+
+        # Case E: Missing binary sources require --source-commit
         with self.assertRaises(SystemExit) as ctx:
             S17.resolve_source_commit({}, {})
         self.assertIn("--source-commit is required", str(ctx.exception))
